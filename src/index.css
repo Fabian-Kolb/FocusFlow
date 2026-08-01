@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 450;
+    background-color: #FBF9F9;
+    color: #1A1A1A;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer utilities {
+  .mono {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+  }
+
+  /* Prevent messy line breaks on mobile badges with smooth touch scroll */
+  .no-wrap-scroll {
+    white-space: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .no-wrap-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* LAUFBAND (MARQUEE) ANIMATION FÜR ÜBERSTEHENDE TEXTE */
+  .marquee-wrapper {
+    overflow: hidden;
+    white-space: nowrap;
+    position: relative;
+    max-width: 100%;
+  }
+
+  .marquee-content {
+    display: inline-block;
+    white-space: nowrap;
+  }
+
+  /* Animation wird NUR aktiviert, wenn der Text tatsächlich breiter als die Karte/Box ist! */
+  .marquee-content.animate-marquee {
+    animation: marqueeScroll 5.5s ease-in-out infinite alternate;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #E5E5E5;
+}
+
+@keyframes marqueeScroll {
+  0% {
+    transform: translateX(0);
+  }
+  10% {
+    transform: translateX(0);
+  }
+  90% {
+    transform: translateX(calc(-100% + var(--marquee-parent-width, 100%)));
+  }
+  100% {
+    transform: translateX(calc(-100% + var(--marquee-parent-width, 100%)));
+  }
+}

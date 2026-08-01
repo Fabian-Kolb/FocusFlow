@@ -1,0 +1,2614 @@
+<!DOCTYPE html>
+<html class="light" lang="de">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>FocusFlow | Minimalist Productivity</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <!-- Material Symbols -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <!-- Google Fonts: Inter & Plus Jakarta Sans -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap"
+        rel="stylesheet" />
+
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "surface": "#FBF9F9",
+                        "surface-low": "#F5F3F3",
+                        "surface-card": "#FFFFFF",
+                        "primary": "#1A1A1A",
+                        "on-primary": "#FFFFFF",
+                        "outline-variant": "#E5E5E5",
+                        "on-surface-variant": "#737373",
+                        "accent-blue": "#0052FF"
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['Plus Jakarta Sans', 'Inter', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #FBF9F9;
+            color: #1A1A1A;
+            min-height: 100vh;
+        }
+
+        .mono {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        /* Ensure inactive screens are strictly hidden */
+        [data-screen]:not(.active) {
+            display: none !important;
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #E5E5E5;
+        }
+
+        /* Prevent messy line breaks on mobile badges with smooth touch scroll */
+        .no-wrap-scroll {
+            white-space: nowrap;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+
+        .no-wrap-scroll::-webkit-scrollbar {
+            display: none;
+        }
+
+        /* LAUFBAND (MARQUEE) ANIMATION FÜR ÜBERSTEHENDE TEXTE */
+        .marquee-wrapper {
+            overflow: hidden;
+            white-space: nowrap;
+            position: relative;
+            max-width: 100%;
+        }
+
+        .marquee-content {
+            display: inline-block;
+            white-space: nowrap;
+        }
+
+        /* Animation wird NUR aktiviert, wenn der Text tatsächlich breiter als die Karte/Box ist! */
+        .marquee-content.animate-marquee {
+            animation: marqueeScroll 5.5s ease-in-out infinite alternate;
+        }
+
+        .marquee-wrapper:hover .marquee-content.animate-marquee {
+            animation-play-state: paused;
+        }
+
+        @keyframes marqueeScroll {
+            0% {
+                transform: translateX(0px);
+            }
+
+            5% {
+                transform: translateX(0px);
+                /* Kurzer Stopp am Anfang */
+            }
+
+            95% {
+                transform: translateX(var(--scroll-offset, -60px));
+                /* Dynamisch berechneter exakter Endpunkt */
+            }
+
+            100% {
+                transform: translateX(var(--scroll-offset, -60px));
+                /* Kurzer Stopp am Ende vor Rückkehr */
+            }
+        }
+
+        /* Screen transition */
+        .screen-transition {
+            animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(6px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-surface text-primary antialiased">
+    <div class="flex h-screen overflow-hidden">
+        <!-- Navigation Sidebar (Desktop) -->
+        <aside
+            class="hidden md:flex flex-col h-full w-64 min-w-[256px] max-w-[256px] flex-shrink-0 border-r border-outline-variant bg-surface py-6 px-4 sticky top-0 z-30"
+            id="desktop-nav">
+            <div class="px-3 mb-8">
+                <span class="text-xl font-bold tracking-tight text-primary mono">FocusFlow</span>
+                <span class="block text-xs text-on-surface-variant mono mt-1">v1.0 • MINIMALIST</span>
+            </div>
+
+            <nav class="flex flex-col gap-1 flex-grow">
+                <button
+                    class="flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-all rounded hover:bg-surface-low text-primary border-r-2 border-primary font-bold"
+                    data-nav="dashboard" onclick="switchScreen('dashboard')">
+                    <span class="material-symbols-outlined text-[20px]">home</span>
+                    <span>Home</span>
+                </button>
+                <button
+                    class="flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-all rounded hover:bg-surface-low text-on-surface-variant"
+                    data-nav="inbox" onclick="switchScreen('inbox')">
+                    <span class="material-symbols-outlined text-[20px]">inbox</span>
+                    <span>Inbox</span>
+                </button>
+                <button
+                    class="flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-all rounded hover:bg-surface-low text-on-surface-variant"
+                    data-nav="projects" onclick="switchScreen('projects')">
+                    <span class="material-symbols-outlined text-[20px]">folder</span>
+                    <span>Projekte</span>
+                </button>
+                <button
+                    class="flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-all rounded hover:bg-surface-low text-on-surface-variant"
+                    data-nav="calendar" onclick="switchScreen('calendar')">
+                    <span class="material-symbols-outlined text-[20px]">calendar_today</span>
+                    <span>Kalender</span>
+                </button>
+                <button
+                    class="flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-all rounded hover:bg-surface-low text-on-surface-variant"
+                    data-nav="coach" onclick="switchScreen('coach')">
+                    <span class="material-symbols-outlined text-[20px]">smart_toy</span>
+                    <span>AI Coach</span>
+                </button>
+                <button
+                    class="flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-all rounded hover:bg-surface-low text-on-surface-variant"
+                    data-nav="review" onclick="switchScreen('review')">
+                    <span class="material-symbols-outlined text-[20px]">analytics</span>
+                    <span>Wochenrückblick</span>
+                </button>
+            </nav>
+
+            <div class="px-3 pt-4 border-t border-outline-variant">
+                <div class="flex items-center gap-3">
+                    <div
+                        class="w-8 h-8 rounded-full bg-surface-low flex items-center justify-center border border-outline-variant font-mono text-xs font-bold">
+                        FF
+                    </div>
+                    <div class="text-xs">
+                        <p class="font-medium">Fabian</p>
+                        <p class="text-on-surface-variant text-[10px] mono">Pro Workspace</p>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Workspace Canvas -->
+        <main class="flex-grow min-w-0 overflow-y-auto relative pb-20 md:pb-0 h-full">
+            <!-- Header Bar -->
+            <header
+                class="w-full sticky top-0 z-20 bg-surface/90 backdrop-blur-md border-b border-outline-variant flex items-center justify-between px-3 sm:px-6 h-16">
+                <div class="flex items-center gap-3 min-w-0">
+                    <span class="text-base sm:text-lg font-semibold tracking-tight truncate"
+                        id="screen-title">Dashboard</span>
+                </div>
+                <div class="flex items-center gap-4 flex-shrink-0">
+                    <span
+                        class="text-[10px] sm:text-xs mono px-2 sm:px-2.5 py-1 bg-surface-low border border-outline-variant whitespace-nowrap">SYSTEM:
+                        READY</span>
+                </div>
+            </header>
+
+            <!-- Screen Container mit maximaler Platzausnutzung (Minimaler Außenabstand) -->
+            <div class="max-w-[1400px] mx-auto px-2 sm:px-4 md:px-8 py-4 sm:py-8">
+
+                <!-- SCREEN 1: DASHBOARD (HOME) -->
+                <section class="active screen-transition" data-screen="dashboard">
+                    <div
+                        class="mb-6 sm:mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-outline-variant pb-6">
+                        <div>
+                            <span class="text-xs text-on-surface-variant mb-1 block mono uppercase">Fokus-Modus</span>
+                            <h1 class="text-2xl sm:text-3xl md:text-4xl font-bold leading-tight">Guten Morgen, Fabian
+                            </h1>
+                        </div>
+
+                        <!-- KI-Coach Trigger -->
+                        <div class="p-3 bg-white border border-primary flex items-center gap-3 hover:border-black transition-all cursor-pointer shadow-sm group w-full md:w-auto"
+                            onclick="switchScreen('coach')">
+                            <div
+                                class="w-9 h-9 bg-primary text-on-primary flex items-center justify-center flex-shrink-0">
+                                <span class="material-symbols-outlined text-[18px]">auto_awesome</span>
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <span
+                                    class="text-[11px] font-mono font-bold block text-primary uppercase whitespace-nowrap">ANFANGSHILFE
+                                    (KI COACH)</span>
+                                <div class="marquee-wrapper">
+                                    <p
+                                        class="text-xs text-on-surface-variant group-hover:text-primary transition-colors marquee-content">
+                                        Blockade beim Start? Coach nach dem ersten Schritt fragen →</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Haupt-Ergebnis heute (The Main Outcome) -->
+                    <div class="p-3.5 sm:p-6 bg-white border-2 border-primary mb-6 sm:mb-8 shadow-sm">
+                        <div class="flex items-center justify-between gap-2 mb-2">
+                            <span
+                                class="text-[11px] sm:text-xs font-mono font-bold text-primary uppercase tracking-wider flex items-center gap-1.5 truncate">
+                                <span
+                                    class="material-symbols-outlined text-[16px] sm:text-[18px] flex-shrink-0">stars</span>
+                                <span class="truncate">HAUPT-ERGEBNIS HEUTE (MUST-WIN)</span>
+                            </span>
+                            <span
+                                class="text-[10px] sm:text-xs mono px-2 py-0.5 bg-surface-low border border-outline-variant font-bold whitespace-nowrap flex-shrink-0">PRIO
+                                1</span>
+                        </div>
+                        <div class="marquee-wrapper">
+                            <p class="text-base sm:text-lg font-bold leading-snug marquee-content">Marktanalyse für
+                                Projekt 'Re-Branding 2024' abschließen</p>
+                        </div>
+                        <p class="text-xs text-on-surface-variant mt-1">Dieses eine konkrete Ergebnis macht deinen
+                            heutigen Tag zum vollen Erfolg.</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        <!-- Hauptliste "Heute" -->
+                        <div class="lg:col-span-8 space-y-6">
+                            <div class="flex items-center justify-between gap-2 border-b border-primary pb-2">
+                                <div class="flex items-center gap-2 sm:gap-3 flex-wrap sm:flex-nowrap">
+                                    <h2 class="text-lg sm:text-xl font-bold">Heute</h2>
+                                    <span
+                                        class="text-[10px] sm:text-[11px] font-mono px-2 py-0.5 bg-surface-low border border-outline-variant text-primary font-medium whitespace-nowrap"
+                                        title="Optimales Tageslimit für maximale Fokus-Qualität">
+                                        KAPAZITÄT: 4 / MAX 5 (OPTIMAL)
+                                    </span>
+                                </div>
+                                <span class="text-xs text-on-surface-variant mono whitespace-nowrap"
+                                    id="today-counter">2/4 Erledigt</span>
+                            </div>
+
+                            <div class="space-y-2" id="today-tasks-container">
+                                <div
+                                    class="p-3 sm:p-4 bg-white border border-outline-variant flex items-center gap-3 sm:gap-4 group hover:border-primary transition-all">
+                                    <input type="checkbox"
+                                        class="w-5 h-5 border-2 border-outline-variant text-primary rounded-none focus:ring-0 cursor-pointer mt-0.5 flex-shrink-0"
+                                        onchange="toggleTaskStatus(this)" />
+                                    <div class="flex-grow min-w-0">
+                                        <div
+                                            class="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-mono text-on-surface-variant mb-0.5 no-wrap-scroll">
+                                            <span class="font-bold text-primary">Re-Branding 2024</span>
+                                            <span>›</span>
+                                            <span>Phase 1: Vorbereitung</span>
+                                        </div>
+                                        <div class="marquee-wrapper">
+                                            <span
+                                                class="text-xs sm:text-sm font-medium block marquee-content">Marktanalyse
+                                                für Projekt 'Re-Branding' abschließen</span>
+                                        </div>
+                                    </div>
+                                    <span
+                                        class="text-[11px] sm:text-xs text-on-surface-variant mono whitespace-nowrap flex-shrink-0">09:00
+                                        Uhr</span>
+                                </div>
+
+                                <div
+                                    class="p-3 sm:p-4 bg-white border border-outline-variant flex items-center gap-3 sm:gap-4 group hover:border-primary transition-all">
+                                    <input type="checkbox"
+                                        class="w-5 h-5 border-2 border-outline-variant text-primary rounded-none focus:ring-0 cursor-pointer mt-0.5 flex-shrink-0"
+                                        onchange="toggleTaskStatus(this)" />
+                                    <div class="flex-grow min-w-0">
+                                        <div
+                                            class="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-mono text-on-surface-variant mb-0.5 no-wrap-scroll">
+                                            <span class="font-bold text-primary">Re-Branding 2024</span>
+                                            <span>›</span>
+                                            <span>Phase 2: Konzept</span>
+                                        </div>
+                                        <div class="marquee-wrapper">
+                                            <span class="text-xs sm:text-sm font-medium block marquee-content">Deep
+                                                Work: UI Design Prototyping</span>
+                                        </div>
+                                    </div>
+                                    <span
+                                        class="text-[11px] sm:text-xs text-on-surface-variant mono whitespace-nowrap flex-shrink-0">11:00
+                                        Uhr</span>
+                                </div>
+
+                                <div
+                                    class="p-3 sm:p-4 bg-white border border-outline-variant flex items-center gap-3 sm:gap-4 group opacity-60">
+                                    <input type="checkbox" checked
+                                        class="w-5 h-5 border-2 border-outline-variant text-primary rounded-none focus:ring-0 cursor-pointer mt-0.5 flex-shrink-0"
+                                        onchange="toggleTaskStatus(this)" />
+                                    <div class="flex-grow min-w-0">
+                                        <div
+                                            class="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-mono text-on-surface-variant mb-0.5 no-wrap-scroll">
+                                            <span class="font-bold text-primary">Orga & Routine</span>
+                                            <span>›</span>
+                                            <span>Tagesabschluss</span>
+                                        </div>
+                                        <span class="text-xs sm:text-sm font-medium block line-through truncate">E-Mails
+                                            & Benachrichtigungen sortieren</span>
+                                    </div>
+                                    <span
+                                        class="text-[11px] sm:text-xs text-on-surface-variant mono whitespace-nowrap flex-shrink-0">08:00
+                                        Uhr</span>
+                                </div>
+
+                                <div
+                                    class="p-3 sm:p-4 bg-white border border-outline-variant flex items-center gap-3 sm:gap-4 group opacity-60">
+                                    <input type="checkbox" checked
+                                        class="w-5 h-5 border-2 border-outline-variant text-primary rounded-none focus:ring-0 cursor-pointer mt-0.5 flex-shrink-0"
+                                        onchange="toggleTaskStatus(this)" />
+                                    <div class="flex-grow min-w-0">
+                                        <div
+                                            class="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-mono text-on-surface-variant mb-0.5 no-wrap-scroll">
+                                            <span class="font-bold text-primary">Teamevent Planung</span>
+                                            <span>›</span>
+                                            <span>Phase 1: Abstimmung</span>
+                                        </div>
+                                        <span class="text-xs sm:text-sm font-medium block line-through truncate">Weekly
+                                            Alignment mit dem Team</span>
+                                    </div>
+                                    <span
+                                        class="text-[11px] sm:text-xs text-on-surface-variant mono whitespace-nowrap flex-shrink-0">08:30
+                                        Uhr</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sidebar Widgets -->
+                        <div class="lg:col-span-4 space-y-6">
+                            <div class="p-4 sm:p-6 bg-surface-low border border-outline-variant">
+                                <h3
+                                    class="text-xs font-mono text-on-surface-variant mb-4 border-b border-outline-variant pb-2 uppercase">
+                                    FOKUS SCORE</h3>
+                                <div class="flex items-end gap-2 mb-3">
+                                    <span class="text-4xl font-bold leading-none">84</span>
+                                    <span class="text-xs text-on-surface-variant mb-1 mono">/100</span>
+                                </div>
+                                <div class="w-full bg-outline-variant h-1.5">
+                                    <div class="bg-primary h-full" style="width: 84%"></div>
+                                </div>
+                            </div>
+
+                            <div class="p-4 sm:p-6 bg-white border border-outline-variant hover:border-primary transition-all cursor-pointer"
+                                onclick="switchScreen('project-detail')">
+                                <h3
+                                    class="text-xs font-mono text-on-surface-variant mb-3 border-b border-outline-variant pb-2 uppercase">
+                                    NÄCHSTES PROJEKT</h3>
+                                <p class="text-base font-bold mb-1 truncate">Re-Branding 2024</p>
+                                <p class="text-xs text-on-surface-variant mb-3 truncate">Nächste Etappe: Stakeholder
+                                    Interviews führen</p>
+                                <div class="flex justify-between text-xs mono mb-1">
+                                    <span>Fortschritt</span>
+                                    <span>45%</span>
+                                </div>
+                                <div class="w-full bg-surface-low h-1.5 border border-outline-variant">
+                                    <div class="bg-primary h-full" style="width: 45%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SCREEN 2: INBOX -->
+                <section class="screen-transition" data-screen="inbox">
+                    <div class="max-w-4xl mx-auto space-y-6 sm:space-y-8">
+                        <div class="p-3.5 sm:p-6 bg-white border border-primary">
+                            <label
+                                class="text-xs font-mono block mb-3 uppercase tracking-wider text-on-surface-variant">WAS
+                                GEHT DIR DURCH DEN KOPF?</label>
+
+                            <div class="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                                <div class="flex-grow flex items-center gap-2">
+                                    <input type="text" id="inbox-input"
+                                        class="w-full border border-outline-variant px-3 sm:px-4 py-2.5 sm:py-3 text-sm focus:border-primary focus:ring-0 outline-none"
+                                        placeholder="Neuer Gedanke, Aufgabe oder Notiz..."
+                                        onkeydown="if(event.key==='Enter') addInboxItem()" />
+                                    <button
+                                        class="px-3 py-2.5 sm:py-3 border border-outline-variant bg-surface-low text-primary hover:border-primary transition-colors flex items-center justify-center flex-shrink-0"
+                                        title="Spracheingabe starten" onclick="simulateVoiceInput()">
+                                        <span class="material-symbols-outlined text-[20px]">mic</span>
+                                    </button>
+                                </div>
+                                <button
+                                    class="w-full sm:w-auto px-5 py-2.5 sm:py-3 bg-primary text-on-primary text-sm font-medium hover:bg-neutral-800 transition-colors whitespace-nowrap flex-shrink-0"
+                                    onclick="addInboxItem()">Hinzufügen</button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h2
+                                class="text-xs font-mono text-on-surface-variant mb-3 border-b border-outline-variant pb-1 uppercase">
+                                HEUTE</h2>
+                            <div class="space-y-2" id="inbox-today-list">
+                                <div
+                                    class="bg-white p-3.5 sm:p-4 border border-outline-variant flex items-center justify-between gap-3 group hover:border-primary transition-all">
+                                    <span class="text-xs sm:text-sm">Richtlinien & Dokumentation für Design System
+                                        lesen</span>
+                                    <div class="relative flex-shrink-0">
+                                        <button class="p-1 hover:bg-surface-low transition-colors"
+                                            onclick="toggleDropdown(this)">
+                                            <span class="material-symbols-outlined text-[20px]">more_vert</span>
+                                        </button>
+                                        <div
+                                            class="hidden absolute right-0 top-full mt-1 bg-white border border-primary z-20 w-48 shadow-lg">
+                                            <button
+                                                class="w-full text-left px-4 py-2.5 hover:bg-surface-low text-xs font-medium"
+                                                onclick="convertInboxToProject(this)">Zu Projekt umwandeln</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div
+                                    class="bg-white p-3.5 sm:p-4 border border-outline-variant flex items-center justify-between gap-3 group hover:border-primary transition-all">
+                                    <span class="text-xs sm:text-sm">Einkaufsliste für Server-Setup vorbereiten</span>
+                                    <div class="relative flex-shrink-0">
+                                        <button class="p-1 hover:bg-surface-low transition-colors"
+                                            onclick="toggleDropdown(this)">
+                                            <span class="material-symbols-outlined text-[20px]">more_vert</span>
+                                        </button>
+                                        <div
+                                            class="hidden absolute right-0 top-full mt-1 bg-white border border-primary z-20 w-48 shadow-lg">
+                                            <button
+                                                class="w-full text-left px-4 py-2.5 hover:bg-surface-low text-xs font-medium"
+                                                onclick="convertInboxToProject(this)">Zu Projekt umwandeln</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h2
+                                class="text-xs font-mono text-on-surface-variant mb-3 border-b border-outline-variant pb-1 uppercase">
+                                GESTERN</h2>
+                            <div class="space-y-2">
+                                <div
+                                    class="bg-white p-3.5 sm:p-4 border border-outline-variant flex items-center justify-between gap-3 group opacity-75">
+                                    <span class="text-xs sm:text-sm text-on-surface-variant">Altes Software-Abonnement
+                                        kündigen</span>
+                                    <div class="relative flex-shrink-0">
+                                        <button class="p-1 hover:bg-surface-low transition-colors"
+                                            onclick="toggleDropdown(this)">
+                                            <span class="material-symbols-outlined text-[20px]">more_vert</span>
+                                        </button>
+                                        <div
+                                            class="hidden absolute right-0 top-full mt-1 bg-white border border-primary z-20 w-48 shadow-lg">
+                                            <button
+                                                class="w-full text-left px-4 py-2.5 hover:bg-surface-low text-xs font-medium"
+                                                onclick="convertInboxToProject(this)">Zu Projekt umwandeln</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SCREEN 3: PROJEKTE (GRID) -->
+                <section class="screen-transition" data-screen="projects">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                        <div class="relative flex-grow max-w-md">
+                            <span
+                                class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span>
+                            <input type="text"
+                                class="w-full pl-10 pr-4 py-2.5 border border-outline-variant bg-white focus:border-primary transition-colors outline-none text-sm"
+                                placeholder="Projekte durchsuchen..." />
+                        </div>
+                        <button
+                            class="px-6 py-2.5 bg-primary text-on-primary text-sm font-medium hover:bg-neutral-800 transition-colors whitespace-nowrap"
+                            onclick="openProjectModal()">Neues Projekt</button>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6" id="projects-grid">
+
+                        <!-- Card 1 -->
+                        <div class="text-left p-4 sm:p-6 bg-white border border-outline-variant hover:border-primary transition-all flex flex-col justify-between h-[280px] cursor-pointer"
+                            onclick="switchScreen('project-detail')">
+                            <div>
+                                <div class="marquee-wrapper mb-1">
+                                    <h3 class="text-lg font-bold hover:underline leading-snug marquee-content">
+                                        Re-Branding 2024</h3>
+                                </div>
+                                <p class="text-xs text-on-surface-variant font-mono mb-2 truncate">
+                                    12.04.24 – 30.06.24 <span class="font-bold text-primary">(NOCH 14 TAGE)</span>
+                                </p>
+                            </div>
+
+                            <div
+                                class="grid grid-cols-2 gap-2 my-1 p-2 bg-surface-low border border-outline-variant text-[11px] font-mono">
+                                <div>
+                                    <span class="text-on-surface-variant block text-[10px] uppercase">Phasen</span>
+                                    <span class="font-bold text-primary">1 / 3 Erledigt</span>
+                                </div>
+                                <div>
+                                    <span class="text-on-surface-variant block text-[10px] uppercase">Unterpunkte</span>
+                                    <span class="font-bold text-primary">9 / 20 Tasks</span>
+                                </div>
+                            </div>
+
+                            <div class="space-y-2 border-t border-outline-variant pt-2.5">
+                                <div class="flex items-center justify-between">
+                                    <span
+                                        class="text-[10px] font-mono font-bold px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 whitespace-nowrap">⚠️
+                                        4 TAGE RÜCKSTAND</span>
+                                </div>
+
+                                <div>
+                                    <div class="flex justify-between items-center text-[11px] mono font-bold mb-0.5">
+                                        <span>FORTSCHRITT</span>
+                                        <span>45%</span>
+                                    </div>
+                                    <div class="w-full bg-surface-low h-2 border border-outline-variant">
+                                        <div class="bg-primary h-full" style="width: 45%"></div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div
+                                        class="flex justify-between items-center text-[10px] mono text-on-surface-variant mb-0.5">
+                                        <span>VERSTRICHENE ZEIT</span>
+                                        <span>68%</span>
+                                    </div>
+                                    <div class="w-full bg-surface-low h-1.5 border border-outline-variant">
+                                        <div class="bg-neutral-400 h-full" style="width: 68%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Card 2 (Langer Titel zum Testen des Laufbands) -->
+                        <div class="text-left p-4 sm:p-6 bg-white border border-outline-variant hover:border-primary transition-all flex flex-col justify-between h-[280px] cursor-pointer"
+                            onclick="switchScreen('project-detail')">
+                            <div>
+                                <div class="marquee-wrapper mb-1">
+                                    <h3 class="text-lg font-bold hover:underline leading-snug marquee-content">
+                                        Markteintritt APAC Expansion & Partnering</h3>
+                                </div>
+                                <p class="text-xs text-on-surface-variant font-mono mb-2 truncate">
+                                    01.03.24 – 15.12.24 <span class="font-bold text-primary">(NOCH 5 MONATE)</span>
+                                </p>
+                            </div>
+
+                            <div
+                                class="grid grid-cols-2 gap-2 my-1 p-2 bg-surface-low border border-outline-variant text-[11px] font-mono">
+                                <div>
+                                    <span class="text-on-surface-variant block text-[10px] uppercase">Phasen</span>
+                                    <span class="font-bold text-primary">0 / 4 Erledigt</span>
+                                </div>
+                                <div>
+                                    <span class="text-on-surface-variant block text-[10px] uppercase">Unterpunkte</span>
+                                    <span class="font-bold text-primary">4 / 20 Tasks</span>
+                                </div>
+                            </div>
+
+                            <div class="space-y-2 border-t border-outline-variant pt-2.5">
+                                <div class="flex items-center justify-between">
+                                    <span
+                                        class="text-[10px] font-mono font-bold px-2 py-0.5 bg-emerald-100 text-emerald-900 border border-emerald-300 whitespace-nowrap">🟢
+                                        5 TAGE VORSPRUNG</span>
+                                </div>
+
+                                <div>
+                                    <div class="flex justify-between items-center text-[11px] mono font-bold mb-0.5">
+                                        <span>FORTSCHRITT</span>
+                                        <span>20%</span>
+                                    </div>
+                                    <div class="w-full bg-surface-low h-2 border border-outline-variant">
+                                        <div class="bg-primary h-full" style="width: 20%"></div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div
+                                        class="flex justify-between items-center text-[10px] mono text-on-surface-variant mb-0.5">
+                                        <span>VERSTRICHENE ZEIT</span>
+                                        <span>12%</span>
+                                    </div>
+                                    <div class="w-full bg-surface-low h-1.5 border border-outline-variant">
+                                        <div class="bg-neutral-400 h-full" style="width: 12%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Card 3 -->
+                        <div class="text-left p-4 sm:p-6 bg-white border border-outline-variant hover:border-primary transition-all flex flex-col justify-between h-[280px] cursor-pointer"
+                            onclick="switchScreen('project-detail')">
+                            <div>
+                                <div class="marquee-wrapper mb-1">
+                                    <h3 class="text-lg font-bold hover:underline leading-snug marquee-content">Q2
+                                        Finanzbericht</h3>
+                                </div>
+                                <p class="text-xs text-on-surface-variant font-mono mb-2 truncate">
+                                    01.05.24 – 15.05.24 <span class="font-bold text-primary">(NOCH 2 TAGE)</span>
+                                </p>
+                            </div>
+
+                            <div
+                                class="grid grid-cols-2 gap-2 my-1 p-2 bg-surface-low border border-outline-variant text-[11px] font-mono">
+                                <div>
+                                    <span class="text-on-surface-variant block text-[10px] uppercase">Phasen</span>
+                                    <span class="font-bold text-primary">2 / 2 Erledigt</span>
+                                </div>
+                                <div>
+                                    <span class="text-on-surface-variant block text-[10px] uppercase">Unterpunkte</span>
+                                    <span class="font-bold text-primary">16 / 20 Tasks</span>
+                                </div>
+                            </div>
+
+                            <div class="space-y-2 border-t border-outline-variant pt-2.5">
+                                <div class="flex items-center justify-between">
+                                    <span
+                                        class="text-[10px] font-mono font-bold px-2 py-0.5 bg-emerald-100 text-emerald-900 border border-emerald-300 whitespace-nowrap">🟢
+                                        2 TAGE VORSPRUNG</span>
+                                </div>
+
+                                <div>
+                                    <div class="flex justify-between items-center text-[11px] mono font-bold mb-0.5">
+                                        <span>FORTSCHRITT</span>
+                                        <span>80%</span>
+                                    </div>
+                                    <div class="w-full bg-surface-low h-2 border border-outline-variant">
+                                        <div class="bg-primary h-full" style="width: 80%"></div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div
+                                        class="flex justify-between items-center text-[10px] mono text-on-surface-variant mb-0.5">
+                                        <span>VERSTRICHENE ZEIT</span>
+                                        <span>65%</span>
+                                    </div>
+                                    <div class="w-full bg-surface-low h-1.5 border border-outline-variant">
+                                        <div class="bg-neutral-400 h-full" style="width: 65%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Card 4 -->
+                        <div class="text-left p-4 sm:p-6 bg-white border border-outline-variant hover:border-primary transition-all flex flex-col justify-between h-[280px] cursor-pointer"
+                            onclick="switchScreen('project-detail')">
+                            <div>
+                                <div class="marquee-wrapper mb-1">
+                                    <h3 class="text-lg font-bold hover:underline leading-snug marquee-content">Teamevent
+                                        Planung</h3>
+                                </div>
+                                <p class="text-xs text-on-surface-variant font-mono mb-2 truncate">
+                                    10.05.24 – 20.06.24 <span class="font-bold text-primary">(NOCH 18 TAGE)</span>
+                                </p>
+                            </div>
+
+                            <div
+                                class="grid grid-cols-2 gap-2 my-1 p-2 bg-surface-low border border-outline-variant text-[11px] font-mono">
+                                <div>
+                                    <span class="text-on-surface-variant block text-[10px] uppercase">Phasen</span>
+                                    <span class="font-bold text-primary">0 / 3 Erledigt</span>
+                                </div>
+                                <div>
+                                    <span class="text-on-surface-variant block text-[10px] uppercase">Unterpunkte</span>
+                                    <span class="font-bold text-primary">1 / 15 Tasks</span>
+                                </div>
+                            </div>
+
+                            <div class="space-y-2 border-t border-outline-variant pt-2.5">
+                                <div class="flex items-center justify-between">
+                                    <span
+                                        class="text-[10px] font-mono font-bold px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 whitespace-nowrap">⚠️
+                                        6 TAGE RÜCKSTAND</span>
+                                </div>
+
+                                <div>
+                                    <div class="flex justify-between items-center text-[11px] mono font-bold mb-0.5">
+                                        <span>FORTSCHRITT</span>
+                                        <span>5%</span>
+                                    </div>
+                                    <div class="w-full bg-surface-low h-2 border border-outline-variant">
+                                        <div class="bg-primary h-full" style="width: 5%"></div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div
+                                        class="flex justify-between items-center text-[10px] mono text-on-surface-variant mb-0.5">
+                                        <span>VERSTRICHENE ZEIT</span>
+                                        <span>35%</span>
+                                    </div>
+                                    <div class="w-full bg-surface-low h-1.5 border border-outline-variant">
+                                        <div class="bg-neutral-400 h-full" style="width: 35%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </section>
+
+                <!-- SCREEN 4: PROJEKT DETAILANSICHT -->
+                <section class="screen-transition" data-screen="project-detail">
+                    <div class="max-w-4xl mx-auto space-y-4 sm:space-y-6">
+                        <div>
+                            <button
+                                class="inline-flex items-center gap-2 text-xs font-mono text-on-surface-variant hover:text-primary mb-3 transition-colors"
+                                onclick="switchScreen('projects')">
+                                <span class="material-symbols-outlined text-[16px]">arrow_back</span>
+                                Zurück zur Übersicht
+                            </button>
+
+                            <!-- Header Title mit interaktivem Status-Toggle & Historie Button -->
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                                <h1 class="text-2xl sm:text-3xl font-bold leading-tight">Re-Branding 2024</h1>
+
+                                <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                                    <button
+                                        class="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-white border border-outline-variant hover:border-primary text-primary font-mono text-xs font-bold transition-all shadow-sm cursor-pointer whitespace-nowrap"
+                                        onclick="toggleProjectHistoryModal(true)"
+                                        title="Projekt-Historie & erledigte Tasks anzeigen">
+                                        <span class="material-symbols-outlined text-[16px]">history</span>
+                                        <span>HISTORIE</span>
+                                    </button>
+
+                                    <button
+                                        class="inline-flex items-center gap-2 px-2.5 sm:px-3 py-1.5 bg-emerald-50 text-emerald-900 border border-emerald-300 font-mono text-xs font-bold hover:bg-emerald-100 transition-all shadow-sm cursor-pointer whitespace-nowrap"
+                                        id="project-status-btn" onclick="toggleProjectStatus()"
+                                        title="Klicken um Status zu wechseln">
+                                        <span
+                                            class="w-2.5 h-2.5 rounded-full bg-emerald-600 animate-pulse flex-shrink-0"
+                                            id="project-status-dot"></span>
+                                        <span id="project-status-text">STATUS: AKTIV</span>
+                                        <span
+                                            class="material-symbols-outlined text-[14px] text-emerald-800 flex-shrink-0">unfold_more</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- BOX 1: Zeitspanne & Doppelbalken -->
+                            <div class="p-3.5 sm:p-5 bg-white border border-outline-variant space-y-3 shadow-sm mb-4">
+                                <div
+                                    class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2 border-b border-outline-variant pb-2.5">
+                                    <span
+                                        class="text-xs font-mono font-bold text-primary uppercase whitespace-nowrap">ZEITSPANNE
+                                        & BALKEN-SYSTEM</span>
+                                    <div class="no-wrap-scroll text-[11px] sm:text-xs mono font-bold text-primary">
+                                        <span>12. APRIL – 30. JUNI 2024 (NOCH 14 TAGE)</span>
+                                    </div>
+                                </div>
+
+                                <div class="space-y-2">
+                                    <div>
+                                        <div
+                                            class="flex justify-between text-[11px] sm:text-xs mono font-bold mb-1 flex-wrap gap-1">
+                                            <span>AUFGABEN-FORTSCHRITT: 45%</span>
+                                            <span class="text-on-surface-variant font-normal">(9 / 20 Tasks)</span>
+                                        </div>
+                                        <div class="w-full bg-surface-low h-2 border border-outline-variant">
+                                            <div class="bg-primary h-full" style="width: 45%"></div>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <div
+                                            class="flex justify-between text-[10px] sm:text-[11px] mono text-on-surface-variant mb-1 flex-wrap gap-1">
+                                            <span>VERSTRICHENE ZEIT: 68%</span>
+                                            <span>(48 / 70 Tage)</span>
+                                        </div>
+                                        <div class="w-full bg-surface-low h-1.5 border border-outline-variant">
+                                            <div class="bg-neutral-400 h-full" style="width: 68%"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- BOX 2: TEMPO-STATUS & TAGES-EMPFOHLENES ZIEL -->
+                            <div class="p-3.5 sm:p-5 bg-white border border-outline-variant space-y-4 shadow-sm mb-6">
+                                <div
+                                    class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-outline-variant pb-2.5">
+                                    <span class="text-xs font-mono font-bold text-primary uppercase">TEMPO-STATUS &
+                                        ZIEL</span>
+                                    <span
+                                        class="text-[10px] sm:text-xs font-mono font-bold px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 self-start sm:self-auto whitespace-nowrap">
+                                        ⚠️ 4 TAGE RÜCKSTAND
+                                    </span>
+                                </div>
+
+                                <div
+                                    class="grid grid-cols-2 gap-2 sm:gap-3 p-2.5 sm:p-3 bg-surface-low border border-outline-variant text-[11px] sm:text-xs font-mono">
+                                    <div class="flex items-center gap-2">
+                                        <span
+                                            class="material-symbols-outlined text-[16px] sm:text-[18px] text-primary flex-shrink-0">auto_stories</span>
+                                        <div class="min-w-0">
+                                            <span
+                                                class="text-on-surface-variant text-[9px] sm:text-[10px] uppercase block truncate">PHASEN</span>
+                                            <span class="font-bold text-primary truncate block">1 / 3 Erledigt</span>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-2 border-l border-outline-variant pl-2 sm:pl-3">
+                                        <span
+                                            class="material-symbols-outlined text-[16px] sm:text-[18px] text-primary flex-shrink-0">check_box</span>
+                                        <div class="min-w-0">
+                                            <span
+                                                class="text-on-surface-variant text-[9px] sm:text-[10px] uppercase block truncate">UNTERPUNKTE</span>
+                                            <span class="font-bold text-primary truncate block">9 / 20 Tasks</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="space-y-2 pt-1">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <span
+                                            class="text-[11px] sm:text-xs font-mono font-bold text-primary uppercase truncate">EMPFOHLENE
+                                            SCHRITTE FÜR HEUTE:</span>
+                                        <span
+                                            class="text-[9px] sm:text-[10px] mono text-on-surface-variant whitespace-nowrap">FOKUSSIEREN</span>
+                                    </div>
+
+                                    <div class="space-y-2">
+                                        <div class="p-3 bg-surface-low border border-outline-variant hover:border-primary transition-all cursor-pointer flex items-center justify-between gap-2 group"
+                                            onclick="scrollToTask('task-stakeholder')">
+                                            <div class="flex items-center gap-3 min-w-0">
+                                                <span
+                                                    class="w-5 h-5 bg-primary text-white text-[10px] font-mono flex items-center justify-center font-bold flex-shrink-0">1</span>
+                                                <div class="min-w-0">
+                                                    <span
+                                                        class="text-xs font-bold text-primary group-hover:underline block truncate">Stakeholder
+                                                        Interviews führen</span>
+                                                    <span
+                                                        class="text-[10px] font-mono text-on-surface-variant block truncate">Geplant:
+                                                        Freitag, 17. Mai</span>
+                                                </div>
+                                            </div>
+                                            <span
+                                                class="material-symbols-outlined text-[16px] text-on-surface-variant group-hover:text-primary flex-shrink-0">arrow_forward</span>
+                                        </div>
+
+                                        <div class="p-3 bg-surface-low border border-outline-variant hover:border-primary transition-all cursor-pointer flex items-center justify-between gap-2 group"
+                                            onclick="scrollToTask('task-ui-proto')">
+                                            <div class="flex items-center gap-3 min-w-0">
+                                                <span
+                                                    class="w-5 h-5 bg-primary text-white text-[10px] font-mono flex items-center justify-center font-bold flex-shrink-0">2</span>
+                                                <div class="min-w-0">
+                                                    <span
+                                                        class="text-xs font-bold text-primary group-hover:underline block truncate">Deep
+                                                        Work: UI Design Prototyping</span>
+                                                    <span
+                                                        class="text-[10px] font-mono text-on-surface-variant block truncate">Geplant:
+                                                        Nächste Woche</span>
+                                                </div>
+                                            </div>
+                                            <span
+                                                class="material-symbols-outlined text-[16px] text-on-surface-variant group-hover:text-primary flex-shrink-0">arrow_forward</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- BEREICHS-HEADER: PROJEKT-PHASEN & PHASEN-FILTER -->
+                        <div
+                            class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b-2 border-primary pb-3 pt-2 mb-6">
+                            <div class="flex items-center gap-2">
+                                <span class="material-symbols-outlined text-[20px] text-primary">layers</span>
+                                <h2 class="text-sm font-mono font-bold text-primary uppercase tracking-wider">
+                                    PROJEKT-PHASEN</h2>
+                            </div>
+
+                            <div class="no-wrap-scroll flex items-center gap-2 font-mono text-xs pb-1"
+                                id="phase-filter-controls">
+                                <div
+                                    class="flex items-center border border-outline-variant bg-white p-0.5 flex-shrink-0">
+                                    <button class="px-2.5 py-1 bg-primary text-white font-bold transition-all shadow-sm"
+                                        onclick="filterPhases('all', this)">ALLE PHASEN</button>
+                                    <button
+                                        class="px-2.5 py-1 text-on-surface-variant hover:text-primary transition-all font-medium"
+                                        onclick="filterPhases('open', this)">OFFEN</button>
+                                    <button
+                                        class="px-2.5 py-1 text-on-surface-variant hover:text-primary transition-all font-medium"
+                                        onclick="filterPhases('completed', this)">ERLEDIGT</button>
+                                </div>
+
+                                <button
+                                    class="px-2.5 py-1 bg-surface-low border border-outline-variant hover:border-primary text-primary font-bold flex items-center gap-1 transition-all whitespace-nowrap flex-shrink-0"
+                                    onclick="toggleAllPhasesCollapse(this)">
+                                    <span class="material-symbols-outlined text-[14px]">unfold_less</span>
+                                    <span id="toggle-all-phases-text">ALLE EINKLAPPEN</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Phasen Container -->
+                        <div class="space-y-6" id="phases-container">
+
+                            <!-- Phase 1 Container -->
+                            <div class="border border-outline-variant bg-white p-3.5 sm:p-6 space-y-4 transition-all phase-card"
+                                id="phase-1-card" data-phase-completed="false">
+                                <div class="flex items-center justify-between gap-2 border-b border-outline-variant pb-3 cursor-pointer select-none group"
+                                    onclick="togglePhaseCollapse('phase-1-card')">
+                                    <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+                                        <span
+                                            class="material-symbols-outlined text-[20px] text-primary transition-transform duration-200 flex-shrink-0"
+                                            id="phase-1-card-icon">expand_more</span>
+                                        <div class="min-w-0">
+                                            <span
+                                                class="text-[10px] font-mono text-on-surface-variant uppercase font-bold block">Phase
+                                                01</span>
+                                            <h3 class="text-base sm:text-lg font-bold group-hover:underline truncate">
+                                                Vorbereitung & Analyse</h3>
+                                        </div>
+                                    </div>
+                                    <span
+                                        class="text-[10px] sm:text-xs mono font-bold text-primary bg-surface-low px-2 py-1 border border-outline-variant whitespace-nowrap flex-shrink-0"
+                                        id="phase-1-badge">1/2 ERLEDIGT</span>
+                                </div>
+
+                                <div class="space-y-4" id="phase-1-card-body">
+                                    <div class="p-3 bg-surface-low border border-outline-variant flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                                        id="phase-materials-box">
+                                        <div class="flex items-center gap-2 flex-wrap">
+                                            <span
+                                                class="text-xs font-mono font-bold text-primary uppercase">MATERIAL:</span>
+                                            <div class="flex flex-wrap gap-2">
+                                                <a href="#"
+                                                    onclick="event.preventDefault(); alert('Briefing-Dokument.pdf geöffnet!')"
+                                                    class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-outline-variant text-xs hover:border-primary font-medium transition-all shadow-sm">
+                                                    <span
+                                                        class="material-symbols-outlined text-[14px]">description</span>
+                                                    <span>Briefing-Dokument.pdf</span>
+                                                </a>
+                                            </div>
+                                        </div>
+                                        <button
+                                            class="text-[11px] font-mono text-primary flex items-center gap-1 hover:underline font-bold whitespace-nowrap self-start sm:self-auto"
+                                            onclick="openMaterialModal(this)">
+                                            <span class="material-symbols-outlined text-[14px]">add</span>
+                                            <span>Link hinzufügen</span>
+                                        </button>
+                                    </div>
+
+                                    <div class="border-t border-outline-variant my-4"></div>
+
+                                    <div class="space-y-3" id="phase-1-task-list">
+                                        <!-- TASK ITEM 1 -->
+                                        <div class="p-3 bg-surface-low border border-outline-variant space-y-2 task-item"
+                                            data-completed="true">
+                                            <div class="flex items-start justify-between gap-2">
+                                                <div class="flex items-start gap-2.5 min-w-0 flex-1">
+                                                    <input type="checkbox" checked
+                                                        class="w-4 h-4 text-primary rounded-none border-outline-variant focus:ring-0 flex-shrink-0 mt-0.5"
+                                                        onchange="toggleTaskStatus(this)" />
+                                                    <div class="min-w-0 flex-1">
+                                                        <span
+                                                            class="text-xs sm:text-sm line-through text-on-surface-variant font-medium leading-snug block">Moodboard
+                                                            & Designinspo erstellen</span>
+                                                        <span
+                                                            class="text-[10px] sm:text-[11px] font-mono text-on-surface-variant block mt-0.5 font-normal">
+                                                            Geplant: 14. Mai 2024
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    class="p-0.5 text-on-surface-variant hover:text-primary hover:bg-white border border-transparent hover:border-outline-variant transition-all rounded flex-shrink-0 mt-0.5"
+                                                    onclick="toggleTaskDetails(this)"
+                                                    title="Quellen & Notizen ein-/ausklappen">
+                                                    <span
+                                                        class="material-symbols-outlined text-[16px]">expand_less</span>
+                                                </button>
+                                            </div>
+
+                                            <div
+                                                class="task-details-body pt-1.5 space-y-2 border-t border-outline-variant/60 mt-2">
+                                                <div>
+                                                    <span
+                                                        class="text-[10px] font-mono text-on-surface-variant block">Task-Links:</span>
+                                                    <a href="#"
+                                                        onclick="event.preventDefault(); alert('Pinterest Board geöffnet!')"
+                                                        class="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-outline-variant text-[11px] hover:border-primary mt-1">
+                                                        <span class="material-symbols-outlined text-[12px]">link</span>
+                                                        <span>Pinterest Board</span>
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- TASK ITEM 2 -->
+                                        <div class="p-3 bg-surface-low border border-outline-variant space-y-2 transition-all duration-500 task-item"
+                                            id="task-stakeholder" data-completed="false">
+                                            <div class="flex items-start justify-between gap-2">
+                                                <div class="flex items-start gap-2.5 min-w-0 flex-1">
+                                                    <input type="checkbox"
+                                                        class="w-4 h-4 text-primary rounded-none border-outline-variant focus:ring-0 flex-shrink-0 mt-0.5"
+                                                        onchange="toggleTaskStatus(this)" />
+                                                    <div class="min-w-0 flex-1">
+                                                        <span
+                                                            class="text-xs sm:text-sm font-medium text-primary leading-snug block">Stakeholder
+                                                            Interviews führen</span>
+                                                        <span
+                                                            class="text-[10px] sm:text-[11px] font-mono text-on-surface-variant block mt-0.5 font-normal">
+                                                            Geplant: Freitag, 17. Mai
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    class="p-0.5 text-on-surface-variant hover:text-primary hover:bg-white border border-transparent hover:border-outline-variant transition-all rounded flex-shrink-0 mt-0.5"
+                                                    onclick="toggleTaskDetails(this)"
+                                                    title="Quellen & Notizen ein-/ausklappen">
+                                                    <span
+                                                        class="material-symbols-outlined text-[16px]">expand_less</span>
+                                                </button>
+                                            </div>
+
+                                            <div
+                                                class="task-details-body pt-1.5 space-y-2 border-t border-outline-variant/60 mt-2">
+                                                <div
+                                                    class="p-2 bg-white border border-outline-variant text-xs space-y-1 shadow-sm">
+                                                    <div
+                                                        class="flex items-center justify-between text-[10px] font-mono text-on-surface-variant font-bold border-b border-outline-variant/60 pb-1">
+                                                        <span class="flex items-center gap-1">
+                                                            <span
+                                                                class="material-symbols-outlined text-[13px] text-primary">sticky_note_2</span>
+                                                            <span>ANMERKUNG / NOTIZ:</span>
+                                                        </span>
+                                                        <span class="text-[9px]">HEUTE</span>
+                                                    </div>
+                                                    <p class="text-primary text-[11px] leading-tight">
+                                                        Fr. Schmidt bevorzugt Termine ab 14 Uhr. Fragenkatalog V2 für
+                                                        das Gespräch nutzen.
+                                                    </p>
+                                                </div>
+
+                                                <div class="flex items-center gap-3 pt-0.5 flex-wrap">
+                                                    <button
+                                                        class="text-[11px] font-mono text-primary hover:underline flex items-center gap-1 font-bold"
+                                                        onclick="addTaskNote(this)">
+                                                        <span
+                                                            class="material-symbols-outlined text-[13px]">add_comment</span>
+                                                        <span>Notiz hinzufügen</span>
+                                                    </button>
+                                                    <span class="text-outline-variant hidden sm:inline">•</span>
+                                                    <button
+                                                        class="text-[11px] font-mono text-on-surface-variant hover:text-primary flex items-center gap-1"
+                                                        onclick="openMaterialModal(this)">
+                                                        <span class="material-symbols-outlined text-[13px]">link</span>
+                                                        <span>Link hinzufügen</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="p-3 border border-dashed border-outline-variant hover:border-primary bg-white hover:bg-surface-low cursor-pointer transition-all flex items-center justify-between group"
+                                            onclick="openTaskModal(this)">
+                                            <div class="flex items-center gap-2.5">
+                                                <div
+                                                    class="w-4 h-4 border border-dashed border-primary flex items-center justify-center font-mono text-[10px] font-bold text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                                                    +</div>
+                                                <span
+                                                    class="text-xs font-mono font-bold text-primary group-hover:underline uppercase">+
+                                                    UNTERPUNKT HINZUFÜGEN</span>
+                                            </div>
+                                            <span
+                                                class="text-[10px] font-mono px-2 py-0.5 bg-surface-low border border-outline-variant text-on-surface-variant font-medium">TASK</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Phase 2 Container -->
+                            <div class="border border-outline-variant bg-white p-3.5 sm:p-6 space-y-4 transition-all phase-card"
+                                id="phase-2-card" data-phase-completed="false">
+                                <div class="flex items-center justify-between gap-2 border-b border-outline-variant pb-3 cursor-pointer select-none group"
+                                    onclick="togglePhaseCollapse('phase-2-card')">
+                                    <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+                                        <span
+                                            class="material-symbols-outlined text-[20px] text-primary transition-transform duration-200 flex-shrink-0"
+                                            id="phase-2-card-icon">expand_more</span>
+                                        <div class="min-w-0">
+                                            <span
+                                                class="text-[10px] font-mono text-on-surface-variant uppercase font-bold block">Phase
+                                                02</span>
+                                            <h3 class="text-base sm:text-lg font-bold group-hover:underline truncate">
+                                                Konzept & Design</h3>
+                                        </div>
+                                    </div>
+                                    <span
+                                        class="text-[10px] sm:text-xs mono font-bold text-primary bg-surface-low px-2 py-0.5 border border-outline-variant whitespace-nowrap flex-shrink-0"
+                                        id="phase-2-badge">0/1 ERLEDIGT</span>
+                                </div>
+
+                                <div class="space-y-4" id="phase-2-card-body">
+                                    <div class="border-t border-outline-variant my-4"></div>
+
+                                    <div class="space-y-3" id="phase-2-task-list">
+                                        <div class="p-3 bg-surface-low border border-outline-variant space-y-2 transition-all duration-500 task-item"
+                                            id="task-ui-proto" data-completed="false">
+                                            <div class="flex items-start justify-between gap-2">
+                                                <div class="flex items-start gap-2.5 min-w-0 flex-1">
+                                                    <input type="checkbox"
+                                                        class="w-4 h-4 text-primary rounded-none border-outline-variant focus:ring-0 flex-shrink-0 mt-0.5"
+                                                        onchange="toggleTaskStatus(this)" />
+                                                    <div class="min-w-0 flex-1">
+                                                        <span
+                                                            class="text-xs sm:text-sm font-medium text-primary leading-snug block">Deep
+                                                            Work: UI Design Prototyping</span>
+                                                        <span
+                                                            class="text-[10px] sm:text-[11px] font-mono text-on-surface-variant block mt-0.5 font-normal">
+                                                            Geplant: Nächste Woche
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    class="p-0.5 text-on-surface-variant hover:text-primary hover:bg-white border border-transparent hover:border-outline-variant transition-all rounded flex-shrink-0 mt-0.5"
+                                                    onclick="toggleTaskDetails(this)"
+                                                    title="Quellen & Notizen ein-/ausklappen">
+                                                    <span
+                                                        class="material-symbols-outlined text-[16px]">expand_less</span>
+                                                </button>
+                                            </div>
+
+                                            <div
+                                                class="task-details-body pt-1.5 space-y-2 border-t border-outline-variant/60 mt-2">
+                                                <div class="flex items-center gap-3 pt-0.5 flex-wrap">
+                                                    <button
+                                                        class="text-[11px] font-mono text-primary hover:underline flex items-center gap-1 font-bold"
+                                                        onclick="addTaskNote(this)">
+                                                        <span
+                                                            class="material-symbols-outlined text-[13px]">add_comment</span>
+                                                        <span>Notiz hinzufügen</span>
+                                                    </button>
+                                                    <span class="text-outline-variant hidden sm:inline">•</span>
+                                                    <button
+                                                        class="text-[11px] font-mono text-on-surface-variant hover:text-primary flex items-center gap-1"
+                                                        onclick="openMaterialModal(this)">
+                                                        <span class="material-symbols-outlined text-[13px]">link</span>
+                                                        <span>Link hinzufügen</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="p-3 border border-dashed border-outline-variant hover:border-primary bg-white hover:bg-surface-low cursor-pointer transition-all flex items-center justify-between group"
+                                            onclick="addSubItem(this)">
+                                            <div class="flex items-center gap-2.5">
+                                                <div
+                                                    class="w-4 h-4 border border-dashed border-primary flex items-center justify-center font-mono text-[10px] font-bold text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                                                    +</div>
+                                                <span
+                                                    class="text-xs font-mono font-bold text-primary group-hover:underline uppercase">+
+                                                    UNTERPUNKT HINZUFÜGEN</span>
+                                            </div>
+                                            <span
+                                                class="text-[10px] font-mono px-2 py-0.5 bg-surface-low border border-outline-variant text-on-surface-variant font-medium">TASK</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Schlankes Erstell-Feld Neue Phase -->
+                        <div class="p-4 border-2 border-dashed border-outline-variant hover:border-primary bg-white hover:bg-surface-low cursor-pointer transition-all flex items-center justify-between group shadow-sm mt-6"
+                            onclick="addNewPhase()">
+                            <div class="flex items-center gap-3">
+                                <div
+                                    class="w-6 h-6 border border-dashed border-primary flex items-center justify-center font-mono text-xs font-bold text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                                    +</div>
+                                <span class="text-xs font-mono font-bold text-primary group-hover:underline uppercase">+
+                                    NEUE PHASE ANLEGEN</span>
+                            </div>
+                            <span
+                                class="text-[10px] font-mono px-2.5 py-1 bg-surface-low border border-outline-variant text-primary font-bold">MEILENSTEIN</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SCREEN 5: KALENDER -->
+                <section class="screen-transition" data-screen="calendar">
+                    <div class="mb-6 flex items-center justify-between gap-2">
+                        <div class="flex items-center gap-3">
+                            <h2 class="text-xl sm:text-2xl font-bold" id="calendar-month-title">Mai 2024</h2>
+                            <span
+                                class="text-[10px] sm:text-xs mono px-2 py-0.5 border border-outline-variant bg-surface-low hidden sm:inline">READ-ONLY</span>
+                        </div>
+                        <div class="flex border border-outline-variant bg-white">
+                            <button
+                                class="px-2.5 sm:px-3 py-1.5 hover:bg-surface-low transition-colors border-r border-outline-variant"
+                                onclick="changeCalendarMonth(-1)">
+                                <span class="material-symbols-outlined text-[18px]">chevron_left</span>
+                            </button>
+                            <button class="px-3 sm:px-4 py-1.5 font-mono text-xs font-bold bg-surface-low"
+                                onclick="resetCalendarMonth()">HEUTE</button>
+                            <button
+                                class="px-2.5 sm:px-3 py-1.5 hover:bg-surface-low transition-colors border-l border-outline-variant"
+                                onclick="changeCalendarMonth(1)">
+                                <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        <div class="lg:col-span-8 overflow-x-auto">
+                            <div class="min-w-[500px] grid grid-cols-7 border-t border-l border-outline-variant bg-outline-variant gap-px"
+                                id="calendar-grid">
+                                <div class="bg-surface py-2 text-center text-xs font-mono font-bold">MO</div>
+                                <div class="bg-surface py-2 text-center text-xs font-mono font-bold">DI</div>
+                                <div class="bg-surface py-2 text-center text-xs font-mono font-bold">MI</div>
+                                <div class="bg-surface py-2 text-center text-xs font-mono font-bold">DO</div>
+                                <div class="bg-surface py-2 text-center text-xs font-mono font-bold">FR</div>
+                                <div class="bg-surface py-2 text-center text-xs font-mono font-bold">SA</div>
+                                <div class="bg-surface py-2 text-center text-xs font-mono font-bold">SO</div>
+
+                                <div class="bg-white/40 h-24 p-2 text-xs mono opacity-40">29</div>
+                                <div class="bg-white/40 h-24 p-2 text-xs mono opacity-40">30</div>
+                                <div class="bg-white h-24 p-2 text-xs mono hover:border-primary cursor-pointer border border-transparent"
+                                    onclick="selectCalendarDay(1)">1</div>
+                                <div class="bg-white h-24 p-2 text-xs mono hover:border-primary cursor-pointer border border-transparent"
+                                    onclick="selectCalendarDay(2)">2</div>
+                                <div class="bg-white h-24 p-2 text-xs mono hover:border-primary cursor-pointer border border-transparent"
+                                    onclick="selectCalendarDay(3)">3</div>
+                                <div class="bg-white h-24 p-2 text-xs mono hover:border-primary cursor-pointer border border-transparent"
+                                    onclick="selectCalendarDay(4)">4</div>
+                                <div class="bg-white h-24 p-2 text-xs mono hover:border-primary cursor-pointer border border-transparent"
+                                    onclick="selectCalendarDay(5)">5</div>
+
+                                <div class="bg-white h-24 p-2 text-xs mono hover:border-primary cursor-pointer border border-transparent"
+                                    onclick="selectCalendarDay(6)">6</div>
+                                <div class="bg-white h-24 p-2 text-xs mono hover:border-primary cursor-pointer border border-transparent"
+                                    onclick="selectCalendarDay(7)">7</div>
+                                <div class="bg-white h-24 p-2 text-xs mono border-2 border-primary cursor-pointer bg-surface-low"
+                                    onclick="selectCalendarDay(8)">
+                                    <div class="flex justify-between items-center">
+                                        <span class="font-bold">8</span>
+                                        <span class="w-1.5 h-1.5 bg-primary rounded-full"></span>
+                                    </div>
+                                    <div class="mt-2 p-1 bg-primary text-white text-[10px] leading-tight">14:00 Workshop
+                                    </div>
+                                </div>
+                                <div class="bg-white h-24 p-2 text-xs mono hover:border-primary cursor-pointer border border-transparent"
+                                    onclick="selectCalendarDay(9)">9</div>
+                                <div class="bg-white h-24 p-2 text-xs mono hover:border-primary cursor-pointer border border-transparent"
+                                    onclick="selectCalendarDay(10)">10</div>
+                                <div class="bg-white h-24 p-2 text-xs mono hover:border-primary cursor-pointer border border-transparent"
+                                    onclick="selectCalendarDay(11)">11</div>
+                                <div class="bg-white h-24 p-2 text-xs mono hover:border-primary cursor-pointer border border-transparent"
+                                    onclick="selectCalendarDay(12)">12</div>
+
+                                <div class="bg-white h-24 p-2 text-xs mono hover:border-primary cursor-pointer border border-transparent"
+                                    onclick="selectCalendarDay(13)">13</div>
+                                <div class="bg-white h-24 p-2 text-xs mono hover:border-primary cursor-pointer border border-transparent"
+                                    onclick="selectCalendarDay(14)">14</div>
+                                <div class="bg-white h-24 p-2 text-xs mono hover:border-primary cursor-pointer border border-transparent"
+                                    onclick="selectCalendarDay(15)">15</div>
+                                <div class="bg-white h-24 p-2 text-xs mono hover:border-primary cursor-pointer border border-transparent"
+                                    onclick="selectCalendarDay(16)">16</div>
+                                <div class="bg-white h-24 p-2 text-xs mono hover:border-primary cursor-pointer border border-transparent"
+                                    onclick="selectCalendarDay(17)">17</div>
+                                <div class="bg-white h-24 p-2 text-xs mono hover:border-primary cursor-pointer border border-transparent"
+                                    onclick="selectCalendarDay(18)">18</div>
+                                <div class="bg-white h-24 p-2 text-xs mono hover:border-primary cursor-pointer border border-transparent"
+                                    onclick="selectCalendarDay(19)">19</div>
+
+                                <div class="bg-white h-24 p-2 text-xs mono hover:border-primary cursor-pointer border border-transparent"
+                                    onclick="selectCalendarDay(20)">20</div>
+                                <div class="bg-white h-24 p-2 text-xs mono hover:border-primary cursor-pointer border border-transparent"
+                                    onclick="selectCalendarDay(21)">21</div>
+                                <div class="bg-white h-24 p-2 text-xs mono hover:border-primary cursor-pointer border border-transparent"
+                                    onclick="selectCalendarDay(22)">22</div>
+                                <div class="bg-white h-24 p-2 text-xs mono hover:border-primary cursor-pointer border border-transparent"
+                                    onclick="selectCalendarDay(23)">23</div>
+                                <div class="bg-white h-24 p-2 text-xs mono hover:border-primary cursor-pointer border border-transparent"
+                                    onclick="selectCalendarDay(24)">24</div>
+                                <div class="bg-white h-24 p-2 text-xs mono hover:border-primary cursor-pointer border border-transparent"
+                                    onclick="selectCalendarDay(25)">25</div>
+                                <div class="bg-white h-24 p-2 text-xs mono hover:border-primary cursor-pointer border border-transparent"
+                                    onclick="selectCalendarDay(26)">26</div>
+
+                                <div class="bg-white h-24 p-2 text-xs mono hover:border-primary cursor-pointer border border-transparent"
+                                    onclick="selectCalendarDay(27)">27</div>
+                                <div class="bg-white h-24 p-2 text-xs mono hover:border-primary cursor-pointer border border-transparent"
+                                    onclick="selectCalendarDay(28)">28</div>
+                                <div class="bg-white h-24 p-2 text-xs mono hover:border-primary cursor-pointer border border-transparent"
+                                    onclick="selectCalendarDay(29)">29</div>
+                                <div class="bg-white h-24 p-2 text-xs mono hover:border-primary cursor-pointer border border-transparent"
+                                    onclick="selectCalendarDay(30)">30</div>
+                                <div class="bg-white h-24 p-2 text-xs mono hover:border-primary cursor-pointer border border-transparent"
+                                    onclick="selectCalendarDay(31)">31</div>
+                                <div class="bg-white/40 h-24 p-2 text-xs mono opacity-40">1</div>
+                                <div class="bg-white/40 h-24 p-2 text-xs mono opacity-40">2</div>
+                            </div>
+                        </div>
+
+                        <div class="lg:col-span-4 bg-white border border-outline-variant p-6 space-y-4">
+                            <h3 class="text-xs font-mono text-on-surface-variant border-b border-outline-variant pb-2 uppercase"
+                                id="selected-day-title">TAGES-TIMELINE (8. MAI 2024)</h3>
+
+                            <div class="space-y-4 pt-2" id="day-timeline-content">
+                                <div class="flex gap-4 items-start">
+                                    <span class="text-xs font-mono text-on-surface-variant w-12">09:00</span>
+                                    <div class="flex-grow p-3 bg-surface-low border-l-2 border-primary text-xs">
+                                        <p class="font-bold">Fokus-Session: Deep Work</p>
+                                        <p class="text-on-surface-variant">Geplante Aufgaben abarbeiten</p>
+                                    </div>
+                                </div>
+                                <div class="flex gap-4 items-start">
+                                    <span class="text-xs font-mono text-on-surface-variant w-12">14:00</span>
+                                    <div class="flex-grow p-3 bg-surface-low border-l-2 border-outline-variant text-xs">
+                                        <p class="font-bold">Review & Checkpoint</p>
+                                        <p class="text-on-surface-variant">Tagesfortschritt dokumentieren</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SCREEN 6: AI COACH -->
+                <section class="screen-transition flex flex-col h-[calc(100vh-140px)]" data-screen="coach">
+                    <div class="flex h-full border border-outline-variant bg-surface relative overflow-hidden">
+                        <div id="coach-history-drawer"
+                            class="w-72 bg-white border-r border-outline-variant flex flex-col h-full transition-all duration-300 ease-in-out relative z-10 flex-shrink-0">
+                            <div
+                                class="p-3 border-b border-outline-variant flex items-center justify-between gap-2 bg-surface-low">
+                                <button
+                                    class="flex-grow py-2 px-3 bg-primary text-on-primary text-xs font-mono font-bold hover:bg-neutral-800 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                                    onclick="startNewChat()">
+                                    <span class="material-symbols-outlined text-[16px]">add</span>
+                                    <span>NEUER CHAT</span>
+                                </button>
+                                <button
+                                    class="p-2 border border-outline-variant bg-white hover:border-primary text-primary transition-colors flex items-center justify-center"
+                                    title="Verlauf einklappen" onclick="toggleCoachHistory(false)">
+                                    <span class="material-symbols-outlined text-[18px]">chevron_left</span>
+                                </button>
+                            </div>
+
+                            <div class="px-4 py-2 border-b border-outline-variant bg-surface-low">
+                                <span
+                                    class="text-[10px] font-mono text-on-surface-variant uppercase font-bold">Vergangene
+                                    Chats</span>
+                            </div>
+
+                            <div class="space-y-1 p-2 overflow-y-auto flex-grow" id="chat-sessions-list">
+                                <div class="p-3 bg-surface-low border-l-2 border-primary cursor-pointer hover:bg-surface transition-colors flex flex-col gap-0.5"
+                                    onclick="loadPastChat('Re-Branding Start-Hilfe', this)">
+                                    <span class="text-xs font-bold text-primary truncate">Re-Branding Start-Hilfe</span>
+                                    <span class="text-[10px] mono text-on-surface-variant">Heute • 2 Nachrichten</span>
+                                </div>
+
+                                <div class="p-3 bg-white border border-outline-variant cursor-pointer hover:bg-surface-low transition-colors flex flex-col gap-0.5"
+                                    onclick="loadPastChat('Inbox-Priorisierung', this)">
+                                    <span class="text-xs font-medium text-primary truncate">Inbox-Priorisierung</span>
+                                    <span class="text-[10px] mono text-on-surface-variant">Gestern • 4
+                                        Nachrichten</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex-grow flex flex-col h-full relative overflow-hidden bg-surface">
+                            <div
+                                class="px-4 sm:px-6 py-3 border-b border-outline-variant bg-white flex items-center justify-between">
+                                <div class="flex items-center gap-3 min-w-0">
+                                    <button id="btn-expand-history"
+                                        class="hidden p-2 border border-outline-variant bg-surface-low hover:border-primary text-primary transition-colors flex items-center gap-1.5 text-xs font-mono font-bold"
+                                        title="Verlauf ausklappen" onclick="toggleCoachHistory(true)">
+                                        <span class="material-symbols-outlined text-[18px]">history</span>
+                                        <span class="hidden sm:inline">VERLAUF</span>
+                                    </button>
+
+                                    <button id="btn-quick-new-chat"
+                                        class="hidden p-2 border border-outline-variant bg-surface-low hover:border-primary text-primary transition-colors flex items-center gap-1.5 text-xs font-mono font-bold"
+                                        title="Neuer Chat starten" onclick="startNewChat()">
+                                        <span class="material-symbols-outlined text-[18px]">add</span>
+                                        <span class="hidden sm:inline">NEUER CHAT</span>
+                                    </button>
+
+                                    <div class="flex items-center gap-2 min-w-0">
+                                        <div
+                                            class="w-6 h-6 bg-primary text-on-primary rounded-full flex items-center justify-center flex-shrink-0">
+                                            <span class="material-symbols-outlined text-[14px]">smart_toy</span>
+                                        </div>
+                                        <span class="text-xs font-bold font-mono truncate"
+                                            id="active-chat-title">Re-Branding Start-Hilfe</span>
+                                    </div>
+                                </div>
+
+                                <span
+                                    class="text-[10px] mono px-2 py-0.5 bg-surface-low border border-outline-variant whitespace-nowrap">AI
+                                    COACH</span>
+                            </div>
+
+                            <div class="flex-grow overflow-y-auto px-4 py-6">
+                                <div class="max-w-2xl mx-auto space-y-6" id="chat-history">
+                                    <div class="flex gap-3">
+                                        <div
+                                            class="w-8 h-8 flex-shrink-0 bg-primary text-on-primary flex items-center justify-center text-xs">
+                                            <span class="material-symbols-outlined text-[16px]">smart_toy</span>
+                                        </div>
+                                        <div class="p-4 bg-white border border-outline-variant text-sm shadow-sm">
+                                            <p>Hallo Fabian! Ich habe deine Aufgaben für heute analysiert. Du hast noch
+                                                2 wichtige Deep-Work-Blöcke offen. Womit möchtest du starten?</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="flex gap-3 flex-row-reverse">
+                                        <div
+                                            class="w-8 h-8 flex-shrink-0 bg-surface-low border border-outline-variant flex items-center justify-center text-xs font-mono font-bold">
+                                            FF
+                                        </div>
+                                        <div class="p-4 bg-white border border-primary text-sm max-w-[85%] shadow-sm">
+                                            <p>Ich starte jetzt mit der Marktanalyse für das Re-Branding Projekt.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="p-3 sm:p-4 border-t border-outline-variant bg-white space-y-2">
+                                <!-- Quick Prompt Pills -->
+                                <div
+                                    class="max-w-2xl mx-auto flex items-center gap-2 no-wrap-scroll text-[11px] font-mono pb-1">
+                                    <span class="text-on-surface-variant font-bold flex-shrink-0">PROMPTS:</span>
+                                    <button
+                                        class="px-2.5 py-1 bg-surface-low border border-outline-variant hover:border-primary text-primary transition-all font-medium whitespace-nowrap flex-shrink-0"
+                                        onclick="sendQuickPrompt('Ich habe gerade eine Blockade. Was ist der kleinste erste Schritt?')">⚡
+                                        Blockade lösen</button>
+                                    <button
+                                        class="px-2.5 py-1 bg-surface-low border border-outline-variant hover:border-primary text-primary transition-all font-medium whitespace-nowrap flex-shrink-0"
+                                        onclick="sendQuickPrompt('Welche Aufgabe sollte ich heute zuerst erledigen?')">🎯
+                                        Naechsten Schritt finden</button>
+                                    <button
+                                        class="px-2.5 py-1 bg-surface-low border border-outline-variant hover:border-primary text-primary transition-all font-medium whitespace-nowrap flex-shrink-0"
+                                        onclick="sendQuickPrompt('Hilf mir, meine Inbox zu priorisieren.')">📥 Inbox
+                                        sortieren</button>
+                                </div>
+                                <div class="max-w-2xl mx-auto flex border border-primary bg-white shadow-sm p-1">
+                                    <input type="text" id="chat-input"
+                                        class="flex-grow border-none focus:ring-0 text-sm px-3 sm:px-4 py-2.5 sm:py-3 outline-none"
+                                        placeholder="Frage deinen Coach..."
+                                        onkeydown="if(event.key==='Enter') sendChatMessage()" />
+                                    <button
+                                        class="px-4 sm:px-6 py-2.5 sm:py-3 bg-primary text-on-primary text-xs font-mono font-bold hover:bg-neutral-800 transition-colors flex items-center gap-2 flex-shrink-0"
+                                        onclick="sendChatMessage()">
+                                        <span>SENDEN</span>
+                                        <span class="material-symbols-outlined text-[16px]">send</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SCREEN 7: WOCHENRÜCKBLICK -->
+                <section class="screen-transition" data-screen="review">
+                    <div class="mb-8 text-left">
+                        <span class="text-xs text-on-surface-variant mb-1 block mono uppercase">BERICHT KW 19</span>
+                        <h1 class="text-2xl sm:text-3xl font-bold">Dein Erfolg dieser Woche</h1>
+                        <p class="text-xs text-on-surface-variant mt-1">Überblick über deine Ergebnisse und fertigen
+                            Meilensteine (keine Zeitmessung).</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        <div class="lg:col-span-7 space-y-8">
+                            <div class="p-6 bg-white border border-outline-variant">
+                                <h3
+                                    class="text-xs font-mono text-on-surface-variant mb-6 border-b border-outline-variant pb-2 uppercase">
+                                    ABGESCHLOSSENE AUFGABEN PRO TAG</h3>
+
+                                <div
+                                    class="h-52 flex items-end justify-between gap-2 sm:gap-3 mb-4 pt-4 px-2 border-b border-outline-variant pb-4">
+                                    <div class="flex flex-col items-center flex-grow gap-2">
+                                        <div class="w-full bg-primary" style="height: 45%"></div>
+                                        <span
+                                            class="text-[10px] sm:text-xs font-mono text-on-surface-variant">MON</span>
+                                    </div>
+                                    <div class="flex flex-col items-center flex-grow gap-2">
+                                        <div class="w-full bg-primary" style="height: 70%"></div>
+                                        <span
+                                            class="text-[10px] sm:text-xs font-mono text-on-surface-variant">DIE</span>
+                                    </div>
+                                    <div class="flex flex-col items-center flex-grow gap-2">
+                                        <div class="w-full bg-primary" style="height: 95%"></div>
+                                        <span
+                                            class="text-[10px] sm:text-xs font-mono text-on-surface-variant">MIT</span>
+                                    </div>
+                                    <div class="flex flex-col items-center flex-grow gap-2">
+                                        <div class="w-full bg-primary" style="height: 50%"></div>
+                                        <span
+                                            class="text-[10px] sm:text-xs font-mono text-on-surface-variant">DON</span>
+                                    </div>
+                                    <div class="flex flex-col items-center flex-grow gap-2">
+                                        <div class="w-full bg-primary" style="height: 80%"></div>
+                                        <span
+                                            class="text-[10px] sm:text-xs font-mono text-on-surface-variant">FRE</span>
+                                    </div>
+                                    <div class="flex flex-col items-center flex-grow gap-2">
+                                        <div class="w-full bg-outline-variant" style="height: 25%"></div>
+                                        <span
+                                            class="text-[10px] sm:text-xs font-mono text-on-surface-variant">SAM</span>
+                                    </div>
+                                    <div class="flex flex-col items-center flex-grow gap-2">
+                                        <div class="w-full bg-outline-variant" style="height: 15%"></div>
+                                        <span
+                                            class="text-[10px] sm:text-xs font-mono text-on-surface-variant">SON</span>
+                                    </div>
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-4 pt-2">
+                                    <div class="p-3 bg-surface-low border border-outline-variant">
+                                        <span
+                                            class="text-[10px] sm:text-[11px] font-mono text-on-surface-variant block">GESAMT
+                                            ERLEDIGT</span>
+                                        <span class="text-xl sm:text-2xl font-bold">48 Aufgaben</span>
+                                    </div>
+                                    <div class="p-3 bg-surface-low border border-outline-variant">
+                                        <span
+                                            class="text-[10px] sm:text-[11px] font-mono text-on-surface-variant block">MEILENSTEINE</span>
+                                        <span class="text-xl sm:text-2xl font-bold">3 Phasen</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="lg:col-span-5 space-y-6">
+                            <div class="p-6 bg-white border border-outline-variant flex flex-col justify-between">
+                                <h3
+                                    class="text-xs font-mono text-on-surface-variant mb-4 border-b border-outline-variant pb-2 uppercase">
+                                    OUTPUT & ERFOLGS-RATE</h3>
+                                <div class="flex items-center justify-center py-6 relative">
+                                    <svg class="w-36 h-36 sm:w-40 sm:h-40" viewBox="0 0 100 100">
+                                        <circle cx="50" cy="50" r="42" fill="none" stroke="#E5E5E5" stroke-width="10">
+                                        </circle>
+                                        <circle cx="50" cy="50" r="42" fill="none" stroke="#1A1A1A" stroke-width="10"
+                                            stroke-dasharray="264" stroke-dashoffset="40" stroke-linecap="butt">
+                                        </circle>
+                                    </svg>
+                                    <div class="absolute inset-0 flex flex-col items-center justify-center">
+                                        <span class="text-2xl sm:text-3xl font-bold">85%</span>
+                                        <span
+                                            class="text-[10px] mono text-on-surface-variant mt-1">Ziel-Erfüllung</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="p-5 bg-white border border-outline-variant space-y-3 shadow-sm">
+                                <h4
+                                    class="text-xs font-mono font-bold text-primary uppercase border-b border-outline-variant pb-2">
+                                    TOP-ERFOLGE DIESER WOCHE</h4>
+                                <div class="space-y-2 text-xs">
+                                    <div class="flex items-center gap-2">
+                                        <span
+                                            class="w-4 h-4 bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-full flex items-center justify-center font-bold text-[10px] flex-shrink-0">✓</span>
+                                        <span class="font-medium truncate">Phase 1: Vorbereitung 'Re-Branding'
+                                            abgeschlossen</span>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <span
+                                            class="w-4 h-4 bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-full flex items-center justify-center font-bold text-[10px] flex-shrink-0">✓</span>
+                                        <span class="font-medium truncate">Q2 Finanzbericht Meilenstein 2
+                                            erreicht</span>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <span
+                                            class="w-4 h-4 bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-full flex items-center justify-center font-bold text-[10px] flex-shrink-0">✓</span>
+                                        <span class="font-medium truncate">12 Inbox-Gedanken verarbeitet &
+                                            zugeordnet</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- PROJEKT-HISTORIE MODAL OVERLAY -->
+    <div id="project-history-modal"
+        class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div
+            class="bg-white border-2 border-primary w-full max-w-xl p-4 sm:p-6 space-y-4 sm:space-y-5 shadow-2xl relative">
+            <div class="flex items-center justify-between border-b border-outline-variant pb-3">
+                <div class="flex items-center gap-2 min-w-0">
+                    <span class="material-symbols-outlined text-[20px] text-primary flex-shrink-0">history</span>
+                    <h2 class="text-xs sm:text-sm font-bold font-mono uppercase truncate">HISTORIE: Re-Branding 2024
+                    </h2>
+                </div>
+                <button class="p-1 hover:bg-surface-low border border-outline-variant transition-colors flex-shrink-0"
+                    onclick="toggleProjectHistoryModal(false)">
+                    <span class="material-symbols-outlined text-[18px]">close</span>
+                </button>
+            </div>
+
+            <!-- Timeline der vergangenen Aktivitäten -->
+            <div class="space-y-4 max-h-[60vh] overflow-y-auto pr-1 sm:pr-2">
+                <div class="flex items-start gap-3">
+                    <div
+                        class="w-6 h-6 rounded-full bg-emerald-100 border border-emerald-300 flex items-center justify-center text-emerald-800 flex-shrink-0 mt-0.5">
+                        <span class="material-symbols-outlined text-[14px]">check</span>
+                    </div>
+                    <div>
+                        <span class="text-[10px] sm:text-xs font-mono font-bold text-primary block">14. MAI 2024 • 16:30
+                            Uhr</span>
+                        <p class="text-xs sm:text-sm font-medium">Unterpunkt erledigt: 'Moodboard & Designinspo
+                            erstellen'</p>
+                        <span class="text-[10px] font-mono text-on-surface-variant">Phase 1: Vorbereitung &
+                            Analyse</span>
+                    </div>
+                </div>
+
+                <div class="flex items-start gap-3">
+                    <div
+                        class="w-6 h-6 rounded-full bg-surface-low border border-outline-variant flex items-center justify-center text-primary flex-shrink-0 mt-0.5">
+                        <span class="material-symbols-outlined text-[14px]">attach_file</span>
+                    </div>
+                    <div>
+                        <span class="text-[10px] sm:text-xs font-mono font-bold text-primary block">12. MAI 2024 • 11:15
+                            Uhr</span>
+                        <p class="text-xs sm:text-sm font-medium">Neues Phasenmaterial hinzugefügt:
+                            'Briefing-Dokument.pdf'</p>
+                        <span class="text-[10px] font-mono text-on-surface-variant">Phase 1: Vorbereitung &
+                            Analyse</span>
+                    </div>
+                </div>
+
+                <div class="flex items-start gap-3">
+                    <div
+                        class="w-6 h-6 rounded-full bg-surface-low border border-outline-variant flex items-center justify-center text-primary flex-shrink-0 mt-0.5">
+                        <span class="material-symbols-outlined text-[14px]">flag</span>
+                    </div>
+                    <div>
+                        <span class="text-[10px] sm:text-xs font-mono font-bold text-primary block">10. MAI 2024 • 09:00
+                            Uhr</span>
+                        <p class="text-xs sm:text-sm font-medium">Phase 1 gestartet: 'Vorbereitung & Analyse'</p>
+                        <span class="text-[10px] font-mono text-on-surface-variant">Projekt-Startschuss</span>
+                    </div>
+                </div>
+
+                <div class="flex items-start gap-3">
+                    <div
+                        class="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <span class="material-symbols-outlined text-[14px]">rocket_launch</span>
+                    </div>
+                    <div>
+                        <span class="text-[10px] sm:text-xs font-mono font-bold text-primary block">12. APRIL 2024 •
+                            10:00 Uhr</span>
+                        <p class="text-xs sm:text-sm font-medium">Projekt 'Re-Branding 2024' erfolgreich angelegt</p>
+                        <span class="text-[10px] font-mono text-on-surface-variant">Gesamtdauer: 70 Tage (Deadline: 30.
+                            Juni)</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="border-t border-outline-variant pt-3 flex justify-end">
+                <button
+                    class="px-5 py-2 bg-primary text-white text-xs font-mono font-bold hover:bg-neutral-800 transition-colors"
+                    onclick="toggleProjectHistoryModal(false)">
+                    SCHLIESSEN
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 1: PROJEKT ERSTELLEN & INBOX-UMWANDLUNG -->
+    <div id="project-modal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white border-2 border-primary w-full max-w-lg p-5 sm:p-6 space-y-4 shadow-2xl relative">
+            <div class="flex items-center justify-between border-b border-outline-variant pb-3">
+                <div class="flex items-center gap-2 min-w-0">
+                    <span class="material-symbols-outlined text-[22px] text-primary">create_new_folder</span>
+                    <h2 class="text-xs sm:text-sm font-bold font-mono uppercase truncate" id="project-modal-title">PROJEKT ERSTELLEN</h2>
+                </div>
+                <button class="p-1 hover:bg-surface-low border border-outline-variant transition-colors" onclick="closeProjectModal()">
+                    <span class="material-symbols-outlined text-[18px]">close</span>
+                </button>
+            </div>
+
+            <form onsubmit="handleProjectSubmit(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-mono font-bold text-primary mb-1 uppercase">PROJEKT-TITEL / NAME *</label>
+                    <input type="text" id="project-name-input" required class="w-full border border-outline-variant px-3 py-2 text-sm focus:border-primary outline-none" placeholder="z.B. Re-Branding 2024" />
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-mono font-bold text-primary mb-1 uppercase">STARTDATUM</label>
+                        <input type="date" id="project-start-date" class="w-full border border-outline-variant px-3 py-2 text-xs font-mono focus:border-primary outline-none bg-white" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-mono font-bold text-primary mb-1 uppercase">ENDDATUM / DEADLINE</label>
+                        <input type="date" id="project-end-date" class="w-full border border-outline-variant px-3 py-2 text-xs font-mono focus:border-primary outline-none bg-white" />
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-mono font-bold text-primary mb-1 uppercase">ERSTE PHASE / HAUPTZIEL (OPTIONAL)</label>
+                    <input type="text" id="project-first-phase" class="w-full border border-outline-variant px-3 py-2 text-sm focus:border-primary outline-none" placeholder="z.B. Phase 01: Vorbereitung & Analyse" />
+                </div>
+
+                <div>
+                    <label class="block text-xs font-mono font-bold text-primary mb-1 uppercase">INITIALER STATUS</label>
+                    <select id="project-status-select" class="w-full border border-outline-variant px-3 py-2 text-xs font-mono focus:border-primary outline-none bg-white">
+                        <option value="Aktiv">🟢 STATUS: AKTIV</option>
+                        <option value="Pausiert">⚠️ STATUS: PAUSIERT</option>
+                    </select>
+                </div>
+
+                <div class="border-t border-outline-variant pt-4 flex items-center justify-end gap-2">
+                    <button type="button" class="px-4 py-2 border border-outline-variant text-xs font-mono font-bold text-on-surface-variant hover:text-primary transition-colors" onclick="closeProjectModal()">ABBRECHEN</button>
+                    <button type="submit" class="px-5 py-2 bg-primary text-white text-xs font-mono font-bold hover:bg-neutral-800 transition-colors shadow-sm">PROJEKT ANLEGEN</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL 2: NEUE PHASE ANLEGEN -->
+    <div id="phase-modal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white border-2 border-primary w-full max-w-md p-5 sm:p-6 space-y-4 shadow-2xl relative">
+            <div class="flex items-center justify-between border-b border-outline-variant pb-3">
+                <div class="flex items-center gap-2 min-w-0">
+                    <span class="material-symbols-outlined text-[22px] text-primary">layers</span>
+                    <h2 class="text-xs sm:text-sm font-bold font-mono uppercase truncate">NEUE PHASE ANLEGEN</h2>
+                </div>
+                <button class="p-1 hover:bg-surface-low border border-outline-variant transition-colors" onclick="closePhaseModal()">
+                    <span class="material-symbols-outlined text-[18px]">close</span>
+                </button>
+            </div>
+
+            <form onsubmit="handlePhaseSubmit(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-mono font-bold text-primary mb-1 uppercase">PHASEN-TITEL *</label>
+                    <input type="text" id="phase-title-input" required class="w-full border border-outline-variant px-3 py-2 text-sm focus:border-primary outline-none" placeholder="z.B. Phase 03: Testing & Launch" />
+                </div>
+
+                <div>
+                    <label class="block text-xs font-mono font-bold text-primary mb-1 uppercase">ZIEL / BESCHREIBUNG (OPTIONAL)</label>
+                    <textarea id="phase-desc-input" rows="2" class="w-full border border-outline-variant p-2 text-xs focus:border-primary outline-none" placeholder="Was soll in dieser Phase erreicht werden?"></textarea>
+                </div>
+
+                <div class="border-t border-outline-variant pt-4 flex items-center justify-end gap-2">
+                    <button type="button" class="px-4 py-2 border border-outline-variant text-xs font-mono font-bold text-on-surface-variant hover:text-primary transition-colors" onclick="closePhaseModal()">ABBRECHEN</button>
+                    <button type="submit" class="px-5 py-2 bg-primary text-white text-xs font-mono font-bold hover:bg-neutral-800 transition-colors shadow-sm">PHASE ANLEGEN</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL 3: UNTERPUNKT / TASK HINZUFÜGEN -->
+    <div id="task-modal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white border-2 border-primary w-full max-w-md p-5 sm:p-6 space-y-4 shadow-2xl relative">
+            <div class="flex items-center justify-between border-b border-outline-variant pb-3">
+                <div class="flex items-center gap-2 min-w-0">
+                    <span class="material-symbols-outlined text-[22px] text-primary">add_task</span>
+                    <h2 class="text-xs sm:text-sm font-bold font-mono uppercase truncate">UNTERPUNKT HINZUFÜGEN</h2>
+                </div>
+                <button class="p-1 hover:bg-surface-low border border-outline-variant transition-colors" onclick="closeTaskModal()">
+                    <span class="material-symbols-outlined text-[18px]">close</span>
+                </button>
+            </div>
+
+            <form onsubmit="handleTaskSubmit(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-mono font-bold text-primary mb-1 uppercase">AUFGABEN-TITEL *</label>
+                    <input type="text" id="task-title-input" required class="w-full border border-outline-variant px-3 py-2 text-sm focus:border-primary outline-none" placeholder="z.B. Stakeholder Interviews führen" />
+                </div>
+
+                <div>
+                    <label class="block text-xs font-mono font-bold text-primary mb-1 uppercase">GEPLANTES DATUM / ZEITRAUM</label>
+                    <input type="text" id="task-date-input" class="w-full border border-outline-variant px-3 py-2 text-xs font-mono focus:border-primary outline-none" placeholder="z.B. Freitag, 17. Mai" />
+                </div>
+
+                <div>
+                    <label class="block text-xs font-mono font-bold text-primary mb-1 uppercase">ANMERKUNG / NOTIZ (OPTIONAL)</label>
+                    <textarea id="task-note-input" rows="2" class="w-full border border-outline-variant p-2 text-xs focus:border-primary outline-none" placeholder="Wichtige Hinweise zur Durchführung..."></textarea>
+                </div>
+
+                <div class="border-t border-outline-variant pt-4 flex items-center justify-end gap-2">
+                    <button type="button" class="px-4 py-2 border border-outline-variant text-xs font-mono font-bold text-on-surface-variant hover:text-primary transition-colors" onclick="closeTaskModal()">ABBRECHEN</button>
+                    <button type="submit" class="px-5 py-2 bg-primary text-white text-xs font-mono font-bold hover:bg-neutral-800 transition-colors shadow-sm">TASK SPEICHERN</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL 4: MATERIAL / DOKUMENT / LINK ANHÄNGEN (DRAG & DROP + STRG+V + LINK) -->
+    <div id="material-modal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white border-2 border-primary w-full max-w-lg p-5 sm:p-6 space-y-4 shadow-2xl relative">
+            <div class="flex items-center justify-between border-b border-outline-variant pb-3">
+                <div class="flex items-center gap-2 min-w-0">
+                    <span class="material-symbols-outlined text-[22px] text-primary">upload_file</span>
+                    <h2 class="text-xs sm:text-sm font-bold font-mono uppercase truncate">MATERIAL / DOKUMENT ANHÄNGEN</h2>
+                </div>
+                <button class="p-1 hover:bg-surface-low border border-outline-variant transition-colors" onclick="closeMaterialModal()">
+                    <span class="material-symbols-outlined text-[18px]">close</span>
+                </button>
+            </div>
+
+            <form onsubmit="handleMaterialSubmit(event)" class="space-y-4">
+                <!-- DRAG AND DROP ZONE WITH STRG+V HINWEIS -->
+                <div class="border-2 border-dashed border-primary/50 bg-surface-low p-6 text-center space-y-2 hover:border-primary transition-colors cursor-pointer relative" id="drop-zone" onclick="document.getElementById('file-picker-input').click()">
+                    <input type="file" id="file-picker-input" class="hidden" onchange="handleFileSelected(this)" />
+                    <div class="w-10 h-10 bg-white border border-outline-variant rounded-full flex items-center justify-center mx-auto text-primary">
+                        <span class="material-symbols-outlined text-[22px]">cloud_upload</span>
+                    </div>
+                    <div>
+                        <p class="text-xs font-mono font-bold text-primary">DATEI HIERHER ZIEHEN ODER KLICKEN</p>
+                        <p class="text-[11px] text-on-surface-variant mt-0.5">Unterstützt Dokumente, Bilder, PDFs (max. 25 MB)</p>
+                    </div>
+                    <div class="inline-block px-2.5 py-1 bg-white border border-outline-variant text-[10px] font-mono text-primary font-bold">
+                        💡 TIPP: <kbd class="px-1 bg-surface-low border rounded">Strg</kbd> + <kbd class="px-1 bg-surface-low border rounded">V</kbd> um Bild aus Zwischenablage einzufügen
+                    </div>
+                </div>
+
+                <!-- GEWÄHLTE DATEI / ODERN WEB LINK -->
+                <div class="space-y-2">
+                    <label class="block text-xs font-mono font-bold text-primary uppercase">ODER WEB-LINK / DOKUMENTEN-NAME *</label>
+                    <input type="text" id="material-name-input" required class="w-full border border-outline-variant px-3 py-2 text-xs focus:border-primary outline-none" placeholder="z.B. Briefing-Dokument.pdf oder https://..." />
+                </div>
+
+                <div class="border-t border-outline-variant pt-4 flex items-center justify-end gap-2">
+                    <button type="button" class="px-4 py-2 border border-outline-variant text-xs font-mono font-bold text-on-surface-variant hover:text-primary transition-colors" onclick="closeMaterialModal()">ABBRECHEN</button>
+                    <button type="submit" class="px-5 py-2 bg-primary text-white text-xs font-mono font-bold hover:bg-neutral-800 transition-colors shadow-sm">ANHÄNGEN</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Bottom Navigation Bar (Mobile) -->
+    <nav
+        class="md:hidden fixed bottom-0 left-0 w-full flex justify-around items-center h-16 bg-surface border-t border-outline-variant px-4 z-50">
+        <button class="text-primary flex flex-col items-center justify-center font-bold" data-nav-mobile="dashboard"
+            onclick="switchScreen('dashboard')">
+            <span class="material-symbols-outlined text-[20px]">home</span>
+            <span class="text-[10px] mono">Home</span>
+        </button>
+        <button class="text-on-surface-variant flex flex-col items-center justify-center" data-nav-mobile="inbox"
+            onclick="switchScreen('inbox')">
+            <span class="material-symbols-outlined text-[20px]">inbox</span>
+            <span class="text-[10px] mono">Inbox</span>
+        </button>
+        <button class="text-on-surface-variant flex flex-col items-center justify-center" data-nav-mobile="projects"
+            onclick="switchScreen('projects')">
+            <span class="material-symbols-outlined text-[20px]">folder</span>
+            <span class="text-[10px] mono">Projekte</span>
+        </button>
+        <button class="text-on-surface-variant flex flex-col items-center justify-center" data-nav-mobile="calendar"
+            onclick="switchScreen('calendar')">
+            <span class="material-symbols-outlined text-[20px]">calendar_today</span>
+            <span class="text-[10px] mono">Kalender</span>
+        </button>
+        <button class="text-on-surface-variant flex flex-col items-center justify-center" data-nav-mobile="coach"
+            onclick="switchScreen('coach')">
+            <span class="material-symbols-outlined text-[20px]">smart_toy</span>
+            <span class="text-[10px] mono">Coach</span>
+        </button>
+        <button class="text-on-surface-variant flex flex-col items-center justify-center" data-nav-mobile="review"
+            onclick="switchScreen('review')">
+            <span class="material-symbols-outlined text-[20px]">analytics</span>
+            <span class="text-[10px] mono">Review</span>
+        </button>
+    </nav>
+
+    <!-- JavaScript Interaktivität & State Navigation -->
+    <script>
+        // SMART MARQUEE AUTO-DETECTION: Aktiviert Animation NUR wenn der Text breiter ist als seine Box
+        function updateSmartMarquees() {
+            document.querySelectorAll('.marquee-wrapper').forEach(wrapper => {
+                const content = wrapper.querySelector('.marquee-content');
+                if (content) {
+                    const overflow = content.scrollWidth - wrapper.clientWidth;
+                    if (overflow > 4) {
+                        content.style.setProperty('--scroll-offset', `-${overflow + 8}px`);
+                        content.classList.add('animate-marquee');
+                    } else {
+                        content.classList.remove('animate-marquee');
+                        content.style.removeProperty('--scroll-offset');
+                    }
+                }
+            });
+        }
+
+        window.addEventListener('resize', updateSmartMarquees);
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(updateSmartMarquees, 100);
+        });
+
+        // Modal Projekt Historie
+        function toggleProjectHistoryModal(show) {
+            const modal = document.getElementById('project-history-modal');
+            if (show) {
+                modal.classList.remove('hidden');
+            } else {
+                modal.classList.add('hidden');
+            }
+        }
+
+        // Project Status Toggle State
+        let currentProjectStatus = 0; // 0: Aktiv, 1: Pausiert, 2: Abgeschlossen
+        const projectStatuses = [
+            { text: "STATUS: AKTIV", bg: "bg-emerald-50 text-emerald-900 border-emerald-300", dot: "bg-emerald-600 animate-pulse" },
+            { text: "STATUS: PAUSIERT", bg: "bg-amber-50 text-amber-900 border-amber-300", dot: "bg-amber-600" },
+            { text: "STATUS: ABGESCHLOSSEN", bg: "bg-neutral-100 text-neutral-800 border-neutral-300", dot: "bg-neutral-600" }
+        ];
+
+        function toggleProjectStatus() {
+            currentProjectStatus = (currentProjectStatus + 1) % projectStatuses.length;
+            const st = projectStatuses[currentProjectStatus];
+            const btn = document.getElementById('project-status-btn');
+            const dot = document.getElementById('project-status-dot');
+            const text = document.getElementById('project-status-text');
+
+            btn.className = `inline-flex items-center gap-2 px-2.5 sm:px-3 py-1.5 ${st.bg} border font-mono text-xs font-bold transition-all shadow-sm cursor-pointer whitespace-nowrap`;
+            dot.className = `w-2.5 h-2.5 rounded-full ${st.dot} flex-shrink-0`;
+            text.textContent = st.text;
+        }
+
+        // Phase Collapse/Expand Toggle (Einzelne Phase)
+        function togglePhaseCollapse(phaseCardId) {
+            const body = document.getElementById(`${phaseCardId}-body`);
+            const icon = document.getElementById(`${phaseCardId}-icon`);
+            if (body && icon) {
+                const isHidden = body.classList.toggle('hidden');
+                icon.textContent = isHidden ? "chevron_right" : "expand_more";
+            }
+        }
+
+        // Alle Phasen auf einmal Ein-/Ausklappen
+        let allPhasesCollapsed = false;
+        function toggleAllPhasesCollapse(btn) {
+            allPhasesCollapsed = !allPhasesCollapsed;
+            const phaseCards = document.querySelectorAll('.phase-card');
+            phaseCards.forEach(card => {
+                const body = card.querySelector('[id$="-body"]');
+                const icon = card.querySelector('[id$="-icon"]');
+                if (body && icon) {
+                    if (allPhasesCollapsed) {
+                        body.classList.add('hidden');
+                        icon.textContent = "chevron_right";
+                    } else {
+                        body.classList.remove('hidden');
+                        icon.textContent = "expand_more";
+                    }
+                }
+            });
+            const textEl = document.getElementById('toggle-all-phases-text');
+            textEl.textContent = allPhasesCollapsed ? "ALLE AUSKLAPPEN" : "ALLE EINKLAPPEN";
+        }
+
+        // Unterpunkt-Details (Notizen & Quellen) Ein-/Ausklappen
+        function toggleTaskDetails(btn) {
+            const taskItem = btn.closest('.task-item');
+            const detailsBody = taskItem ? taskItem.querySelector('.task-details-body') : null;
+            const icon = btn.querySelector('.material-symbols-outlined');
+            if (detailsBody && icon) {
+                const isHidden = detailsBody.classList.toggle('hidden');
+                icon.textContent = isHidden ? "expand_more" : "expand_less";
+            }
+        }
+
+        // PHASEN-FILTER LOGIK (Bezieht sich rein auf ganze Phasen)
+        function filterPhases(filterType, btn) {
+            const buttons = document.querySelectorAll('#phase-filter-controls button');
+            buttons.forEach(b => {
+                if (b.onclick && b.onclick.toString().includes('filterPhases')) {
+                    b.className = "px-2.5 py-1 text-on-surface-variant hover:text-primary transition-all font-medium";
+                }
+            });
+            btn.className = "px-2.5 py-1 bg-primary text-white font-bold transition-all shadow-sm";
+
+            const phaseCards = document.querySelectorAll('.phase-card');
+            phaseCards.forEach(card => {
+                const isCompleted = card.getAttribute('data-phase-completed') === 'true';
+                if (filterType === 'all') {
+                    card.style.display = 'block';
+                } else if (filterType === 'open') {
+                    card.style.display = isCompleted ? 'none' : 'block';
+                } else if (filterType === 'completed') {
+                    card.style.display = isCompleted ? 'block' : 'none';
+                }
+            });
+        }
+
+        function switchScreen(screenId) {
+            const screens = document.querySelectorAll('[data-screen]');
+            screens.forEach(s => s.classList.remove('active'));
+
+            const target = document.querySelector(`[data-screen="${screenId}"]`);
+            if (target) target.classList.add('active');
+
+            const titles = {
+                'dashboard': 'Dashboard',
+                'inbox': 'Inbox (Brain-Dump)',
+                'projects': 'Projekte (Übersicht)',
+                'project-detail': 'Projekt Details',
+                'calendar': 'Kalender (Monatsansicht)',
+                'coach': 'AI Coach',
+                'review': 'Wochenrückblick'
+            };
+            document.getElementById('screen-title').textContent = titles[screenId] || 'FocusFlow';
+
+            document.querySelectorAll('[data-nav]').forEach(btn => {
+                if (btn.getAttribute('data-nav') === screenId) {
+                    btn.className = "flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-all rounded hover:bg-surface-low text-primary border-r-2 border-primary font-bold";
+                } else {
+                    btn.className = "flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-all rounded hover:bg-surface-low text-on-surface-variant";
+                }
+            });
+
+            document.querySelectorAll('[data-nav-mobile]').forEach(btn => {
+                if (btn.getAttribute('data-nav-mobile') === screenId) {
+                    btn.className = "text-primary flex flex-col items-center justify-center font-bold";
+                } else {
+                    btn.className = "text-on-surface-variant flex flex-col items-center justify-center";
+                }
+            });
+
+            // Re-calculate smart marquees after layout changes
+            setTimeout(updateSmartMarquees, 50);
+        }
+
+        function scrollToTask(elementId) {
+            const el = document.getElementById(elementId);
+            if (el) {
+                const parentPhase = el.closest('.phase-card');
+                if (parentPhase) {
+                    const phaseId = parentPhase.id;
+                    const body = document.getElementById(`${phaseId}-body`);
+                    const icon = document.getElementById(`${phaseId}-icon`);
+                    if (body && body.classList.contains('hidden')) {
+                        body.classList.remove('hidden');
+                        if (icon) icon.textContent = "expand_more";
+                    }
+                }
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                el.classList.add('ring-2', 'ring-primary', 'bg-white');
+                setTimeout(() => {
+                    el.classList.remove('ring-2', 'ring-primary', 'bg-white');
+                }, 2000);
+            }
+        }
+
+        function addTaskNote(btn) {
+            const note = prompt("Anmerkung / Gedanke für diese Aufgabe:");
+            if (!note) return;
+            const container = btn.closest('.task-details-body') || btn.parentElement;
+            const div = document.createElement('div');
+            div.className = "p-2 bg-white border border-outline-variant text-xs space-y-1 shadow-sm my-1";
+            div.innerHTML = `
+                <div class="flex items-center justify-between text-[10px] font-mono text-on-surface-variant font-bold border-b border-outline-variant/60 pb-1">
+                    <span class="flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[13px] text-primary">sticky_note_2</span>
+                        <span>ANMERKUNG / NOTIZ:</span>
+                    </span>
+                    <span class="text-[9px]">NEU</span>
+                </div>
+                <p class="text-primary text-[11px] leading-tight">${note}</p>
+            `;
+            const actionRow = container.querySelector('.flex.items-center.gap-3');
+            if (actionRow) {
+                container.insertBefore(div, actionRow);
+            } else {
+                container.appendChild(div);
+            }
+        }
+
+        function toggleDropdown(btn) {
+            const dropdown = btn.nextElementSibling;
+            if (dropdown) dropdown.classList.toggle('hidden');
+        }
+
+        function simulateVoiceInput() {
+            const input = document.getElementById('inbox-input');
+            input.placeholder = "Zuhören... (Spracheingabe aktiv)";
+            setTimeout(() => {
+                input.value = "Neue Idee für die Benutzeroberfläche skizzieren";
+                input.placeholder = "Neuer Gedanke, Aufgabe oder Notiz...";
+            }, 1500);
+        }
+
+        function addInboxItem() {
+            const input = document.getElementById('inbox-input');
+            const val = input.value.trim();
+            if (!val) return;
+
+            const list = document.getElementById('inbox-today-list');
+            const item = document.createElement('div');
+            item.className = "bg-white p-3.5 sm:p-4 border border-outline-variant flex items-center justify-between gap-3 group hover:border-primary transition-all";
+            item.innerHTML = `
+                <span class="text-xs sm:text-sm">${val}</span>
+                <div class="relative flex-shrink-0">
+                    <button class="p-1 hover:bg-surface-low transition-colors" onclick="toggleDropdown(this)">
+                        <span class="material-symbols-outlined text-[20px]">more_vert</span>
+                    </button>
+                    <div class="hidden absolute right-0 top-full mt-1 bg-white border border-primary z-20 w-48 shadow-lg">
+                        <button class="w-full text-left px-4 py-2.5 hover:bg-surface-low text-xs font-medium" onclick="convertInboxToProject(this)">Zu Projekt umwandeln</button>
+                    </div>
+                </div>
+            `;
+            list.prepend(item);
+            input.value = '';
+        }
+
+        // =========================================================================
+        // MODAL 1: PROJEKT ERSTELLEN & INBOX-UMWANDLUNG LOGIK
+        // =========================================================================
+        let inboxItemToConvert = null;
+
+        function openProjectModal(prefilledTitle = '') {
+            const modal = document.getElementById('project-modal');
+            const input = document.getElementById('project-name-input');
+            const title = document.getElementById('project-modal-title');
+            input.value = prefilledTitle;
+            title.textContent = prefilledTitle ? 'INBOX-GEDANKE ZU PROJEKT UMWANDELN' : 'PROJEKT ERSTELLEN';
+            modal.classList.remove('hidden');
+            setTimeout(() => input.focus(), 100);
+        }
+
+        function closeProjectModal() {
+            document.getElementById('project-modal').classList.add('hidden');
+            inboxItemToConvert = null;
+        }
+
+        function convertInboxToProject(btn) {
+            const inboxItem = btn.closest('.group');
+            const textSpan = inboxItem ? inboxItem.querySelector('span') : null;
+            const text = textSpan ? textSpan.textContent.trim() : '';
+            inboxItemToConvert = inboxItem;
+            openProjectModal(text);
+        }
+
+        function handleProjectSubmit(event) {
+            event.preventDefault();
+            const name = document.getElementById('project-name-input').value.trim();
+            if (!name) return;
+
+            const grid = document.getElementById('projects-grid');
+            const card = document.createElement('div');
+            card.className = "text-left p-4 sm:p-6 bg-white border border-outline-variant hover:border-primary transition-all flex flex-col justify-between h-[280px] cursor-pointer";
+            card.onclick = () => switchScreen('project-detail');
+            card.innerHTML = `
+                <div>
+                    <div class="marquee-wrapper mb-1">
+                        <h3 class="text-lg font-bold hover:underline leading-snug marquee-content">${name}</h3>
+                    </div>
+                    <p class="text-xs text-on-surface-variant font-mono mb-2 truncate">
+                        Heute – Deadline in 30 Tagen <span class="font-bold text-primary">(NEU)</span>
+                    </p>
+                </div>
+                <div class="grid grid-cols-2 gap-2 my-1 p-2 bg-surface-low border border-outline-variant text-[11px] font-mono">
+                    <div>
+                        <span class="text-on-surface-variant block text-[10px] uppercase">Phasen</span>
+                        <span class="font-bold text-primary">0 / 3 Erledigt</span>
+                    </div>
+                    <div>
+                        <span class="text-on-surface-variant block text-[10px] uppercase">Unterpunkte</span>
+                        <span class="font-bold text-primary">0 / 10 Tasks</span>
+                    </div>
+                </div>
+                <div class="space-y-2 border-t border-outline-variant pt-2.5">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[10px] font-mono font-bold px-2 py-0.5 bg-emerald-100 text-emerald-900 border border-emerald-300 whitespace-nowrap">🟢 NEU ANGELEGT</span>
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-center text-[11px] mono font-bold mb-0.5">
+                            <span>FORTSCHRITT</span>
+                            <span>0%</span>
+                        </div>
+                        <div class="w-full bg-surface-low h-2 border border-outline-variant">
+                            <div class="bg-primary h-full" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-center text-[10px] mono text-on-surface-variant mb-0.5">
+                            <span>VERSTRICHENE ZEIT</span>
+                            <span>0%</span>
+                        </div>
+                        <div class="w-full bg-surface-low h-1.5 border border-outline-variant">
+                            <div class="bg-neutral-400 h-full" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            grid.prepend(card);
+
+            if (inboxItemToConvert) {
+                inboxItemToConvert.remove();
+                inboxItemToConvert = null;
+            }
+
+            closeProjectModal();
+            switchScreen('projects');
+            setTimeout(updateSmartMarquees, 100);
+        }
+
+        // =========================================================================
+        // MODAL 2: NEUE PHASE ANLEGEN LOGIK
+        // =========================================================================
+        function openPhaseModal() {
+            document.getElementById('phase-title-input').value = '';
+            document.getElementById('phase-desc-input').value = '';
+            document.getElementById('phase-modal').classList.remove('hidden');
+            setTimeout(() => document.getElementById('phase-title-input').focus(), 100);
+        }
+
+        function closePhaseModal() {
+            document.getElementById('phase-modal').classList.add('hidden');
+        }
+
+        function handlePhaseSubmit(event) {
+            event.preventDefault();
+            const phaseName = document.getElementById('phase-title-input').value.trim();
+            if (!phaseName) return;
+
+            const container = document.getElementById('phases-container');
+            const phaseCount = container.children.length + 1;
+            const phaseId = `phase-${phaseCount}-card`;
+
+            const div = document.createElement('div');
+            div.className = "border border-outline-variant bg-white p-3.5 sm:p-6 space-y-4 transition-all phase-card";
+            div.id = phaseId;
+            div.setAttribute('data-phase-completed', 'false');
+            div.innerHTML = `
+                <div class="flex items-center justify-between gap-2 border-b border-outline-variant pb-3 cursor-pointer select-none group" onclick="togglePhaseCollapse('${phaseId}')">
+                    <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+                        <span class="material-symbols-outlined text-[20px] text-primary transition-transform duration-200 flex-shrink-0" id="${phaseId}-icon">expand_more</span>
+                        <div class="min-w-0">
+                            <span class="text-[10px] font-mono text-on-surface-variant uppercase font-bold block">Phase 0${phaseCount}</span>
+                            <h3 class="text-base sm:text-lg font-bold group-hover:underline truncate">${phaseName}</h3>
+                        </div>
+                    </div>
+                    <span class="text-[10px] sm:text-xs mono font-bold text-primary bg-surface-low px-2 py-0.5 border border-outline-variant whitespace-nowrap flex-shrink-0">0/0 ERLEDIGT</span>
+                </div>
+                <div class="space-y-4" id="${phaseId}-body">
+                    <div class="p-3 bg-surface-low border border-outline-variant flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="text-xs font-mono font-bold text-primary uppercase">MATERIAL:</span>
+                            <div class="flex flex-wrap gap-2"></div>
+                        </div>
+                        <button class="text-[11px] font-mono text-primary flex items-center gap-1 hover:underline font-bold whitespace-nowrap self-start sm:self-auto" onclick="openMaterialModal(this)">
+                            <span class="material-symbols-outlined text-[14px]">add</span>
+                            <span>Link hinzufügen</span>
+                        </button>
+                    </div>
+                    <div class="border-t border-outline-variant my-4"></div>
+                    <div class="space-y-3">
+                        <div class="p-3 border border-dashed border-outline-variant hover:border-primary bg-white hover:bg-surface-low cursor-pointer transition-all flex items-center justify-between group" onclick="openTaskModal(this)">
+                            <div class="flex items-center gap-2.5">
+                                <div class="w-4 h-4 border border-dashed border-primary flex items-center justify-center font-mono text-[10px] font-bold text-primary group-hover:bg-primary group-hover:text-white transition-colors">+</div>
+                                <span class="text-xs font-mono font-bold text-primary group-hover:underline uppercase">+ UNTERPUNKT HINZUFÜGEN</span>
+                            </div>
+                            <span class="text-[10px] font-mono px-2 py-0.5 bg-surface-low border border-outline-variant text-on-surface-variant font-medium">TASK</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.appendChild(div);
+            closePhaseModal();
+            setTimeout(updateSmartMarquees, 50);
+        }
+
+        // =========================================================================
+        // MODAL 3: UNTERPUNKT / TASK HINZUFÜGEN LOGIK
+        // =========================================================================
+        let currentTaskTargetBtn = null;
+
+        function openTaskModal(btn) {
+            currentTaskTargetBtn = btn;
+            document.getElementById('task-title-input').value = '';
+            document.getElementById('task-date-input').value = '';
+            document.getElementById('task-note-input').value = '';
+            document.getElementById('task-modal').classList.remove('hidden');
+            setTimeout(() => document.getElementById('task-title-input').focus(), 100);
+        }
+
+        function closeTaskModal() {
+            document.getElementById('task-modal').classList.add('hidden');
+            currentTaskTargetBtn = null;
+        }
+
+        function handleTaskSubmit(event) {
+            event.preventDefault();
+            const name = document.getElementById('task-title-input').value.trim();
+            const dateVal = document.getElementById('task-date-input').value.trim() || 'Demnächst';
+            const noteVal = document.getElementById('task-note-input').value.trim();
+            if (!name || !currentTaskTargetBtn) return;
+
+            const phaseDiv = currentTaskTargetBtn.closest('.phase-card');
+            const list = phaseDiv ? phaseDiv.querySelector('.space-y-3') : null;
+            if (!list) return;
+
+            const item = document.createElement('div');
+            item.className = "p-3 bg-surface-low border border-outline-variant space-y-2 task-item";
+            item.setAttribute('data-completed', 'false');
+            item.innerHTML = `
+                <div class="flex items-start justify-between gap-2">
+                    <div class="flex items-start gap-2.5 min-w-0 flex-1">
+                        <input type="checkbox" class="w-4 h-4 text-primary rounded-none border-outline-variant focus:ring-0 flex-shrink-0 mt-0.5" onchange="toggleTaskStatus(this)" />
+                        <div class="min-w-0 flex-1">
+                            <span class="text-xs sm:text-sm font-medium text-primary leading-snug block">${name}</span>
+                            <span class="text-[10px] sm:text-[11px] font-mono text-on-surface-variant block mt-0.5 font-normal">
+                                Geplant: ${dateVal}
+                            </span>
+                        </div>
+                    </div>
+                    <button class="p-0.5 text-on-surface-variant hover:text-primary hover:bg-white border border-transparent hover:border-outline-variant transition-all rounded flex-shrink-0 mt-0.5" onclick="toggleTaskDetails(this)" title="Quellen & Notizen ein-/ausklappen">
+                        <span class="material-symbols-outlined text-[16px]">expand_less</span>
+                    </button>
+                </div>
+                <div class="task-details-body pt-1.5 space-y-2 border-t border-outline-variant/60 mt-2">
+                    ${noteVal ? `
+                        <div class="p-2 bg-white border border-outline-variant text-xs space-y-1 shadow-sm">
+                            <div class="flex items-center justify-between text-[10px] font-mono text-on-surface-variant font-bold border-b border-outline-variant/60 pb-1">
+                                <span class="flex items-center gap-1">
+                                    <span class="material-symbols-outlined text-[13px] text-primary">sticky_note_2</span>
+                                    <span>ANMERKUNG / NOTIZ:</span>
+                                </span>
+                                <span class="text-[9px]">NEU</span>
+                            </div>
+                            <p class="text-primary text-[11px] leading-tight">${noteVal}</p>
+                        </div>
+                    ` : ''}
+                    <div class="flex items-center gap-3 pt-0.5 flex-wrap">
+                        <button class="text-[11px] font-mono text-primary hover:underline flex items-center gap-1 font-bold" onclick="addTaskNote(this)">
+                            <span class="material-symbols-outlined text-[13px]">add_comment</span>
+                            <span>Notiz hinzufügen</span>
+                        </button>
+                        <span class="text-outline-variant hidden sm:inline">•</span>
+                        <button class="text-[11px] font-mono text-on-surface-variant hover:text-primary flex items-center gap-1" onclick="openMaterialModal(this)">
+                            <span class="material-symbols-outlined text-[13px]">link</span>
+                            <span>Link hinzufügen</span>
+                        </button>
+                    </div>
+                </div>
+            `;
+            list.insertBefore(item, currentTaskTargetBtn);
+            closeTaskModal();
+            setTimeout(updateSmartMarquees, 50);
+        }
+
+        // =========================================================================
+        // MODAL 4: MATERIAL / DOKUMENT / LINK ANHÄNGEN LOGIK (DRAG & DROP + STRG+V)
+        // =========================================================================
+        let currentMaterialTarget = null;
+
+        function openMaterialModal(btn) {
+            currentMaterialTarget = btn;
+            document.getElementById('material-name-input').value = '';
+            document.getElementById('material-modal').classList.remove('hidden');
+            window.addEventListener('paste', handleGlobalPaste);
+            setTimeout(() => document.getElementById('material-name-input').focus(), 100);
+        }
+
+        function closeMaterialModal() {
+            document.getElementById('material-modal').classList.add('hidden');
+            window.removeEventListener('paste', handleGlobalPaste);
+            currentMaterialTarget = null;
+        }
+
+        function handleGlobalPaste(e) {
+            const modal = document.getElementById('material-modal');
+            if (modal.classList.contains('hidden')) return;
+            
+            let pasteText = (e.clipboardData || window.clipboardData).getData('text');
+            if (pasteText) {
+                document.getElementById('material-name-input').value = pasteText;
+            } else if (e.clipboardData.files && e.clipboardData.files.length > 0) {
+                document.getElementById('material-name-input').value = `Screenshot_${e.clipboardData.files[0].name || 'Zwischenablage.png'}`;
+            }
+        }
+
+        function handleFileSelected(input) {
+            if (input.files && input.files[0]) {
+                document.getElementById('material-name-input').value = input.files[0].name;
+            }
+        }
+
+        function handleMaterialSubmit(event) {
+            event.preventDefault();
+            const linkName = document.getElementById('material-name-input').value.trim();
+            if (!linkName || !currentMaterialTarget) return;
+
+            const parent = currentMaterialTarget.parentElement;
+            const targetDiv = parent.querySelector('.flex-wrap') || parent;
+            
+            const link = document.createElement('a');
+            link.href = "#";
+            link.onclick = (e) => e.preventDefault();
+            link.className = "inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-outline-variant text-xs hover:border-primary font-medium shadow-sm transition-all";
+            link.innerHTML = `<span class="material-symbols-outlined text-[12px]">link</span><span>${linkName}</span>`;
+            
+            targetDiv.appendChild(link);
+            closeMaterialModal();
+        }
+
+        // Drag & Drop Setup
+        document.addEventListener('DOMContentLoaded', () => {
+            const dropZone = document.getElementById('drop-zone');
+            if (dropZone) {
+                ['dragenter', 'dragover'].forEach(eventName => {
+                    dropZone.addEventListener(eventName, (e) => {
+                        e.preventDefault();
+                        dropZone.classList.add('border-primary', 'bg-primary/5');
+                    });
+                });
+                ['dragleave', 'drop'].forEach(eventName => {
+                    dropZone.addEventListener(eventName, (e) => {
+                        e.preventDefault();
+                        dropZone.classList.remove('border-primary', 'bg-primary/5');
+                    });
+                });
+                dropZone.addEventListener('drop', (e) => {
+                    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                        document.getElementById('material-name-input').value = e.dataTransfer.files[0].name;
+                    }
+                });
+            }
+        });
+
+        function sendChatMessage() {
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            if (!text) return;
+
+            const history = document.getElementById('chat-history');
+
+            const userMsg = document.createElement('div');
+            userMsg.className = "flex gap-3 flex-row-reverse";
+            userMsg.innerHTML = `
+                <div class="w-8 h-8 flex-shrink-0 bg-surface-low border border-outline-variant flex items-center justify-center text-xs font-mono font-bold">FF</div>
+                <div class="p-4 bg-white border border-primary text-sm max-w-[85%] shadow-sm"><p>${text}</p></div>
+            `;
+            history.appendChild(userMsg);
+            input.value = '';
+
+            setTimeout(() => {
+                const botMsg = document.createElement('div');
+                botMsg.className = "flex gap-3";
+                botMsg.innerHTML = `
+                    <div class="w-8 h-8 flex-shrink-0 bg-primary text-on-primary flex items-center justify-center text-xs">
+                        <span class="material-symbols-outlined text-[16px]">smart_toy</span>
+                    </div>
+                    <div class="p-4 bg-white border border-outline-variant text-sm max-w-[85%] shadow-sm">
+                        <p>Das klingt nach einem fokussierten Vorgehen! Ich habe das als Ziel vermerkt.</p>
+                    </div>
+                `;
+                history.appendChild(botMsg);
+                history.scrollTop = history.scrollHeight;
+            }, 600);
+        }
+
+        function toggleCoachHistory(show) {
+            const drawer = document.getElementById('coach-history-drawer');
+            const btnExpand = document.getElementById('btn-expand-history');
+            const btnQuickNew = document.getElementById('btn-quick-new-chat');
+
+            if (show) {
+                drawer.classList.remove('w-0', 'p-0', 'border-0', 'overflow-hidden');
+                drawer.classList.add('w-72');
+                btnExpand.classList.add('hidden');
+                btnQuickNew.classList.add('hidden');
+            } else {
+                drawer.classList.remove('w-72');
+                drawer.classList.add('w-0', 'p-0', 'border-0', 'overflow-hidden');
+                btnExpand.classList.remove('hidden');
+                btnQuickNew.classList.remove('hidden');
+            }
+        }
+
+        function sendQuickPrompt(promptText) {
+            document.getElementById('chat-input').value = promptText;
+            sendChatMessage();
+        }
+
+        function startNewChat() {
+            document.getElementById('active-chat-title').textContent = "Neuer Chat";
+            const history = document.getElementById('chat-history');
+            history.innerHTML = `
+                <div class="flex flex-col items-center text-center py-6 border-b border-outline-variant mb-6">
+                    <div class="w-12 h-12 bg-primary text-on-primary rounded-full flex items-center justify-center mb-3">
+                        <span class="material-symbols-outlined text-[24px]">smart_toy</span>
+                    </div>
+                    <h2 class="text-xl font-bold mb-1">Neuer Chat gestartet</h2>
+                    <p class="text-xs text-on-surface-variant">Worüber möchtest du sprechen oder wo brauchst du Hilfe beim Starten?</p>
+                </div>
+            `;
+        }
+
+        function loadPastChat(title, element) {
+            const listItems = document.querySelectorAll('#chat-sessions-list > div');
+            listItems.forEach(item => {
+                item.className = "p-3 bg-white border border-outline-variant cursor-pointer hover:bg-surface-low transition-colors flex flex-col gap-0.5";
+            });
+            element.className = "p-3 bg-surface-low border-l-2 border-primary cursor-pointer hover:bg-surface transition-colors flex flex-col gap-0.5";
+
+            document.getElementById('active-chat-title').textContent = title;
+            const history = document.getElementById('chat-history');
+            history.innerHTML = `
+                <div class="flex gap-3">
+                    <div class="w-8 h-8 flex-shrink-0 bg-primary text-on-primary flex items-center justify-center text-xs">
+                        <span class="material-symbols-outlined text-[16px]">smart_toy</span>
+                    </div>
+                    <div class="p-4 bg-white border border-outline-variant text-sm max-w-[85%] shadow-sm">
+                        <p>Hier ist die Zusammenfassung aus unserer vorherigen Session '${title}'.</p>
+                    </div>
+                </div>
+                <div class="flex gap-3 flex-row-reverse">
+                    <div class="w-8 h-8 flex-shrink-0 bg-surface-low border border-outline-variant flex items-center justify-center text-xs font-mono font-bold">FF</div>
+                    <div class="p-4 bg-white border border-primary text-sm max-w-[85%] shadow-sm">
+                        <p>Danke, das hat mir geholfen!</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        const calendarMonths = ["April 2024", "Mai 2024", "Juni 2024"];
+        let currentMonthIdx = 1;
+
+        function changeCalendarMonth(delta) {
+            currentMonthIdx = Math.max(0, Math.min(calendarMonths.length - 1, currentMonthIdx + delta));
+            document.getElementById('calendar-month-title').textContent = calendarMonths[currentMonthIdx];
+        }
+
+        function resetCalendarMonth() {
+            currentMonthIdx = 1;
+            document.getElementById('calendar-month-title').textContent = calendarMonths[currentMonthIdx];
+        }
+
+        function selectCalendarDay(dayNum) {
+            document.getElementById('selected-day-title').textContent = `TAGES-TIMELINE (${dayNum}. MAI 2024)`;
+            document.getElementById('day-timeline-content').innerHTML = `
+                <div class="flex gap-4 items-start">
+                    <span class="text-xs font-mono text-on-surface-variant w-12">09:00</span>
+                    <div class="flex-grow p-3 bg-surface-low border-l-2 border-primary text-xs">
+                        <p class="font-bold">Fokus-Session: Deep Work</p>
+                        <p class="text-on-surface-variant">Geplante Aufgaben abarbeiten</p>
+                    </div>
+                </div>
+                <div class="flex gap-4 items-start">
+                    <span class="text-xs font-mono text-on-surface-variant w-12">14:00</span>
+                    <div class="flex-grow p-3 bg-surface-low border-l-2 border-outline-variant text-xs">
+                        <p class="font-bold">Review & Checkpoint</p>
+                        <p class="text-on-surface-variant">Tagesfortschritt dokumentieren</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        function toggleTaskStatus(checkbox) {
+            const container = checkbox.closest('.task-item') || checkbox.closest('div');
+            const text = container.querySelector('.text-sm') || container.querySelector('.text-xs');
+            if (checkbox.checked) {
+                container.classList.add('opacity-60');
+                if (text) text.classList.add('line-through');
+                container.setAttribute('data-completed', 'true');
+            } else {
+                container.classList.remove('opacity-60');
+                if (text) text.classList.remove('line-through');
+                container.setAttribute('data-completed', 'false');
+            }
+        }
+    </script>
+</body>
+
+</html>
