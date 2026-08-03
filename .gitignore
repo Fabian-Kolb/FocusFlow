@@ -1,3 +1,9 @@
+# Environment / Secrets
+.env
+.env.*
+!.env.example
+*-service-account*.json
+
 # Logs
 logs
 *.log

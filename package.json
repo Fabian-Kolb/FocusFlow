@@ -6,11 +6,13 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "deploy": "npm run build && firebase deploy --only hosting",
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "node scripts/run-e2e-tests.js"
   },
   "dependencies": {
+    "firebase": "^12.17.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
@@ -21,6 +23,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
     "autoprefixer": "^10.5.4",
+    "firebase-tools": "^15.25.1",
     "jsdom": "^29.1.1",
     "oxlint": "^1.75.0",
     "postcss": "^8.5.25",

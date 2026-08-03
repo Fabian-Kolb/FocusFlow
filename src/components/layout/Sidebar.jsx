@@ -1,6 +1,13 @@
 import React from 'react';
+import { useAuth } from '../../context/AuthContext';
+import { useModalContext } from '../../context/ModalContext';
 
 const Sidebar = ({ currentScreen, setCurrentScreen, collapsed, setCollapsed }) => {
+  const { user } = useAuth();
+  const { openModal } = useModalContext();
+
+  const userInitial = (user?.displayName || user?.email || 'U').substring(0, 2).toUpperCase();
+
   const navItems = [
     { id: 'dashboard', label: 'Home', icon: 'home' },
     { id: 'inbox', label: 'Inbox', icon: 'inbox' },
@@ -60,26 +67,29 @@ const Sidebar = ({ currentScreen, setCurrentScreen, collapsed, setCollapsed }) =
       </nav>
 
       {/* User Badge */}
-      {!collapsed && (
-        <div className="px-4 py-4 border-t border-outline-variant">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-surface-low flex items-center justify-center border border-outline-variant font-mono text-xs font-bold flex-shrink-0">
-              FF
-            </div>
-            <div className="text-xs min-w-0">
-              <p className="font-medium truncate">Fabian</p>
-              <p className="text-on-surface-variant text-[10px] mono">Pro Workspace</p>
-            </div>
+      <button
+        onClick={() => openModal('profile')}
+        className={`w-full text-left transition-colors hover:bg-surface-variant/30 border-t border-outline-variant ${
+          collapsed ? 'py-4 flex justify-center' : 'px-4 py-4'
+        }`}
+        title="Profil Einstellungen"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-surface-low flex items-center justify-center border border-outline-variant font-mono text-xs font-bold flex-shrink-0 overflow-hidden">
+            {user?.photoURL ? (
+              <img src={user.photoURL} alt="Avatar" className="w-full h-full object-cover" />
+            ) : (
+              userInitial
+            )}
           </div>
+          {!collapsed && (
+            <div className="text-xs min-w-0 flex-1">
+              <p className="font-medium truncate">{user?.displayName || user?.email?.split('@')[0]}</p>
+              <p className="text-on-surface-variant text-[10px] mono truncate">{user?.email}</p>
+            </div>
+          )}
         </div>
-      )}
-      {collapsed && (
-        <div className="py-4 border-t border-outline-variant flex justify-center">
-          <div className="w-8 h-8 bg-surface-low flex items-center justify-center border border-outline-variant font-mono text-xs font-bold" title="Fabian – Pro Workspace">
-            FF
-          </div>
-        </div>
-      )}
+      </button>
     </aside>
   );
 };

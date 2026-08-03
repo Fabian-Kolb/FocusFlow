@@ -3,6 +3,7 @@ import Sidebar from './components/layout/Sidebar';
 import Topbar from './components/layout/Topbar';
 import BottomNav from './components/layout/BottomNav';
 import { ModalProvider } from './context/ModalContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 
 // Modals
 import ProjectModal from './components/modals/ProjectModal';
@@ -10,6 +11,7 @@ import PhaseModal from './components/modals/PhaseModal';
 import TaskModal from './components/modals/TaskModal';
 import MaterialModal from './components/modals/MaterialModal';
 import ProjectHistoryModal from './components/modals/ProjectHistoryModal';
+import ProfileModal from './components/modals/ProfileModal';
 
 // Screens
 import Dashboard from './components/screens/Dashboard';
@@ -19,10 +21,17 @@ import ProjectDetail from './components/screens/ProjectDetail';
 import Calendar from './components/screens/Calendar';
 import Coach from './components/screens/Coach';
 import Review from './components/screens/Review';
+import Login from './components/screens/Login';
 
 function AppContent() {
   const [currentScreen, setCurrentScreen] = useState('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const { user } = useAuth();
+
+  // If the user is not logged in, render only the Login screen
+  if (!user) {
+    return <Login />;
+  }
 
   // Breadcrumb title rendering
   const renderTopbarTitle = () => {
@@ -83,15 +92,18 @@ function AppContent() {
       <TaskModal />
       <MaterialModal />
       <ProjectHistoryModal />
+      <ProfileModal />
     </div>
   );
 }
 
 function App() {
   return (
-    <ModalProvider>
-      <AppContent />
-    </ModalProvider>
+    <AuthProvider>
+      <ModalProvider>
+        <AppContent />
+      </ModalProvider>
+    </AuthProvider>
   );
 }
 
