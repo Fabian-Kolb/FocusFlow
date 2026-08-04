@@ -6,16 +6,11 @@ import Button from '../ui/Button';
 import Input from '../ui/Input';
 
 const Reminders = ({ setCurrentScreen }) => {
-  const { reminders, setSelectedReminderId, toggleReminderStatus } = useModalContext();
+  const { reminders, setSelectedReminderId } = useModalContext();
 
   const handleReminderClick = (reminderId) => {
     setSelectedReminderId(reminderId);
     setCurrentScreen('reminder-detail');
-  };
-
-  const handleToggleStatus = (e, reminderId) => {
-    e.stopPropagation();
-    toggleReminderStatus(reminderId);
   };
 
   return (
@@ -41,42 +36,37 @@ const Reminders = ({ setCurrentScreen }) => {
           <Card
             key={reminder.id}
             interactive
-            className={`flex flex-col justify-between h-[160px] ${reminder.status === 'inactive' ? 'opacity-60' : ''}`}
+            className="flex flex-col justify-between h-[180px]"
             onClick={() => handleReminderClick(reminder.id)}
           >
             <div>
-              <div className="flex justify-between items-start gap-2 mb-2">
-                <h3 className={`text-base font-bold leading-snug ${reminder.status === 'inactive' ? 'line-through text-on-surface-variant' : ''}`}>
+              <div className="marquee-wrapper mb-1">
+                <h3 className="text-lg font-bold hover:underline leading-snug marquee-content">
                   {reminder.title}
                 </h3>
-                <button
-                  onClick={(e) => handleToggleStatus(e, reminder.id)}
-                  className={`shrink-0 w-6 h-6 rounded border flex items-center justify-center transition-colors ${
-                    reminder.status === 'inactive' 
-                      ? 'bg-primary border-primary text-on-primary' 
-                      : 'border-outline-variant hover:border-primary text-transparent hover:text-primary/20'
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-[16px]">
-                    check
-                  </span>
-                </button>
               </div>
-              
-              <div className="flex items-center gap-2 mb-2">
-                <span className="material-symbols-outlined text-[14px] text-primary">
-                  event
-                </span>
-                <span className="text-xs font-mono font-bold text-primary">
-                  {reminder.date}
-                </span>
+              <div className="flex justify-between items-center gap-2 mb-2">
+                <p className="text-xs text-on-surface-variant font-mono truncate">
+                  {reminder.dateRange} <span className="font-bold text-primary">({reminder.daysRemaining})</span>
+                </p>
+                {reminder.status && (
+                  <Badge className={reminder.status === 'PAUSIERT' ? 'bg-amber-100 text-amber-900 border-amber-300' : reminder.status === 'ABGESCHLOSSEN' ? 'bg-neutral-100 text-neutral-800 border-neutral-300' : 'bg-emerald-100 text-emerald-900 border-emerald-300'}>
+                    {reminder.status}
+                  </Badge>
+                )}
               </div>
             </div>
 
-            <div className="border-t border-outline-variant pt-2 mt-auto">
-              <p className="text-xs text-on-surface-variant truncate">
-                {reminder.note || "Keine Notiz"}
-              </p>
+            <div className="space-y-3 border-t border-outline-variant pt-3 mt-auto">
+              <div>
+                <div className="flex justify-between items-center text-[10px] mono text-on-surface-variant mb-1">
+                  <span>VERSTRICHENE ZEIT</span>
+                  <span>{reminder.timeElapsed}%</span>
+                </div>
+                <div className="w-full bg-surface-low h-1.5 border border-outline-variant rounded-full overflow-hidden">
+                  <div className="bg-neutral-400 h-full rounded-full" style={{ width: `${reminder.timeElapsed}%` }}></div>
+                </div>
+              </div>
             </div>
           </Card>
         ))}
