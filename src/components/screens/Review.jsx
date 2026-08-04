@@ -1,30 +1,63 @@
 import React from 'react';
 import { weeklyReport } from '../../data/mockData';
+import { useModalContext } from '../../context/ModalContext';
 import Card from '../ui/Card';
 
 const Review = () => {
-  const {
-    weekLabel,
-    title,
-    subtitle,
-    dailyStats,
-    totalCompletedTasks,
-    totalMilestones,
-    successRatePct,
-    topAchievements
-  } = weeklyReport;
+  const { projects = [], inboxItems = { today: [], yesterday: [] } } = useModalContext();
 
+  const {
+    weekLabel = 'BERICHT KW 19',
+    subtitle = 'Zusammenfassung deiner produktiven Einheiten',
+    dailyStats = [],
+    topAchievements = []
+  } = weeklyReport || {};
+
+  // Safe normalization of projects context state
+  const safeProjects = Array.isArray(projects) ? projects : [];
+
+  // 1. Calculate Total Completed Tasks (Projects + Inbox)
+  const projectCompletedTasks = safeProjects.reduce(
+    (acc, p) => acc + (p?.tasksCompleted ?? 0),
+    0
+  );
+  const inboxCompletedTasks = [
+    ...(inboxItems?.today || []),
+    ...(inboxItems?.yesterday || [])
+  ].filter(item => item?.completed).length;
+  const totalCompletedTasks = projectCompletedTasks + inboxCompletedTasks;
+
+  // 2. Calculate Total Completed Phases / Milestones across all projects
+  const totalMilestones = safeProjects.reduce(
+    (acc, p) => acc + (p?.phasesCompleted ?? (p?.phases ? p.phases.filter(ph => ph?.completed).length : 0)),
+    0
+  );
+
+  // 3. Calculate Overall Project Progress % across active projects ('AKTIV' or 'LAUFEND')
+  const activeProjects = safeProjects.filter(
+    p => p && (p.status === 'AKTIV' || p.status === 'LAUFEND')
+  );
+  const targetProjects = activeProjects.length > 0 ? activeProjects : safeProjects;
+  const rawSuccessRate = targetProjects.length > 0
+    ? Math.round(targetProjects.reduce((acc, p) => acc + (p?.progress ?? 0), 0) / targetProjects.length)
+    : 0;
+  const successRatePct = Math.min(100, Math.max(0, rawSuccessRate));
+
+  // 4. SVG Progress Gauge calculation
   const circumference = 264;
   const strokeDashoffset = Math.round(circumference * (1 - successRatePct / 100));
 
   return (
-    <div className="screen-transition">
-      <div className="mb-8 text-left">
-        <span className="text-xs text-on-surface-variant mb-1 block mono uppercase">
-          {weekLabel}
-        </span>
-        <h1 className="text-2xl sm:text-3xl font-bold">{title}</h1>
-        <p className="text-xs text-on-surface-variant mt-1">{subtitle}</p>
+    <div className="screen-transition p-4 sm:p-6">
+      <div className="mb-8 text-left flex items-center gap-3">
+        <span className="material-symbols-outlined text-3xl text-primary">analytics</span>
+        <div>
+          <span className="text-xs text-on-surface-variant mb-1 block font-mono uppercase">
+            {weekLabel}
+          </span>
+          <h1 className="text-2xl sm:text-3xl font-bold text-primary">Wochenrückblick</h1>
+          <p className="text-xs text-on-surface-variant mt-1">{subtitle}</p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -52,16 +85,16 @@ const Review = () => {
 
             <div className="grid grid-cols-2 gap-4 pt-2">
               <Card padding="small" className="bg-surface-low border-transparent">
-                <span className="text-[10px] sm:text-[11px] font-mono text-on-surface-variant block tracking-wider">
+                <span className="text-[10px] sm:text-[11px] font-mono text-on-surface-variant block tracking-wider uppercase">
                   GESAMT ERLEDIGT
                 </span>
-                <span className="text-xl sm:text-2xl font-bold">{totalCompletedTasks} Aufgaben</span>
+                <span className="text-xl sm:text-2xl font-bold text-primary">{totalCompletedTasks} Aufgaben</span>
               </Card>
               <Card padding="small" className="bg-surface-low border-transparent">
-                <span className="text-[10px] sm:text-[11px] font-mono text-on-surface-variant block tracking-wider">
+                <span className="text-[10px] sm:text-[11px] font-mono text-on-surface-variant block tracking-wider uppercase">
                   MEILENSTEINE
                 </span>
-                <span className="text-xl sm:text-2xl font-bold">{totalMilestones} Phasen</span>
+                <span className="text-xl sm:text-2xl font-bold text-primary">{totalMilestones} Phasen</span>
               </Card>
             </div>
           </Card>
@@ -89,8 +122,8 @@ const Review = () => {
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-2xl sm:text-3xl font-bold">{successRatePct}%</span>
-                <span className="text-[10px] mono text-on-surface-variant mt-1 tracking-wider">Ziel-Erfüllung</span>
+                <span className="text-2xl sm:text-3xl font-bold text-primary">{successRatePct}%</span>
+                <span className="text-[10px] font-mono text-on-surface-variant mt-1 tracking-wider uppercase">Ziel-Erfüllung</span>
               </div>
             </div>
           </Card>
@@ -105,7 +138,7 @@ const Review = () => {
                   <span className="w-4 h-4 bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-full flex items-center justify-center font-bold text-[10px] flex-shrink-0">
                     ✓
                   </span>
-                  <span className="font-medium truncate">{item}</span>
+                  <span className="font-medium text-primary truncate">{item}</span>
                 </div>
               ))}
             </div>

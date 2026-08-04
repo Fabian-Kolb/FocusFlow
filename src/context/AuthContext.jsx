@@ -7,7 +7,8 @@ import {
   signOut,
   updateProfile,
   updatePassword,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  linkWithPopup
 } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { doc, getDoc, getFirestore } from 'firebase/firestore';
@@ -21,32 +22,34 @@ export function useAuth() {
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [googleCalendarToken, setGoogleCalendarToken] = useState(() => {
+    return localStorage.getItem('googleCalendarToken') || null;
+  });
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         try {
-          // Versuche das Whitelist-Dokument des Nutzers abzurufen.
-          // Dokumenten-IDs in Firestore sind case-sensitiv, daher normalisieren wir auf kleingeschrieben.
           const db = getFirestore();
           const normalizedEmail = currentUser.email ? currentUser.email.trim().toLowerCase() : '';
           const whitelistRef = doc(db, 'whitelist', normalizedEmail);
           await getDoc(whitelistRef);
           
-          // Zugriff gewährt -> Nutzer ist whitelisted
           setUser(currentUser);
         } catch (error) {
           console.error("Access Denied: User is not in the whitelist.", error);
-          // Sofort ausloggen
           await signOut(auth);
           setUser(null);
-          // UI benachrichtigen
+          localStorage.removeItem('googleCalendarToken');
+          setGoogleCalendarToken(null);
           window.dispatchEvent(new CustomEvent('auth-error', { 
             detail: 'Dein Account ist für diese App nicht freigeschaltet. Bitte kontaktiere den Administrator.' 
           }));
         }
       } else {
         setUser(null);
+        localStorage.removeItem('googleCalendarToken');
+        setGoogleCalendarToken(null);
       }
       setLoading(false);
     });
@@ -59,12 +62,70 @@ export function AuthProvider({ children }) {
     return signInWithEmailAndPassword(auth, cleanEmail, password);
   };
 
-  const loginWithGoogle = () => {
+  const loginWithGoogle = async () => {
     const provider = new GoogleAuthProvider();
-    return signInWithPopup(auth, provider);
+    provider.addScope('https://www.googleapis.com/auth/calendar.events');
+    const result = await signInWithPopup(auth, provider);
+    
+    // Extrahiere das Access Token für die Kalender API
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    if (credential && credential.accessToken) {
+      setGoogleCalendarToken(credential.accessToken);
+      localStorage.setItem('googleCalendarToken', credential.accessToken);
+    }
+    
+    return result;
   };
 
-  const logout = () => {
+  const linkGoogleCalendar = async () => {
+    if (!auth.currentUser) return;
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.addScope('https://www.googleapis.com/auth/calendar.events');
+      
+      // Prüfen, ob der Nutzer ohnehin schon mit Google eingeloggt ist
+      const isGoogleUser = auth.currentUser.providerData.some(
+        (profile) => profile.providerId === 'google.com'
+      );
+
+      let result;
+      if (isGoogleUser) {
+        // Wenn es schon ein Google-Nutzer ist, machen wir einfach einen Re-Login
+        // um die neuen Scopes zu bekommen. Das verhindert den "popup-blocked" Fehler!
+        result = await signInWithPopup(auth, provider);
+      } else {
+        // Nur wenn es ein reiner E-Mail Nutzer ist, versuchen wir den Account zu verknüpfen
+        result = await linkWithPopup(auth.currentUser, provider);
+      }
+
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      if (credential && credential.accessToken) {
+        setGoogleCalendarToken(credential.accessToken);
+        localStorage.setItem('googleCalendarToken', credential.accessToken);
+      }
+      return result;
+    } catch (error) {
+      console.error("Error linking Google Calendar:", error);
+      
+      // Falls wir trotzdem in einen Fehler laufen (z.B. User ist E-Mail, aber die Google-Mail gehört schon wem anders)
+      if (error.code === 'auth/popup-blocked') {
+        throw new Error('Dein Browser hat das Popup blockiert. Bitte erlaube Popups für diese Seite und klicke erneut.');
+      } else if (error.code === 'auth/credential-already-in-use') {
+        throw new Error('Dieser Google-Account wird bereits von einem anderen Profil verwendet. Bitte logge dich komplett aus und melde dich direkt mit Google an.');
+      }
+      
+      throw error;
+    }
+  };
+
+  const disconnectGoogleCalendar = () => {
+    localStorage.removeItem('googleCalendarToken');
+    setGoogleCalendarToken(null);
+  };
+
+  const logout = async () => {
+    localStorage.removeItem('googleCalendarToken');
+    setGoogleCalendarToken(null);
     return signOut(auth);
   };
 
@@ -86,8 +147,11 @@ export function AuthProvider({ children }) {
   const value = {
     user,
     loading,
+    googleCalendarToken,
     loginWithEmail,
     loginWithGoogle,
+    linkGoogleCalendar,
+    disconnectGoogleCalendar,
     logout,
     updateUserProfile,
     changePassword,

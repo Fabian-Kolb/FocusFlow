@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 
 function ProfileModal() {
   const { activeModal, closeModal } = useModalContext();
-  const { user, updateUserProfile, changePassword, logout } = useAuth();
+  const { user, updateUserProfile, changePassword, logout, googleCalendarToken, disconnectGoogleCalendar } = useAuth();
 
   const [displayName, setDisplayName] = useState(user?.displayName || '');
   const [photoURL, setPhotoURL] = useState(user?.photoURL || '');
@@ -174,6 +174,32 @@ function ProfileModal() {
                 Passwort ändern
               </button>
             </form>
+          )}
+          
+          {/* Calendar Connection */}
+          {googleCalendarToken && (
+            <div className="space-y-4 pt-4 border-t border-border">
+              <h3 className="text-sm font-semibold text-on-surface-variant uppercase tracking-wider">Verknüpfte Dienste</h3>
+              <div className="flex items-center justify-between p-3 rounded-lg bg-surface-variant/20 border border-border">
+                <div className="flex items-center gap-3">
+                  <span className="material-symbols-outlined text-primary">calendar_month</span>
+                  <div>
+                    <p className="text-sm font-medium">Google Kalender</p>
+                    <p className="text-xs text-on-surface-variant">Verbunden</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    disconnectGoogleCalendar();
+                    setMsg({ type: 'success', text: 'Kalender-Verbindung erfolgreich getrennt.' });
+                  }}
+                  className="px-3 py-1.5 border border-border rounded-lg text-xs font-medium hover:bg-surface-variant/50 transition-colors"
+                >
+                  Trennen
+                </button>
+              </div>
+            </div>
           )}
 
         </div>

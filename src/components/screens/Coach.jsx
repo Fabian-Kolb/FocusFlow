@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useModalContext } from '../../context/ModalContext';
+import { useAuth } from '../../context/AuthContext';
 import { askGeminiCoach } from '../../lib/gemini';
 import {
   chatSessions as initialSessions,
@@ -10,6 +11,7 @@ import remarkGfm from 'remark-gfm';
 
 const Coach = () => {
   const { projects, inboxItems, activeCoachScope, setActiveCoachScope } = useModalContext();
+  const { user } = useAuth();
   const [isHistoryOpen, setIsHistoryOpen] = useState(() => {
     const saved = localStorage.getItem('focusflow_coach_history');
     if (saved !== null) return JSON.parse(saved);
@@ -198,7 +200,7 @@ Regeln:
     const newSession = {
       id: newSessionId,
       title: 'Neues Gespräch',
-      dateText: 'Heute • 1 Nachricht',
+      dateText: 'Heute • 0 Nachrichten',
       active: true
     };
 
@@ -207,13 +209,7 @@ Regeln:
       ...prev.map((s) => ({ ...s, active: false }))
     ]);
     setActiveSessionId(newSessionId);
-    setMessages([
-      {
-        id: `m_${Date.now()}`,
-        sender: 'bot',
-        text: 'Hallo! Wie kann ich dich heute bei deinen Projekten unterstützen?'
-      }
-    ]);
+    setMessages([]);
   };
 
   const handleSendMessage = async (textToSend) => {
@@ -284,27 +280,36 @@ Regeln:
   return (
     <div className="screen-transition flex flex-col h-full w-full">
       <div className="flex h-full bg-surface relative overflow-hidden">
+        {/* Mobile Overlay */}
+        {isHistoryOpen && (
+          <div 
+            className="absolute inset-0 bg-black/20 z-20 md:hidden backdrop-blur-sm transition-opacity"
+            onClick={() => setIsHistoryOpen(false)}
+          />
+        )}
+        
         {/* Left Sidebar: Chat Session History Drawer */}
         <div
-          className={`bg-surface-low border-r border-outline-variant flex flex-col h-full transition-all duration-300 ease-in-out relative z-10 flex-shrink-0 ${isHistoryOpen ? 'w-72' : 'w-0 p-0 border-0 overflow-hidden'
-            }`}
+          className={`absolute md:relative z-30 bg-surface-low md:border-r border-outline-variant flex flex-col h-full transition-all duration-300 ease-in-out flex-shrink-0 rounded-r-2xl md:rounded-none shadow-2xl md:shadow-none ${
+            isHistoryOpen ? 'w-[85%] sm:w-72' : 'w-0 p-0 border-0 overflow-hidden'
+          }`}
         >
           <div className="p-3 border-b border-outline-variant flex items-center justify-between bg-surface-low">
             <span className="text-[10px] font-mono font-bold text-on-surface-variant">VERLAUF</span>
             <div className="flex items-center gap-1.5">
               <button
-                className="w-8 h-8 bg-primary text-on-primary rounded hover:bg-neutral-800 transition-colors flex items-center justify-center cursor-pointer shadow-sm"
+                className="w-10 h-10 bg-primary text-on-primary rounded-xl hover:bg-neutral-800 transition-colors flex items-center justify-center cursor-pointer shadow-sm"
                 title="Neuer Chat"
                 onClick={handleNewChat}
               >
-                <span className="material-symbols-outlined text-[16px]">edit_square</span>
+                <span className="material-symbols-outlined text-[20px]">edit_square</span>
               </button>
               <button
-                className="w-8 h-8 border border-outline-variant bg-white hover:border-primary text-primary transition-colors flex items-center justify-center rounded cursor-pointer shadow-sm"
+                className="w-10 h-10 border border-outline-variant bg-white hover:border-primary text-primary transition-colors flex items-center justify-center rounded-xl cursor-pointer shadow-sm"
                 title="Verlauf einklappen"
                 onClick={() => setIsHistoryOpen(false)}
               >
-                <span className="material-symbols-outlined text-[16px]">left_panel_close</span>
+                <span className="material-symbols-outlined text-[20px]">left_panel_close</span>
               </button>
             </div>
           </div>
@@ -315,9 +320,9 @@ Regeln:
               return (
                 <div
                   key={sess.id}
-                  className={`p-3 cursor-pointer transition-colors flex flex-col gap-0.5 ${isActive
-                    ? 'bg-surface-low border-l-2 border-primary'
-                    : 'bg-white border border-outline-variant rounded-xl hover:bg-surface-low'
+                  className={`p-3 cursor-pointer transition-colors flex flex-col gap-0.5 rounded-xl border ${isActive
+                    ? 'bg-primary/5 border-primary shadow-sm'
+                    : 'bg-white border-outline-variant hover:bg-surface-low'
                     }`}
                   onClick={() => handleSelectSession(sess.id)}
                 >
@@ -378,7 +383,18 @@ Regeln:
           {/* Message Stream */}
           <div className="flex-grow overflow-y-auto px-4 pb-6 pt-16 lg:pt-6">
             <div className="max-w-2xl mx-auto space-y-6">
-              {messages.map((msg) => {
+              {messages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full min-h-[40vh] text-center px-4 fade-in">
+                  <div className="w-16 h-16 bg-primary text-on-primary rounded-2xl flex items-center justify-center mb-6 shadow-sm">
+                    <span className="material-symbols-outlined text-[32px]">smart_toy</span>
+                  </div>
+                  <h2 className="text-2xl font-semibold text-on-surface mb-2">
+                    Hallo{user?.displayName ? ` ${user.displayName.split(' ')[0]}` : ''}
+                  </h2>
+                  <p className="text-on-surface-variant max-w-md">Wie kann ich dich heute bei deinen Projekten unterstützen?</p>
+                </div>
+              ) : (
+                messages.map((msg) => {
                 if (msg.sender === 'bot') {
                   return (
                     <div key={msg.id} className="flex gap-3 group">
@@ -410,20 +426,20 @@ Regeln:
                     </div>
                   </div>
                 );
-              })}
+              }))}
               <div ref={messagesEndRef} />
             </div>
           </div>
 
           {/* Bottom Input Control Suite */}
-          <div className="p-3 sm:p-4 border-t border-outline-variant bg-white space-y-2">
+          <div className="p-3 sm:p-4 bg-transparent space-y-3 pb-4 sm:pb-6 relative z-10">
             {/* Quick Prompts */}
             <div className="max-w-2xl mx-auto flex items-center gap-2 no-wrap-scroll text-[11px] font-mono pb-1 overflow-x-auto">
               <span className="text-on-surface-variant font-bold flex-shrink-0">PROMPTS:</span>
               {dynamicPrompts.map((qp) => (
                 <button
                   key={qp.id}
-                  className="px-2.5 py-1 bg-surface-low border border-outline-variant rounded-lg hover:border-primary text-primary transition-all font-medium whitespace-nowrap flex-shrink-0 cursor-pointer"
+                  className="px-2.5 py-1 bg-white border border-outline-variant rounded-lg hover:border-primary text-primary transition-all font-medium whitespace-nowrap flex-shrink-0 cursor-pointer shadow-sm"
                   onClick={() => handleSendMessage(qp.promptText)}
                 >
                   {qp.label}
@@ -432,7 +448,7 @@ Regeln:
             </div>
 
             {/* Input Bar */}
-            <div className="max-w-2xl mx-auto flex items-center border border-primary bg-white rounded-xl shadow-sm p-1">
+            <div className="max-w-2xl mx-auto flex items-center bg-white border border-outline-variant rounded-2xl shadow-sm p-1.5 focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-all">
               {/* Filter Icon (Scope Dropdown) */}
               <div className="relative flex items-center justify-center pl-2 pr-1 cursor-pointer group">
                 <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors text-[22px]">filter_alt</span>

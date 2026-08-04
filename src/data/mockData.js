@@ -843,13 +843,7 @@ export const chatSessions = [
   }
 ];
 
-export const chatHistory = [
-  {
-    id: "ch1",
-    sender: "bot",
-    text: "Hallo! Ich bin dein FocusFlow AI Coach. Stelle mir eine Frage oder wähle einen Fokus-Filter oben aus."
-  }
-];
+export const chatHistory = [];
 
 export const quickPrompts = [
   {
