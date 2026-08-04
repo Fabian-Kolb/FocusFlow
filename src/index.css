@@ -47,6 +47,7 @@
   .marquee-content.animate-marquee {
     animation: marqueeScroll 5.5s ease-in-out infinite alternate;
   }
+
 }
 
 /* Custom scrollbar */
@@ -64,16 +65,118 @@
 }
 
 @keyframes marqueeScroll {
-  0% {
-    transform: translateX(0);
-  }
-  10% {
-    transform: translateX(0);
-  }
-  90% {
-    transform: translateX(calc(-100% + var(--marquee-parent-width, 100%)));
-  }
-  100% {
-    transform: translateX(calc(-100% + var(--marquee-parent-width, 100%)));
-  }
+  0% { transform: translateX(0); }
+  10% { transform: translateX(0); }
+  90% { transform: translateX(calc(-100% + var(--marquee-parent-width, 100%))); }
+  100% { transform: translateX(calc(-100% + var(--marquee-parent-width, 100%))); }
 }
+
+/* Custom Markdown Styling (Global to avoid Tailwind layer issues) */
+.markdown-body {
+  word-break: break-word;
+}
+.markdown-body p {
+  margin-bottom: 0.75em;
+  line-height: 1.5;
+}
+.markdown-body p:last-child {
+  margin-bottom: 0;
+}
+.markdown-body li > p {
+  margin: 0 !important;
+  display: inline;
+}
+.markdown-body strong, .markdown-body b {
+  font-weight: 800 !important;
+  color: #000;
+}
+.markdown-body ul {
+  list-style-type: disc !important;
+  list-style-position: outside !important;
+  padding-left: 1.4em !important;
+  margin-bottom: 0.75em;
+}
+.markdown-body ul ul {
+  list-style-type: circle !important;
+  list-style-position: outside !important;
+  padding-left: 1.2em !important;
+  margin-top: 0.2em;
+  margin-bottom: 0.2em;
+}
+.markdown-body ul ul ul {
+  list-style-type: square !important;
+  list-style-position: outside !important;
+  padding-left: 1.2em !important;
+}
+.markdown-body ol {
+  list-style-type: decimal !important;
+  list-style-position: outside !important;
+  padding-left: 1.4em !important;
+  margin-bottom: 0.75em;
+}
+.markdown-body li {
+  margin-bottom: 0.25em;
+  display: list-item !important;
+  list-style: inherit !important;
+  list-style-position: outside !important;
+}
+.markdown-body li::marker {
+  color: currentColor;
+}
+.markdown-body li > ul,
+.markdown-body li > ol {
+  margin-top: 0.15em;
+  margin-bottom: 0.15em;
+}
+.markdown-body h1, .markdown-body h2, .markdown-body h3 {
+  font-weight: 800 !important;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+  color: #000;
+}
+.markdown-body h1 { font-size: 1.25em; }
+.markdown-body h2 { font-size: 1.15em; }
+.markdown-body h3 { font-size: 1.05em; }
+.markdown-body code {
+  background-color: #f1f5f9;
+  padding: 0.1em 0.3em;
+  border-radius: 3px;
+  font-family: monospace;
+  font-size: 0.9em;
+}
+.markdown-body pre {
+  background-color: #1e293b;
+  color: #f8fafc;
+  padding: 0.75em;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin-bottom: 0.75em;
+}
+.markdown-body pre code {
+  background-color: transparent;
+  color: inherit;
+  padding: 0;
+}
+
+/* Compact Markdown Styling for Inbox/Cards */
+.markdown-compact > *:first-child {
+  margin-top: 0 !important;
+}
+.markdown-compact > *:last-child,
+.markdown-compact ul:last-child {
+  margin-bottom: 0 !important;
+}
+.markdown-compact p {
+  margin-bottom: 0.25em !important;
+}
+.markdown-compact ul, .markdown-compact ol {
+  margin-bottom: 0.25em !important;
+}
+.markdown-compact ul ul {
+  margin-bottom: 0.15em !important;
+}
+.markdown-compact h1, .markdown-compact h2, .markdown-compact h3 {
+  margin-top: 0.5em !important;
+  margin-bottom: 0.25em !important;
+}
+

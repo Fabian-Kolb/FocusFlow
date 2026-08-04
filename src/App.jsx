@@ -22,6 +22,9 @@ import Calendar from './components/screens/Calendar';
 import Coach from './components/screens/Coach';
 import Review from './components/screens/Review';
 import Login from './components/screens/Login';
+import ProjectsBoard from './components/screens/ProjectsBoard';
+import Reminders from './components/screens/Reminders';
+import ReminderDetail from './components/screens/ReminderDetail';
 
 function AppContent() {
   const [currentScreen, setCurrentScreen] = useState('dashboard');
@@ -53,7 +56,9 @@ function AppContent() {
     const titles = {
       dashboard: 'Dashboard',
       inbox: 'Inbox',
+      reminders: 'Erinnerungen',
       projects: 'Projekte',
+      board: 'Kanban Board',
       calendar: 'Kalender',
       coach: 'AI Coach',
       review: 'Wochenrückblick',
@@ -70,13 +75,16 @@ function AppContent() {
         setCollapsed={setSidebarCollapsed}
       />
 
-      <main className="flex-grow min-w-0 overflow-y-auto relative pb-20 md:pb-0 h-full">
+      <main className="flex-grow min-w-0 overflow-y-auto relative pb-20 md:pb-0 h-full flex flex-col">
         <Topbar title={renderTopbarTitle()} />
 
-        <div className="max-w-[1400px] mx-auto px-2 sm:px-4 md:px-8 py-4 sm:py-8">
+        <div className={`mx-auto w-full flex-grow flex flex-col ${currentScreen === 'board' ? 'px-2 sm:px-4 md:px-8 py-4 sm:py-8' : 'max-w-[1400px] px-2 sm:px-4 md:px-8 py-4 sm:py-8'}`}>
           {currentScreen === 'dashboard' && <Dashboard setCurrentScreen={setCurrentScreen} />}
           {currentScreen === 'inbox' && <Inbox setCurrentScreen={setCurrentScreen} />}
+          {currentScreen === 'reminders' && <Reminders setCurrentScreen={setCurrentScreen} />}
+          {currentScreen === 'reminder-detail' && <ReminderDetail setCurrentScreen={setCurrentScreen} />}
           {currentScreen === 'projects' && <Projects setCurrentScreen={setCurrentScreen} />}
+          {currentScreen === 'board' && <ProjectsBoard setCurrentScreen={setCurrentScreen} />}
           {currentScreen === 'project-detail' && <ProjectDetail setCurrentScreen={setCurrentScreen} />}
           {currentScreen === 'calendar' && <Calendar />}
           {currentScreen === 'coach' && <Coach />}

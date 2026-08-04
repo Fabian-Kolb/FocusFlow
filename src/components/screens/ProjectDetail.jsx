@@ -2,7 +2,13 @@ import React, { useState } from 'react';
 import { useModalContext } from '../../context/ModalContext';
 
 const ProjectDetail = ({ setCurrentScreen }) => {
-  const { projects: contextProjects, selectedProjectId, toggleTask: contextToggleTask, toggleProjectStatus: contextToggleProjectStatus } = useModalContext();
+  const { 
+    projects: contextProjects, 
+    selectedProjectId, 
+    toggleTask: contextToggleTask, 
+    toggleProjectStatus: contextToggleProjectStatus,
+    setActiveCoachScope
+  } = useModalContext();
   const selectedProject = contextProjects.find(p => p.id === selectedProjectId) || contextProjects[0];
   const [projectData, setProjectData] = useState(selectedProject);
   const [filterType, setFilterType] = useState('all'); // 'all' | 'open' | 'completed'
@@ -187,7 +193,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
           text: `Neue Phase angelegt: '${newPhaseTitle.trim()}'`,
           phase: 'Projekt-Fortschritt',
           icon: 'flag',
-          iconStyle: 'bg-surface-low border border-outline-variant text-primary'
+          iconStyle: 'bg-surface-low border border-outline-variant rounded-lg text-primary'
         },
         ...(prev.history || [])
       ],
@@ -268,7 +274,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
               text: `Neues Phasenmaterial hinzugefügt: '${name}'`,
               phase: `Phase Material`,
               icon: 'attach_file',
-              iconStyle: 'bg-surface-low border border-outline-variant text-primary'
+              iconStyle: 'bg-surface-low border border-outline-variant rounded-lg text-primary'
             },
             ...(prev.history || [])
           ],
@@ -326,7 +332,19 @@ const ProjectDetail = ({ setCurrentScreen }) => {
 
             <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
               <button
-                className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-white border border-outline-variant hover:border-primary text-primary font-mono text-xs font-bold transition-all shadow-sm cursor-pointer whitespace-nowrap"
+                className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-primary/10 border border-primary/30 rounded-xl hover:bg-primary/20 text-primary font-mono text-xs font-bold transition-all shadow-sm cursor-pointer whitespace-nowrap"
+                onClick={() => {
+                  setActiveCoachScope(projectData.id);
+                  if (setCurrentScreen) setCurrentScreen('coach');
+                }}
+                title="AI Coach für dieses Projekt befragen"
+              >
+                <span className="material-symbols-outlined text-[16px]">smart_toy</span>
+                <span>AI COACH</span>
+              </button>
+
+              <button
+                className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-white border border-outline-variant rounded-xl hover:border-primary text-primary font-mono text-xs font-bold transition-all shadow-sm cursor-pointer whitespace-nowrap"
                 onClick={() => setShowHistoryModal(true)}
                 title="Projekt-Historie & erledigte Tasks anzeigen"
               >
@@ -335,7 +353,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
               </button>
 
               <button
-                className={`inline-flex items-center gap-2 px-2.5 sm:px-3 py-1.5 border font-mono text-xs font-bold transition-all shadow-sm cursor-pointer whitespace-nowrap ${statusStyle.btnClass}`}
+                className={`inline-flex items-center gap-2 px-2.5 sm:px-3 py-1.5 border rounded-xl font-mono text-xs font-bold transition-all shadow-sm cursor-pointer whitespace-nowrap ${statusStyle.btnClass}`}
                 onClick={handleStatusToggle}
                 title="Klicken um Status zu wechseln"
               >
@@ -349,7 +367,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
           </div>
 
           {/* BOX 1: Zeitspanne & Doppelbalken */}
-          <div className="p-3.5 sm:p-5 bg-white border border-outline-variant space-y-3 shadow-sm mb-4">
+          <div className="p-3.5 sm:p-5 bg-white border border-outline-variant rounded-xl space-y-3 shadow-sm mb-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2 border-b border-outline-variant pb-2.5">
               <span className="text-xs font-mono font-bold text-primary uppercase whitespace-nowrap">
                 ZEITSPANNE & BALKEN-SYSTEM
@@ -383,7 +401,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
           </div>
 
           {/* BOX 2: TEMPO-STATUS & TAGES-EMPFOHLENES ZIEL */}
-          <div className="p-3.5 sm:p-5 bg-white border border-outline-variant space-y-4 shadow-sm mb-6">
+          <div className="p-3.5 sm:p-5 bg-white border border-outline-variant rounded-xl space-y-4 shadow-sm mb-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-outline-variant pb-2.5">
               <span className="text-xs font-mono font-bold text-primary uppercase">
                 TEMPO-STATUS & ZIEL
@@ -395,7 +413,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-2 sm:gap-3 p-2.5 sm:p-3 bg-surface-low border border-outline-variant text-[11px] sm:text-xs font-mono">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3 p-2.5 sm:p-3 bg-surface-low border border-outline-variant rounded-lg text-[11px] sm:text-xs font-mono">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-[16px] sm:text-[18px] text-primary flex-shrink-0">
                   auto_stories
@@ -435,7 +453,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                   {projectData.recommendedSteps.map((step) => (
                     <div
                       key={step.id}
-                      className="p-3 bg-surface-low border border-outline-variant hover:border-primary transition-all cursor-pointer flex items-center justify-between gap-2 group"
+                      className="p-3 bg-surface-low border border-outline-variant rounded-lg hover:border-primary transition-all cursor-pointer flex items-center justify-between gap-2 group"
                       onClick={() => {
                         if (step.targetTaskId) {
                           setExpandedTasks((prev) => ({ ...prev, [step.targetTaskId]: true }));
@@ -476,9 +494,9 @@ const ProjectDetail = ({ setCurrentScreen }) => {
           </div>
 
           <div className="no-wrap-scroll flex items-center gap-2 font-mono text-xs pb-1">
-            <div className="flex items-center border border-outline-variant bg-white p-0.5 flex-shrink-0">
+            <div className="flex items-center border border-outline-variant rounded-lg bg-white p-0.5 flex-shrink-0 overflow-hidden">
               <button
-                className={`px-2.5 py-1 font-bold transition-all shadow-sm ${
+                className={`px-2.5 py-1 font-bold transition-all shadow-sm rounded-md ${
                   filterType === 'all' ? 'bg-primary text-white' : 'text-on-surface-variant hover:text-primary'
                 }`}
                 onClick={() => setFilterType('all')}
@@ -486,7 +504,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                 ALLE PHASEN
               </button>
               <button
-                className={`px-2.5 py-1 transition-all font-medium ${
+                className={`px-2.5 py-1 transition-all font-medium rounded-md ${
                   filterType === 'open' ? 'bg-primary text-white font-bold' : 'text-on-surface-variant hover:text-primary'
                 }`}
                 onClick={() => setFilterType('open')}
@@ -494,7 +512,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                 OFFEN
               </button>
               <button
-                className={`px-2.5 py-1 transition-all font-medium ${
+                className={`px-2.5 py-1 transition-all font-medium rounded-md ${
                   filterType === 'completed' ? 'bg-primary text-white font-bold' : 'text-on-surface-variant hover:text-primary'
                 }`}
                 onClick={() => setFilterType('completed')}
@@ -504,7 +522,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
             </div>
 
             <button
-              className="px-2.5 py-1 bg-surface-low border border-outline-variant hover:border-primary text-primary font-bold flex items-center gap-1 transition-all whitespace-nowrap flex-shrink-0 cursor-pointer"
+              className="px-2.5 py-1 bg-surface-low border border-outline-variant rounded-lg hover:border-primary text-primary font-bold flex items-center gap-1 transition-all whitespace-nowrap flex-shrink-0 cursor-pointer"
               onClick={toggleAllPhases}
             >
               <span className="material-symbols-outlined text-[14px]">unfold_less</span>
@@ -521,7 +539,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
             return (
               <div
                 key={phase.id}
-                className="border border-outline-variant bg-white p-3.5 sm:p-6 space-y-4 transition-all phase-card"
+                className="border border-outline-variant bg-white rounded-xl p-3.5 sm:p-6 space-y-4 transition-all phase-card"
               >
                 {/* Collapsible Header */}
                 <div
@@ -541,7 +559,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                       </h3>
                     </div>
                   </div>
-                  <span className="text-[10px] sm:text-xs mono font-bold text-primary bg-surface-low px-2 py-1 border border-outline-variant whitespace-nowrap flex-shrink-0">
+                  <span className="text-[10px] sm:text-xs mono font-bold text-primary bg-surface-low px-2 py-1 border border-outline-variant rounded-lg whitespace-nowrap flex-shrink-0">
                     {phase.badgeText}
                   </span>
                 </div>
@@ -550,7 +568,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                 {!isCollapsed && (
                   <div className="space-y-4 pt-1">
                     {/* Phase Materials Box */}
-                    <div className="p-3 bg-surface-low border border-outline-variant flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="p-3 bg-surface-low border border-outline-variant rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-xs font-mono font-bold text-primary uppercase">MATERIAL:</span>
                         <div className="flex flex-wrap gap-2">
@@ -563,7 +581,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                                   e.preventDefault();
                                   alert(`${mat.name} geöffnet!`);
                                 }}
-                                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-outline-variant text-xs hover:border-primary font-medium transition-all shadow-sm"
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-outline-variant rounded-xl text-xs hover:border-primary font-medium transition-all shadow-sm"
                               >
                                 <span className="material-symbols-outlined text-[14px]">description</span>
                                 <span>{mat.name}</span>
@@ -597,7 +615,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                           <div
                             key={task.id}
                             id={`task-${task.id}`}
-                            className="p-3 bg-surface-low border border-outline-variant space-y-2 task-item"
+                            className="p-3 bg-surface-low border border-outline-variant rounded-lg space-y-2 task-item"
                           >
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex items-start gap-2.5 min-w-0 flex-1">
@@ -635,7 +653,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                             {isTaskExpanded && (
                               <div className="task-details-body pt-1.5 space-y-2 border-t border-outline-variant/60 mt-2">
                                 {task.note && (
-                                  <div className="p-2 bg-white border border-outline-variant text-xs space-y-1 shadow-sm">
+                                  <div className="p-2 bg-white border border-outline-variant rounded-xl text-xs space-y-1 shadow-sm">
                                     <div className="flex items-center justify-between text-[10px] font-mono text-on-surface-variant font-bold border-b border-outline-variant/60 pb-1">
                                       <span className="flex items-center gap-1">
                                         <span className="material-symbols-outlined text-[13px] text-primary">
@@ -661,7 +679,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                                             e.preventDefault();
                                             alert(`${link.name} geöffnet!`);
                                           }}
-                                          className="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-outline-variant text-[11px] hover:border-primary"
+                                          className="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-outline-variant rounded-xl text-[11px] hover:border-primary"
                                         >
                                           <span className="material-symbols-outlined text-[12px]">link</span>
                                           <span>{link.name}</span>
@@ -699,7 +717,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
 
                       {/* Add Subtask Button */}
                       <div
-                        className="p-3 border border-dashed border-outline-variant hover:border-primary bg-white hover:bg-surface-low cursor-pointer transition-all flex items-center justify-between group"
+                        className="p-3 border border-dashed border-outline-variant rounded-xl hover:border-primary bg-white hover:bg-surface-low cursor-pointer transition-all flex items-center justify-between group"
                         onClick={() => {
                           setActivePhaseIdForTask(phase.id);
                           setShowTaskModal(true);
@@ -713,7 +731,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                             + UNTERPUNKT HINZUFÜGEN
                           </span>
                         </div>
-                        <span className="text-[10px] font-mono px-2 py-0.5 bg-surface-low border border-outline-variant text-on-surface-variant font-medium">
+                        <span className="text-[10px] font-mono px-2 py-0.5 bg-surface-low border border-outline-variant rounded-lg text-on-surface-variant font-medium">
                           TASK
                         </span>
                       </div>
@@ -727,7 +745,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
 
         {/* Add New Phase Action Box */}
         <div
-          className="p-4 border-2 border-dashed border-outline-variant hover:border-primary bg-white hover:bg-surface-low cursor-pointer transition-all flex items-center justify-between group shadow-sm mt-6"
+          className="p-4 border-2 border-dashed border-outline-variant rounded-xl hover:border-primary bg-white hover:bg-surface-low cursor-pointer transition-all flex items-center justify-between group shadow-sm mt-6"
           onClick={() => setShowPhaseModal(true)}
         >
           <div className="flex items-center gap-3">
@@ -738,7 +756,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
               + NEUE PHASE ANLEGEN
             </span>
           </div>
-          <span className="text-[10px] font-mono px-2.5 py-1 bg-surface-low border border-outline-variant text-primary font-bold">
+          <span className="text-[10px] font-mono px-2.5 py-1 bg-surface-low border border-outline-variant rounded-lg text-primary font-bold">
             MEILENSTEINE
           </span>
         </div>
@@ -758,7 +776,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                 </h2>
               </div>
               <button
-                className="p-1 hover:bg-surface-low border border-outline-variant transition-colors flex-shrink-0 cursor-pointer"
+                className="p-1 hover:bg-surface-low border border-outline-variant rounded-lg transition-colors flex-shrink-0 cursor-pointer"
                 onClick={() => setShowHistoryModal(false)}
               >
                 <span className="material-symbols-outlined text-[18px]">close</span>
@@ -810,7 +828,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                 <h2 className="text-xs sm:text-sm font-bold font-mono uppercase truncate">NEUE PHASE ANLEGEN</h2>
               </div>
               <button
-                className="p-1 hover:bg-surface-low border border-outline-variant transition-colors cursor-pointer"
+                className="p-1 hover:bg-surface-low border border-outline-variant rounded-lg transition-colors cursor-pointer"
                 onClick={() => setShowPhaseModal(false)}
               >
                 <span className="material-symbols-outlined text-[18px]">close</span>
@@ -873,7 +891,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                 <h2 className="text-xs sm:text-sm font-bold font-mono uppercase truncate">UNTERPUNKT HINZUFÜGEN</h2>
               </div>
               <button
-                className="p-1 hover:bg-surface-low border border-outline-variant transition-colors cursor-pointer"
+                className="p-1 hover:bg-surface-low border border-outline-variant rounded-lg transition-colors cursor-pointer"
                 onClick={() => setShowTaskModal(false)}
               >
                 <span className="material-symbols-outlined text-[18px]">close</span>
@@ -951,7 +969,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                 </h2>
               </div>
               <button
-                className="p-1 hover:bg-surface-low border border-outline-variant transition-colors cursor-pointer"
+                className="p-1 hover:bg-surface-low border border-outline-variant rounded-lg transition-colors cursor-pointer"
                 onClick={() => setShowMaterialModal(false)}
               >
                 <span className="material-symbols-outlined text-[18px]">close</span>
@@ -966,14 +984,14 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                   if (name) setNewMaterialName(name);
                 }}
               >
-                <div className="w-10 h-10 bg-white border border-outline-variant rounded-full flex items-center justify-center mx-auto text-primary">
+                <div className="w-10 h-10 bg-white border border-outline-variant rounded-xl rounded-full flex items-center justify-center mx-auto text-primary">
                   <span className="material-symbols-outlined text-[22px]">cloud_upload</span>
                 </div>
                 <div>
                   <p className="text-xs font-mono font-bold text-primary">DATEI HIERHER ZIEHEN ODER KLICKEN</p>
                   <p className="text-[11px] text-on-surface-variant mt-0.5">Unterstützt Dokumente, Bilder, PDFs (max. 25 MB)</p>
                 </div>
-                <div className="inline-block px-2.5 py-1 bg-white border border-outline-variant text-[10px] font-mono text-primary font-bold">
+                <div className="inline-block px-2.5 py-1 bg-white border border-outline-variant rounded-xl text-[10px] font-mono text-primary font-bold">
                   💡 TIPP: <kbd className="px-1 bg-surface-low border rounded">Strg</kbd> + <kbd className="px-1 bg-surface-low border rounded">V</kbd> um Bild aus Zwischenablage einzufügen
                 </div>
               </div>

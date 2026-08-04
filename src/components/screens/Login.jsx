@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import Card from '../ui/Card';
+import Button from '../ui/Button';
+import Input from '../ui/Input';
 
 function Login() {
   const [email, setEmail] = useState('');
@@ -65,7 +68,7 @@ function Login() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-surface px-4">
-      <div className="max-w-md w-full space-y-8 bg-surface-variant/30 p-8 sm:p-10 rounded-2xl shadow-sm border border-border/50">
+      <Card padding="large" className="w-full max-w-md space-y-8 bg-surface/50 backdrop-blur-sm border-outline-variant">
         <div className="text-center">
           <h2 className="text-3xl font-bold tracking-tight text-primary">FocusFlow</h2>
           <p className="mt-2 text-sm text-on-surface-variant">
@@ -74,33 +77,32 @@ function Login() {
         </div>
 
         {error && (
-          <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-lg text-sm text-center">
+          <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-3 rounded-lg text-sm text-center font-medium">
             {error}
           </div>
         )}
 
         {resetSuccess && (
-          <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-3 rounded-lg text-sm text-center">
+          <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 p-3 rounded-lg text-sm text-center font-medium">
             {resetSuccess}
           </div>
         )}
 
         <form className="mt-8 space-y-6" onSubmit={handleEmailLogin}>
-          <div className="space-y-4 rounded-md shadow-sm">
+          <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-on-surface mb-1">E-Mail</label>
-              <input
+              <label className="block text-sm font-bold text-primary mb-1.5">E-Mail</label>
+              <Input
                 type="email"
                 required
-                className="w-full bg-surface border border-border rounded-lg px-4 py-2.5 text-primary placeholder-on-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
                 placeholder="deine.email@beispiel.de"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-sm font-medium text-on-surface">Passwort</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-sm font-bold text-primary">Passwort</label>
                 <button
                   type="button"
                   onClick={handleResetPassword}
@@ -109,10 +111,9 @@ function Login() {
                   Passwort vergessen?
                 </button>
               </div>
-              <input
+              <Input
                 type="password"
                 required
-                className="w-full bg-surface border border-border rounded-lg px-4 py-2.5 text-primary placeholder-on-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -121,31 +122,33 @@ function Login() {
           </div>
 
           <div>
-            <button
+            <Button
               type="submit"
               disabled={loading}
-              className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-bg-surface bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors disabled:opacity-50"
+              fullWidth
             >
               {loading ? 'Lädt...' : 'Mit E-Mail anmelden'}
-            </button>
+            </Button>
           </div>
         </form>
 
         <div className="mt-6">
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-border" />
+              <div className="w-full border-t border-outline-variant" />
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-surface text-on-surface-variant">Oder</span>
+              <span className="px-2 bg-surface text-on-surface-variant font-medium">Oder</span>
             </div>
           </div>
 
           <div className="mt-6">
-            <button
+            <Button
+              variant="secondary"
+              fullWidth
               onClick={handleGoogleLogin}
               disabled={loading}
-              className="w-full flex items-center justify-center gap-3 py-2.5 px-4 border border-border rounded-lg shadow-sm text-sm font-medium text-primary bg-surface hover:bg-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors disabled:opacity-50"
+              className="gap-3"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -154,10 +157,10 @@ function Login() {
                 <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
               </svg>
               Mit Google anmelden
-            </button>
+            </Button>
           </div>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

@@ -12,9 +12,13 @@
     "test": "node scripts/run-e2e-tests.js"
   },
   "dependencies": {
+    "@google/genai": "^2.15.0",
+    "@google/generative-ai": "^0.24.1",
     "firebase": "^12.17.0",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@tailwindcss/container-queries": "^0.1.1",

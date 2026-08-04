@@ -11,7 +11,9 @@ const Sidebar = ({ currentScreen, setCurrentScreen, collapsed, setCollapsed }) =
   const navItems = [
     { id: 'dashboard', label: 'Home', icon: 'home' },
     { id: 'inbox', label: 'Inbox', icon: 'inbox' },
+    { id: 'reminders', label: 'Erinnerungen', icon: 'notifications' },
     { id: 'projects', label: 'Projekte', icon: 'folder' },
+    { id: 'board', label: 'Kanban Board', icon: 'view_kanban' },
     { id: 'calendar', label: 'Kalender', icon: 'calendar_today' },
     { id: 'coach', label: 'AI Coach', icon: 'smart_toy' },
     { id: 'review', label: 'Wochenrückblick', icon: 'analytics' },

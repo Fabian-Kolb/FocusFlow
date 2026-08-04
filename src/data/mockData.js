@@ -2,19 +2,19 @@ export const inboxItems = {
   today: [
     {
       id: "i1",
-      title: "Richtlinien & Dokumentation für Design System lesen",
+      title: "- Richtlinien & Dokumentation für Design System lesen",
       completed: false
     },
     {
       id: "i2",
-      title: "Einkaufsliste für Server-Setup vorbereiten",
+      title: "- Einkaufsliste für Server-Setup vorbereiten",
       completed: false
     }
   ],
   yesterday: [
     {
       id: "i3",
-      title: "Altes Software-Abonnement kündigen",
+      title: "- Altes Software-Abonnement kündigen",
       completed: false
     }
   ]
@@ -222,12 +222,7 @@ export const chatHistory = [
   {
     id: "ch1",
     sender: "bot",
-    text: "Hallo Fabian! Ich habe deine Aufgaben für heute analysiert. Du hast noch 2 wichtige Deep-Work-Blöcke offen. Womit möchtest du starten?"
-  },
-  {
-    id: "ch2",
-    sender: "user",
-    text: "Ich starte jetzt mit der Marktanalyse für das Re-Branding Projekt."
+    text: "Hallo! Ich bin dein FocusFlow AI Coach. Stelle mir eine Frage oder wähle einen Fokus-Filter oben aus."
   }
 ];
 
@@ -271,3 +266,27 @@ export const weeklyReport = {
     "12 Inbox-Gedanken verarbeitet & zugeordnet"
   ]
 };
+
+export const reminders = [
+  {
+    id: "r1",
+    title: "Steuerberater Unterlagen senden",
+    date: "15.08.24",
+    status: "active",
+    note: "Q2 Belege fehlen noch."
+  },
+  {
+    id: "r2",
+    title: "Domain verlängern",
+    date: "01.09.24",
+    status: "active",
+    note: "focusflow.app läuft aus."
+  },
+  {
+    id: "r3",
+    title: "Neuen Monitor bestellen",
+    date: "05.08.24",
+    status: "inactive",
+    note: "Warte auf Black Friday Angebote."
+  }
+];

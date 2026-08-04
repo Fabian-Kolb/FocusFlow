@@ -95,7 +95,10 @@ const MaterialModal = () => {
     if (!materialName.trim()) return;
 
     if (targetPhaseId) {
-      addMaterial(targetProjectId, targetPhaseId, { name: materialName.trim() });
+      addMaterial(targetProjectId, targetPhaseId, { 
+        name: materialName.trim(),
+        content: modalPayload.content || null
+      });
     }
 
     closeModal();

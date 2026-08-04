@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState } from 'react';
-import { projects as initialProjects, inboxItems as initialInboxItems } from '../data/mockData';
+import { projects as initialProjects, inboxItems as initialInboxItems, reminders as initialReminders } from '../data/mockData';
 
 const ModalContext = createContext(null);
 
@@ -8,7 +8,10 @@ export const ModalProvider = ({ children }) => {
   const [modalPayload, setModalPayload] = useState({});
   const [projects, setProjects] = useState(initialProjects);
   const [inboxItems, setInboxItems] = useState(initialInboxItems);
+  const [reminders, setReminders] = useState(initialReminders);
   const [selectedProjectId, setSelectedProjectId] = useState('p1');
+  const [selectedReminderId, setSelectedReminderId] = useState(null);
+  const [activeCoachScope, setActiveCoachScope] = useState('all');
 
   const openModal = (modalType, payload = {}) => {
     setActiveModal(modalType);
@@ -167,7 +170,8 @@ export const ModalProvider = ({ children }) => {
         const newMaterial = {
           id: `m_${Date.now()}`,
           name: materialData.name.trim(),
-          type: materialData.name.startsWith('http') ? 'link' : 'document'
+          type: materialData.content ? 'note' : (materialData.name.startsWith('http') ? 'link' : 'document'),
+          content: materialData.content || null
         };
 
         return {
@@ -258,13 +262,38 @@ export const ModalProvider = ({ children }) => {
     }));
   };
 
-  const addInboxItem = (title) => {
-    if (!title.trim()) return;
-    const newItem = {
-      id: `i_${Date.now()}`,
-      title: title.trim(),
-      completed: false
-    };
+  const setProjectStatus = (projectId, newStatus) => {
+    setProjects(prev => prev.map(proj => {
+      if (proj.id !== projectId) return proj;
+      return { ...proj, status: newStatus };
+    }));
+  };
+
+  const toggleReminderStatus = (reminderId) => {
+    setReminders(prev => prev.map(rem => {
+      if (rem.id !== reminderId) return rem;
+      return { ...rem, status: rem.status === 'active' ? 'inactive' : 'active' };
+    }));
+  };
+
+  const addInboxItem = (itemData) => {
+    let newItem;
+    if (typeof itemData === 'object' && itemData !== null) {
+      newItem = {
+        id: `i_${Date.now()}`,
+        title: itemData.title || itemData.summary,
+        summary: itemData.summary,
+        originalText: itemData.originalText,
+        completed: false
+      };
+    } else {
+      if (!itemData || !itemData.trim()) return;
+      newItem = {
+        id: `i_${Date.now()}`,
+        title: itemData.trim(),
+        completed: false
+      };
+    }
     setInboxItems(prev => ({
       ...prev,
       today: [newItem, ...prev.today]
@@ -286,14 +315,21 @@ export const ModalProvider = ({ children }) => {
       closeModal,
       projects,
       inboxItems,
+      reminders,
       selectedProjectId,
       setSelectedProjectId,
+      selectedReminderId,
+      setSelectedReminderId,
+      activeCoachScope,
+      setActiveCoachScope,
       addProject,
       addPhase,
       addTask,
       addMaterial,
       toggleTask,
       toggleProjectStatus,
+      setProjectStatus,
+      toggleReminderStatus,
       addInboxItem,
       deleteInboxItem
     }}>
