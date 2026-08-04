@@ -271,22 +271,28 @@ export const reminders = [
   {
     id: "r1",
     title: "Steuerberater Unterlagen senden",
-    date: "15.08.24",
-    status: "active",
-    note: "Q2 Belege fehlen noch."
+    dateRange: "01.08.24 – 15.08.24",
+    daysRemaining: "NOCH 11 TAGE",
+    timeElapsed: 30,
+    status: "AKTIV",
+    note: "Q2 Belege fehlen noch. Bitte alle Rechnungen aus dem Ordner 'Finanzen' zusammentragen und als PDF an die Kanzlei schicken."
   },
   {
     id: "r2",
     title: "Domain verlängern",
-    date: "01.09.24",
-    status: "active",
-    note: "focusflow.app läuft aus."
+    dateRange: "10.08.24 – 01.09.24",
+    daysRemaining: "NOCH 28 TAGE",
+    timeElapsed: 10,
+    status: "AKTIV",
+    note: "focusflow.app läuft aus. Kreditkarte im Registrar-Konto prüfen."
   },
   {
     id: "r3",
     title: "Neuen Monitor bestellen",
-    date: "05.08.24",
-    status: "inactive",
-    note: "Warte auf Black Friday Angebote."
+    dateRange: "20.07.24 – 05.08.24",
+    daysRemaining: "MORGEN",
+    timeElapsed: 95,
+    status: "PAUSIERT",
+    note: "Warte auf Black Friday Angebote oder einen Preisverfall beim Ultrawide-Modell."
   }
 ];

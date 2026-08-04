@@ -269,10 +269,30 @@ export const ModalProvider = ({ children }) => {
     }));
   };
 
+  const updateProjectForKanban = (projectId, column) => {
+    setProjects(prev => prev.map(proj => {
+      if (proj.id !== projectId) return proj;
+      if (column === 'TODO') {
+        return { ...proj, status: 'LAUFEND', progress: 0 };
+      }
+      if (column === 'IN_PROGRESS') {
+        return { ...proj, status: 'LAUFEND', progress: proj.progress === 0 ? 10 : proj.progress };
+      }
+      if (column === 'DONE') {
+        return { ...proj, status: 'ABGESCHLOSSEN', progress: 100 };
+      }
+      return proj;
+    }));
+  };
+
   const toggleReminderStatus = (reminderId) => {
     setReminders(prev => prev.map(rem => {
       if (rem.id !== reminderId) return rem;
-      return { ...rem, status: rem.status === 'active' ? 'inactive' : 'active' };
+      let nextStatus = 'AKTIV';
+      if (rem.status === 'AKTIV') nextStatus = 'PAUSIERT';
+      else if (rem.status === 'PAUSIERT') nextStatus = 'ABGESCHLOSSEN';
+      else nextStatus = 'AKTIV';
+      return { ...rem, status: nextStatus };
     }));
   };
 
@@ -329,6 +349,7 @@ export const ModalProvider = ({ children }) => {
       toggleTask,
       toggleProjectStatus,
       setProjectStatus,
+      updateProjectForKanban,
       toggleReminderStatus,
       addInboxItem,
       deleteInboxItem
