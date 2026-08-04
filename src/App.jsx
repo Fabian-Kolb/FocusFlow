@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import Sidebar from './components/layout/Sidebar';
-import Topbar from './components/layout/Topbar';
 import BottomNav from './components/layout/BottomNav';
 import { ModalProvider } from './context/ModalContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -36,35 +35,6 @@ function AppContent() {
     return <Login />;
   }
 
-  // Breadcrumb title rendering
-  const renderTopbarTitle = () => {
-    if (currentScreen === 'project-detail') {
-      return (
-        <div className="flex items-center gap-1.5 text-base sm:text-lg font-semibold">
-          <button
-            className="hover:underline text-on-surface-variant hover:text-primary transition-colors"
-            onClick={() => setCurrentScreen('projects')}
-          >
-            Projekte
-          </button>
-          <span className="text-on-surface-variant text-sm">›</span>
-          <span className="text-primary">Projektdetails</span>
-        </div>
-      );
-    }
-
-    const titles = {
-      dashboard: 'Dashboard',
-      inbox: 'Inbox',
-      reminders: 'Erinnerungen',
-      projects: 'Projekte',
-      board: 'Kanban Board',
-      calendar: 'Kalender',
-      coach: 'AI Coach',
-      review: 'Wochenrückblick',
-    };
-    return titles[currentScreen] || 'FocusFlow';
-  };
 
   return (
     <div className="flex h-screen overflow-hidden bg-surface text-primary antialiased font-sans">
@@ -76,9 +46,7 @@ function AppContent() {
       />
 
       <main className="flex-grow min-w-0 overflow-y-auto relative pb-20 md:pb-0 h-full flex flex-col">
-        <Topbar title={renderTopbarTitle()} />
-
-        <div className={`mx-auto w-full flex-grow flex flex-col ${currentScreen === 'board' ? 'px-2 sm:px-4 md:px-8 py-4 sm:py-8' : 'max-w-[1400px] px-2 sm:px-4 md:px-8 py-4 sm:py-8'}`}>
+        <div className={`mx-auto w-full flex-grow flex flex-col ${currentScreen === 'board' ? 'px-2 sm:px-4 md:px-8 py-4 sm:py-8' : currentScreen === 'coach' ? 'p-0 max-w-none' : 'max-w-[1400px] px-2 sm:px-4 md:px-8 py-4 sm:py-8'}`}>
           {currentScreen === 'dashboard' && <Dashboard setCurrentScreen={setCurrentScreen} />}
           {currentScreen === 'inbox' && <Inbox setCurrentScreen={setCurrentScreen} />}
           {currentScreen === 'reminders' && <Reminders setCurrentScreen={setCurrentScreen} />}

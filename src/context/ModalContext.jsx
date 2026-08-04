@@ -43,7 +43,9 @@ export const ModalProvider = ({ children }) => {
     const newProject = {
       id: newId,
       title: projectData.title,
-      status: projectData.status === 'Pausiert' ? 'PAUSIERT' : 'LAUFEND',
+      status: 'GEPLANT',
+      isPaused: false,
+      inKanban: true,
       nextStep: newPhases.length > 0 ? `Nächste Etappe: ${newPhases[0].title}` : 'Erste Schritte planen',
       dateRange: `${startStr} – ${endStr}`,
       daysRemaining: 'NEU GESTARTET',
@@ -257,8 +259,18 @@ export const ModalProvider = ({ children }) => {
   const toggleProjectStatus = (projectId) => {
     setProjects(prev => prev.map(proj => {
       if (proj.id !== projectId) return proj;
-      const newStatus = proj.status === 'PAUSIERT' ? 'LAUFEND' : 'PAUSIERT';
+      let newStatus = 'GEPLANT';
+      if (proj.status === 'GEPLANT') newStatus = 'AKTIV';
+      else if (proj.status === 'AKTIV' || proj.status === 'LAUFEND') newStatus = 'ABGESCHLOSSEN';
+      else newStatus = 'GEPLANT';
       return { ...proj, status: newStatus };
+    }));
+  };
+
+  const toggleProjectPause = (projectId) => {
+    setProjects(prev => prev.map(proj => {
+      if (proj.id !== projectId) return proj;
+      return { ...proj, isPaused: !proj.isPaused };
     }));
   };
 
@@ -273,10 +285,10 @@ export const ModalProvider = ({ children }) => {
     setProjects(prev => prev.map(proj => {
       if (proj.id !== projectId) return proj;
       if (column === 'TODO') {
-        return { ...proj, status: 'LAUFEND', progress: 0 };
+        return { ...proj, status: 'GEPLANT', progress: 0 };
       }
       if (column === 'IN_PROGRESS') {
-        return { ...proj, status: 'LAUFEND', progress: proj.progress === 0 ? 10 : proj.progress };
+        return { ...proj, status: 'AKTIV', progress: proj.progress === 0 ? 10 : proj.progress };
       }
       if (column === 'DONE') {
         return { ...proj, status: 'ABGESCHLOSSEN', progress: 100 };
@@ -285,14 +297,68 @@ export const ModalProvider = ({ children }) => {
     }));
   };
 
+  const updateReminderForKanban = (reminderId, column) => {
+    setReminders(prev => prev.map(rem => {
+      if (rem.id !== reminderId) return rem;
+      if (column === 'TODO') {
+        return { ...rem, status: 'GEPLANT' };
+      }
+      if (column === 'IN_PROGRESS') {
+        return { ...rem, status: 'AKTIV' };
+      }
+      if (column === 'DONE') {
+        return { ...rem, status: 'ABGESCHLOSSEN' };
+      }
+      return rem;
+    }));
+  };
+
   const toggleReminderStatus = (reminderId) => {
     setReminders(prev => prev.map(rem => {
       if (rem.id !== reminderId) return rem;
-      let nextStatus = 'AKTIV';
-      if (rem.status === 'AKTIV') nextStatus = 'PAUSIERT';
-      else if (rem.status === 'PAUSIERT') nextStatus = 'ABGESCHLOSSEN';
-      else nextStatus = 'AKTIV';
+      let nextStatus = 'GEPLANT';
+      if (rem.status === 'GEPLANT') nextStatus = 'AKTIV';
+      else if (rem.status === 'AKTIV') nextStatus = 'ABGESCHLOSSEN';
+      else nextStatus = 'GEPLANT';
       return { ...rem, status: nextStatus };
+    }));
+  };
+
+  const setReminderStatus = (reminderId, newStatus) => {
+    setReminders(prev => prev.map(rem => {
+      if (rem.id !== reminderId) return rem;
+      return { ...rem, status: newStatus };
+    }));
+  };
+
+  const toggleReminderPause = (reminderId) => {
+    setReminders(prev => prev.map(rem => {
+      if (rem.id !== reminderId) return rem;
+      return { ...rem, isPaused: !rem.isPaused };
+    }));
+  };
+
+  const deleteProject = (projectId) => {
+    setProjects(prev => prev.filter(proj => proj.id !== projectId));
+  };
+
+  const deleteReminder = (reminderId) => {
+    setReminders(prev => prev.filter(rem => rem.id !== reminderId));
+  };
+
+  const toggleProjectKanban = (projectId) => {
+    setProjects(prev => prev.map(proj => {
+      if (proj.id !== projectId) return proj;
+      const currentInKanban = proj.inKanban !== false;
+      return { ...proj, inKanban: !currentInKanban };
+    }));
+  };
+
+  const toggleReminderKanban = (reminderId) => {
+    setReminders(prev => prev.map(rem => {
+      if (rem.id !== reminderId) return rem;
+      const currentInKanban = rem.inKanban !== false;
+      return { ...rem, inKanban: !currentInKanban };
     }));
   };
 
@@ -348,9 +414,17 @@ export const ModalProvider = ({ children }) => {
       addMaterial,
       toggleTask,
       toggleProjectStatus,
+      toggleProjectPause,
+      deleteProject,
+      toggleProjectKanban,
       setProjectStatus,
       updateProjectForKanban,
+      updateReminderForKanban,
       toggleReminderStatus,
+      setReminderStatus,
+      toggleReminderPause,
+      deleteReminder,
+      toggleReminderKanban,
       addInboxItem,
       deleteInboxItem
     }}>

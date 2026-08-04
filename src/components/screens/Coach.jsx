@@ -10,13 +10,99 @@ import remarkGfm from 'remark-gfm';
 
 const Coach = () => {
   const { projects, inboxItems, activeCoachScope, setActiveCoachScope } = useModalContext();
-  const [isHistoryOpen, setIsHistoryOpen] = useState(true);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(() => {
+    const saved = localStorage.getItem('focusflow_coach_history');
+    if (saved !== null) return JSON.parse(saved);
+    return window.innerWidth >= 768;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('focusflow_coach_history', JSON.stringify(isHistoryOpen));
+  }, [isHistoryOpen]);
+
   const [sessions, setSessions] = useState(initialSessions);
   const [activeSessionId, setActiveSessionId] = useState('cs1');
   const [messages, setMessages] = useState(initialHistory);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
   const [activeModel, setActiveModel] = useState('gemini-3.6-flash');
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef(null);
+  const isListeningRef = useRef(false);
+  const textareaRef = useRef(null);
+
+  useEffect(() => {
+    isListeningRef.current = isListening;
+  }, [isListening]);
+
+  const handleToggleListening = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert('Spracheingabe wird in diesem Browser leider nicht unterstützt. Bitte benutze Chrome, Edge oder Safari.');
+      return;
+    }
+
+    if (isListening) {
+      isListeningRef.current = false;
+      setIsListening(false);
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'de-DE';
+      recognition.interimResults = true;
+      recognition.continuous = true;
+
+      recognition.onstart = () => {
+        setIsListening(true);
+        isListeningRef.current = true;
+      };
+
+      recognition.onresult = (event) => {
+        let finalTranscript = '';
+        for (let i = 0; i < event.results.length; i++) {
+          finalTranscript += event.results[i][0].transcript;
+        }
+        setInputText(finalTranscript);
+      };
+
+      recognition.onerror = (event) => {
+        console.error('Speech recognition error:', event.error);
+        if (event.error !== 'no-speech') {
+          setIsListening(false);
+          isListeningRef.current = false;
+        }
+      };
+
+      recognition.onend = () => {
+        if (isListeningRef.current) {
+          try {
+            recognition.start();
+          } catch (e) {
+            setIsListening(false);
+            isListeningRef.current = false;
+          }
+        } else {
+          setIsListening(false);
+        }
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (err) {
+      console.error('Speech recognition failed:', err);
+      setIsListening(false);
+      isListeningRef.current = false;
+    }
+  };
 
   const selectedProject = projects.find(p => p.id === activeCoachScope);
 
@@ -134,6 +220,14 @@ Regeln:
     const text = textToSend || inputText;
     if (!text || !text.trim() || loading) return;
 
+    if (isListening) {
+      isListeningRef.current = false;
+      setIsListening(false);
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch (e) {}
+      }
+    }
+
     const userMsgId = `msg_${Date.now()}_u`;
     const botMsgId = `msg_${Date.now()}_b`;
 
@@ -144,7 +238,12 @@ Regeln:
     };
 
     setMessages((prev) => [...prev, userMessage]);
-    if (!textToSend) setInputText('');
+    if (!textToSend) {
+      setInputText('');
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+      }
+    }
     setLoading(true);
 
     setMessages((prev) => [
@@ -183,34 +282,31 @@ Regeln:
   };
 
   return (
-    <div className="screen-transition flex flex-col h-[calc(100vh-140px)]">
-      <div className="flex h-full border border-outline-variant bg-surface relative overflow-hidden rounded-xl">
+    <div className="screen-transition flex flex-col h-full w-full">
+      <div className="flex h-full bg-surface relative overflow-hidden">
         {/* Left Sidebar: Chat Session History Drawer */}
         <div
-          className={`bg-white border-r border-outline-variant flex flex-col h-full transition-all duration-300 ease-in-out relative z-10 flex-shrink-0 ${isHistoryOpen ? 'w-72' : 'w-0 p-0 border-0 overflow-hidden'
+          className={`bg-surface-low border-r border-outline-variant flex flex-col h-full transition-all duration-300 ease-in-out relative z-10 flex-shrink-0 ${isHistoryOpen ? 'w-72' : 'w-0 p-0 border-0 overflow-hidden'
             }`}
         >
-          <div className="p-3 border-b border-outline-variant flex items-center justify-between gap-2 bg-surface-low">
-            <button
-              className="flex-grow py-2 px-3 bg-primary text-on-primary rounded-lg text-xs font-mono font-bold hover:bg-neutral-800 transition-colors flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
-              onClick={handleNewChat}
-            >
-              <span className="material-symbols-outlined text-[16px]">add</span>
-              <span>NEUER CHAT</span>
-            </button>
-            <button
-              className="p-2 border border-outline-variant bg-white hover:border-primary text-primary transition-colors flex items-center justify-center cursor-pointer"
-              title="Verlauf einklappen"
-              onClick={() => setIsHistoryOpen(false)}
-            >
-              <span className="material-symbols-outlined text-[18px]">chevron_left</span>
-            </button>
-          </div>
-
-          <div className="px-4 py-2 border-b border-outline-variant bg-surface-low">
-            <span className="text-[10px] font-mono text-on-surface-variant uppercase font-bold">
-              Vergangene Chats
-            </span>
+          <div className="p-3 border-b border-outline-variant flex items-center justify-between bg-surface-low">
+            <span className="text-[10px] font-mono font-bold text-on-surface-variant">VERLAUF</span>
+            <div className="flex items-center gap-1.5">
+              <button
+                className="w-8 h-8 bg-primary text-on-primary rounded hover:bg-neutral-800 transition-colors flex items-center justify-center cursor-pointer shadow-sm"
+                title="Neuer Chat"
+                onClick={handleNewChat}
+              >
+                <span className="material-symbols-outlined text-[16px]">edit_square</span>
+              </button>
+              <button
+                className="w-8 h-8 border border-outline-variant bg-white hover:border-primary text-primary transition-colors flex items-center justify-center rounded cursor-pointer shadow-sm"
+                title="Verlauf einklappen"
+                onClick={() => setIsHistoryOpen(false)}
+              >
+                <span className="material-symbols-outlined text-[16px]">left_panel_close</span>
+              </button>
+            </div>
           </div>
 
           <div className="space-y-1 p-2 overflow-y-auto flex-grow">
@@ -240,80 +336,47 @@ Regeln:
 
         {/* Right Main Chat Panel */}
         <div className="flex-grow flex flex-col h-full relative overflow-hidden bg-surface">
-          {/* Top Bar */}
-          <div className="px-4 sm:px-6 py-3 border-b border-outline-variant bg-white flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              {!isHistoryOpen && (
-                <>
-                  <button
-                    className="p-2 border border-outline-variant bg-surface-low hover:border-primary text-primary transition-colors flex items-center gap-1.5 text-xs font-mono font-bold cursor-pointer"
-                    title="Verlauf ausklappen"
-                    onClick={() => setIsHistoryOpen(true)}
-                  >
-                    <span className="material-symbols-outlined text-[18px]">history</span>
-                    <span className="hidden sm:inline">VERLAUF</span>
-                  </button>
-
-                  <button
-                    className="p-2 border border-outline-variant bg-surface-low hover:border-primary text-primary transition-colors flex items-center gap-1.5 text-xs font-mono font-bold cursor-pointer"
-                    title="Neuer Chat starten"
-                    onClick={handleNewChat}
-                  >
-                    <span className="material-symbols-outlined text-[18px]">add</span>
-                    <span className="hidden sm:inline">NEUER CHAT</span>
-                  </button>
-                </>
-              )}
-
-              {/* Scope Dropdown */}
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary text-[20px]">filter_alt</span>
-                <select
-                  value={activeCoachScope}
-                  onChange={(e) => setActiveCoachScope(e.target.value)}
-                  className="bg-surface-low border border-outline-variant rounded-lg rounded px-2.5 py-1.5 text-xs font-mono font-bold text-primary focus:outline-none focus:border-primary transition-colors cursor-pointer"
-                >
-                  <option value="all">🌐 Alle Projekte & Erinnerungen</option>
-                  <option value="reminders">🔔 Nur Erinnerungen & Inbox</option>
-                  <optgroup label="Projekte">
-                    {projects.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        📁 Projekt: {p.title}
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
-              </div>
-              {/* Model Dropdown */}
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary text-[20px]">psychology</span>
-                <select
-                  value={activeModel}
-                  onChange={(e) => setActiveModel(e.target.value)}
-                  className="bg-surface-low border border-outline-variant rounded-lg rounded px-2.5 py-1.5 text-xs font-mono font-bold text-primary focus:outline-none focus:border-primary transition-colors cursor-pointer"
-                >
-                  <optgroup label="Flash">
-                    <option value="gemini-3.6-flash">Gemini 3.6 Flash</option>
-                    <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
-                  </optgroup>
-                  <optgroup label="Flash Lite">
-                    <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash Lite</option>
-                    <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite</option>
-                  </optgroup>
-                </select>
-              </div>
-
+          {/* Floating Action Buttons when Sidebar is closed */}
+          {!isHistoryOpen && (
+            <div className="absolute top-4 left-4 z-20 flex flex-row gap-2">
+              <button
+                className="w-10 h-10 border border-outline-variant bg-white hover:border-primary text-primary transition-colors flex items-center justify-center rounded-xl cursor-pointer shadow-sm"
+                title="Verlauf ausklappen"
+                onClick={() => setIsHistoryOpen(true)}
+              >
+                <span className="material-symbols-outlined text-[20px]">left_panel_open</span>
+              </button>
+              <button
+                className="w-10 h-10 bg-primary text-on-primary rounded-xl hover:bg-neutral-800 transition-colors flex items-center justify-center cursor-pointer shadow-sm"
+                title="Neuer Chat"
+                onClick={handleNewChat}
+              >
+                <span className="material-symbols-outlined text-[20px]">edit_square</span>
+              </button>
             </div>
+          )}
 
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-mono font-bold px-2 py-1 bg-primary/10 border border-primary/20 text-primary rounded">
-                FOKUS: {selectedProject ? selectedProject.title : (activeCoachScope === 'reminders' ? 'Erinnerungen' : 'Alle Projekte')}
-              </span>
-            </div>
+          {/* Floating Mobile Model Dropdown */}
+          <div className="absolute top-4 right-4 z-20 block sm:hidden">
+            <select
+              value={activeModel}
+              onChange={(e) => setActiveModel(e.target.value)}
+              className="bg-white border border-outline-variant text-[10px] font-mono font-bold text-primary rounded-xl px-2.5 py-2 shadow-sm focus:outline-none cursor-pointer"
+              title="KI-Modell auswählen"
+            >
+              <optgroup label="Flash">
+                <option value="gemini-3.6-flash">3.6 Flash</option>
+                <option value="gemini-3.5-flash">3.5 Flash</option>
+              </optgroup>
+              <optgroup label="Lite">
+                <option value="gemini-3.5-flash-lite">3.5 Lite</option>
+                <option value="gemini-3.1-flash-lite">3.1 Lite</option>
+              </optgroup>
+            </select>
           </div>
 
           {/* Message Stream */}
-          <div className="flex-grow overflow-y-auto px-4 py-6">
+          <div className="flex-grow overflow-y-auto px-4 pb-6 pt-16 lg:pt-6">
             <div className="max-w-2xl mx-auto space-y-6">
               {messages.map((msg) => {
                 if (msg.sender === 'bot') {
@@ -354,8 +417,8 @@ Regeln:
 
           {/* Bottom Input Control Suite */}
           <div className="p-3 sm:p-4 border-t border-outline-variant bg-white space-y-2">
-            {/* Quick Prompt Pills */}
-            <div className="max-w-2xl mx-auto flex items-center gap-2 no-wrap-scroll text-[11px] font-mono pb-1">
+            {/* Quick Prompts */}
+            <div className="max-w-2xl mx-auto flex items-center gap-2 no-wrap-scroll text-[11px] font-mono pb-1 overflow-x-auto">
               <span className="text-on-surface-variant font-bold flex-shrink-0">PROMPTS:</span>
               {dynamicPrompts.map((qp) => (
                 <button
@@ -369,24 +432,89 @@ Regeln:
             </div>
 
             {/* Input Bar */}
-            <div className="max-w-2xl mx-auto flex border border-primary bg-white rounded-xl shadow-sm p-1">
-              <input
-                type="text"
-                className="flex-grow border-none focus:ring-0 text-sm px-3 sm:px-4 py-2.5 sm:py-3 outline-none"
+            <div className="max-w-2xl mx-auto flex items-center border border-primary bg-white rounded-xl shadow-sm p-1">
+              {/* Filter Icon (Scope Dropdown) */}
+              <div className="relative flex items-center justify-center pl-2 pr-1 cursor-pointer group">
+                <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors text-[22px]">filter_alt</span>
+                <select
+                  value={activeCoachScope}
+                  onChange={(e) => setActiveCoachScope(e.target.value)}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  title="Fokus ändern"
+                >
+                  <option value="all">🌐 Alle Projekte & Erinnerungen</option>
+                  <option value="reminders">🔔 Nur Erinnerungen & Inbox</option>
+                  <optgroup label="Projekte">
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        📁 Projekt: {p.title}
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+              </div>
+
+              <textarea
+                ref={textareaRef}
+                className="flex-grow border-none focus:ring-0 text-sm px-2 sm:px-3 py-2.5 sm:py-3 outline-none resize-none overflow-y-auto min-h-[44px]"
                 placeholder="Frage deinen Coach..."
                 value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
+                rows={1}
+                style={{ height: 'auto' }}
+                onChange={(e) => {
+                  setInputText(e.target.value);
+                  e.target.style.height = 'auto';
+                  e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
+                }}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSendMessage();
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage();
+                  }
                 }}
               />
               <button
-                className="px-4 sm:px-6 py-2.5 sm:py-3 bg-primary text-on-primary rounded-lg text-xs font-mono font-bold hover:bg-neutral-800 transition-colors flex items-center gap-2 flex-shrink-0 cursor-pointer"
-                onClick={() => handleSendMessage()}
+                className={`px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg transition-colors flex items-center justify-center cursor-pointer flex-shrink-0 ${
+                  isListening
+                    ? 'bg-red-600 text-white shadow-sm'
+                    : inputText.trim().length === 0 
+                      ? 'bg-primary text-on-primary hover:bg-neutral-800 shadow-sm' 
+                      : 'text-on-surface-variant hover:text-primary bg-surface-low border border-outline-variant sm:border-none sm:bg-transparent'
+                }`}
+                onClick={handleToggleListening}
+                title={isListening ? 'Spracheingabe stoppen' : 'Spracheingabe'}
               >
-                <span>SENDEN</span>
-                <span className="material-symbols-outlined text-[16px]">send</span>
+                <span className="material-symbols-outlined text-[20px]">mic</span>
               </button>
+
+              {inputText.trim().length > 0 && (
+                <button
+                  className="px-3 sm:px-4 py-2.5 sm:py-3 bg-primary text-on-primary rounded-lg hover:bg-neutral-800 transition-colors flex items-center justify-center cursor-pointer shadow-sm ml-1 flex-shrink-0"
+                  onClick={() => handleSendMessage()}
+                  title="Senden"
+                >
+                  <span className="material-symbols-outlined text-[20px]">send</span>
+                </button>
+              )}
+
+              {/* Model Dropdown right next to Send (Desktop Only) */}
+              <div className="hidden sm:flex items-center pl-1 sm:pl-2 ml-1 sm:ml-2 border-l border-outline-variant pr-1">
+                <select
+                  value={activeModel}
+                  onChange={(e) => setActiveModel(e.target.value)}
+                  className="bg-transparent border-none text-[10px] sm:text-[11px] font-mono font-bold text-on-surface-variant focus:outline-none cursor-pointer hover:text-primary transition-colors max-w-[65px] sm:max-w-[80px]"
+                  title="KI-Modell auswählen"
+                >
+                  <optgroup label="Flash">
+                    <option value="gemini-3.6-flash">3.6 Flash</option>
+                    <option value="gemini-3.5-flash">3.5 Flash</option>
+                  </optgroup>
+                  <optgroup label="Lite">
+                    <option value="gemini-3.5-flash-lite">3.5 Lite</option>
+                    <option value="gemini-3.1-flash-lite">3.1 Lite</option>
+                  </optgroup>
+                </select>
+              </div>
             </div>
           </div>
         </div>

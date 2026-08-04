@@ -22,157 +22,782 @@ export const inboxItems = {
 
 export const projects = [
   {
-    id: "p1",
-    title: "Re-Branding 2024",
-    status: "AKTIV",
-    nextStep: "Nächste Etappe: Stakeholder Interviews führen",
-    dateRange: "12. APRIL – 30. JUNI 2024",
-    daysRemaining: "NOCH 14 TAGE",
-    progress: 45,
-    timeElapsed: 68,
-    tasksCountText: "(9 / 20 Tasks)",
-    daysCountText: "(48 / 70 Tage)",
-    phasesCompleted: 1,
-    phasesTotal: 3,
-    tasksCompleted: 9,
-    tasksTotal: 20,
-    warning: "⚠️ 4 TAGE RÜCKSTAND",
-    recommendedSteps: [
+    "id": "p1",
+    "title": "Re-Branding 2024",
+    "status": "AKTIV",
+    "isPaused": false,
+    "inKanban": true,
+    "nextStep": "Nächste Etappe: Konzept & Design",
+    "dateRange": "12. APRIL – 30. JUNI 2024",
+    "daysRemaining": "NOCH 14 TAGE",
+    "progress": 45,
+    "timeElapsed": 68,
+    "tasksCountText": "(9 / 20 Tasks)",
+    "daysCountText": "(48 / 70 Tage)",
+    "phasesCompleted": 1,
+    "phasesTotal": 3,
+    "tasksCompleted": 9,
+    "tasksTotal": 20,
+    "warning": "⚠️ 4 TAGE RÜCKSTAND",
+    "recommendedSteps": [],
+    "materials": [],
+    "history": [],
+    "phases": [
       {
-        id: "rec1",
-        num: 1,
-        title: "Stakeholder Interviews führen",
-        date: "Geplant: Freitag, 17. Mai",
-        targetTaskId: "t2"
-      },
-      {
-        id: "rec2",
-        num: 2,
-        title: "Deep Work: UI Design Prototyping",
-        date: "Geplant: Nächste Woche",
-        targetTaskId: "t3"
-      }
-    ],
-    materials: [
-      {
-        id: "m1",
-        name: "Briefing-Dokument.pdf",
-        url: "#"
-      }
-    ],
-    history: [
-      {
-        id: "h1",
-        timestamp: "14. MAI 2024 • 16:30 Uhr",
-        text: "Unterpunkt erledigt: 'Moodboard & Designinspo erstellen'",
-        phase: "Phase 1: Vorbereitung & Analyse",
-        icon: "check",
-        iconStyle: "bg-emerald-100 border border-emerald-300 text-emerald-800"
-      },
-      {
-        id: "h2",
-        timestamp: "12. MAI 2024 • 11:15 Uhr",
-        text: "Neues Phasenmaterial hinzugefügt: 'Briefing-Dokument.pdf'",
-        phase: "Phase 1: Vorbereitung & Analyse",
-        icon: "attach_file",
-        iconStyle: "bg-surface-low border border-outline-variant text-primary"
-      },
-      {
-        id: "h3",
-        timestamp: "10. MAI 2024 • 09:00 Uhr",
-        text: "Phase 1 gestartet: 'Vorbereitung & Analyse'",
-        phase: "Projekt-Startschuss",
-        icon: "flag",
-        iconStyle: "bg-surface-low border border-outline-variant text-primary"
-      },
-      {
-        id: "h4",
-        timestamp: "12. APRIL 2024 • 10:00 Uhr",
-        text: "Projekt 'Re-Branding 2024' erfolgreich angelegt",
-        phase: "Gesamtdauer: 70 Tage (Deadline: 30. Juni)",
-        icon: "rocket_launch",
-        iconStyle: "bg-primary text-white"
-      }
-    ],
-    phases: [
-      {
-        id: "ph1",
-        phaseNum: "Phase 01",
-        title: "Vorbereitung & Analyse",
-        badgeText: "1/2 ERLEDIGT",
-        completed: false,
-        materials: [
+        "id": "ph1",
+        "phaseNum": "Phase 01",
+        "title": "Vorbereitung & Analyse",
+        "badgeText": "ERLEDIGT",
+        "completed": true,
+        "materials": [
           {
-            id: "pm1",
-            name: "Briefing-Dokument.pdf",
-            url: "#"
+            "id": "pm1",
+            "name": "Briefing-Dokument.pdf",
+            "url": "#"
           }
         ],
-        tasks: [
+        "tasks": [
           {
-            id: "t1",
-            title: "Moodboard & Designinspo erstellen",
-            date: "Geplant: 14. Mai 2024",
-            completed: true,
-            note: "",
-            links: [
-              {
-                id: "l1",
-                name: "Pinterest Board",
-                url: "#"
-              }
-            ]
+            "id": "t_1785812086692_1",
+            "title": "Task 1",
+            "date": "Geplant: Irgendwann",
+            "completed": true,
+            "note": "",
+            "links": []
           },
           {
-            id: "t2",
-            title: "Stakeholder Interviews führen",
-            date: "Geplant: Freitag, 17. Mai",
-            completed: false,
-            note: "Fr. Schmidt bevorzugt Termine ab 14 Uhr. Fragenkatalog V2 für das Gespräch nutzen.",
-            links: []
+            "id": "t_1785812086692_2",
+            "title": "Task 2",
+            "date": "Geplant: Irgendwann",
+            "completed": true,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_3",
+            "title": "Task 3",
+            "date": "Geplant: Irgendwann",
+            "completed": true,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_4",
+            "title": "Task 4",
+            "date": "Geplant: Irgendwann",
+            "completed": true,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_5",
+            "title": "Task 5",
+            "date": "Geplant: Irgendwann",
+            "completed": true,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_6",
+            "title": "Task 6",
+            "date": "Geplant: Irgendwann",
+            "completed": true,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_7",
+            "title": "Task 7",
+            "date": "Geplant: Irgendwann",
+            "completed": true,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_8",
+            "title": "Task 8",
+            "date": "Geplant: Irgendwann",
+            "completed": true,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_9",
+            "title": "Task 9",
+            "date": "Geplant: Irgendwann",
+            "completed": true,
+            "note": "",
+            "links": []
           }
         ]
       },
       {
-        id: "ph2",
-        phaseNum: "Phase 02",
-        title: "Konzept & Design",
-        badgeText: "0/1 ERLEDIGT",
-        completed: false,
-        materials: [],
-        tasks: [
+        "id": "ph2",
+        "phaseNum": "Phase 02",
+        "title": "Konzept & Design",
+        "badgeText": "0/6 ERLEDIGT",
+        "completed": false,
+        "materials": [],
+        "tasks": [
           {
-            id: "t3",
-            title: "Deep Work: UI Design Prototyping",
-            date: "Geplant: Nächste Woche",
-            completed: false,
-            note: "",
-            links: []
+            "id": "t_1785812086692_10",
+            "title": "Task 10",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_11",
+            "title": "Task 11",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_12",
+            "title": "Task 12",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_13",
+            "title": "Task 13",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_14",
+            "title": "Task 14",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_15",
+            "title": "Task 15",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          }
+        ]
+      },
+      {
+        "id": "ph3",
+        "phaseNum": "Phase 03",
+        "title": "Umsetzung & Launch",
+        "badgeText": "0/5 ERLEDIGT",
+        "completed": false,
+        "materials": [],
+        "tasks": [
+          {
+            "id": "t_1785812086692_16",
+            "title": "Task 16",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_17",
+            "title": "Task 17",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_18",
+            "title": "Task 18",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_19",
+            "title": "Task 19",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_20",
+            "title": "Task 20",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
           }
         ]
       }
     ]
   },
   {
-    id: "p2",
-    title: "Markteintritt APAC Expansion & Partnering",
-    status: "LAUFEND",
-    nextStep: "Verträge finalisieren",
-    dateRange: "01.03.24 – 15.12.24",
-    daysRemaining: "NOCH 5 MONATE",
-    progress: 15,
-    timeElapsed: 25,
-    tasksCountText: "(2 / 45 Tasks)",
-    daysCountText: "(45 / 180 Tage)",
-    phasesCompleted: 0,
-    phasesTotal: 5,
-    tasksCompleted: 2,
-    tasksTotal: 45,
-    warning: null,
-    recommendedSteps: [],
-    materials: [],
-    history: [],
-    phases: []
+    "id": "p2",
+    "title": "Markteintritt APAC Expansion & Partnering",
+    "status": "GEPLANT",
+    "isPaused": false,
+    "inKanban": true,
+    "nextStep": "Verträge finalisieren",
+    "dateRange": "01.03.24 – 15.12.24",
+    "daysRemaining": "NOCH 5 MONATE",
+    "progress": 15,
+    "timeElapsed": 25,
+    "tasksCountText": "(2 / 45 Tasks)",
+    "daysCountText": "(45 / 180 Tage)",
+    "phasesCompleted": 0,
+    "phasesTotal": 5,
+    "tasksCompleted": 2,
+    "tasksTotal": 45,
+    "warning": null,
+    "recommendedSteps": [],
+    "materials": [],
+    "history": [],
+    "phases": [
+      {
+        "id": "p2_ph1",
+        "phaseNum": "Phase 01",
+        "title": "Marktforschung",
+        "badgeText": "2/10 ERLEDIGT",
+        "completed": false,
+        "materials": [],
+        "tasks": [
+          {
+            "id": "t_1785812086692_1",
+            "title": "Task 1",
+            "date": "Geplant: Irgendwann",
+            "completed": true,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_2",
+            "title": "Task 2",
+            "date": "Geplant: Irgendwann",
+            "completed": true,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_3",
+            "title": "Task 3",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_4",
+            "title": "Task 4",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_5",
+            "title": "Task 5",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_6",
+            "title": "Task 6",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_7",
+            "title": "Task 7",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_8",
+            "title": "Task 8",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_9",
+            "title": "Task 9",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_10",
+            "title": "Task 10",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          }
+        ]
+      },
+      {
+        "id": "p2_ph2",
+        "phaseNum": "Phase 02",
+        "title": "Partner-Identifikation",
+        "badgeText": "0/10 ERLEDIGT",
+        "completed": false,
+        "materials": [],
+        "tasks": [
+          {
+            "id": "t_1785812086692_11",
+            "title": "Task 11",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_12",
+            "title": "Task 12",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_13",
+            "title": "Task 13",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_14",
+            "title": "Task 14",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_15",
+            "title": "Task 15",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_16",
+            "title": "Task 16",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_17",
+            "title": "Task 17",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_18",
+            "title": "Task 18",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_19",
+            "title": "Task 19",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_20",
+            "title": "Task 20",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          }
+        ]
+      },
+      {
+        "id": "p2_ph3",
+        "phaseNum": "Phase 03",
+        "title": "Vertragsverhandlungen",
+        "badgeText": "0/10 ERLEDIGT",
+        "completed": false,
+        "materials": [],
+        "tasks": [
+          {
+            "id": "t_1785812086692_21",
+            "title": "Task 21",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_22",
+            "title": "Task 22",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_23",
+            "title": "Task 23",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_24",
+            "title": "Task 24",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_25",
+            "title": "Task 25",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_26",
+            "title": "Task 26",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_27",
+            "title": "Task 27",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_28",
+            "title": "Task 28",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_29",
+            "title": "Task 29",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_30",
+            "title": "Task 30",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          }
+        ]
+      },
+      {
+        "id": "p2_ph4",
+        "phaseNum": "Phase 04",
+        "title": "Infrastruktur-Aufbau",
+        "badgeText": "0/10 ERLEDIGT",
+        "completed": false,
+        "materials": [],
+        "tasks": [
+          {
+            "id": "t_1785812086692_31",
+            "title": "Task 31",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_32",
+            "title": "Task 32",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_33",
+            "title": "Task 33",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_34",
+            "title": "Task 34",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_35",
+            "title": "Task 35",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_36",
+            "title": "Task 36",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_37",
+            "title": "Task 37",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_38",
+            "title": "Task 38",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_39",
+            "title": "Task 39",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_40",
+            "title": "Task 40",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          }
+        ]
+      },
+      {
+        "id": "p2_ph5",
+        "phaseNum": "Phase 05",
+        "title": "Go-Live Vorbereitung",
+        "badgeText": "0/5 ERLEDIGT",
+        "completed": false,
+        "materials": [],
+        "tasks": [
+          {
+            "id": "t_1785812086692_41",
+            "title": "Task 41",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_42",
+            "title": "Task 42",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_43",
+            "title": "Task 43",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_44",
+            "title": "Task 44",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_45",
+            "title": "Task 45",
+            "date": "Geplant: Irgendwann",
+            "completed": false,
+            "note": "",
+            "links": []
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "p3",
+    "title": "Design System Update",
+    "status": "ABGESCHLOSSEN",
+    "isPaused": false,
+    "inKanban": true,
+    "nextStep": "Keine (Projekt abgeschlossen)",
+    "dateRange": "01.01.24 – 28.02.24",
+    "daysRemaining": "BEENDET",
+    "progress": 100,
+    "timeElapsed": 100,
+    "tasksCountText": "(10 / 10 Tasks)",
+    "daysCountText": "(59 / 59 Tage)",
+    "phasesCompleted": 2,
+    "phasesTotal": 2,
+    "tasksCompleted": 10,
+    "tasksTotal": 10,
+    "warning": null,
+    "recommendedSteps": [],
+    "materials": [],
+    "history": [],
+    "phases": [
+      {
+        "id": "p3_ph1",
+        "phaseNum": "Phase 01",
+        "title": "Design System initialisieren",
+        "badgeText": "ERLEDIGT",
+        "completed": true,
+        "materials": [],
+        "tasks": [
+          {
+            "id": "t_1785812086692_1",
+            "title": "Task 1",
+            "date": "Geplant: Irgendwann",
+            "completed": true,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_2",
+            "title": "Task 2",
+            "date": "Geplant: Irgendwann",
+            "completed": true,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_3",
+            "title": "Task 3",
+            "date": "Geplant: Irgendwann",
+            "completed": true,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_4",
+            "title": "Task 4",
+            "date": "Geplant: Irgendwann",
+            "completed": true,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_5",
+            "title": "Task 5",
+            "date": "Geplant: Irgendwann",
+            "completed": true,
+            "note": "",
+            "links": []
+          }
+        ]
+      },
+      {
+        "id": "p3_ph2",
+        "phaseNum": "Phase 02",
+        "title": "Komponenten-Bibliothek",
+        "badgeText": "ERLEDIGT",
+        "completed": true,
+        "materials": [],
+        "tasks": [
+          {
+            "id": "t_1785812086692_6",
+            "title": "Task 6",
+            "date": "Geplant: Irgendwann",
+            "completed": true,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_7",
+            "title": "Task 7",
+            "date": "Geplant: Irgendwann",
+            "completed": true,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_8",
+            "title": "Task 8",
+            "date": "Geplant: Irgendwann",
+            "completed": true,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_9",
+            "title": "Task 9",
+            "date": "Geplant: Irgendwann",
+            "completed": true,
+            "note": "",
+            "links": []
+          },
+          {
+            "id": "t_1785812086692_10",
+            "title": "Task 10",
+            "date": "Geplant: Irgendwann",
+            "completed": true,
+            "note": "",
+            "links": []
+          }
+        ]
+      }
+    ]
   }
 ];
 
@@ -275,6 +900,8 @@ export const reminders = [
     daysRemaining: "NOCH 11 TAGE",
     timeElapsed: 30,
     status: "AKTIV",
+    isPaused: false,
+    inKanban: true,
     note: "Q2 Belege fehlen noch. Bitte alle Rechnungen aus dem Ordner 'Finanzen' zusammentragen und als PDF an die Kanzlei schicken."
   },
   {
@@ -284,6 +911,8 @@ export const reminders = [
     daysRemaining: "NOCH 28 TAGE",
     timeElapsed: 10,
     status: "AKTIV",
+    isPaused: false,
+    inKanban: true,
     note: "focusflow.app läuft aus. Kreditkarte im Registrar-Konto prüfen."
   },
   {
@@ -292,7 +921,9 @@ export const reminders = [
     dateRange: "20.07.24 – 05.08.24",
     daysRemaining: "MORGEN",
     timeElapsed: 95,
-    status: "PAUSIERT",
+    status: "GEPLANT",
+    isPaused: true,
+    inKanban: true,
     note: "Warte auf Black Friday Angebote oder einen Preisverfall beim Ultrawide-Modell."
   }
 ];

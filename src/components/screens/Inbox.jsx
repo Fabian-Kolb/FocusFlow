@@ -15,9 +15,11 @@ const Inbox = ({ setCurrentScreen }) => {
   const [expandedItems, setExpandedItems] = useState({});
   const [activeModel, setActiveModel] = useState('eco');
   const [summaryLength, setSummaryLength] = useState('normal');
+  const [isSummaryEnabled, setIsSummaryEnabled] = useState(true);
 
   const recognitionRef = useRef(null);
   const isListeningRef = useRef(false);
+  const textareaRef = useRef(null);
 
   useEffect(() => {
     isListeningRef.current = isListening;
@@ -108,7 +110,7 @@ const Inbox = ({ setCurrentScreen }) => {
       }
     }
 
-    if (text.length > 35) {
+    if (text.length > 35 && isSummaryEnabled) {
       setIsSummarizing(true);
       try {
         const summary = await summarizeVoiceNote(text, activeModel, summaryLength);
@@ -133,10 +135,14 @@ const Inbox = ({ setCurrentScreen }) => {
     }
 
     setInputValue('');
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
   };
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
       handleAdd();
     }
   };
@@ -164,18 +170,6 @@ const Inbox = ({ setCurrentScreen }) => {
                 </ReactMarkdown>
               </div>
             </div>
-
-            {item.originalText && (
-              <button
-                className="text-[11px] font-mono text-primary hover:underline flex items-center gap-1 mt-1 cursor-pointer"
-                onClick={() => toggleExpand(item.id)}
-              >
-                <span className="material-symbols-outlined text-[14px]">
-                  {isExpanded ? 'expand_less' : 'graphic_eq'}
-                </span>
-                <span>{isExpanded ? 'Transkript verbergen' : '🎙️ Original-Transkript anzeigen'}</span>
-              </button>
-            )}
           </div>
 
           <div className="relative flex-shrink-0 group/dropdown">
@@ -199,12 +193,25 @@ const Inbox = ({ setCurrentScreen }) => {
           </div>
         </div>
 
-        {item.originalText && isExpanded && (
-          <div className="mt-2 p-3 bg-surface-low border border-outline-variant rounded-lg text-xs text-on-surface-variant leading-relaxed">
-            <div className="text-[10px] font-mono font-bold uppercase mb-1 text-primary">
-              Gesprochener Originaltext:
-            </div>
-            <p className="italic">"{item.originalText}"</p>
+        {item.originalText && (
+          <div className="mt-2 border border-outline-variant rounded-xl overflow-hidden bg-surface-low">
+            <button
+              className="w-full flex items-center justify-between p-2.5 hover:bg-surface-variant/30 transition-colors text-left cursor-pointer"
+              onClick={() => toggleExpand(item.id)}
+            >
+              <span className="text-[10px] font-mono font-bold text-on-surface-variant uppercase tracking-wider">
+                Original-Transkript
+              </span>
+              <span className="material-symbols-outlined text-[16px] text-on-surface-variant">
+                {isExpanded ? 'keyboard_arrow_up' : 'keyboard_arrow_down'}
+              </span>
+            </button>
+            
+            {isExpanded && (
+              <div className="px-3 pb-3 pt-1 text-sm text-on-surface leading-relaxed">
+                {item.originalText}
+              </div>
+            )}
           </div>
         )}
       </Card>
@@ -214,50 +221,15 @@ const Inbox = ({ setCurrentScreen }) => {
   return (
     <div className="screen-transition">
       <div className="max-w-4xl mx-auto space-y-6 sm:space-y-8">
-        <Card className="border-primary">
-          <div className="flex justify-between items-center mb-3">
-            <label className="text-xs font-mono block uppercase tracking-wider text-on-surface-variant">
-              WAS GEHT DIR DURCH DEN KOPF?
-            </label>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-primary text-[14px]">psychology</span>
-                <select
-                  value={activeModel}
-                  onChange={(e) => setActiveModel(e.target.value)}
-                  className="bg-surface-low border border-outline-variant rounded-lg px-1.5 py-1 text-[10px] font-mono font-bold text-primary focus:outline-none focus:border-primary transition-colors cursor-pointer"
-                >
-                  <option value="eco">Eco (Älteste zuerst)</option>
-                <optgroup label="Flash">
-                  <option value="gemini-3.6-flash">Gemini 3.6 Flash</option>
-                  <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
-                </optgroup>
-                <optgroup label="Flash Lite">
-                  <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash Lite</option>
-                  <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite</option>
-                </optgroup>
-              </select>
-              </div>
+        <Card className="border-primary flex flex-col gap-3">
+          <label className="text-xs font-mono block uppercase tracking-wider text-on-surface-variant">
+            WAS GEHT DIR DURCH DEN KOPF?
+          </label>
 
-              <div className="flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-primary text-[14px]">straighten</span>
-                <select
-                  value={summaryLength}
-                  onChange={(e) => setSummaryLength(e.target.value)}
-                  className="bg-surface-low border border-outline-variant rounded-lg px-1.5 py-1 text-[10px] font-mono font-bold text-primary focus:outline-none focus:border-primary transition-colors cursor-pointer"
-                >
-                  <option value="compact">Kompakt (Maximal verdichtet)</option>
-                  <option value="normal">Präzise (Nur das Wichtigste)</option>
-                  <option value="detailed">Ausführlich (Detailliert)</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-            <div className="flex-grow flex items-center gap-2">
-              <Input
-                type="text"
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 items-start sm:items-end">
+            <div className="flex-grow flex items-end gap-2 w-full">
+              <textarea
+                ref={textareaRef}
                 disabled={isSummarizing}
                 placeholder={
                   isSummarizing
@@ -267,8 +239,15 @@ const Inbox = ({ setCurrentScreen }) => {
                     : 'Neuer Gedanke, Aufgabe oder Notiz...'
                 }
                 value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
+                onChange={(e) => {
+                  setInputValue(e.target.value);
+                  e.target.style.height = 'auto';
+                  e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
+                }}
                 onKeyDown={handleKeyDown}
+                rows={1}
+                className="flex w-full rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all disabled:cursor-not-allowed disabled:opacity-50 placeholder:text-on-surface-variant resize-none overflow-y-auto min-h-[42px]"
+                style={{ height: 'auto' }}
               />
               <button
                 disabled={isSummarizing}
@@ -288,7 +267,7 @@ const Inbox = ({ setCurrentScreen }) => {
             <Button
               disabled={isSummarizing}
               onClick={handleAdd}
-              className="gap-2 w-full sm:w-auto"
+              className="gap-2 w-full sm:w-auto h-[42px] flex-shrink-0"
             >
               {isSummarizing ? (
                 <>
@@ -299,6 +278,56 @@ const Inbox = ({ setCurrentScreen }) => {
                 'Hinzufügen'
               )}
             </Button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-1 border-t border-outline-variant pt-3">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isSummaryEnabled}
+                onChange={(e) => setIsSummaryEnabled(e.target.checked)}
+                className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4"
+              />
+              <span className="text-xs font-medium text-on-surface-variant">
+                KI Zusammenfassung
+              </span>
+            </label>
+
+            {isSummaryEnabled && (
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-on-surface-variant text-[14px]">psychology</span>
+                  <select
+                    value={activeModel}
+                    onChange={(e) => setActiveModel(e.target.value)}
+                    className="bg-surface-low border border-outline-variant rounded-lg px-2 py-1 text-[11px] font-medium text-on-surface-variant focus:outline-none focus:border-primary transition-colors cursor-pointer"
+                  >
+                    <option value="eco">Eco (Älteste zuerst)</option>
+                    <optgroup label="Flash">
+                      <option value="gemini-3.6-flash">Gemini 3.6 Flash</option>
+                      <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
+                    </optgroup>
+                    <optgroup label="Flash Lite">
+                      <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash Lite</option>
+                      <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite</option>
+                    </optgroup>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-on-surface-variant text-[14px]">straighten</span>
+                  <select
+                    value={summaryLength}
+                    onChange={(e) => setSummaryLength(e.target.value)}
+                    className="bg-surface-low border border-outline-variant rounded-lg px-2 py-1 text-[11px] font-medium text-on-surface-variant focus:outline-none focus:border-primary transition-colors cursor-pointer"
+                  >
+                    <option value="compact">Kompakt (Maximal verdichtet)</option>
+                    <option value="normal">Präzise (Nur das Wichtigste)</option>
+                    <option value="detailed">Ausführlich (Detailliert)</option>
+                  </select>
+                </div>
+              </div>
+            )}
           </div>
         </Card>
 

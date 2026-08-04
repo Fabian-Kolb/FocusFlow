@@ -2,18 +2,47 @@ import React, { useState } from 'react';
 import { useModalContext } from '../../context/ModalContext';
 import Card from '../ui/Card';
 import Badge from '../ui/Badge';
+import CardContextMenu from '../ui/CardContextMenu';
 
 const ProjectsBoard = ({ setCurrentScreen }) => {
-  const { projects, setSelectedProjectId, updateProjectForKanban } = useModalContext();
-  const [draggedProjectId, setDraggedProjectId] = useState(null);
+  const { 
+    projects,
+    reminders,
+    setSelectedProjectId,
+    setSelectedReminderId, 
+    updateProjectForKanban,
+    updateReminderForKanban,
+    toggleProjectPause,
+    toggleReminderPause,
+    deleteProject,
+    deleteReminder,
+    toggleProjectKanban,
+    toggleReminderKanban,
+    toggleProjectStatus,
+    toggleReminderStatus
+  } = useModalContext();
 
-  // Group projects
-  const todoProjects = projects.filter(p => p.progress === 0 && p.status !== 'ABGESCHLOSSEN');
-  const inProgressProjects = projects.filter(p => p.progress > 0 && p.status !== 'ABGESCHLOSSEN');
-  const doneProjects = projects.filter(p => p.status === 'ABGESCHLOSSEN');
+  const [draggedItem, setDraggedItem] = useState(null);
+  const [showProjects, setShowProjects] = useState(true);
+  const [showReminders, setShowReminders] = useState(true);
 
-  const handleDragStart = (e, projectId) => {
-    setDraggedProjectId(projectId);
+  // Combine arrays based on filters
+  const allItems = [];
+  if (showProjects) {
+    allItems.push(...projects.map(p => ({ ...p, itemType: 'project' })));
+  }
+  if (showReminders) {
+    allItems.push(...reminders.map(r => ({ ...r, itemType: 'reminder' })));
+  }
+  
+  const kanbanItems = allItems.filter(item => item.inKanban !== false);
+
+  const todoItems = kanbanItems.filter(i => i.status === 'GEPLANT');
+  const inProgressItems = kanbanItems.filter(i => i.status === 'AKTIV' || i.status === 'LAUFEND');
+  const doneItems = kanbanItems.filter(i => i.status === 'ABGESCHLOSSEN');
+
+  const handleDragStart = (e, item) => {
+    setDraggedItem({ id: item.id, itemType: item.itemType });
     e.dataTransfer.effectAllowed = 'move';
     setTimeout(() => {
       e.target.style.opacity = '0.5';
@@ -22,7 +51,7 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
 
   const handleDragEnd = (e) => {
     e.target.style.opacity = '1';
-    setDraggedProjectId(null);
+    setDraggedItem(null);
   };
 
   const handleDragOver = (e) => {
@@ -37,155 +66,330 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
   const handleDrop = (e, column) => {
     e.preventDefault();
     e.currentTarget.classList.remove('bg-surface-variant/30');
-    if (draggedProjectId) {
-      updateProjectForKanban(draggedProjectId, column);
+    if (draggedItem) {
+      if (draggedItem.itemType === 'project') {
+        updateProjectForKanban(draggedItem.id, column);
+      } else {
+        updateReminderForKanban(draggedItem.id, column);
+      }
     }
   };
 
-  const handleProjectClick = (projectId) => {
-    setSelectedProjectId(projectId);
-    setCurrentScreen('project-detail');
+  const handleItemClick = (item) => {
+    if (item.itemType === 'project') {
+      setSelectedProjectId(item.id);
+      setCurrentScreen('project-detail');
+    } else {
+      setSelectedReminderId(item.id);
+      setCurrentScreen('reminder-detail');
+    }
   };
 
-  const renderCard = (project) => (
-    <div
-      key={project.id}
-      draggable
-      onDragStart={(e) => handleDragStart(e, project.id)}
-      onDragEnd={handleDragEnd}
-      className="mb-4 cursor-grab active:cursor-grabbing"
-    >
-      <Card
-        interactive
-        className="flex flex-col justify-between"
-        onClick={() => handleProjectClick(project.id)}
-      >
-        <div>
-          <div className="marquee-wrapper mb-1">
-            <h3 className="text-sm sm:text-base font-bold hover:underline leading-snug marquee-content">
-              {project.title}
-            </h3>
-          </div>
-          <div className="flex justify-between items-center gap-2 mb-2">
-            <p className="text-[10px] sm:text-xs text-on-surface-variant font-mono truncate">
-              {project.dateRange} <span className="font-bold text-primary">({project.daysRemaining})</span>
-            </p>
-            {project.status && (
-              <Badge className={project.status === 'PAUSIERT' ? 'bg-amber-100 text-amber-900 border-amber-300 text-[9px] px-1.5' : project.status === 'ABGESCHLOSSEN' ? 'bg-neutral-100 text-neutral-800 border-neutral-300 text-[9px] px-1.5' : 'bg-emerald-100 text-emerald-900 border-emerald-300 text-[9px] px-1.5'}>
-                {project.status}
-              </Badge>
+  const getStatusStyle = (status) => {
+    switch(status) {
+      case 'GEPLANT': return 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200';
+      case 'ABGESCHLOSSEN': return 'bg-neutral-100 text-neutral-800 border-neutral-300 hover:bg-neutral-200';
+      case 'AKTIV':
+      case 'LAUFEND':
+      default: return 'bg-emerald-100 text-emerald-900 border-emerald-300 hover:bg-emerald-200';
+    }
+  };
+
+  const renderCard = (item) => {
+    if (item.itemType === 'project') {
+      const project = item;
+      return (
+        <div
+          key={project.id}
+          draggable
+          onDragStart={(e) => handleDragStart(e, project)}
+          onDragEnd={handleDragEnd}
+          className="mb-4 cursor-grab active:cursor-grabbing"
+        >
+          <Card
+            interactive
+            className={`flex flex-col justify-between min-h-[250px] sm:min-h-[300px] transition-all ${
+              project.isPaused 
+                ? 'bg-amber-50/60 border-amber-300 ring-1 ring-amber-300/40' 
+                : project.inKanban === false
+                ? 'bg-purple-50/50 border-purple-300 ring-1 ring-purple-300/40'
+                : ''
+            }`}
+            onClick={() => handleItemClick(project)}
+          >
+            {project.inKanban === false && (
+              <div 
+                className="absolute top-2 right-2 w-2.5 h-2.5 bg-purple-500 rounded-full ring-2 ring-white z-10 shadow-sm"
+                title="Nicht im Kanban-Board"
+              />
             )}
-          </div>
-        </div>
+            <div>
+              <div className="flex items-start justify-between gap-2 mb-1">
+                <div className="marquee-wrapper flex-1">
+                  <h3 className="text-base sm:text-lg font-bold hover:underline leading-snug marquee-content">
+                    {project.title}
+                  </h3>
+                </div>
+                <CardContextMenu
+                  isPaused={project.isPaused}
+                  onTogglePause={() => toggleProjectPause(project.id)}
+                  inKanban={project.inKanban}
+                  onToggleKanban={() => toggleProjectKanban(project.id)}
+                  onDelete={() => deleteProject(project.id)}
+                />
+              </div>
+              <div className="flex justify-between items-center gap-2 mb-2">
+                <p className="text-[10px] sm:text-xs text-on-surface-variant font-mono truncate">
+                  {project.dateRange} <span className="font-bold text-primary">({project.daysRemaining})</span>
+                </p>
+              </div>
+            </div>
 
-        <div className="grid grid-cols-2 gap-2 my-1 p-2 bg-surface-low border border-outline-variant rounded-lg text-[10px] font-mono">
-          <div>
-            <span className="text-on-surface-variant block text-[9px] uppercase">Phasen</span>
-            <span className="font-bold text-primary">{project.phasesCompleted} / {project.phasesTotal}</span>
-          </div>
-          <div>
-            <span className="text-on-surface-variant block text-[9px] uppercase">Tasks</span>
-            <span className="font-bold text-primary">{project.tasksCompleted} / {project.tasksTotal}</span>
-          </div>
-        </div>
+            <div className="grid grid-cols-2 gap-1 sm:gap-2 my-1 p-1.5 sm:p-2 bg-surface-low border border-outline-variant rounded-lg text-[9px] sm:text-[11px] font-mono">
+              <div>
+                <span className="text-on-surface-variant block text-[8px] sm:text-[10px] uppercase">Phasen</span>
+                <span className="font-bold text-primary">{project.phasesCompleted} / {project.phasesTotal} Erledigt</span>
+              </div>
+              <div>
+                <span className="text-on-surface-variant block text-[8px] sm:text-[10px] uppercase">Unterpunkte</span>
+                <span className="font-bold text-primary">{project.tasksCompleted} / {project.tasksTotal} Tasks</span>
+              </div>
+            </div>
 
-        <div className="space-y-2 border-t border-outline-variant pt-2 mt-auto">
-          {project.warning && (
-            <div className="flex items-center justify-between mb-1">
-              <Badge className="bg-amber-100 text-amber-900 border-amber-300 text-[9px]">
-                {project.warning}
-              </Badge>
+            <div className="space-y-2 sm:space-y-3 border-t border-outline-variant pt-2 sm:pt-3 mt-auto">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                {project.status && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleProjectStatus(project.id);
+                    }}
+                    className={`px-2 py-0.5 sm:px-3 sm:py-1 rounded-lg border text-[9px] sm:text-xs font-mono font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer ${getStatusStyle(project.status)}`}
+                    title="Klicken um Status zu wechseln"
+                  >
+                    {project.status === 'LAUFEND' ? 'AKTIV' : project.status}
+                  </button>
+                )}
+
+                {project.warning && (
+                  <span className="px-2 py-0.5 sm:px-3 sm:py-1 rounded-lg border bg-amber-100 text-amber-900 border-amber-300 text-[9px] sm:text-xs font-mono font-bold uppercase tracking-wider">
+                    {project.warning}
+                  </span>
+                )}
+              </div>
+
+              <div>
+                <div className="flex justify-between items-center text-[9px] sm:text-[11px] mono font-bold mb-1">
+                  <span>FORTSCHRITT</span>
+                  <span>{project.progress}%</span>
+                </div>
+                <div className="w-full bg-surface-low h-1.5 sm:h-2 border border-outline-variant rounded-full overflow-hidden">
+                  <div className="bg-primary h-full rounded-full" style={{ width: `${project.progress}%` }}></div>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex justify-between items-center text-[8px] sm:text-[10px] mono text-on-surface-variant mb-1">
+                  <span>VERSTRICHENE ZEIT</span>
+                  <span>{project.timeElapsed}%</span>
+                </div>
+                <div className="w-full bg-surface-low h-1.5 sm:h-2 border border-outline-variant rounded-full overflow-hidden">
+                  <div className="bg-primary h-full rounded-full" style={{ width: `${project.timeElapsed}%` }}></div>
+                </div>
+              </div>
             </div>
-          )}
-          <div>
-            <div className="flex justify-between items-center text-[10px] mono font-bold mb-1">
-              <span>FORTSCHRITT</span>
-              <span>{project.progress}%</span>
-            </div>
-            <div className="w-full bg-surface-low h-1.5 border border-outline-variant rounded-full overflow-hidden">
-              <div className="bg-primary h-full rounded-full transition-all duration-300" style={{ width: `${project.progress}%` }}></div>
-            </div>
-          </div>
+          </Card>
         </div>
-      </Card>
+      );
+    } else {
+      const reminder = item;
+      return (
+        <div
+          key={reminder.id}
+          draggable
+          onDragStart={(e) => handleDragStart(e, reminder)}
+          onDragEnd={handleDragEnd}
+          className="mb-4 cursor-grab active:cursor-grabbing"
+        >
+          <Card
+            interactive
+            className={`flex flex-col justify-between transition-all ${
+              reminder.isPaused 
+                ? 'bg-amber-50/60 border-amber-300 ring-1 ring-amber-300/40' 
+                : reminder.inKanban === false
+                ? 'bg-purple-50/50 border-purple-300 ring-1 ring-purple-300/40'
+                : ''
+            }`}
+            onClick={() => handleItemClick(reminder)}
+          >
+            {reminder.inKanban === false && (
+              <div 
+                className="absolute top-2 right-2 w-2.5 h-2.5 bg-purple-500 rounded-full ring-2 ring-white z-10 shadow-sm"
+                title="Nicht im Kanban-Board"
+              />
+            )}
+            <div>
+              <div className="flex items-start justify-between gap-2 mb-1">
+                <div className="marquee-wrapper flex-1">
+                  <h3 className="text-base sm:text-lg font-bold hover:underline leading-snug marquee-content">
+                    {reminder.title}
+                  </h3>
+                </div>
+                <CardContextMenu
+                  isPaused={reminder.isPaused}
+                  onTogglePause={() => toggleReminderPause(reminder.id)}
+                  inKanban={reminder.inKanban}
+                  onToggleKanban={() => toggleReminderKanban(reminder.id)}
+                  onDelete={() => deleteReminder(reminder.id)}
+                />
+              </div>
+              <div className="mb-2 sm:mb-3">
+                <p className="text-[10px] sm:text-xs text-on-surface-variant font-mono truncate">
+                  {reminder.dateRange} <span className="font-bold text-primary">({reminder.daysRemaining})</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2 sm:space-y-3 border-t border-outline-variant pt-2 sm:pt-3 mt-1">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                {reminder.status && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleReminderStatus(reminder.id);
+                    }}
+                    className={`px-2 py-0.5 sm:px-3 sm:py-1 rounded-lg border text-[9px] sm:text-xs font-mono font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer ${getStatusStyle(reminder.status)}`}
+                    title="Klicken um Status zu wechseln"
+                  >
+                    {reminder.status}
+                  </button>
+                )}
+              </div>
+
+              <div>
+                <div className="flex justify-between items-center text-[8px] sm:text-[10px] mono text-on-surface-variant mb-1">
+                  <span>VERSTRICHENE ZEIT</span>
+                  <span>{reminder.timeElapsed}%</span>
+                </div>
+                <div className="w-full bg-surface-low h-1.5 sm:h-2 border border-outline-variant rounded-full overflow-hidden">
+                  <div className="bg-primary h-full rounded-full" style={{ width: `${reminder.timeElapsed}%` }}></div>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+      );
+    }
+  };
+
+  const renderFilter = (className) => (
+    <div className={`flex bg-surface-low p-1 rounded-xl border border-outline-variant shadow-sm gap-1 ${className}`}>
+      <button
+        onClick={() => setShowProjects(!showProjects)}
+        title="Projekte anzeigen/ausblenden"
+        className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
+          showProjects 
+            ? 'bg-primary text-white shadow-sm' 
+            : 'text-on-surface-variant hover:bg-on-surface/5 hover:text-primary'
+        }`}
+      >
+        <span className="material-symbols-outlined text-[18px]">folder</span>
+      </button>
+      <button
+        onClick={() => setShowReminders(!showReminders)}
+        title="Erinnerungen anzeigen/ausblenden"
+        className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
+          showReminders 
+            ? 'bg-primary text-white shadow-sm' 
+            : 'text-on-surface-variant hover:bg-on-surface/5 hover:text-primary'
+        }`}
+      >
+        <span className="material-symbols-outlined text-[18px]">notifications</span>
+      </button>
     </div>
   );
 
   return (
-    <div className="screen-transition h-full flex flex-col">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 sm:mb-6 shrink-0">
-        <h2 className="text-2xl font-bold font-mono tracking-tight">Kanban Board</h2>
-        <div className="text-sm text-on-surface-variant mono">
-          Projekte per Drag & Drop verschieben
-        </div>
-      </div>
-
-      {/* Board Columns Container */}
-      <div className="flex gap-4 sm:gap-6 overflow-x-auto pb-4 h-full flex-grow items-start snap-x">
-        
-        {/* TO DO Column */}
+    <div className="h-full flex flex-col w-full">
+      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 pb-4 pt-2 overflow-y-auto lg:overflow-hidden">
+        {/* Geplant Column */}
         <div 
-          className="flex-shrink-0 w-[280px] sm:w-[320px] bg-surface-low border border-outline-variant rounded-xl flex flex-col h-full snap-center transition-colors"
+          className="flex flex-col min-h-0 lg:h-full"
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={(e) => handleDrop(e, 'TODO')}
         >
-          <div className="p-4 border-b border-outline-variant shrink-0 flex items-center justify-between sticky top-0 bg-surface-low rounded-t-xl z-10">
-            <h3 className="font-bold text-sm">Geplant / To Do</h3>
-            <Badge className="bg-neutral-200 text-neutral-800">{todoProjects.length}</Badge>
+          <div className="relative flex items-center gap-2 mb-3 px-1">
+            <div className="w-2.5 h-2.5 rounded-full bg-amber-400"></div>
+            <h3 className="font-bold text-sm">Geplant</h3>
+            
+            {/* Mobile Filter */}
+            {renderFilter("lg:hidden absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2")}
+
+            <span className="ml-auto bg-surface-low border border-outline-variant text-on-surface-variant text-[10px] font-mono px-2 py-0.5 rounded-full">
+              {todoItems.length}
+            </span>
           </div>
-          <div className="p-3 overflow-y-auto flex-grow kanban-column">
-            {todoProjects.map(renderCard)}
-            {todoProjects.length === 0 && (
-              <div className="h-24 border-2 border-dashed border-outline-variant rounded-lg flex items-center justify-center text-on-surface-variant text-sm font-mono opacity-50">
-                Leer
+          <div className="flex-1 lg:overflow-y-auto rounded-xl p-2 sm:p-3 border border-dashed border-outline-variant/60 transition-colors bg-surface-low/30">
+            {todoItems.map(renderCard)}
+            {todoItems.length === 0 && (
+              <div className="h-32 lg:h-full flex items-center justify-center text-on-surface-variant/50 text-sm italic font-mono border-2 border-dashed border-transparent">
+                Keine geplanten Elemente
               </div>
             )}
           </div>
         </div>
 
-        {/* IN PROGRESS Column */}
+        {/* In Arbeit Column */}
         <div 
-          className="flex-shrink-0 w-[280px] sm:w-[320px] bg-surface-low border border-outline-variant rounded-xl flex flex-col h-full snap-center transition-colors"
+          className="flex flex-col min-h-0 lg:h-full"
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={(e) => handleDrop(e, 'IN_PROGRESS')}
         >
-          <div className="p-4 border-b border-outline-variant shrink-0 flex items-center justify-between sticky top-0 bg-surface-low rounded-t-xl z-10">
-            <h3 className="font-bold text-sm text-primary">In Arbeit</h3>
-            <Badge className="bg-primary/20 text-primary">{inProgressProjects.length}</Badge>
+          <div className="relative flex items-center gap-2 mb-3 px-1">
+            <div className="w-2.5 h-2.5 rounded-full bg-emerald-400"></div>
+            <h3 className="font-bold text-sm">In Arbeit</h3>
+            
+            {renderFilter("hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2")}
+
+            <span className="ml-auto bg-surface-low border border-outline-variant text-on-surface-variant text-[10px] font-mono px-2 py-0.5 rounded-full">
+              {inProgressItems.length}
+            </span>
           </div>
-          <div className="p-3 overflow-y-auto flex-grow kanban-column">
-            {inProgressProjects.map(renderCard)}
-            {inProgressProjects.length === 0 && (
-              <div className="h-24 border-2 border-dashed border-outline-variant rounded-lg flex items-center justify-center text-on-surface-variant text-sm font-mono opacity-50">
-                Leer
+          <div className="flex-1 lg:overflow-y-auto rounded-xl p-2 sm:p-3 border border-dashed border-outline-variant/60 transition-colors bg-surface-low/30">
+            {inProgressItems.map(renderCard)}
+            {inProgressItems.length === 0 && (
+              <div className="h-32 lg:h-full flex items-center justify-center text-on-surface-variant/50 text-sm italic font-mono border-2 border-dashed border-transparent">
+                Keine aktiven Elemente
               </div>
             )}
           </div>
         </div>
 
-        {/* DONE Column */}
+        {/* Abgeschlossen Column */}
         <div 
-          className="flex-shrink-0 w-[280px] sm:w-[320px] bg-surface-low border border-outline-variant rounded-xl flex flex-col h-full snap-center transition-colors"
+          className="flex flex-col min-h-0 lg:h-full"
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={(e) => handleDrop(e, 'DONE')}
         >
-          <div className="p-4 border-b border-outline-variant shrink-0 flex items-center justify-between sticky top-0 bg-surface-low rounded-t-xl z-10">
-            <h3 className="font-bold text-sm text-emerald-800">Abgeschlossen</h3>
-            <Badge className="bg-emerald-100 text-emerald-900 border-emerald-300">{doneProjects.length}</Badge>
+          <div className="flex items-center gap-2 mb-3 px-1">
+            <div className="w-2.5 h-2.5 rounded-full bg-neutral-400"></div>
+            <h3 className="font-bold text-sm">Abgeschlossen</h3>
+            <span className="ml-auto bg-surface-low border border-outline-variant text-on-surface-variant text-[10px] font-mono px-2 py-0.5 rounded-full">
+              {doneItems.length}
+            </span>
           </div>
-          <div className="p-3 overflow-y-auto flex-grow kanban-column">
-            {doneProjects.map(renderCard)}
-            {doneProjects.length === 0 && (
-              <div className="h-24 border-2 border-dashed border-outline-variant rounded-lg flex items-center justify-center text-on-surface-variant text-sm font-mono opacity-50">
-                Leer
+          <div className="flex-1 lg:overflow-y-auto rounded-xl p-2 sm:p-3 border border-dashed border-outline-variant/60 transition-colors bg-surface-low/30">
+            {doneItems.map(renderCard)}
+            {doneItems.length === 0 && (
+              <div className="h-32 lg:h-full flex items-center justify-center text-on-surface-variant/50 text-sm italic font-mono border-2 border-dashed border-transparent">
+                Keine abgeschlossenen Elemente
               </div>
             )}
           </div>
         </div>
-
       </div>
     </div>
   );

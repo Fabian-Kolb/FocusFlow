@@ -21,21 +21,18 @@ const Sidebar = ({ currentScreen, setCurrentScreen, collapsed, setCollapsed }) =
 
   return (
     <aside
-      className={`hidden md:flex flex-col h-full flex-shrink-0 border-r border-outline-variant bg-surface sticky top-0 z-30 transition-all duration-300 ease-in-out ${
-        collapsed ? 'w-[60px]' : 'w-[256px]'
+      className={`hidden md:flex flex-col h-full flex-shrink-0 border-r border-outline-variant bg-surface sticky top-0 z-30 transition-all duration-300 ease-in-out rounded-r-[24px] ${
+        collapsed ? 'w-[72px]' : 'w-[256px]'
       }`}
     >
       {/* Logo / Collapse Toggle Row */}
-      <div className={`flex items-center border-b border-outline-variant h-16 flex-shrink-0 ${collapsed ? 'justify-center px-0' : 'justify-between px-4'}`}>
-        {!collapsed && (
-          <div className="min-w-0">
-            <span className="text-base font-bold tracking-tight text-primary mono block leading-tight">FocusFlow</span>
-            <span className="text-[10px] text-on-surface-variant mono">v1.0 • MINIMALIST</span>
-          </div>
-        )}
+      <div className="flex items-center justify-between h-20 flex-shrink-0 px-4 overflow-hidden">
+        <div className={`transition-all duration-300 overflow-hidden whitespace-nowrap ${collapsed ? 'w-0 opacity-0' : 'w-32 opacity-100'}`}>
+          <span className="text-2xl font-black tracking-tighter text-primary block leading-tight">FocusFlow</span>
+        </div>
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="w-8 h-8 flex items-center justify-center border border-outline-variant bg-surface-low hover:border-primary text-primary transition-colors flex-shrink-0"
+          className="w-8 h-8 flex items-center justify-center rounded-xl border border-outline-variant bg-surface-low hover:border-primary text-primary transition-colors flex-shrink-0 shadow-sm"
           title={collapsed ? 'Sidebar ausklappen' : 'Sidebar einklappen'}
         >
           <span className="material-symbols-outlined text-[18px]">
@@ -53,45 +50,47 @@ const Sidebar = ({ currentScreen, setCurrentScreen, collapsed, setCollapsed }) =
               key={item.id}
               onClick={() => setCurrentScreen(item.id)}
               title={collapsed ? item.label : undefined}
-              className={`flex items-center gap-3 px-2 py-2.5 text-sm font-medium transition-all hover:bg-surface-low w-full ${
-                collapsed ? 'justify-center' : ''
-              } ${
+              className={`flex items-center px-3 py-2.5 mx-2 mb-1 rounded-xl text-sm font-medium transition-all duration-300 hover:bg-surface-low overflow-hidden ${
                 isActive
-                  ? 'text-primary border-r-2 border-primary font-bold bg-surface-low'
+                  ? 'text-primary bg-primary/10 font-bold'
                   : 'text-on-surface-variant'
               }`}
             >
-              <span className="material-symbols-outlined text-[20px] flex-shrink-0">{item.icon}</span>
-              {!collapsed && <span className="truncate">{item.label}</span>}
+              <div className="flex items-center justify-center flex-shrink-0 w-[20px]">
+                <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
+              </div>
+              <span className={`whitespace-nowrap transition-all duration-300 overflow-hidden ${
+                collapsed ? 'w-0 opacity-0 ml-0' : 'w-auto opacity-100 ml-3'
+              }`}>
+                {item.label}
+              </span>
             </button>
           );
         })}
       </nav>
 
       {/* User Badge */}
-      <button
-        onClick={() => openModal('profile')}
-        className={`w-full text-left transition-colors hover:bg-surface-variant/30 border-t border-outline-variant ${
-          collapsed ? 'py-4 flex justify-center' : 'px-4 py-4'
-        }`}
-        title="Profil Einstellungen"
-      >
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-surface-low flex items-center justify-center border border-outline-variant font-mono text-xs font-bold flex-shrink-0 overflow-hidden">
-            {user?.photoURL ? (
-              <img src={user.photoURL} alt="Avatar" className="w-full h-full object-cover" />
-            ) : (
-              userInitial
-            )}
-          </div>
-          {!collapsed && (
-            <div className="text-xs min-w-0 flex-1">
-              <p className="font-medium truncate">{user?.displayName || user?.email?.split('@')[0]}</p>
-              <p className="text-on-surface-variant text-[10px] mono truncate">{user?.email}</p>
+      <div className="mt-auto p-3">
+        <div className="flex items-center bg-surface-low rounded-2xl p-2 transition-all duration-300 border border-outline-variant shadow-sm hover:shadow-md overflow-hidden">
+          <button
+            onClick={() => openModal('profile')}
+            className="flex items-center text-left w-full overflow-hidden"
+            title="Profil Einstellungen"
+          >
+            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20 font-mono text-xs font-bold text-primary flex-shrink-0 overflow-hidden shadow-sm">
+              {user?.photoURL ? (
+                <img src={user.photoURL} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                userInitial
+              )}
             </div>
-          )}
+            <div className={`transition-all duration-300 overflow-hidden whitespace-nowrap ${collapsed ? 'w-0 opacity-0 ml-0' : 'w-[150px] opacity-100 ml-3'}`}>
+              <p className="font-semibold text-sm truncate text-on-surface leading-tight">{user?.displayName || user?.email?.split('@')[0]}</p>
+              <p className="text-on-surface-variant text-xs truncate mt-0.5">{user?.email}</p>
+            </div>
+          </button>
         </div>
-      </button>
+      </div>
     </aside>
   );
 };

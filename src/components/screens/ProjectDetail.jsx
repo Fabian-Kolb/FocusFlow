@@ -33,45 +33,29 @@ const ProjectDetail = ({ setCurrentScreen }) => {
 
   const [newMaterialName, setNewMaterialName] = useState('');
 
-  // Status Toggle: AKTIV -> PAUSIERT -> ABGESCHLOSSEN -> AKTIV
-  const handleStatusToggle = () => {
-    setProjectData((prev) => {
-      let nextStatus = 'AKTIV';
-      if (prev.status === 'AKTIV') nextStatus = 'PAUSIERT';
-      else if (prev.status === 'PAUSIERT') nextStatus = 'ABGESCHLOSSEN';
-      else nextStatus = 'AKTIV';
-      return { ...prev, status: nextStatus };
-    });
+  // Status Selector
+  const handleStatusSet = (newStatus) => {
+    setProjectData((prev) => ({ ...prev, status: newStatus }));
+    contextToggleProjectStatus && setProjectStatus && setProjectStatus(selectedProjectId, newStatus);
   };
 
-  // Status style helper
-  const getStatusBadgeStyle = (status) => {
-    if (status === 'PAUSIERT') {
-      return {
-        btnClass: 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100',
-        dotClass: 'bg-amber-600',
-        text: 'STATUS: PAUSIERT',
-        iconClass: 'text-amber-800'
-      };
+  const getStatusButtonClass = (status, isActive) => {
+    if (!isActive) {
+      return "bg-surface-low text-on-surface-variant border-outline-variant hover:border-primary hover:text-primary opacity-60 hover:opacity-100";
     }
-    if (status === 'ABGESCHLOSSEN') {
-      return {
-        btnClass: 'bg-neutral-100 text-neutral-800 border-neutral-300 hover:bg-neutral-200',
-        dotClass: 'bg-neutral-500',
-        text: 'STATUS: ABGESCHLOSSEN',
-        iconClass: 'text-neutral-700'
-      };
-    }
-    // Default: AKTIV
-    return {
-      btnClass: 'bg-emerald-50 text-emerald-900 border-emerald-300 hover:bg-emerald-100',
-      dotClass: 'bg-emerald-600 animate-pulse',
-      text: 'STATUS: AKTIV',
-      iconClass: 'text-emerald-800'
-    };
+    if (status === 'GEPLANT') return "bg-amber-100 text-amber-900 border-amber-400 ring-1 ring-amber-400 opacity-100";
+    if (status === 'AKTIV') return "bg-emerald-100 text-emerald-900 border-emerald-400 ring-1 ring-emerald-400 opacity-100";
+    if (status === 'PAUSIERT') return "bg-blue-100 text-blue-900 border-blue-400 ring-1 ring-blue-400 opacity-100";
+    if (status === 'ABGESCHLOSSEN') return "bg-neutral-200 text-neutral-800 border-neutral-400 ring-1 ring-neutral-400 opacity-100";
+    return "";
   };
 
-  const statusStyle = getStatusBadgeStyle(projectData.status);
+  const getStatusDotClass = (status) => {
+    if (status === 'GEPLANT') return "bg-amber-600";
+    if (status === 'AKTIV') return "bg-emerald-600 animate-pulse";
+    if (status === 'PAUSIERT') return "bg-blue-600";
+    if (status === 'ABGESCHLOSSEN') return "bg-neutral-600";
+  };
 
   // Collapse / Expand All Phases
   const isAllCollapsed = projectData.phases.length > 0 && 
@@ -342,27 +326,6 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                 <span className="material-symbols-outlined text-[16px]">smart_toy</span>
                 <span>AI COACH</span>
               </button>
-
-              <button
-                className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-white border border-outline-variant rounded-xl hover:border-primary text-primary font-mono text-xs font-bold transition-all shadow-sm cursor-pointer whitespace-nowrap"
-                onClick={() => setShowHistoryModal(true)}
-                title="Projekt-Historie & erledigte Tasks anzeigen"
-              >
-                <span className="material-symbols-outlined text-[16px]">history</span>
-                <span>HISTORIE</span>
-              </button>
-
-              <button
-                className={`inline-flex items-center gap-2 px-2.5 sm:px-3 py-1.5 border rounded-xl font-mono text-xs font-bold transition-all shadow-sm cursor-pointer whitespace-nowrap ${statusStyle.btnClass}`}
-                onClick={handleStatusToggle}
-                title="Klicken um Status zu wechseln"
-              >
-                <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${statusStyle.dotClass}`}></span>
-                <span>{statusStyle.text}</span>
-                <span className={`material-symbols-outlined text-[14px] flex-shrink-0 ${statusStyle.iconClass}`}>
-                  unfold_more
-                </span>
-              </button>
             </div>
           </div>
 
@@ -383,8 +346,8 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                   <span>AUFGABEN-FORTSCHRITT: {projectData.progress}%</span>
                   <span className="text-on-surface-variant font-normal">{projectData.tasksCountText}</span>
                 </div>
-                <div className="w-full bg-surface-low h-2 border border-outline-variant">
-                  <div className="bg-primary h-full transition-all duration-300" style={{ width: `${projectData.progress}%` }}></div>
+                <div className="w-full bg-surface-low h-2 border border-outline-variant rounded-full overflow-hidden">
+                  <div className="bg-primary h-full rounded-full transition-all duration-300" style={{ width: `${projectData.progress}%` }}></div>
                 </div>
               </div>
 
@@ -393,10 +356,46 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                   <span>VERSTRICHENE ZEIT: {projectData.timeElapsed}%</span>
                   <span>{projectData.daysCountText}</span>
                 </div>
-                <div className="w-full bg-surface-low h-1.5 border border-outline-variant">
-                  <div className="bg-neutral-400 h-full transition-all duration-300" style={{ width: `${projectData.timeElapsed}%` }}></div>
+                <div className="w-full bg-surface-low h-2 border border-outline-variant rounded-full overflow-hidden">
+                  <div className="bg-primary h-full rounded-full transition-all duration-300" style={{ width: `${projectData.timeElapsed}%` }}></div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* BOX 1.5: STATUS & VERLAUF */}
+          <div className="p-3.5 sm:p-5 bg-white border border-outline-variant rounded-xl space-y-4 shadow-sm mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-outline-variant pb-2.5">
+              <span className="text-xs font-mono font-bold text-primary uppercase">
+                STATUS & VERLAUF
+              </span>
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 w-full">
+              {/* Segmented Control for Status */}
+              <div className="flex items-center justify-center gap-1.5 sm:gap-2 w-full h-full">
+                {['GEPLANT', 'AKTIV', 'PAUSIERT', 'ABGESCHLOSSEN'].map((s) => {
+                  const isActive = projectData.status === s;
+                  return (
+                    <button
+                      key={s}
+                      onClick={() => handleStatusSet(s)}
+                      className={`flex-1 h-full inline-flex items-center justify-center gap-1.5 px-2 sm:px-3 py-2 border rounded-xl font-mono text-[10px] sm:text-xs font-bold transition-all shadow-sm cursor-pointer whitespace-nowrap ${getStatusButtonClass(s, isActive)}`}
+                    >
+                      <span>{s === 'ABGESCHLOSSEN' ? 'ERLEDIGT' : s}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                className="w-full h-full inline-flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2.5 sm:py-3 bg-white border border-outline-variant rounded-xl hover:border-primary text-primary font-mono text-xs sm:text-sm font-bold transition-all shadow-sm cursor-pointer whitespace-nowrap"
+                onClick={() => setShowHistoryModal(true)}
+                title="Projekt-Historie & erledigte Tasks anzeigen"
+              >
+                <span className="material-symbols-outlined text-[18px]">history</span>
+                <span>HISTORIE</span>
+              </button>
             </div>
           </div>
 

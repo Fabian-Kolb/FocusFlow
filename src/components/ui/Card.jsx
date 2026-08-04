@@ -7,7 +7,7 @@ const Card = ({
   interactive = false,
   ...props 
 }) => {
-  const baseStyles = "bg-white border border-outline-variant rounded-xl shadow-sm";
+  const baseStyles = "bg-white border border-outline-variant rounded-xl shadow-sm relative";
   
   const paddings = {
     none: "",
