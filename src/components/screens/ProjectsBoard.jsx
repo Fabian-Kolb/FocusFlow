@@ -113,9 +113,7 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
             interactive
             className={`flex flex-col justify-between min-h-[250px] sm:min-h-[300px] transition-all ${
               project.isPaused 
-                ? 'bg-blue-50/60 border-blue-300 ring-1 ring-blue-300/40' 
-                : project.inKanban === false
-                ? 'bg-purple-50/50 border-purple-300 ring-1 ring-purple-300/40'
+                ? '!bg-blue-100 !border-blue-300 ring-1 ring-blue-300/40' 
                 : ''
             }`}
             onClick={() => handleItemClick(project)}
@@ -218,9 +216,7 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
             interactive
             className={`flex flex-col justify-between transition-all ${
               reminder.isPaused 
-                ? 'bg-blue-50/60 border-blue-300 ring-1 ring-blue-300/40' 
-                : reminder.inKanban === false
-                ? 'bg-purple-50/50 border-purple-300 ring-1 ring-purple-300/40'
+                ? '!bg-blue-100 !border-blue-300 ring-1 ring-blue-300/40' 
                 : ''
             }`}
             onClick={() => handleItemClick(reminder)}

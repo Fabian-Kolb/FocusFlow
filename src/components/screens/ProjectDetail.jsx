@@ -482,7 +482,10 @@ const ProjectDetail = ({ setCurrentScreen }) => {
 
   return (
     <div className="screen-transition">
-      <div className="w-full mx-auto space-y-4 sm:space-y-6">
+      {projectData.isPaused && (
+        <div className="fixed top-0 left-0 right-0 h-64 sm:h-80 bg-gradient-to-b from-blue-200/70 via-blue-100/25 to-transparent pointer-events-none z-0" />
+      )}
+      <div className="w-full mx-auto space-y-4 sm:space-y-6 relative z-10">
         <div>
           {/* Back Button */}
           <button
@@ -511,11 +514,6 @@ const ProjectDetail = ({ setCurrentScreen }) => {
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-3">
                 <h1 className="text-2xl sm:text-3xl font-bold leading-tight">{projectData.title}</h1>
-                {projectData.isPaused && (
-                  <span className="px-2 py-0.5 bg-blue-100 text-blue-900 border border-blue-400 ring-1 ring-blue-400 rounded-lg text-[10px] font-mono font-bold tracking-wider">
-                    PAUSIERT
-                  </span>
-                )}
               </div>
             </div>
 
