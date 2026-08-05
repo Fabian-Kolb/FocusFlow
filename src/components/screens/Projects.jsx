@@ -57,7 +57,7 @@ const Projects = ({ setCurrentScreen }) => {
             interactive
             className={`flex flex-col justify-between min-h-[250px] sm:min-h-[300px] transition-all ${
               project.isPaused 
-                ? 'bg-amber-50/60 border-amber-300 ring-1 ring-amber-300/40' 
+                ? 'bg-blue-50/60 border-blue-300 ring-1 ring-blue-300/40' 
                 : project.inKanban === false
                 ? 'bg-purple-50/50 border-purple-300 ring-1 ring-purple-300/40'
                 : ''
@@ -114,7 +114,7 @@ const Projects = ({ setCurrentScreen }) => {
                     className={`px-2 py-0.5 sm:px-3 sm:py-1 rounded-lg border text-[9px] sm:text-xs font-mono font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer ${getStatusStyle(project.status)}`}
                     title="Klicken um Status zu wechseln"
                   >
-                    {project.status === 'LAUFEND' ? 'AKTIV' : project.status}
+                    {project.status === 'LAUFEND' ? 'AKTIV' : project.status === 'ABGESCHLOSSEN' ? 'ERLEDIGT' : project.status}
                   </button>
                 )}
 

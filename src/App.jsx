@@ -11,6 +11,7 @@ import TaskModal from './components/modals/TaskModal';
 import MaterialModal from './components/modals/MaterialModal';
 import ProjectHistoryModal from './components/modals/ProjectHistoryModal';
 import ProfileModal from './components/modals/ProfileModal';
+import ReminderModal from './components/modals/ReminderModal';
 
 // Screens
 import Dashboard from './components/screens/Dashboard';
@@ -69,6 +70,7 @@ function AppContent() {
       <MaterialModal />
       <ProjectHistoryModal />
       <ProfileModal />
+      <ReminderModal setCurrentScreen={setCurrentScreen} />
     </div>
   );
 }

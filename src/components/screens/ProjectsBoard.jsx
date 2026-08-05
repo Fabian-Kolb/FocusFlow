@@ -37,9 +37,12 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
   
   const kanbanItems = allItems.filter(item => item.inKanban !== false);
 
-  const todoItems = kanbanItems.filter(i => i.status === 'GEPLANT');
-  const inProgressItems = kanbanItems.filter(i => i.status === 'AKTIV' || i.status === 'LAUFEND');
-  const doneItems = kanbanItems.filter(i => i.status === 'ABGESCHLOSSEN');
+  const todoItems = kanbanItems.filter(i => i.status?.toUpperCase() === 'GEPLANT');
+  const inProgressItems = kanbanItems.filter(i => {
+    const s = i.status?.toUpperCase();
+    return s === 'AKTIV' || s === 'LAUFEND' || s === 'PAUSIERT';
+  });
+  const doneItems = kanbanItems.filter(i => i.status?.toUpperCase() === 'ABGESCHLOSSEN');
 
   const handleDragStart = (e, item) => {
     setDraggedItem({ id: item.id, itemType: item.itemType });
@@ -110,7 +113,7 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
             interactive
             className={`flex flex-col justify-between min-h-[250px] sm:min-h-[300px] transition-all ${
               project.isPaused 
-                ? 'bg-amber-50/60 border-amber-300 ring-1 ring-amber-300/40' 
+                ? 'bg-blue-50/60 border-blue-300 ring-1 ring-blue-300/40' 
                 : project.inKanban === false
                 ? 'bg-purple-50/50 border-purple-300 ring-1 ring-purple-300/40'
                 : ''
@@ -215,7 +218,7 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
             interactive
             className={`flex flex-col justify-between transition-all ${
               reminder.isPaused 
-                ? 'bg-amber-50/60 border-amber-300 ring-1 ring-amber-300/40' 
+                ? 'bg-blue-50/60 border-blue-300 ring-1 ring-blue-300/40' 
                 : reminder.inKanban === false
                 ? 'bg-purple-50/50 border-purple-300 ring-1 ring-purple-300/40'
                 : ''

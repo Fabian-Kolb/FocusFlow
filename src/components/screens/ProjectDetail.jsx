@@ -7,10 +7,21 @@ const ProjectDetail = ({ setCurrentScreen }) => {
     selectedProjectId, 
     toggleTask: contextToggleTask, 
     toggleProjectStatus: contextToggleProjectStatus,
-    setActiveCoachScope
+    setActiveCoachScope,
+    mutateProject,
+    toggleProjectPause
   } = useModalContext();
   const selectedProject = contextProjects.find(p => p.id === selectedProjectId) || contextProjects[0];
-  const [projectData, setProjectData] = useState(selectedProject);
+  
+  const projectData = selectedProject || {};
+  const setProjectData = (mutateFn) => {
+    if (typeof mutateFn === 'function') {
+      mutateProject(selectedProjectId, mutateFn);
+    } else {
+      mutateProject(selectedProjectId, () => mutateFn);
+    }
+  };
+
   const [filterType, setFilterType] = useState('all'); // 'all' | 'open' | 'completed'
   const [collapsedPhases, setCollapsedPhases] = useState({});
   const [expandedTasks, setExpandedTasks] = useState({ t1: true, t2: true });
@@ -33,10 +44,46 @@ const ProjectDetail = ({ setCurrentScreen }) => {
 
   const [newMaterialName, setNewMaterialName] = useState('');
 
+  // States for Editing Dates
+  const [isEditingDates, setIsEditingDates] = useState(false);
+  const [editStartDate, setEditStartDate] = useState(selectedProject?.startDate || '');
+  const [editEndDate, setEditEndDate] = useState(selectedProject?.endDate || '');
+
+  const handleSaveDates = () => {
+    const startStr = editStartDate ? new Date(editStartDate).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '01.08.24';
+    const endStr = editEndDate ? new Date(editEndDate).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '31.12.24';
+    
+    let timeElapsed = 0;
+    if (editStartDate && editEndDate) {
+      const start = new Date(editStartDate).getTime();
+      const end = new Date(editEndDate).getTime();
+      const now = Date.now();
+      if (now >= end) timeElapsed = 100;
+      else if (now <= start) timeElapsed = 0;
+      else timeElapsed = Math.round(((now - start) / (end - start)) * 100);
+    }
+    
+    setProjectData(prev => ({
+      ...prev,
+      startDate: editStartDate,
+      endDate: editEndDate,
+      dateRange: `${startStr} – ${endStr}`,
+      timeElapsed
+    }));
+    setIsEditingDates(false);
+  };
+
+  // Reset local state if another project is selected
+  useEffect(() => {
+    if (selectedProject) {
+      setEditStartDate(selectedProject.startDate || '');
+      setEditEndDate(selectedProject.endDate || '');
+    }
+  }, [selectedProject]);
+
   // Status Selector
   const handleStatusSet = (newStatus) => {
     setProjectData((prev) => ({ ...prev, status: newStatus }));
-    contextToggleProjectStatus && setProjectStatus && setProjectStatus(selectedProjectId, newStatus);
   };
 
   const getStatusButtonClass = (status, isActive) => {
@@ -312,9 +359,32 @@ const ProjectDetail = ({ setCurrentScreen }) => {
 
           {/* Header Title with Interactive Status Toggle & History Button */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-            <h1 className="text-2xl sm:text-3xl font-bold leading-tight">{projectData.title}</h1>
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl sm:text-3xl font-bold leading-tight">{projectData.title}</h1>
+                {projectData.isPaused && (
+                  <span className="px-2 py-0.5 bg-blue-100 text-blue-900 border border-blue-400 ring-1 ring-blue-400 rounded-lg text-[10px] font-mono font-bold tracking-wider">
+                    PAUSIERT
+                  </span>
+                )}
+              </div>
+            </div>
 
             <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+              <button
+                className={`inline-flex items-center justify-center w-8 h-8 rounded-xl border transition-all shadow-sm cursor-pointer ${
+                  projectData.isPaused
+                    ? 'bg-blue-100 border-blue-300 text-blue-900 hover:bg-blue-200'
+                    : 'bg-white border-outline-variant text-on-surface-variant hover:text-primary hover:border-primary'
+                }`}
+                onClick={() => toggleProjectPause(projectData.id)}
+                title={projectData.isPaused ? 'Fortsetzen' : 'Pausieren'}
+              >
+                <span className="material-symbols-outlined text-[18px]">
+                  {projectData.isPaused ? 'play_arrow' : 'pause'}
+                </span>
+              </button>
+              
               <button
                 className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-primary/10 border border-primary/30 rounded-xl hover:bg-primary/20 text-primary font-mono text-xs font-bold transition-all shadow-sm cursor-pointer whitespace-nowrap"
                 onClick={() => {
@@ -335,8 +405,39 @@ const ProjectDetail = ({ setCurrentScreen }) => {
               <span className="text-xs font-mono font-bold text-primary uppercase whitespace-nowrap">
                 ZEITSPANNE & BALKEN-SYSTEM
               </span>
-              <div className="no-wrap-scroll text-[11px] sm:text-xs mono font-bold text-primary">
-                <span>{projectData.dateRange} ({projectData.daysRemaining})</span>
+              <div className="flex items-center gap-2">
+                {isEditingDates ? (
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="date" 
+                      className="text-[10px] sm:text-[11px] border border-outline-variant rounded px-1 py-0.5 outline-none focus:border-primary" 
+                      value={editStartDate} 
+                      onChange={(e) => setEditStartDate(e.target.value)} 
+                    />
+                    <span className="text-[10px] text-on-surface-variant">-</span>
+                    <input 
+                      type="date" 
+                      className="text-[10px] sm:text-[11px] border border-outline-variant rounded px-1 py-0.5 outline-none focus:border-primary" 
+                      value={editEndDate} 
+                      onChange={(e) => setEditEndDate(e.target.value)} 
+                    />
+                    <button onClick={handleSaveDates} className="text-primary hover:bg-surface-low rounded p-0.5 transition-colors">
+                      <span className="material-symbols-outlined text-[14px]">check</span>
+                    </button>
+                    <button onClick={() => setIsEditingDates(false)} className="text-red-500 hover:bg-red-50 rounded p-0.5 transition-colors">
+                      <span className="material-symbols-outlined text-[14px]">close</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <div className="no-wrap-scroll text-[11px] sm:text-xs mono font-bold text-primary">
+                      <span>{projectData.dateRange} ({projectData.daysRemaining})</span>
+                    </div>
+                    <button onClick={() => setIsEditingDates(true)} className="text-on-surface-variant hover:text-primary transition-colors flex items-center justify-center p-0.5" title="Datum bearbeiten">
+                      <span className="material-symbols-outlined text-[14px]">edit</span>
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -374,7 +475,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 w-full">
               {/* Segmented Control for Status */}
               <div className="flex items-center justify-center gap-1.5 sm:gap-2 w-full h-full">
-                {['GEPLANT', 'AKTIV', 'PAUSIERT', 'ABGESCHLOSSEN'].map((s) => {
+                {['GEPLANT', 'AKTIV', 'ABGESCHLOSSEN'].map((s) => {
                   const isActive = projectData.status === s;
                   return (
                     <button

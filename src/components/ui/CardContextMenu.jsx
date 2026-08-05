@@ -38,7 +38,7 @@ const CardContextMenu = ({ isPaused, onTogglePause, inKanban, onToggleKanban, on
               }}
               className={`p-1.5 rounded-lg border transition-colors cursor-pointer w-full flex justify-center ${
                 isPaused
-                  ? 'bg-amber-100 border-amber-300 text-amber-900'
+                  ? 'bg-blue-100 border-blue-300 text-blue-900'
                   : 'hover:bg-surface-low border-transparent text-primary'
               }`}
               title={isPaused ? 'Fortsetzen' : 'Pausieren'}

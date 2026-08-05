@@ -1,24 +1,32 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useModalContext } from '../../context/ModalContext';
+import { generateProjectStructure } from '../../lib/gemini';
 
 const ProjectModal = ({ setCurrentScreen }) => {
   const { activeModal, modalPayload, closeModal, addProject } = useModalContext();
   const isOpen = activeModal === 'project';
 
   const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [firstPhase, setFirstPhase] = useState('');
-  const [status, setStatus] = useState('Aktiv');
+  const [status, setStatus] = useState('GEPLANT');
+  const [phases, setPhases] = useState([]);
+  
+  const [isGenerating, setIsGenerating] = useState(false);
   const nameInputRef = useRef(null);
 
   useEffect(() => {
     if (isOpen) {
       setName(modalPayload.prefillTitle || modalPayload.prefilledTitle || '');
+      setDescription(modalPayload.prefillDescription || '');
       setStartDate(modalPayload.startDate || '');
       setEndDate(modalPayload.endDate || '');
-      setFirstPhase(modalPayload.firstPhase || '');
-      setStatus(modalPayload.status || 'Aktiv');
+      setStatus(modalPayload.status || 'GEPLANT');
+      
+      // Initialize with one empty phase if not a conversion, else start empty so AI can fill
+      const initialPhase = modalPayload.firstPhase ? [{ title: modalPayload.firstPhase, tasks: [] }] : [];
+      setPhases(initialPhase);
 
       // Auto-focus input after modal opens
       const timer = setTimeout(() => {
@@ -31,21 +39,20 @@ const ProjectModal = ({ setCurrentScreen }) => {
   }, [isOpen, modalPayload]);
 
   if (!isOpen) {
-    return (
-      <div id="project-modal" className="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"></div>
-    );
+    return null;
   }
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!name.trim()) return;
 
-    const newProjectId = addProject({
+    addProject({
       title: name.trim(),
+      description: description.trim(),
       startDate,
       endDate,
-      firstPhase,
       status,
+      phases,
       inboxItemId: modalPayload.inboxItemId
     });
 
@@ -57,117 +64,320 @@ const ProjectModal = ({ setCurrentScreen }) => {
 
   const isConversion = Boolean(modalPayload.inboxItemId);
 
+  const handleAddPhase = () => setPhases([...phases, { title: '', date: '', note: '', tasks: [] }]);
+  const handleUpdatePhaseTitle = (idx, newTitle) => {
+    const updated = [...phases];
+    updated[idx].title = newTitle;
+    setPhases(updated);
+  };
+  const handleUpdatePhaseDate = (idx, newDate) => {
+    const updated = [...phases];
+    updated[idx].date = newDate;
+    setPhases(updated);
+  };
+  const handleUpdatePhaseNote = (idx, newNote) => {
+    const updated = [...phases];
+    updated[idx].note = newNote;
+    setPhases(updated);
+  };
+  const handleRemovePhase = (idx) => {
+    const updated = [...phases];
+    updated.splice(idx, 1);
+    setPhases(updated);
+  };
+
+  const handleAddTask = (phaseIdx) => {
+    const updated = [...phases];
+    if (!updated[phaseIdx].tasks) updated[phaseIdx].tasks = [];
+    updated[phaseIdx].tasks.push({ title: '', date: '', note: '' });
+    setPhases(updated);
+  };
+  const handleUpdateTaskTitle = (phaseIdx, taskIdx, newTitle) => {
+    const updated = [...phases];
+    updated[phaseIdx].tasks[taskIdx].title = newTitle;
+    setPhases(updated);
+  };
+  const handleUpdateTaskDate = (phaseIdx, taskIdx, newDate) => {
+    const updated = [...phases];
+    updated[phaseIdx].tasks[taskIdx].date = newDate;
+    setPhases(updated);
+  };
+  const handleUpdateTaskNote = (phaseIdx, taskIdx, newNote) => {
+    const updated = [...phases];
+    updated[phaseIdx].tasks[taskIdx].note = newNote;
+    setPhases(updated);
+  };
+  const handleRemoveTask = (phaseIdx, taskIdx) => {
+    const updated = [...phases];
+    updated[phaseIdx].tasks.splice(taskIdx, 1);
+    setPhases(updated);
+  };
+
   return (
     <div
       id="project-modal"
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto"
     >
-      <div className="bg-white border-2 border-primary w-full max-w-lg p-5 sm:p-6 space-y-4 shadow-2xl relative">
-        <div className="flex items-center justify-between border-b border-outline-variant pb-3">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="material-symbols-outlined text-[22px] text-primary">create_new_folder</span>
-            <h2 className="text-xs sm:text-sm font-bold font-mono uppercase truncate" id="project-modal-title">
-              {isConversion ? 'INBOX-GEDANKE ZU PROJEKT UMWANDELN' : 'PROJEKT ERSTELLEN'}
+      <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl relative my-auto max-h-[90vh] flex flex-col">
+        
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-outline-variant p-5 sm:px-6 sm:py-5 flex-shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
+              <span className="material-symbols-outlined text-[22px]">create_new_folder</span>
+            </div>
+            <h2 className="text-sm sm:text-base font-bold font-mono uppercase truncate text-on-surface" id="project-modal-title">
+              {isConversion ? 'Inbox-Gedanke umwandeln' : 'Neues Projekt erstellen'}
             </h2>
           </div>
           <button
             type="button"
-            className="p-1 hover:bg-surface-low border border-outline-variant transition-colors"
+            className="p-2 hover:bg-surface-low rounded-full text-on-surface-variant transition-colors"
             onClick={closeModal}
           >
-            <span className="material-symbols-outlined text-[18px]">close</span>
+            <span className="material-symbols-outlined text-[20px]">close</span>
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-mono font-bold text-primary mb-1 uppercase">
-              PROJEKT-TITEL / NAME *
-            </label>
-            <input
-              type="text"
-              id="project-name-input"
-              ref={nameInputRef}
-              required
-              className="w-full border border-outline-variant px-3 py-2 text-sm focus:border-primary outline-none"
-              placeholder="z.B. Re-Branding 2024"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </div>
+        {/* Form Content */}
+        <div className="overflow-y-auto p-5 sm:p-6 flex-grow">
+          <form id="project-form" onSubmit={handleSubmit} className="space-y-6">
+            
+            {/* Title & Status */}
+            <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr] gap-4">
+              <div>
+                <label className="block text-xs font-mono font-bold text-primary mb-1.5 uppercase tracking-wide">
+                  Projekttitel *
+                </label>
+                <input
+                  type="text"
+                  ref={nameInputRef}
+                  required
+                  className="w-full border-2 border-outline-variant rounded-xl px-4 py-2.5 text-sm font-medium focus:border-primary outline-none transition-colors"
+                  placeholder="z.B. Re-Branding 2024"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-mono font-bold text-primary mb-1.5 uppercase tracking-wide">
+                  Initialer Status
+                </label>
+                <select
+                  className="w-full border-2 border-outline-variant rounded-xl px-4 py-2.5 text-sm font-medium focus:border-primary outline-none transition-colors bg-white cursor-pointer"
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                >
+                  <option value="GEPLANT">🔵 Geplant</option>
+                  <option value="AKTIV">🟢 Aktiv</option>
+                  <option value="ABGESCHLOSSEN">⚫ Erledigt</option>
+                </select>
+              </div>
+            </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* AI Generation Button */}
+            {isConversion && (
+              <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="text-xs text-on-surface-variant max-w-sm leading-relaxed">
+                  Lass die KI aus deiner Notiz automatisch einen Projektplan mit <strong>Phasen und Aufgaben</strong> erstellen.
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const textToStructure = description || name;
+                    if (!textToStructure.trim()) return;
+                    setIsGenerating(true);
+                    const result = await generateProjectStructure(textToStructure);
+                    if (result) {
+                      if (result.title) setName(result.title);
+                      if (result.description) setDescription(result.description);
+                      if (result.status) setStatus(result.status);
+                      if (result.phases && Array.isArray(result.phases)) {
+                        setPhases(result.phases);
+                      }
+                    }
+                    setIsGenerating(false);
+                  }}
+                  disabled={isGenerating}
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:bg-neutral-800 transition-colors disabled:opacity-50 shadow-sm"
+                >
+                  <span className="material-symbols-outlined text-[18px]">{isGenerating ? 'sync' : 'auto_awesome'}</span>
+                  {isGenerating ? 'Strukturiere...' : 'Projekt strukturieren'}
+                </button>
+              </div>
+            )}
+
+            {/* Description */}
             <div>
-              <label className="block text-xs font-mono font-bold text-primary mb-1 uppercase">
-                STARTDATUM
+              <label className="block text-xs font-mono font-bold text-primary mb-1.5 uppercase tracking-wide">
+                Beschreibung / Notiz (Optional)
               </label>
-              <input
-                type="date"
-                id="project-start-date"
-                className="w-full border border-outline-variant px-3 py-2 text-xs font-mono focus:border-primary outline-none bg-white"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+              <textarea
+                className="w-full border-2 border-outline-variant rounded-xl px-4 py-3 text-sm focus:border-primary outline-none min-h-[120px] resize-y transition-colors leading-relaxed"
+                placeholder="Zusätzliche Details, Kontext oder Fließtext..."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
               />
             </div>
-            <div>
-              <label className="block text-xs font-mono font-bold text-primary mb-1 uppercase">
-                ENDDATUM / DEADLINE
-              </label>
-              <input
-                type="date"
-                id="project-end-date"
-                className="w-full border border-outline-variant px-3 py-2 text-xs font-mono focus:border-primary outline-none bg-white"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-              />
+
+            {/* Dates */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-mono font-bold text-primary mb-1.5 uppercase tracking-wide">
+                  Startdatum
+                </label>
+                <input
+                  type="date"
+                  className="w-full border-2 border-outline-variant rounded-xl px-4 py-2.5 text-sm focus:border-primary outline-none transition-colors bg-white cursor-pointer"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-mono font-bold text-primary mb-1.5 uppercase tracking-wide">
+                  Deadline
+                </label>
+                <input
+                  type="date"
+                  className="w-full border-2 border-outline-variant rounded-xl px-4 py-2.5 text-sm focus:border-primary outline-none transition-colors bg-white cursor-pointer"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+              </div>
             </div>
-          </div>
 
-          <div>
-            <label className="block text-xs font-mono font-bold text-primary mb-1 uppercase">
-              ERSTE PHASE / HAUPTZIEL (OPTIONAL)
-            </label>
-            <input
-              type="text"
-              id="project-first-phase"
-              className="w-full border border-outline-variant px-3 py-2 text-sm focus:border-primary outline-none"
-              placeholder="z.B. Phase 01: Vorbereitung & Analyse"
-              value={firstPhase}
-              onChange={(e) => setFirstPhase(e.target.value)}
-            />
-          </div>
+            {/* Dynamic Phases & Tasks */}
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-mono font-bold text-primary uppercase tracking-wide">
+                  Projekt-Phasen & Aufgaben
+                </label>
+                <button
+                  type="button"
+                  onClick={handleAddPhase}
+                  className="text-xs font-bold text-primary hover:text-neutral-800 flex items-center gap-1 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[16px]">add_circle</span>
+                  Phase hinzufügen
+                </button>
+              </div>
 
-          <div>
-            <label className="block text-xs font-mono font-bold text-primary mb-1 uppercase">
-              INITIALER STATUS
-            </label>
-            <select
-              id="project-status-select"
-              className="w-full border border-outline-variant px-3 py-2 text-xs font-mono focus:border-primary outline-none bg-white"
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-            >
-              <option value="Aktiv">🟢 STATUS: AKTIV</option>
-              <option value="Pausiert">⚠️ STATUS: PAUSIERT</option>
-            </select>
-          </div>
+              {phases.length === 0 ? (
+                <div className="text-sm text-on-surface-variant text-center py-6 bg-surface-low border border-dashed border-outline-variant rounded-xl">
+                  Noch keine Phasen angelegt.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {phases.map((phase, pIdx) => (
+                    <div key={pIdx} className="bg-surface-low border border-outline-variant rounded-xl p-4 space-y-3 relative group">
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-mono font-bold text-on-surface-variant">P{pIdx + 1}</span>
+                          <input
+                            type="text"
+                            placeholder="Name der Phase (z.B. Vorbereitung)"
+                            value={phase.title || ''}
+                            onChange={(e) => handleUpdatePhaseTitle(pIdx, e.target.value)}
+                            className="flex-grow bg-white border border-outline-variant rounded-lg px-3 py-1.5 text-sm font-medium focus:border-primary outline-none transition-colors"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemovePhase(pIdx)}
+                            className="p-1.5 text-on-surface-variant hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Phase löschen"
+                          >
+                            <span className="material-symbols-outlined text-[18px]">delete</span>
+                          </button>
+                        </div>
+                        <div className="flex flex-col sm:flex-row gap-2 pl-6">
+                          <input
+                            type="date"
+                            value={phase.date || ''}
+                            onChange={(e) => handleUpdatePhaseDate(pIdx, e.target.value)}
+                            className="w-full sm:w-auto bg-white border border-outline-variant rounded-lg px-3 py-1.5 text-xs focus:border-primary outline-none transition-colors cursor-pointer"
+                            title="Phasen-Datum"
+                          />
+                          <textarea
+                            placeholder="Phasen-Notiz / Dateien-Link..."
+                            value={phase.note || ''}
+                            onChange={(e) => handleUpdatePhaseNote(pIdx, e.target.value)}
+                            className="w-full flex-grow bg-white border border-outline-variant rounded-lg px-3 py-1.5 text-xs focus:border-primary outline-none transition-colors min-h-[36px] resize-y"
+                          />
+                        </div>
+                      </div>
 
-          <div className="border-t border-outline-variant pt-4 flex items-center justify-end gap-2">
-            <button
-              type="button"
-              className="px-4 py-2 border border-outline-variant text-xs font-mono font-bold text-on-surface-variant hover:text-primary transition-colors"
-              onClick={closeModal}
-            >
-              ABBRECHEN
-            </button>
-            <button
-              type="submit"
-              className="px-5 py-2 bg-primary text-white text-xs font-mono font-bold hover:bg-neutral-800 transition-colors shadow-sm"
-            >
-              PROJEKT ANLEGEN
-            </button>
-          </div>
-        </form>
+                      <div className="pl-6 space-y-3 mt-2 border-t border-outline-variant/50 pt-3">
+                        {phase.tasks && phase.tasks.map((task, tIdx) => (
+                          <div key={tIdx} className="flex flex-col gap-1.5 bg-white p-2 rounded-lg border border-outline-variant/50">
+                            <div className="flex items-center gap-2">
+                              <span className="material-symbols-outlined text-[16px] text-on-surface-variant">check_box_outline_blank</span>
+                              <input
+                                type="text"
+                                placeholder="Unteraufgabe"
+                                value={task.title || ''}
+                                onChange={(e) => handleUpdateTaskTitle(pIdx, tIdx, e.target.value)}
+                                className="flex-grow bg-transparent border-none text-sm focus:ring-0 outline-none"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveTask(pIdx, tIdx)}
+                                className="p-1 text-on-surface-variant hover:text-red-500 rounded transition-colors"
+                              >
+                                <span className="material-symbols-outlined text-[16px]">close</span>
+                              </button>
+                            </div>
+                            <div className="flex flex-col sm:flex-row gap-2 pl-6">
+                              <input
+                                type="date"
+                                value={task.date || ''}
+                                onChange={(e) => handleUpdateTaskDate(pIdx, tIdx, e.target.value)}
+                                className="w-full sm:w-auto bg-surface-low border border-outline-variant rounded-md px-2 py-1 text-xs focus:border-primary outline-none transition-colors cursor-pointer"
+                                title="Task-Datum"
+                              />
+                              <input
+                                type="text"
+                                placeholder="Task-Notiz / Link..."
+                                value={task.note || ''}
+                                onChange={(e) => handleUpdateTaskNote(pIdx, tIdx, e.target.value)}
+                                className="w-full flex-grow bg-surface-low border border-outline-variant rounded-md px-2 py-1 text-xs focus:border-primary outline-none transition-colors"
+                              />
+                            </div>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => handleAddTask(pIdx)}
+                          className="text-[11px] font-bold text-on-surface-variant hover:text-primary flex items-center gap-1 transition-colors mt-1"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">add</span>
+                          Aufgabe hinzufügen
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </form>
+        </div>
+
+        {/* Footer */}
+        <div className="border-t border-outline-variant p-5 sm:px-6 flex items-center justify-end gap-3 flex-shrink-0 bg-surface-low rounded-b-2xl">
+          <button
+            type="button"
+            className="px-5 py-2.5 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-variant/50 transition-colors"
+            onClick={closeModal}
+          >
+            Abbrechen
+          </button>
+          <button
+            type="submit"
+            form="project-form"
+            className="px-6 py-2.5 bg-primary text-white text-sm font-bold rounded-xl hover:bg-neutral-800 transition-colors shadow-sm"
+          >
+            Projekt anlegen
+          </button>
+        </div>
       </div>
     </div>
   );

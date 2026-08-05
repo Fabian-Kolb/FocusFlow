@@ -8,11 +8,14 @@ import Button from '../ui/Button';
 import Input from '../ui/Input';
 
 const Inbox = ({ setCurrentScreen }) => {
-  const { inboxItems, addInboxItem, deleteInboxItem, openModal } = useModalContext();
+  const { inboxItems, addInboxItem, updateInboxItem, deleteInboxItem, openModal } = useModalContext();
   const [inputValue, setInputValue] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [isSummarizing, setIsSummarizing] = useState(false);
+  const [triageText, setTriageText] = useState(null);
+  const [isTriageOpen, setIsTriageOpen] = useState(false);
   const [expandedItems, setExpandedItems] = useState({});
+  const [activeDropdownId, setActiveDropdownId] = useState(null);
   const [activeModel, setActiveModel] = useState('eco');
   const [summaryLength, setSummaryLength] = useState('normal');
   const [isSummaryEnabled, setIsSummaryEnabled] = useState(true);
@@ -24,6 +27,25 @@ const Inbox = ({ setCurrentScreen }) => {
   useEffect(() => {
     isListeningRef.current = isListening;
   }, [isListening]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isTriageOpen) {
+        setIsTriageOpen(false);
+        setTriageText(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isTriageOpen]);
+
+  useEffect(() => {
+    const handleClickOutside = () => {
+      if (activeDropdownId) setActiveDropdownId(null);
+    };
+    window.addEventListener('click', handleClickOutside);
+    return () => window.removeEventListener('click', handleClickOutside);
+  }, [activeDropdownId]);
 
   const toggleExpand = (id) => {
     setExpandedItems((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -98,7 +120,7 @@ const Inbox = ({ setCurrentScreen }) => {
     }
   };
 
-  const handleAdd = async () => {
+  const handleAdd = () => {
     const text = inputValue.trim();
     if (!text || isSummarizing) return;
 
@@ -110,34 +132,44 @@ const Inbox = ({ setCurrentScreen }) => {
       }
     }
 
-    if (text.length > 35 && isSummaryEnabled) {
-      setIsSummarizing(true);
-      try {
-        const summary = await summarizeVoiceNote(text, activeModel, summaryLength);
-        if (summary) {
-          const formattedSummary = ensureBulletPoints(summary);
-          addInboxItem({
-            title: formattedSummary,
-            summary: formattedSummary,
-            originalText: text
-          });
-        } else {
-          addInboxItem(ensureBulletPoints(text));
-        }
-      } catch (e) {
-        console.error(e);
-        addInboxItem(ensureBulletPoints(text));
-      } finally {
-        setIsSummarizing(false);
-      }
-    } else {
-      addInboxItem(ensureBulletPoints(text));
-    }
+    setTriageText(text);
+    setIsTriageOpen(true);
+  };
 
+  const processTriageChoice = async (choice) => {
+    setIsTriageOpen(false);
     setInputValue('');
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
+
+    const textToProcess = triageText;
+    setTriageText(null);
+
+    let summaryText = ensureBulletPoints(textToProcess);
+    let finalTitle = summaryText;
+
+    if (textToProcess.length > 35 && isSummaryEnabled) {
+      setIsSummarizing(true);
+      try {
+        const summary = await summarizeVoiceNote(textToProcess, activeModel, summaryLength);
+        if (summary) {
+          summaryText = ensureBulletPoints(summary);
+          finalTitle = summaryText;
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setIsSummarizing(false);
+      }
+    }
+
+    addInboxItem({
+      title: finalTitle,
+      summary: summaryText,
+      originalText: textToProcess,
+      type: choice === 'inbox' ? 'unclassified' : choice
+    });
   };
 
   const handleKeyDown = (e) => {
@@ -147,8 +179,10 @@ const Inbox = ({ setCurrentScreen }) => {
     }
   };
 
-  const handleConvertToProject = (item) => {
-    openModal('project', { inboxItemId: item.id, prefillTitle: item.title });
+  const handleConvert = (item) => {
+    if (!item.type || item.type === 'unclassified') return;
+    const fullDescription = `${item.title}\n\n---\n\n${item.originalText || ''}`.trim();
+    openModal(item.type, { inboxItemId: item.id, prefillTitle: '', prefillDescription: fullDescription });
   };
 
   const renderItemCard = (item, isYesterday = false) => {
@@ -172,25 +206,61 @@ const Inbox = ({ setCurrentScreen }) => {
             </div>
           </div>
 
-          <div className="relative flex-shrink-0 group/dropdown">
-            <button className="p-1 hover:bg-surface-low rounded-md transition-colors">
+          <div className="relative flex-shrink-0">
+            <button
+              type="button"
+              className="p-1 hover:bg-surface-low rounded-md transition-colors text-on-surface-variant cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveDropdownId(prev => prev === item.id ? null : item.id);
+              }}
+              title="Optionen"
+            >
               <span className="material-symbols-outlined text-[20px]">more_vert</span>
             </button>
-            <div className="hidden group-hover/dropdown:block absolute right-0 top-full mt-1 bg-white border border-primary rounded-xl z-20 w-48 shadow-lg overflow-hidden">
-              <button
-                className="w-full text-left px-4 py-2.5 hover:bg-surface-low text-xs font-medium"
-                onClick={() => handleConvertToProject(item)}
-              >
-                Zu Projekt umwandeln
-              </button>
-              <button
-                className="w-full text-left px-4 py-2.5 hover:bg-surface-low text-xs font-medium text-red-600"
-                onClick={() => deleteInboxItem(item.id)}
-              >
-                Löschen
-              </button>
-            </div>
+            {activeDropdownId === item.id && (
+              <div className="absolute right-0 top-full mt-1 bg-white border border-primary rounded-xl z-30 w-48 shadow-lg overflow-hidden">
+                <button
+                  className="w-full text-left px-4 py-2.5 hover:bg-red-50 text-xs font-medium text-red-600 flex items-center gap-2 cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteInboxItem(item.id);
+                    setActiveDropdownId(null);
+                  }}
+                >
+                  <span className="material-symbols-outlined text-[16px]">delete</span>
+                  Löschen
+                </button>
+              </div>
+            )}
           </div>
+        </div>
+
+        {/* Klassifizierung / Aktionen */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mt-1 pt-3 border-t border-outline-variant">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <span className="text-[10px] font-mono font-bold text-on-surface-variant uppercase flex-shrink-0">TYP:</span>
+            <select
+              value={item.type || 'unclassified'}
+              onChange={(e) => updateInboxItem(item.id, { type: e.target.value })}
+              className="flex-grow sm:flex-grow-0 bg-surface-low border border-outline-variant rounded-lg px-2.5 py-1 text-xs font-bold text-primary focus:outline-none focus:border-primary transition-colors cursor-pointer"
+            >
+              <option value="unclassified">Offen</option>
+              <option value="project">Projekt</option>
+              <option value="reminder">Erinnerung</option>
+            </select>
+          </div>
+
+          <button
+            onClick={() => handleConvert(item)}
+            disabled={!item.type || item.type === 'unclassified'}
+            className="w-full sm:w-auto px-4 py-2 sm:py-1.5 bg-primary text-white text-xs font-bold rounded flex justify-center items-center gap-1.5 hover:bg-neutral-800 transition-all disabled:opacity-50 disabled:bg-surface-variant disabled:text-on-surface-variant disabled:cursor-not-allowed shadow-sm"
+          >
+            <span className="material-symbols-outlined text-[16px]">
+              {!item.type || item.type === 'unclassified' ? 'lock' : 'arrow_forward'}
+            </span>
+            {!item.type || item.type === 'unclassified' ? 'Bitte Typ wählen' : `Als ${item.type === 'project' ? 'Projekt' : 'Erinnerung'} anlegen`}
+          </button>
         </div>
 
         {item.originalText && (
@@ -349,6 +419,77 @@ const Inbox = ({ setCurrentScreen }) => {
           </div>
         </div>
       </div>
+
+      {isTriageOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white border-2 border-primary w-full max-w-md p-5 sm:p-6 space-y-4 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-outline-variant pb-3">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary text-[22px]">inbox</span>
+                <h3 className="text-xs sm:text-sm font-bold font-mono uppercase text-primary">
+                  INBOX-EINTRAG ERFASSEN
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsTriageOpen(false);
+                  setTriageText(null);
+                }}
+                className="p-1 hover:bg-surface-low border border-outline-variant transition-colors cursor-pointer"
+                title="Abbrechen (ESC)"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <p className="text-xs text-on-surface-variant leading-relaxed">
+              Dein Gedanke wird in deiner <strong>Inbox</strong> abgelegt. Möchtest du ihn direkt für die spätere Weiterverarbeitung vormerken?
+            </p>
+
+            <div className="flex flex-col gap-2.5 pt-1">
+              <button
+                onClick={() => processTriageChoice('project')}
+                className="w-full p-3 bg-surface-low border border-outline-variant rounded-xl hover:border-primary text-left transition-all flex items-center gap-3 group cursor-pointer"
+              >
+                <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center flex-shrink-0 group-hover:bg-primary group-hover:text-white transition-colors">
+                  <span className="material-symbols-outlined text-[20px]">create_new_folder</span>
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-primary uppercase">Als Projekt vormerken</div>
+                  <div className="text-[11px] text-on-surface-variant">In die Inbox legen mit Typ "Projekt"</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => processTriageChoice('reminder')}
+                className="w-full p-3 bg-surface-low border border-outline-variant rounded-xl hover:border-primary text-left transition-all flex items-center gap-3 group cursor-pointer"
+              >
+                <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center flex-shrink-0 group-hover:bg-primary group-hover:text-white transition-colors">
+                  <span className="material-symbols-outlined text-[20px]">notifications</span>
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-primary uppercase">Als Erinnerung vormerken</div>
+                  <div className="text-[11px] text-on-surface-variant">In die Inbox legen mit Typ "Erinnerung"</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => processTriageChoice('inbox')}
+                className="w-full p-3 bg-surface-low border border-outline-variant rounded-xl hover:border-primary text-left transition-all flex items-center gap-3 group cursor-pointer"
+              >
+                <div className="w-9 h-9 rounded-lg bg-surface-variant text-on-surface-variant flex items-center justify-center flex-shrink-0 group-hover:bg-primary group-hover:text-white transition-colors">
+                  <span className="material-symbols-outlined text-[20px]">help_outline</span>
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-primary uppercase">Noch unentschieden</div>
+                  <div className="text-[11px] text-on-surface-variant">In die Inbox legen ohne Typ</div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

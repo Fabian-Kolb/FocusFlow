@@ -11,10 +11,12 @@ service cloud.firestore {
              exists(/databases/$(database)/documents/whitelist/$(request.auth.token.email));
     }
 
-    // Für ALLE Dokumente in der Datenbank gilt:
-    match /{document=**} {
-      // Lesen und Schreiben ist NUR erlaubt, wenn die E-Mail in der Whitelist steht!
-      allow read, write: if isWhitelisted();
+    match /whitelist/{email} {
+      allow read: if request.auth != null && request.auth.token.email == email;
+    }
+
+    match /users/{userId}/{document=**} {
+      allow read, write: if isWhitelisted() && request.auth.uid == userId;
     }
   }
 }

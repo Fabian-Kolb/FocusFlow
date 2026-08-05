@@ -136,6 +136,7 @@ export async function summarizeVoiceNote(text, aiModel = 'eco', lengthMode = 'no
   const systemInstruction = `Du bist ein Assistent, der Eingabetexte in strikt strukturierte Markdown-Stichpunkte verwandelt.
 
 FORMATREGELN (STRIKT EINHALTEN):
+- GENERIERE IMMER EINE KURZE ÜBERSCHRIFT (max. 3-5 Wörter) als allererste Zeile. Formatiere sie zwingend als fette H3-Überschrift (z.B. ### **Meine Überschrift**), und NICHT als Listenpunkt. Darunter folgen die Stichpunkte.
 - Auch Kategorie-Überschriften müssen als Fett-Stichpunkte formatiert sein (z. B. "- 🛒 **Einkaufen**" oder "- 📋 **Arbeit**").
 - Nutze Stichpunkte und eingerückte Unterstichpunkte 
 - Nutze **Fettdruck** für Schlüsselbegriffe, Kategorien und Deadlines.
@@ -154,4 +155,68 @@ FORMATREGELN (STRIKT EINHALTEN):
   }
 }
 
+export async function generateProjectStructure(text, aiModel = 'eco') {
+  const apiKey = getApiKey();
+  if (!apiKey) return null;
 
+  const systemInstruction = `Du bist ein Projekt-Management Assistent.
+Analysiere den folgenden Text und erstelle eine JSON-Struktur für ein Projekt.
+Das JSON muss exakt dieses Format haben:
+{
+  "title": "Kurzer, prägnanter Projektname",
+  "description": "Der ursprüngliche Text sinnvoll aufbereitet als Beschreibung",
+  "phases": [
+    {
+      "title": "Name der Phase (z.B. Vorbereitung & Analyse)",
+      "tasks": [
+        { "title": "Erste Unteraufgabe dieser Phase" },
+        { "title": "Zweite Unteraufgabe dieser Phase" }
+      ]
+    }
+  ]
+}
+Wenn der Text nur kurz ist, generiere trotzdem eine logische Phasen- und Taskstruktur (mindestens 1-2 Phasen mit je 2-3 Tasks), die zur Erreichung des Projektziels sinnvoll ist.
+Gib NUR das JSON zurück, ohne Markdown-Blöcke oder zusätzlichen Text.`;
+
+  try {
+    return await executeWithFallback(apiKey, aiModel, systemInstruction, async (model) => {
+      const result = await model.generateContent(text);
+      const rawOutput = result.response.text().trim();
+      let cleaned = rawOutput;
+      if (cleaned.startsWith('```json')) cleaned = cleaned.replace(/^```json/, '');
+      if (cleaned.endsWith('```')) cleaned = cleaned.replace(/```$/, '');
+      return JSON.parse(cleaned.trim());
+    });
+  } catch (error) {
+    console.error("Fehler bei generateProjectStructure:", error);
+    return null;
+  }
+}
+
+export async function generateReminderStructure(text, aiModel = 'eco') {
+  const apiKey = getApiKey();
+  if (!apiKey) return null;
+
+  const systemInstruction = `Du bist ein Produktivitäts-Assistent.
+Analysiere den folgenden Text und erstelle eine JSON-Struktur für eine Erinnerung.
+Das JSON muss exakt dieses Format haben:
+{
+  "title": "Kurzer, prägnanter Titel für die Erinnerung",
+  "description": "Der ursprüngliche Text sinnvoll aufbereitet als Notiz/Beschreibung"
+}
+Gib NUR das JSON zurück, ohne Markdown-Blöcke oder zusätzlichen Text.`;
+
+  try {
+    return await executeWithFallback(apiKey, aiModel, systemInstruction, async (model) => {
+      const result = await model.generateContent(text);
+      const rawOutput = result.response.text().trim();
+      let cleaned = rawOutput;
+      if (cleaned.startsWith('```json')) cleaned = cleaned.replace(/^```json/, '');
+      if (cleaned.endsWith('```')) cleaned = cleaned.replace(/```$/, '');
+      return JSON.parse(cleaned.trim());
+    });
+  } catch (error) {
+    console.error("Fehler bei generateReminderStructure:", error);
+    return null;
+  }
+}
