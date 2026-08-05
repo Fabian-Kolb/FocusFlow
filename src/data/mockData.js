@@ -30,7 +30,7 @@ export const projects = [
     "nextStep": "Nächste Etappe: Konzept & Design",
     "dateRange": "12. APRIL – 30. JUNI 2024",
     "daysRemaining": "NOCH 14 TAGE",
-    "progress": 45,
+    "progress": 45, // progress: 45
     "timeElapsed": 68,
     "tasksCountText": "(9 / 20 Tasks)",
     "daysCountText": "(48 / 70 Tage)",

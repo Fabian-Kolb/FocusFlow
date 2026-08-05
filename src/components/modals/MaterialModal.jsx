@@ -104,88 +104,146 @@ const MaterialModal = () => {
     closeModal();
   };
 
+  const [activeTab, setActiveTab] = useState('file'); // 'file' | 'link'
+
   return (
     <div
       id="material-modal"
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4"
     >
-      <div className="bg-white border-2 border-primary w-full max-w-lg p-5 sm:p-6 space-y-4 shadow-2xl relative">
-        <div className="flex items-center justify-between border-b border-outline-variant pb-3">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="material-symbols-outlined text-[22px] text-primary">upload_file</span>
-            <h2 className="text-xs sm:text-sm font-bold font-mono uppercase truncate">MATERIAL / DOKUMENT ANHÄNGEN</h2>
+      <div className="bg-white border border-primary/20 w-full max-w-lg p-6 space-y-5 shadow-2xl rounded-2xl relative animate-in fade-in zoom-in-95 duration-200">
+        <div className="flex items-center justify-between border-b border-outline-variant pb-3.5">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+              <span className="material-symbols-outlined text-[20px]">attach_file</span>
+            </div>
+            <div>
+              <h2 className="text-sm sm:text-base font-bold font-mono text-primary uppercase tracking-wider">MATERIAL / LINK ANHÄNGEN</h2>
+              <p className="text-[11px] text-on-surface-variant font-normal">Füge Dateien, Screenshots oder Links zu dieser Phase oder Task hinzu</p>
+            </div>
           </div>
           <button
             type="button"
-            className="p-1 hover:bg-surface-low border border-outline-variant transition-colors"
+            className="p-1.5 hover:bg-surface-low rounded-xl text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
             onClick={closeModal}
           >
-            <span className="material-symbols-outlined text-[18px]">close</span>
+            <span className="material-symbols-outlined text-[20px]">close</span>
+          </button>
+        </div>
+
+        {/* Tab Selection */}
+        <div className="flex bg-surface-low p-1 rounded-xl border border-outline-variant">
+          <button
+            type="button"
+            onClick={() => setActiveTab('file')}
+            className={`flex-1 py-1.5 text-xs font-mono font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              activeTab === 'file' ? 'bg-white text-primary shadow-sm border border-outline-variant' : 'text-on-surface-variant hover:text-primary'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[16px]">upload_file</span>
+            <span>Datei / Screenshot</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('link')}
+            className={`flex-1 py-1.5 text-xs font-mono font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              activeTab === 'link' ? 'bg-white text-primary shadow-sm border border-outline-variant' : 'text-on-surface-variant hover:text-primary'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[16px]">link</span>
+            <span>Website / Web-Link</span>
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* DRAG AND DROP ZONE WITH STRG+V HINWEIS */}
-          <div
-            id="drop-zone"
-            className={`border-2 border-dashed p-6 text-center space-y-2 transition-colors cursor-pointer relative ${
-              isDragging ? 'border-primary bg-primary/5' : 'border-primary/50 bg-surface-low hover:border-primary'
-            }`}
-            onClick={handleDropZoneClick}
-            onDragEnter={handleDragEnter}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-          >
-            <input
-              type="file"
-              id="file-picker-input"
-              ref={fileInputRef}
-              className="hidden"
-              onChange={handleFileSelected}
-            />
-            <div className="w-10 h-10 bg-white border border-outline-variant rounded-full flex items-center justify-center mx-auto text-primary">
-              <span className="material-symbols-outlined text-[22px]">cloud_upload</span>
+          {activeTab === 'file' ? (
+            /* DRAG AND DROP ZONE WITH STRG+V HINWEIS */
+            <div
+              id="drop-zone"
+              className={`border-2 border-dashed rounded-xl p-6 text-center space-y-3 transition-all cursor-pointer relative ${
+                isDragging ? 'border-primary bg-primary/10 scale-[0.99]' : 'border-outline-variant hover:border-primary bg-surface-low/50 hover:bg-surface-low'
+              }`}
+              onClick={handleDropZoneClick}
+              onDragEnter={handleDragEnter}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              <input
+                type="file"
+                id="file-picker-input"
+                ref={fileInputRef}
+                className="hidden"
+                onChange={handleFileSelected}
+              />
+              <div className="w-12 h-12 bg-primary text-on-primary rounded-full flex items-center justify-center mx-auto shadow-md">
+                <span className="material-symbols-outlined text-[24px]">cloud_upload</span>
+              </div>
+              <div>
+                <p className="text-xs font-mono font-bold text-primary">DATEI HIERHER ZIEHEN ODER KLICKEN</p>
+                <p className="text-[11px] text-on-surface-variant mt-1">Unterstützt Dokumente, PDFs, Bilder (PNG, JPG, SVG, MD)</p>
+              </div>
+              <div className="inline-flex items-center gap-1 px-3 py-1 bg-white border border-outline-variant rounded-lg text-[10px] font-mono text-primary font-bold shadow-sm">
+                <span>💡 TIPP:</span>
+                <kbd className="px-1 py-0.5 bg-surface-low border border-outline-variant rounded text-[9px]">Strg</kbd>
+                <span>+</span>
+                <kbd className="px-1 py-0.5 bg-surface-low border border-outline-variant rounded text-[9px]">V</kbd>
+                <span>Bild direkt einfügen</span>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-mono font-bold text-primary">DATEI HIERHER ZIEHEN ODER KLICKEN</p>
-              <p className="text-[11px] text-on-surface-variant mt-0.5">Unterstützt Dokumente, Bilder, PDFs (max. 25 MB)</p>
+          ) : (
+            /* WEB LINK INPUT */
+            <div className="space-y-2 p-4 bg-surface-low border border-outline-variant rounded-xl">
+              <label className="block text-xs font-mono font-bold text-primary uppercase">
+                WEBSITE-URL ODER ONLINE-DOKUMENT *
+              </label>
+              <div className="relative">
+                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">
+                  link
+                </span>
+                <input
+                  type="text"
+                  required
+                  className="w-full border border-outline-variant pl-9 pr-3 py-2 text-xs rounded-lg focus:border-primary outline-none bg-white font-mono"
+                  placeholder="https://beispiel.de/dokumentation"
+                  value={materialName}
+                  onChange={(e) => setMaterialName(e.target.value)}
+                />
+              </div>
             </div>
-            <div className="inline-block px-2.5 py-1 bg-white border border-outline-variant text-[10px] font-mono text-primary font-bold">
-              💡 TIPP: <kbd className="px-1 bg-surface-low border rounded">Strg</kbd> + <kbd className="px-1 bg-surface-low border rounded">V</kbd> um Bild aus Zwischenablage einzufügen
-            </div>
-          </div>
+          )}
 
-          {/* GEWÄHLTE DATEI / ODER WEB LINK */}
-          <div className="space-y-2">
+          {/* GEWÄHLTER NAME INPUT FOR FILE / LINK */}
+          <div className="space-y-1.5">
             <label className="block text-xs font-mono font-bold text-primary uppercase">
-              ODER WEB-LINK / DOKUMENTEN-NAME *
+              BEZEICHNUNG / TITEL DES MATERIALS *
             </label>
             <input
               type="text"
               id="material-name-input"
               ref={nameInputRef}
               required
-              className="w-full border border-outline-variant px-3 py-2 text-xs focus:border-primary outline-none"
-              placeholder="z.B. Briefing-Dokument.pdf oder https://..."
+              className="w-full border border-outline-variant px-3 py-2 text-xs rounded-lg focus:border-primary outline-none bg-white"
+              placeholder="z.B. Briefing-Dokument.pdf oder Design-System Link"
               value={materialName}
               onChange={(e) => setMaterialName(e.target.value)}
             />
           </div>
 
-          <div className="border-t border-outline-variant pt-4 flex items-center justify-end gap-2">
+          <div className="border-t border-outline-variant pt-4 flex items-center justify-end gap-2.5">
             <button
               type="button"
-              className="px-4 py-2 border border-outline-variant text-xs font-mono font-bold text-on-surface-variant hover:text-primary transition-colors"
+              className="px-4 py-2 border border-outline-variant rounded-xl text-xs font-mono font-bold text-on-surface-variant hover:text-primary hover:bg-surface-low transition-colors cursor-pointer"
               onClick={closeModal}
             >
               ABBRECHEN
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-primary text-white text-xs font-mono font-bold hover:bg-neutral-800 transition-colors shadow-sm"
+              className="px-5 py-2 bg-primary text-white rounded-xl text-xs font-mono font-bold hover:bg-neutral-800 transition-colors shadow-md flex items-center gap-1.5 cursor-pointer"
             >
-              ANHÄNGEN
+              <span className="material-symbols-outlined text-[16px]">add_link</span>
+              <span>ANHÄNGEN</span>
             </button>
           </div>
         </form>

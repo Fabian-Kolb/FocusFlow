@@ -15,9 +15,32 @@ export const ModalProvider = ({ children }) => {
   const [inboxItems, setInboxItems] = useState({ today: [], yesterday: [] });
   const [reminders, setReminders] = useState([]);
   
+  // Trash States
+  const [trashedProjects, setTrashedProjects] = useState([]);
+  const [trashedReminders, setTrashedReminders] = useState([]);
+  const [trashedInboxItems, setTrashedInboxItems] = useState([]);
+  
   const [selectedProjectId, setSelectedProjectId] = useState(null);
   const [selectedReminderId, setSelectedReminderId] = useState(null);
   const [activeCoachScope, setActiveCoachScope] = useState('all');
+
+  // Helper for auto-delete
+  const checkAutoDelete = async (data, colName) => {
+    if (data.deletedAt) {
+      const deletedTime = new Date(data.deletedAt).getTime();
+      const now = Date.now();
+      const diffDays = (now - deletedTime) / (1000 * 60 * 60 * 24);
+      if (diffDays >= 30) {
+        try {
+          await deleteDoc(doc(db, 'users', user.uid, colName, data.id));
+          return true; // was deleted
+        } catch(e) {
+          console.error('Auto-delete failed', e);
+        }
+      }
+    }
+    return false;
+  };
 
   // Firestore Sync
   useEffect(() => {
@@ -25,27 +48,62 @@ export const ModalProvider = ({ children }) => {
       setProjects([]);
       setReminders([]);
       setInboxItems({ today: [], yesterday: [] });
+      setTrashedProjects([]);
+      setTrashedReminders([]);
+      setTrashedInboxItems([]);
       return;
     }
 
     const unsubProjects = onSnapshot(collection(db, 'users', user.uid, 'projects'), (snapshot) => {
       const projs = [];
-      snapshot.forEach(doc => projs.push(doc.data()));
+      const trashed = [];
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        if (data.deletedAt) {
+          checkAutoDelete(data, 'projects');
+          trashed.push({ ...data, _type: 'project' });
+        } else {
+          projs.push(data);
+        }
+      });
       projs.sort((a, b) => b.id.localeCompare(a.id));
+      trashed.sort((a, b) => b.id.localeCompare(a.id));
       setProjects(projs);
+      setTrashedProjects(trashed);
     });
 
     const unsubReminders = onSnapshot(collection(db, 'users', user.uid, 'reminders'), (snapshot) => {
       const rems = [];
-      snapshot.forEach(doc => rems.push(doc.data()));
+      const trashed = [];
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        if (data.deletedAt) {
+          checkAutoDelete(data, 'reminders');
+          trashed.push({ ...data, _type: 'reminder' });
+        } else {
+          rems.push(data);
+        }
+      });
       rems.sort((a, b) => b.id.localeCompare(a.id));
+      trashed.sort((a, b) => b.id.localeCompare(a.id));
       setReminders(rems);
+      setTrashedReminders(trashed);
     });
 
     const unsubInbox = onSnapshot(collection(db, 'users', user.uid, 'inboxItems'), (snapshot) => {
       const items = [];
-      snapshot.forEach(doc => items.push(doc.data()));
+      const trashed = [];
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        if (data.deletedAt) {
+          checkAutoDelete(data, 'inboxItems');
+          trashed.push({ ...data, _type: 'inbox' });
+        } else {
+          items.push(data);
+        }
+      });
       items.sort((a, b) => b.id.localeCompare(a.id));
+      trashed.sort((a, b) => b.id.localeCompare(a.id));
       
       const today = [];
       const yesterday = [];
@@ -60,6 +118,7 @@ export const ModalProvider = ({ children }) => {
         }
       });
       setInboxItems({ today, yesterday });
+      setTrashedInboxItems(trashed);
     });
 
     return () => {
@@ -238,10 +297,29 @@ export const ModalProvider = ({ children }) => {
           note: taskData.note ? taskData.note.trim() : ''
         };
 
-        return { ...phase, tasks: [...phase.tasks, newTask] };
+        const updatedTasks = [...(phase.tasks || []), newTask];
+        const completedInPhase = updatedTasks.filter(t => t.completed).length;
+        const totalInPhase = updatedTasks.length;
+        const phaseCompleted = totalInPhase > 0 && completedInPhase === totalInPhase;
+
+        return {
+          ...phase,
+          completed: phaseCompleted,
+          badgeText: phaseCompleted ? 'ERLEDIGT' : `${completedInPhase}/${totalInPhase} ERLEDIGT`,
+          tasks: updatedTasks
+        };
       });
 
-      const totalTasks = updatedPhases.reduce((acc, p) => acc + p.tasks.length, 0);
+      const totalTasks = updatedPhases.reduce((acc, p) => acc + (p.tasks ? p.tasks.length : 0), 0);
+      const completedTasks = updatedPhases.reduce((acc, p) => acc + (p.tasks ? p.tasks.filter(t => t.completed).length : 0), 0);
+      const completedPhases = updatedPhases.filter(p => p.completed).length;
+      const progressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : proj.progress;
+
+      let newStatus = proj.status;
+      if (completedTasks < totalTasks && proj.status === 'ABGESCHLOSSEN') {
+        newStatus = 'AKTIV';
+      }
+
       const historyEntry = {
         id: `h_${Date.now()}`,
         date: `${new Date().toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()} • ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`,
@@ -253,7 +331,12 @@ export const ModalProvider = ({ children }) => {
 
       return {
         ...proj,
+        status: newStatus,
         tasksTotal: totalTasks,
+        tasksCompleted: completedTasks,
+        phasesCompleted: completedPhases,
+        phasesTotal: updatedPhases.length,
+        progress: progressPercent,
         phases: updatedPhases,
         history: [historyEntry, ...(proj.history || [])]
       };
@@ -300,22 +383,36 @@ export const ModalProvider = ({ children }) => {
         if (phase.id !== phaseId) return phase;
         phaseName = phase.title;
 
-        const updatedTasks = phase.tasks.map(t => {
+        const updatedTasks = (phase.tasks || []).map(t => {
           if (t.id !== taskId) return t;
           taskTitle = t.title;
           isNowCompleted = !t.completed;
           return { ...t, completed: isNowCompleted };
         });
 
-        const allPhaseTasksCompleted = updatedTasks.length > 0 && updatedTasks.every(t => t.completed);
+        const completedInPhase = updatedTasks.filter(t => t.completed).length;
+        const totalInPhase = updatedTasks.length;
+        const allPhaseTasksCompleted = totalInPhase > 0 && completedInPhase === totalInPhase;
 
-        return { ...phase, completed: allPhaseTasksCompleted, tasks: updatedTasks };
+        return {
+          ...phase,
+          completed: allPhaseTasksCompleted,
+          badgeText: allPhaseTasksCompleted ? 'ERLEDIGT' : `${completedInPhase}/${totalInPhase} ERLEDIGT`,
+          tasks: updatedTasks
+        };
       });
 
-      const totalTasks = updatedPhases.reduce((acc, p) => acc + p.tasks.length, 0);
-      const completedTasks = updatedPhases.reduce((acc, p) => acc + p.tasks.filter(t => t.completed).length, 0);
+      const totalTasks = updatedPhases.reduce((acc, p) => acc + (p.tasks ? p.tasks.length : 0), 0);
+      const completedTasks = updatedPhases.reduce((acc, p) => acc + (p.tasks ? p.tasks.filter(t => t.completed).length : 0), 0);
       const completedPhases = updatedPhases.filter(p => p.completed).length;
       const progressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : proj.progress;
+
+      let newStatus = proj.status;
+      if (totalTasks > 0 && completedTasks === totalTasks) {
+        newStatus = 'ABGESCHLOSSEN';
+      } else if (completedTasks < totalTasks && proj.status === 'ABGESCHLOSSEN') {
+        newStatus = 'AKTIV';
+      }
 
       let historyEntry = null;
       if (isNowCompleted) {
@@ -331,10 +428,12 @@ export const ModalProvider = ({ children }) => {
 
       return {
         ...proj,
+        status: newStatus,
         progress: progressPercent,
         tasksCompleted: completedTasks,
         tasksTotal: totalTasks,
         phasesCompleted: completedPhases,
+        phasesTotal: updatedPhases.length,
         phases: updatedPhases,
         history: historyEntry ? [historyEntry, ...(proj.history || [])] : (proj.history || [])
       };
@@ -372,8 +471,7 @@ export const ModalProvider = ({ children }) => {
   };
 
   const deleteProject = async (projectId) => {
-    if (!user) return;
-    await deleteDoc(doc(db, 'users', user.uid, 'projects', projectId));
+    mutateProject(projectId, (proj) => ({ ...proj, deletedAt: new Date().toISOString() }));
     if (selectedProjectId === projectId) {
       setSelectedProjectId(null);
     }
@@ -403,6 +501,7 @@ export const ModalProvider = ({ children }) => {
       status: reminderData.status || 'GEPLANT',
       isPaused: false,
       inKanban: true,
+      createdAt: Date.now(),
       history: [
         {
           id: `h_${Date.now()}`,
@@ -454,8 +553,7 @@ export const ModalProvider = ({ children }) => {
   };
 
   const deleteReminder = async (reminderId) => {
-    if (!user) return;
-    await deleteDoc(doc(db, 'users', user.uid, 'reminders', reminderId));
+    mutateReminder(reminderId, (rem) => ({ ...rem, deletedAt: new Date().toISOString() }));
     if (selectedReminderId === reminderId) {
       setSelectedReminderId(null);
     }
@@ -497,7 +595,32 @@ export const ModalProvider = ({ children }) => {
 
   const deleteInboxItem = async (id) => {
     if (!user) return;
-    await deleteDoc(doc(db, 'users', user.uid, 'inboxItems', id));
+    let itemToUpdate = inboxItems.today.find(i => i.id === id) || inboxItems.yesterday.find(i => i.id === id);
+    if (!itemToUpdate) return;
+    const updated = { ...itemToUpdate, deletedAt: new Date().toISOString() };
+    await setDoc(doc(db, 'users', user.uid, 'inboxItems', id), updated);
+  };
+
+  const trashItems = [...trashedProjects, ...trashedReminders, ...trashedInboxItems];
+
+  const permanentlyDeleteItem = async (id, type) => {
+    if (!user) return;
+    const colName = type === 'project' ? 'projects' : type === 'reminder' ? 'reminders' : 'inboxItems';
+    await deleteDoc(doc(db, 'users', user.uid, colName, id));
+    if (type === 'project' && selectedProjectId === id) setSelectedProjectId(null);
+    if (type === 'reminder' && selectedReminderId === id) setSelectedReminderId(null);
+  };
+
+  const restoreItem = async (id, type) => {
+    if (!user) return;
+    const colName = type === 'project' ? 'projects' : type === 'reminder' ? 'reminders' : 'inboxItems';
+    const item = trashItems.find(i => i.id === id);
+    if (item) {
+      const restored = { ...item };
+      delete restored.deletedAt;
+      delete restored._type;
+      await setDoc(doc(db, 'users', user.uid, colName, id), restored);
+    }
   };
 
   return (
@@ -536,7 +659,11 @@ export const ModalProvider = ({ children }) => {
       updateInboxItem,
       deleteInboxItem,
       addReminder,
-      mutateProject
+      mutateProject,
+      mutateReminder,
+      trashItems,
+      restoreItem,
+      permanentlyDeleteItem
     }}>
       {children}
     </ModalContext.Provider>

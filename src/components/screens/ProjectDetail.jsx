@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useModalContext } from '../../context/ModalContext';
 
 const ProjectDetail = ({ setCurrentScreen }) => {
   const { 
     projects: contextProjects, 
+    trashItems,
     selectedProjectId, 
     toggleTask: contextToggleTask, 
     toggleProjectStatus: contextToggleProjectStatus,
@@ -11,9 +12,22 @@ const ProjectDetail = ({ setCurrentScreen }) => {
     mutateProject,
     toggleProjectPause
   } = useModalContext();
-  const selectedProject = contextProjects.find(p => p.id === selectedProjectId) || contextProjects[0];
+  const selectedProject = contextProjects.find(p => p.id === selectedProjectId) || (trashItems && trashItems.find(p => p.id === selectedProjectId)) || contextProjects[0];
   
   const projectData = selectedProject || {};
+  const isTrashed = !!projectData.deletedAt;
+
+  if (!projectData.id) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-12 text-center text-on-surface-variant">
+        <span className="material-symbols-outlined text-6xl mb-4 opacity-50">folder_off</span>
+        <h2 className="text-xl font-bold mb-2">Projekt nicht gefunden</h2>
+        <p className="mb-6">Das Projekt wurde möglicherweise gelöscht.</p>
+        <button onClick={() => setCurrentScreen('projects')} className="px-4 py-2 bg-primary text-on-primary rounded-xl font-bold">Zurück zur Übersicht</button>
+      </div>
+    );
+  }
+
   const setProjectData = (mutateFn) => {
     if (typeof mutateFn === 'function') {
       mutateProject(selectedProjectId, mutateFn);
@@ -43,11 +57,89 @@ const ProjectDetail = ({ setCurrentScreen }) => {
   const [newTaskNote, setNewTaskNote] = useState('');
 
   const [newMaterialName, setNewMaterialName] = useState('');
+  const localFileInputRef = React.useRef(null);
 
-  // States for Editing Dates
+  // States for Editing Dates & Notes Inline
   const [isEditingDates, setIsEditingDates] = useState(false);
   const [editStartDate, setEditStartDate] = useState(selectedProject?.startDate || '');
   const [editEndDate, setEditEndDate] = useState(selectedProject?.endDate || '');
+
+  const [editingPhaseDateId, setEditingPhaseDateId] = useState(null);
+  const [editPhaseDateVal, setEditPhaseDateVal] = useState('');
+
+  const [editingTaskDateKey, setEditingTaskDateKey] = useState(null); // `${phaseId}_${taskId}`
+  const [editTaskDateVal, setEditTaskDateVal] = useState('');
+
+  const [editingTaskNoteKey, setEditingTaskNoteKey] = useState(null); // `${phaseId}_${taskId}`
+  const [editTaskNoteText, setEditTaskNoteText] = useState('');
+
+  const startEditPhaseDate = (phase) => {
+    setEditingPhaseDateId(phase.id);
+    setEditPhaseDateVal(phase.dateInfo || phase.startDate || '');
+  };
+
+  const savePhaseDate = (phaseId) => {
+    setProjectData((prev) => {
+      const updatedPhases = (prev.phases || []).map((p) =>
+        p.id === phaseId ? { ...p, dateInfo: editPhaseDateVal.trim() || 'Demnächst' } : p
+      );
+      return { ...prev, phases: updatedPhases };
+    });
+    setEditingPhaseDateId(null);
+  };
+
+  const startEditTaskDate = (task, phaseId) => {
+    setEditingTaskDateKey(`${phaseId}_${task.id}`);
+    setEditTaskDateVal(task.date || '');
+  };
+
+  const saveTaskDate = (phaseId, taskId) => {
+    setProjectData((prev) => {
+      const updatedPhases = (prev.phases || []).map((phase) => {
+        if (phase.id !== phaseId) return phase;
+        const updatedTasks = (phase.tasks || []).map((t) =>
+          t.id === taskId ? { ...t, date: editTaskDateVal.trim() || 'Geplant: Demnächst' } : t
+        );
+        return { ...phase, tasks: updatedTasks };
+      });
+      return { ...prev, phases: updatedPhases };
+    });
+    setEditingTaskDateKey(null);
+  };
+
+  const startEditTaskNote = (task, phaseId) => {
+    setEditingTaskNoteKey(`${phaseId}_${task.id}`);
+    setEditTaskNoteText(task.note || '');
+    setExpandedTasks((prev) => ({ ...prev, [task.id]: true }));
+  };
+
+  const saveTaskNote = (phaseId, taskId) => {
+    setProjectData((prev) => {
+      const updatedPhases = (prev.phases || []).map((phase) => {
+        if (phase.id !== phaseId) return phase;
+        const updatedTasks = (phase.tasks || []).map((t) =>
+          t.id === taskId ? { ...t, note: editTaskNoteText.trim() } : t
+        );
+        return { ...phase, tasks: updatedTasks };
+      });
+      return { ...prev, phases: updatedPhases };
+    });
+    setEditingTaskNoteKey(null);
+  };
+
+  const deleteTaskNote = (phaseId, taskId) => {
+    setProjectData((prev) => {
+      const updatedPhases = (prev.phases || []).map((phase) => {
+        if (phase.id !== phaseId) return phase;
+        const updatedTasks = (phase.tasks || []).map((t) =>
+          t.id === taskId ? { ...t, note: '' } : t
+        );
+        return { ...phase, tasks: updatedTasks };
+      });
+      return { ...prev, phases: updatedPhases };
+    });
+    setEditingTaskNoteKey(null);
+  };
 
   const handleSaveDates = () => {
     const startStr = editStartDate ? new Date(editStartDate).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '01.08.24';
@@ -130,32 +222,49 @@ const ProjectDetail = ({ setCurrentScreen }) => {
 
   const toggleTaskCompletion = (phaseId, taskId) => {
     setProjectData((prev) => {
-      let updatedCompletedCount = prev.tasksCompleted;
-      const updatedPhases = prev.phases.map((phase) => {
-        if (phase.id !== phaseId) return phase;
+      let updatedCompletedCount = 0;
+      const updatedPhases = (prev.phases || []).map((phase) => {
+        if (phase.id !== phaseId) {
+          const cInPhase = phase.tasks ? phase.tasks.filter((t) => t.completed).length : 0;
+          const tInPhase = phase.tasks ? phase.tasks.length : 0;
+          const pCompleted = tInPhase > 0 && cInPhase === tInPhase;
+          updatedCompletedCount += cInPhase;
+          return {
+            ...phase,
+            completed: pCompleted,
+            badgeText: pCompleted ? 'ERLEDIGT' : `${cInPhase}/${tInPhase} ERLEDIGT`
+          };
+        }
 
-        const updatedTasks = phase.tasks.map((task) => {
+        const updatedTasks = (phase.tasks || []).map((task) => {
           if (task.id !== taskId) return task;
           const nextCompleted = !task.completed;
-          if (nextCompleted) updatedCompletedCount++;
-          else updatedCompletedCount--;
           return { ...task, completed: nextCompleted };
         });
 
         const completedInPhase = updatedTasks.filter((t) => t.completed).length;
         const totalInPhase = updatedTasks.length;
         const phaseCompleted = totalInPhase > 0 && completedInPhase === totalInPhase;
+        updatedCompletedCount += completedInPhase;
 
         return {
           ...phase,
           completed: phaseCompleted,
-          badgeText: `${completedInPhase}/${totalInPhase} ERLEDIGT`,
+          badgeText: phaseCompleted ? 'ERLEDIGT' : `${completedInPhase}/${totalInPhase} ERLEDIGT`,
           tasks: updatedTasks
         };
       });
 
-      const totalTasks = prev.tasksTotal;
-      const progressPct = Math.round((updatedCompletedCount / totalTasks) * 100);
+      const totalTasks = updatedPhases.reduce((acc, p) => acc + (p.tasks ? p.tasks.length : 0), 0);
+      const completedPhasesCount = updatedPhases.filter((p) => p.completed).length;
+      const progressPct = totalTasks > 0 ? Math.round((updatedCompletedCount / totalTasks) * 100) : prev.progress;
+
+      let newStatus = prev.status;
+      if (totalTasks > 0 && updatedCompletedCount === totalTasks) {
+        newStatus = 'ABGESCHLOSSEN';
+      } else if (updatedCompletedCount < totalTasks && prev.status === 'ABGESCHLOSSEN') {
+        newStatus = 'AKTIV';
+      }
 
       // Add to history
       const newHistoryItem = {
@@ -169,7 +278,11 @@ const ProjectDetail = ({ setCurrentScreen }) => {
 
       return {
         ...prev,
+        status: newStatus,
         tasksCompleted: updatedCompletedCount,
+        tasksTotal: totalTasks,
+        phasesCompleted: completedPhasesCount,
+        phasesTotal: updatedPhases.length,
         progress: progressPct,
         tasksCountText: `(${updatedCompletedCount} / ${totalTasks} Tasks)`,
         history: [newHistoryItem, ...(prev.history || [])],
@@ -206,7 +319,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
     const newPhaseId = `ph_${Date.now()}`;
     const newPhase = {
       id: newPhaseId,
-      phaseNum: `Phase 0${projectData.phases.length + 1}`,
+      phaseNum: `Phase 0${(projectData.phases || []).length + 1}`,
       title: newPhaseTitle.trim(),
       badgeText: '0/0 ERLEDIGT',
       completed: false,
@@ -214,22 +327,28 @@ const ProjectDetail = ({ setCurrentScreen }) => {
       tasks: []
     };
 
-    setProjectData((prev) => ({
-      ...prev,
-      phasesTotal: prev.phasesTotal + 1,
-      history: [
-        {
-          id: `h_${Date.now()}`,
-          timestamp: 'HEUTE • gerade eben',
-          text: `Neue Phase angelegt: '${newPhaseTitle.trim()}'`,
-          phase: 'Projekt-Fortschritt',
-          icon: 'flag',
-          iconStyle: 'bg-surface-low border border-outline-variant rounded-lg text-primary'
-        },
-        ...(prev.history || [])
-      ],
-      phases: [...prev.phases, newPhase]
-    }));
+    setProjectData((prev) => {
+      const updatedPhases = [...(prev.phases || []), newPhase];
+      const completedPhasesCount = updatedPhases.filter((p) => p.completed).length;
+
+      return {
+        ...prev,
+        phasesTotal: updatedPhases.length,
+        phasesCompleted: completedPhasesCount,
+        history: [
+          {
+            id: `h_${Date.now()}`,
+            timestamp: 'HEUTE • gerade eben',
+            text: `Neue Phase angelegt: '${newPhaseTitle.trim()}'`,
+            phase: 'Projekt-Fortschritt',
+            icon: 'flag',
+            iconStyle: 'bg-surface-low border border-outline-variant rounded-lg text-primary'
+          },
+          ...(prev.history || [])
+        ],
+        phases: updatedPhases
+      };
+    });
 
     setNewPhaseTitle('');
     setNewPhaseDesc('');
@@ -252,22 +371,39 @@ const ProjectDetail = ({ setCurrentScreen }) => {
     };
 
     setProjectData((prev) => {
-      const updatedTasksTotal = prev.tasksTotal + 1;
-      const updatedPhases = prev.phases.map((phase) => {
+      const updatedPhases = (prev.phases || []).map((phase) => {
         if (phase.id !== activePhaseIdForTask) return phase;
-        const updatedTasks = [...phase.tasks, newTask];
+        const updatedTasks = [...(phase.tasks || []), newTask];
         const completedInPhase = updatedTasks.filter((t) => t.completed).length;
+        const totalInPhase = updatedTasks.length;
+        const phaseCompleted = totalInPhase > 0 && completedInPhase === totalInPhase;
         return {
           ...phase,
-          badgeText: `${completedInPhase}/${updatedTasks.length} ERLEDIGT`,
+          completed: phaseCompleted,
+          badgeText: phaseCompleted ? 'ERLEDIGT' : `${completedInPhase}/${totalInPhase} ERLEDIGT`,
           tasks: updatedTasks
         };
       });
 
+      const totalTasks = updatedPhases.reduce((acc, p) => acc + (p.tasks ? p.tasks.length : 0), 0);
+      const completedTasks = updatedPhases.reduce((acc, p) => acc + (p.tasks ? p.tasks.filter((t) => t.completed).length : 0), 0);
+      const completedPhasesCount = updatedPhases.filter((p) => p.completed).length;
+      const progressPct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : prev.progress;
+
+      let newStatus = prev.status;
+      if (completedTasks < totalTasks && prev.status === 'ABGESCHLOSSEN') {
+        newStatus = 'AKTIV';
+      }
+
       return {
         ...prev,
-        tasksTotal: updatedTasksTotal,
-        tasksCountText: `(${prev.tasksCompleted} / ${updatedTasksTotal} Tasks)`,
+        status: newStatus,
+        tasksTotal: totalTasks,
+        tasksCompleted: completedTasks,
+        phasesCompleted: completedPhasesCount,
+        phasesTotal: updatedPhases.length,
+        progress: progressPct,
+        tasksCountText: `(${completedTasks} / ${totalTasks} Tasks)`,
         phases: updatedPhases
       };
     });
@@ -356,6 +492,19 @@ const ProjectDetail = ({ setCurrentScreen }) => {
             <span className="material-symbols-outlined text-[16px]">arrow_back</span>
             Zurück zur Übersicht
           </button>
+
+          {isTrashed && (
+            <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-start gap-3">
+              <span className="material-symbols-outlined text-red-600 mt-0.5">delete</span>
+              <div>
+                <p className="font-bold text-sm">Projekt im Papierkorb</p>
+                <p className="text-xs mt-1">Dieses Projekt wurde gelöscht. Um es wieder richtig zu bearbeiten, stelle es im Papierkorb wieder her.</p>
+              </div>
+            </div>
+          )}
+
+          {/* Read-Only Wrapper for Trashed Items */}
+          <div className={isTrashed ? 'pointer-events-none opacity-60 grayscale-[0.2]' : ''}>
 
           {/* Header Title with Interactive Status Toggle & History Button */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
@@ -651,10 +800,27 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                       {isCollapsed ? 'chevron_right' : 'expand_more'}
                     </span>
                     <div className="min-w-0">
-                      <span className="text-[10px] font-mono text-on-surface-variant uppercase font-bold block">
-                        {phase.phaseNum}
-                      </span>
-                      <h3 className="text-base sm:text-lg font-bold group-hover:underline truncate">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[10px] font-mono text-on-surface-variant uppercase font-bold block">
+                          {phase.phaseNum}
+                        </span>
+                        <span className="text-[10px] font-mono text-primary bg-primary/5 px-2 py-0.5 rounded border border-primary/20 flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[11px]">calendar_today</span>
+                          <span>{phase.dateInfo || 'Termin festlegen'}</span>
+                        </span>
+                        <button
+                          type="button"
+                          title="Phasentermin bearbeiten"
+                          className="p-0.5 text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            startEditPhaseDate(phase);
+                          }}
+                        >
+                          <span className="material-symbols-outlined text-[14px]">edit_calendar</span>
+                        </button>
+                      </div>
+                      <h3 className="text-base sm:text-lg font-bold group-hover:underline truncate mt-0.5">
                         {phase.title}
                       </h3>
                     </div>
@@ -663,6 +829,31 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                     {phase.badgeText}
                   </span>
                 </div>
+
+                {/* Inline Phase Date Editor */}
+                {editingPhaseDateId === phase.id && (
+                  <div className="p-3 bg-surface-low border border-primary rounded-xl space-y-2 my-2 cursor-default" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-between text-xs font-mono font-bold text-primary">
+                      <span className="flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[16px]">edit_calendar</span>
+                        <span>START- & ENDTERMIN DER PHASE BEARBEITEN</span>
+                      </span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                      <input
+                        type="text"
+                        className="w-full border border-outline-variant px-3 py-1.5 text-xs font-mono rounded-lg bg-white focus:border-primary outline-none"
+                        placeholder="z.B. 01. – 15. Mai 2024"
+                        value={editPhaseDateVal}
+                        onChange={(e) => setEditPhaseDateVal(e.target.value)}
+                      />
+                      <div className="flex gap-2">
+                        <button onClick={() => savePhaseDate(phase.id)} className="px-3.5 py-1.5 bg-primary text-white text-xs font-mono font-bold rounded-lg whitespace-nowrap cursor-pointer shadow-sm">Speichern</button>
+                        <button onClick={() => setEditingPhaseDateId(null)} className="px-3.5 py-1.5 border border-outline-variant text-xs font-mono font-bold rounded-lg text-on-surface-variant whitespace-nowrap cursor-pointer">Abbrechen</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Phase Body */}
                 {!isCollapsed && (
@@ -700,7 +891,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                         }}
                       >
                         <span className="material-symbols-outlined text-[14px]">add</span>
-                        <span>Link hinzufügen</span>
+                        <span>Link / Datei hinzufügen</span>
                       </button>
                     </div>
 
@@ -708,8 +899,10 @@ const ProjectDetail = ({ setCurrentScreen }) => {
 
                     {/* Task List */}
                     <div className="space-y-3">
-                      {phase.tasks.map((task) => {
+                      {(phase.tasks || []).map((task) => {
                         const isTaskExpanded = expandedTasks[task.id];
+                        const isEditingTaskDate = editingTaskDateKey === `${phase.id}_${task.id}`;
+                        const isEditingTaskNote = editingTaskNoteKey === `${phase.id}_${task.id}`;
 
                         return (
                           <div
@@ -733,9 +926,49 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                                   >
                                     {task.title}
                                   </span>
-                                  <span className="text-[10px] sm:text-[11px] font-mono text-on-surface-variant block mt-0.5 font-normal">
-                                    {task.date}
-                                  </span>
+
+                                  {/* Task Date Display & Inline Date Editor */}
+                                  {isEditingTaskDate ? (
+                                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-1.5">
+                                      <input
+                                        type="text"
+                                        className="border border-outline-variant px-2.5 py-1 text-xs font-mono rounded-lg bg-white w-full max-w-xs focus:border-primary outline-none"
+                                        placeholder="z.B. Freitag, 17. Mai"
+                                        value={editTaskDateVal}
+                                        onChange={(e) => setEditTaskDateVal(e.target.value)}
+                                      />
+                                      <div className="flex gap-1.5">
+                                        <button
+                                          type="button"
+                                          onClick={() => saveTaskDate(phase.id, task.id)}
+                                          className="px-2.5 py-1 text-[11px] font-mono font-bold bg-primary text-white rounded-lg cursor-pointer shadow-sm"
+                                        >
+                                          Speichern
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => setEditingTaskDateKey(null)}
+                                          className="px-2.5 py-1 text-[11px] font-mono border border-outline-variant rounded-lg text-on-surface-variant cursor-pointer"
+                                        >
+                                          Abbrechen
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                      <span className="text-[10px] sm:text-[11px] font-mono text-on-surface-variant font-normal">
+                                        🗓️ {task.date || 'Geplant: Demnächst'}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        title="Termin für diesen Unterpunkt bearbeiten"
+                                        className="p-0.5 text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
+                                        onClick={() => startEditTaskDate(task, phase.id)}
+                                      >
+                                        <span className="material-symbols-outlined text-[13px]">edit_calendar</span>
+                                      </button>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                               <button
@@ -752,19 +985,81 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                             {/* Task Details Accordion Body */}
                             {isTaskExpanded && (
                               <div className="task-details-body pt-1.5 space-y-2 border-t border-outline-variant/60 mt-2">
-                                {task.note && (
-                                  <div className="p-2 bg-white border border-outline-variant rounded-xl text-xs space-y-1 shadow-sm">
-                                    <div className="flex items-center justify-between text-[10px] font-mono text-on-surface-variant font-bold border-b border-outline-variant/60 pb-1">
-                                      <span className="flex items-center gap-1">
-                                        <span className="material-symbols-outlined text-[13px] text-primary">
-                                          sticky_note_2
-                                        </span>
-                                        <span>ANMERKUNG / NOTIZ:</span>
+                                {/* Task Note Inline Editor */}
+                                {isEditingTaskNote ? (
+                                  <div className="p-3 bg-white border-2 border-primary rounded-xl space-y-2 shadow-sm my-2">
+                                    <div className="flex items-center justify-between text-xs font-mono font-bold text-primary border-b border-outline-variant/60 pb-1.5">
+                                      <span className="flex items-center gap-1.5">
+                                        <span className="material-symbols-outlined text-[16px] text-primary">sticky_note_2</span>
+                                        <span>NOTIZ / ANMERKUNG BEARBEITEN</span>
                                       </span>
-                                      <span className="text-[9px]">HEUTE</span>
                                     </div>
-                                    <p className="text-primary text-[11px] leading-tight">{task.note}</p>
+                                    <textarea
+                                      rows={3}
+                                      className="w-full border border-outline-variant p-2.5 text-xs focus:border-primary outline-none rounded-lg font-sans"
+                                      placeholder="Gedanken, Notizen oder Details zu dieser Aufgabe..."
+                                      value={editTaskNoteText}
+                                      onChange={(e) => setEditTaskNoteText(e.target.value)}
+                                    />
+                                    <div className="flex items-center justify-between pt-1">
+                                      {task.note ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => deleteTaskNote(phase.id, task.id)}
+                                          className="text-xs text-red-600 hover:underline font-mono font-bold flex items-center gap-1 cursor-pointer"
+                                        >
+                                          <span className="material-symbols-outlined text-[14px]">delete</span>
+                                          <span>Notiz löschen</span>
+                                        </button>
+                                      ) : <div />}
+                                      <div className="flex gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => setEditingTaskNoteKey(null)}
+                                          className="px-3 py-1 text-xs border border-outline-variant rounded-lg font-mono font-bold text-on-surface-variant cursor-pointer"
+                                        >
+                                          Abbrechen
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => saveTaskNote(phase.id, task.id)}
+                                          className="px-3.5 py-1 text-xs bg-primary text-white rounded-lg font-mono font-bold cursor-pointer shadow-sm"
+                                        >
+                                          Speichern
+                                        </button>
+                                      </div>
+                                    </div>
                                   </div>
+                                ) : (
+                                  task.note && (
+                                    <div className="p-2.5 bg-white border border-outline-variant rounded-xl text-xs space-y-1.5 shadow-sm">
+                                      <div className="flex items-center justify-between text-[10px] font-mono text-on-surface-variant font-bold border-b border-outline-variant/60 pb-1">
+                                        <span className="flex items-center gap-1 text-primary">
+                                          <span className="material-symbols-outlined text-[14px]">sticky_note_2</span>
+                                          <span>ANMERKUNG / NOTIZ:</span>
+                                        </span>
+                                        <div className="flex items-center gap-1">
+                                          <button
+                                            type="button"
+                                            title="Notiz bearbeiten"
+                                            onClick={() => startEditTaskNote(task, phase.id)}
+                                            className="p-0.5 text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
+                                          >
+                                            <span className="material-symbols-outlined text-[13px]">edit</span>
+                                          </button>
+                                          <button
+                                            type="button"
+                                            title="Notiz löschen"
+                                            onClick={() => deleteTaskNote(phase.id, task.id)}
+                                            className="p-0.5 text-on-surface-variant hover:text-red-600 transition-colors cursor-pointer"
+                                          >
+                                            <span className="material-symbols-outlined text-[13px]">delete</span>
+                                          </button>
+                                        </div>
+                                      </div>
+                                      <p className="text-primary text-[11px] leading-relaxed whitespace-pre-wrap">{task.note}</p>
+                                    </div>
+                                  )
                                 )}
 
                                 {task.links && task.links.length > 0 && (
@@ -791,14 +1086,16 @@ const ProjectDetail = ({ setCurrentScreen }) => {
 
                                 <div className="flex items-center gap-3 pt-0.5 flex-wrap">
                                   <button
+                                    type="button"
                                     className="text-[11px] font-mono text-primary hover:underline flex items-center gap-1 font-bold cursor-pointer"
-                                    onClick={() => handleAddNoteToTask(phase.id, task.id)}
+                                    onClick={() => startEditTaskNote(task, phase.id)}
                                   >
                                     <span className="material-symbols-outlined text-[13px]">add_comment</span>
-                                    <span>Notiz hinzufügen</span>
+                                    <span>{task.note ? 'Notiz bearbeiten' : 'Notiz hinzufügen'}</span>
                                   </button>
                                   <span className="text-outline-variant hidden sm:inline">•</span>
                                   <button
+                                    type="button"
                                     className="text-[11px] font-mono text-on-surface-variant hover:text-primary flex items-center gap-1 cursor-pointer"
                                     onClick={() => {
                                       setActiveTargetForMaterial({ type: 'task', phaseId: phase.id, taskId: task.id });
@@ -806,7 +1103,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                                     }}
                                   >
                                     <span className="material-symbols-outlined text-[13px]">link</span>
-                                    <span>Link hinzufügen</span>
+                                    <span>Link / Datei hinzufügen</span>
                                   </button>
                                 </div>
                               </div>
@@ -1059,76 +1356,100 @@ const ProjectDetail = ({ setCurrentScreen }) => {
 
       {/* 4. MATERIAL / LINK MODAL */}
       {showMaterialModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border-2 border-primary w-full max-w-lg p-5 sm:p-6 space-y-4 shadow-2xl relative">
-            <div className="flex items-center justify-between border-b border-outline-variant pb-3">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="material-symbols-outlined text-[22px] text-primary">upload_file</span>
-                <h2 className="text-xs sm:text-sm font-bold font-mono uppercase truncate">
-                  MATERIAL / DOKUMENT ANHÄNGEN
-                </h2>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-primary/20 w-full max-w-lg p-6 space-y-5 shadow-2xl rounded-2xl relative animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-outline-variant pb-3.5">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[20px]">attach_file</span>
+                </div>
+                <div>
+                  <h2 className="text-sm sm:text-base font-bold font-mono text-primary uppercase tracking-wider">
+                    MATERIAL / DOKUMENT ANHÄNGEN
+                  </h2>
+                  <p className="text-[11px] text-on-surface-variant font-normal">Dateien, Dokumente oder Web-Links zum Projekt hinzufügen</p>
+                </div>
               </div>
               <button
-                className="p-1 hover:bg-surface-low border border-outline-variant rounded-lg transition-colors cursor-pointer"
+                className="p-1.5 hover:bg-surface-low rounded-xl text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
                 onClick={() => setShowMaterialModal(false)}
               >
-                <span className="material-symbols-outlined text-[18px]">close</span>
+                <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
             </div>
 
             <form onSubmit={handleMaterialSubmit} className="space-y-4">
               <div
-                className="border-2 border-dashed border-primary/50 bg-surface-low p-6 text-center space-y-2 hover:border-primary transition-colors cursor-pointer relative"
+                className="border-2 border-dashed border-outline-variant hover:border-primary bg-surface-low/50 hover:bg-surface-low rounded-xl p-6 text-center space-y-3 transition-all cursor-pointer relative"
                 onClick={() => {
-                  const name = window.prompt('Dateiname oder Link eingeben:');
-                  if (name) setNewMaterialName(name);
+                  if (localFileInputRef.current) {
+                    localFileInputRef.current.click();
+                  }
                 }}
               >
-                <div className="w-10 h-10 bg-white border border-outline-variant rounded-xl rounded-full flex items-center justify-center mx-auto text-primary">
-                  <span className="material-symbols-outlined text-[22px]">cloud_upload</span>
+                <input
+                  type="file"
+                  ref={localFileInputRef}
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      setNewMaterialName(e.target.files[0].name);
+                    }
+                  }}
+                />
+                <div className="w-12 h-12 bg-primary text-on-primary rounded-full flex items-center justify-center mx-auto shadow-md">
+                  <span className="material-symbols-outlined text-[24px]">cloud_upload</span>
                 </div>
                 <div>
-                  <p className="text-xs font-mono font-bold text-primary">DATEI HIERHER ZIEHEN ODER KLICKEN</p>
-                  <p className="text-[11px] text-on-surface-variant mt-0.5">Unterstützt Dokumente, Bilder, PDFs (max. 25 MB)</p>
+                  <p className="text-xs font-mono font-bold text-primary">DATEI AUSWÄHLEN ODER HIERHER ZIEHEN</p>
+                  <p className="text-[11px] text-on-surface-variant mt-1">Unterstützt Dokumente, Bilder, PDFs, Markdown (max. 25 MB)</p>
                 </div>
-                <div className="inline-block px-2.5 py-1 bg-white border border-outline-variant rounded-xl text-[10px] font-mono text-primary font-bold">
-                  💡 TIPP: <kbd className="px-1 bg-surface-low border rounded">Strg</kbd> + <kbd className="px-1 bg-surface-low border rounded">V</kbd> um Bild aus Zwischenablage einzufügen
+                <div className="inline-flex items-center gap-1 px-3 py-1 bg-white border border-outline-variant rounded-lg text-[10px] font-mono text-primary font-bold shadow-sm">
+                  <span>💡 TIPP:</span>
+                  <kbd className="px-1 py-0.5 bg-surface-low border border-outline-variant rounded text-[9px]">Strg</kbd>
+                  <span>+</span>
+                  <kbd className="px-1 py-0.5 bg-surface-low border border-outline-variant rounded text-[9px]">V</kbd>
+                  <span>Bild einfügen</span>
                 </div>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <label className="block text-xs font-mono font-bold text-primary uppercase">
-                  ODER WEB-LINK / DOKUMENTEN-NAME *
+                  WEB-LINK ODER DOKUMENTEN-NAME *
                 </label>
                 <input
                   type="text"
                   required
                   value={newMaterialName}
                   onChange={(e) => setNewMaterialName(e.target.value)}
-                  className="w-full border border-outline-variant px-3 py-2 text-xs focus:border-primary outline-none"
+                  className="w-full border border-outline-variant px-3 py-2 text-xs rounded-lg focus:border-primary outline-none bg-white font-sans"
                   placeholder="z.B. Briefing-Dokument.pdf oder https://..."
                 />
               </div>
 
-              <div className="border-t border-outline-variant pt-4 flex items-center justify-end gap-2">
+              <div className="border-t border-outline-variant pt-4 flex items-center justify-end gap-2.5">
                 <button
                   type="button"
-                  className="px-4 py-2 border border-outline-variant text-xs font-mono font-bold text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
+                  className="px-4 py-2 border border-outline-variant rounded-xl text-xs font-mono font-bold text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
                   onClick={() => setShowMaterialModal(false)}
                 >
                   ABBRECHEN
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-primary text-white text-xs font-mono font-bold hover:bg-neutral-800 transition-colors shadow-sm cursor-pointer"
+                  className="px-5 py-2 bg-primary text-white rounded-xl text-xs font-mono font-bold hover:bg-neutral-800 transition-colors shadow-md flex items-center gap-1.5 cursor-pointer"
                 >
-                  ANHÄNGEN
+                  <span className="material-symbols-outlined text-[16px]">add_link</span>
+                  <span>ANHÄNGEN</span>
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
+      
+      {/* End of Read-Only Wrapper */}
+      </div>
     </div>
   );
 };

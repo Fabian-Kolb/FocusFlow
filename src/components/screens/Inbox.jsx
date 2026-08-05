@@ -292,9 +292,18 @@ const Inbox = ({ setCurrentScreen }) => {
     <div className="screen-transition">
       <div className="w-full mx-auto space-y-6 sm:space-y-8">
         <Card className="border-primary flex flex-col gap-3">
-          <label className="text-xs font-mono block uppercase tracking-wider text-on-surface-variant">
-            WAS GEHT DIR DURCH DEN KOPF?
-          </label>
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-mono block uppercase tracking-wider text-on-surface-variant">
+              WAS GEHT DIR DURCH DEN KOPF?
+            </label>
+            <button
+              onClick={() => setCurrentScreen('trash')}
+              className="flex items-center justify-center p-1.5 text-on-surface-variant hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-200"
+              title="Papierkorb öffnen"
+            >
+              <span className="material-symbols-outlined text-[20px]">delete</span>
+            </button>
+          </div>
 
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 items-start sm:items-end">
             <div className="flex-grow flex items-end gap-2 w-full">

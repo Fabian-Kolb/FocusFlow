@@ -1,11 +1,47 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useModalContext } from '../../context/ModalContext';
 
 const ReminderDetail = ({ setCurrentScreen }) => {
-  const { reminders, selectedReminderId, toggleReminderStatus, setReminderStatus, setActiveCoachScope, toggleReminderPause } = useModalContext();
+  const { reminders, trashItems, selectedReminderId, toggleReminderStatus, setReminderStatus, setActiveCoachScope, toggleReminderPause, mutateReminder } = useModalContext();
   const [isStructuring, setIsStructuring] = useState(false);
 
-  const reminder = reminders.find(r => r.id === selectedReminderId);
+  const reminder = reminders.find(r => r.id === selectedReminderId) || (trashItems && trashItems.find(r => r.id === selectedReminderId));
+  const isTrashed = !!reminder?.deletedAt;
+
+  if (!reminder) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-12 text-center text-on-surface-variant">
+        <span className="material-symbols-outlined text-6xl mb-4 opacity-50">notifications_off</span>
+        <h2 className="text-xl font-bold mb-2">Erinnerung nicht gefunden</h2>
+        <p className="mb-6">Die Erinnerung wurde möglicherweise gelöscht.</p>
+        <button onClick={() => setCurrentScreen('reminders')} className="px-4 py-2 bg-primary text-on-primary rounded-xl font-bold">Zurück zur Übersicht</button>
+      </div>
+    );
+  }
+
+  // States for Editing Dates
+  const [isEditingDates, setIsEditingDates] = useState(false);
+  const [editDate, setEditDate] = useState(reminder?.date || '');
+  const [editTime, setEditTime] = useState(reminder?.time || '');
+
+  // Reset local state if another reminder is selected
+  useEffect(() => {
+    if (reminder) {
+      setEditDate(reminder.date || '');
+      setEditTime(reminder.time || '');
+    }
+  }, [reminder]);
+
+  const handleSaveDates = () => {
+    if (mutateReminder && reminder) {
+      mutateReminder(reminder.id, (rem) => ({
+        ...rem,
+        date: editDate,
+        time: editTime
+      }));
+    }
+    setIsEditingDates(false);
+  };
 
   if (!reminder) {
     return (
@@ -48,6 +84,7 @@ const ReminderDetail = ({ setCurrentScreen }) => {
   let isOverdue = false;
   let isToday = false;
   let isCompleted = reminder.status === 'ABGESCHLOSSEN';
+  let timeElapsed = 50;
 
   if (reminder.date && reminder.date !== 'Demnächst' && reminder.date !== 'Heute' && reminder.date !== 'Morgen') {
     // Attempt to parse YYYY-MM-DD
@@ -58,6 +95,14 @@ const ReminderDetail = ({ setCurrentScreen }) => {
       const diffMs = targetDate - now;
       const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
       
+      if (reminder.createdAt) {
+          const start = reminder.createdAt;
+          const end = targetDate.getTime();
+          const nowTime = Date.now();
+          if (nowTime >= end) timeElapsed = 100;
+          else if (nowTime <= start) timeElapsed = 0;
+          else timeElapsed = Math.round(((nowTime - start) / (end - start)) * 100);
+      }
       if (!isCompleted) {
         if (diffDays < 0) {
           daysRemainingText = `${Math.abs(diffDays)} Tage überfällig`;
@@ -97,6 +142,19 @@ const ReminderDetail = ({ setCurrentScreen }) => {
             <span className="material-symbols-outlined text-[16px]">arrow_back</span>
             Zurück zur Übersicht
           </button>
+
+          {isTrashed && (
+            <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-start gap-3">
+              <span className="material-symbols-outlined text-red-600 mt-0.5">delete</span>
+              <div>
+                <p className="font-bold text-sm">Erinnerung im Papierkorb</p>
+                <p className="text-xs mt-1">Diese Erinnerung wurde gelöscht. Um sie wieder richtig zu bearbeiten, stelle sie im Papierkorb wieder her.</p>
+              </div>
+            </div>
+          )}
+
+          {/* Read-Only Wrapper for Trashed Items */}
+          <div className={isTrashed ? 'pointer-events-none opacity-60 grayscale-[0.2]' : ''}>
 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <div className="flex flex-col gap-1">
@@ -139,19 +197,56 @@ const ReminderDetail = ({ setCurrentScreen }) => {
             </div>
           </div>
 
-          {/* BOX 1: Fälligkeit */}
-          <div className={`p-3.5 sm:p-5 border rounded-xl space-y-3 shadow-sm mb-4 transition-colors duration-300 ${isOverdue ? 'bg-red-50 border-red-200' : isToday ? 'bg-amber-50 border-amber-200' : isCompleted ? 'bg-surface-low border-outline-variant opacity-80' : 'bg-white border-outline-variant'}`}>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2">
+          {/* BOX 1: Zeitspanne & Balken-System */}
+          <div className="p-3.5 sm:p-5 bg-white border border-outline-variant rounded-xl space-y-3 shadow-sm mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2 border-b border-outline-variant pb-2.5">
+              <span className="text-xs font-mono font-bold text-primary uppercase whitespace-nowrap">
+                ZEITSPANNE & BALKEN-SYSTEM
+              </span>
               <div className="flex items-center gap-2">
-                 <span className={`material-symbols-outlined text-[18px] ${isOverdue ? 'text-red-600' : isToday ? 'text-amber-600' : 'text-primary'}`}>
-                    {isCompleted ? 'check_circle' : isOverdue ? 'error' : 'event'}
-                 </span>
-                 <span className={`text-xs font-mono font-bold uppercase whitespace-nowrap ${isOverdue ? 'text-red-700' : isToday ? 'text-amber-700' : 'text-primary'}`}>
-                   FÄLLIGKEIT
-                 </span>
+                {isEditingDates ? (
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="date" 
+                      className="text-[10px] sm:text-[11px] border border-outline-variant rounded px-1 py-0.5 outline-none focus:border-primary" 
+                      value={editDate} 
+                      onChange={(e) => setEditDate(e.target.value)} 
+                    />
+                    <input 
+                      type="time" 
+                      className="text-[10px] sm:text-[11px] border border-outline-variant rounded px-1 py-0.5 outline-none focus:border-primary" 
+                      value={editTime} 
+                      onChange={(e) => setEditTime(e.target.value)} 
+                    />
+                    <button onClick={handleSaveDates} className="text-primary hover:bg-surface-low rounded p-0.5 transition-colors">
+                      <span className="material-symbols-outlined text-[14px]">check</span>
+                    </button>
+                    <button onClick={() => setIsEditingDates(false)} className="text-red-500 hover:bg-red-50 rounded p-0.5 transition-colors">
+                      <span className="material-symbols-outlined text-[14px]">close</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <div className="no-wrap-scroll text-[11px] sm:text-xs mono font-bold text-primary">
+                      <span>{dateText} {daysRemainingText && `(${daysRemainingText})`}</span>
+                    </div>
+                    <button onClick={() => setIsEditingDates(true)} className="text-on-surface-variant hover:text-primary transition-colors flex items-center justify-center p-0.5" title="Datum bearbeiten">
+                      <span className="material-symbols-outlined text-[14px]">edit</span>
+                    </button>
+                  </div>
+                )}
               </div>
-              <div className={`text-[12px] sm:text-sm mono font-bold ${isOverdue ? 'text-red-700' : isToday ? 'text-amber-700' : 'text-primary'}`}>
-                <span>{dateText} {daysRemainingText && `(${daysRemainingText})`}</span>
+            </div>
+
+            <div className="space-y-2">
+              <div>
+                <div className="flex justify-between text-[10px] sm:text-[11px] mono text-on-surface-variant mb-1 flex-wrap gap-1">
+                  <span>VERSTRICHENE ZEIT: {timeElapsed}%</span>
+                  <span>{daysRemainingText || 'Demnächst'}</span>
+                </div>
+                <div className="w-full bg-surface-low h-2 border border-outline-variant rounded-full overflow-hidden">
+                  <div className="bg-primary h-full rounded-full transition-all duration-300" style={{ width: `${timeElapsed}%` }}></div>
+                </div>
               </div>
             </div>
           </div>
@@ -229,6 +324,9 @@ const ReminderDetail = ({ setCurrentScreen }) => {
             </div>
           </div>
 
+        </div>
+        
+        {/* End of Read-Only Wrapper */}
         </div>
       </div>
     </div>

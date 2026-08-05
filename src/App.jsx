@@ -25,17 +25,32 @@ import Login from './components/screens/Login';
 import ProjectsBoard from './components/screens/ProjectsBoard';
 import Reminders from './components/screens/Reminders';
 import ReminderDetail from './components/screens/ReminderDetail';
+import Trash from './components/screens/Trash';
 
 function AppContent() {
   const [currentScreen, setCurrentScreen] = useState('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { user } = useAuth();
 
+  const screenTitles = {
+    dashboard: 'Dashboard',
+    inbox: 'Inbox',
+    reminders: 'Erinnerungen',
+    projects: 'Projekte',
+    board: 'Kanban Board',
+    'project-detail': 'Projekt Details',
+    calendar: 'Kalender',
+    coach: 'AI Coach',
+    review: 'Wöchentlicher Rückblick',
+    trash: 'Papierkorb'
+  };
+
+  const title = screenTitles[currentScreen] || 'FocusFlow';
+
   // If the user is not logged in, render only the Login screen
   if (!user) {
     return <Login />;
   }
-
 
   return (
     <div className="flex h-screen overflow-hidden bg-surface text-primary antialiased font-sans">
@@ -58,6 +73,7 @@ function AppContent() {
           {currentScreen === 'calendar' && <Calendar />}
           {currentScreen === 'coach' && <Coach />}
           {currentScreen === 'review' && <Review />}
+          {currentScreen === 'trash' && <Trash setCurrentScreen={setCurrentScreen} />}
         </div>
       </main>
 

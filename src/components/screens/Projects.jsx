@@ -45,9 +45,18 @@ const Projects = ({ setCurrentScreen }) => {
             placeholder="Projekte durchsuchen..."
           />
         </div>
-        <Button onClick={() => openModal('project')}>
-          Neues Projekt
-        </Button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setCurrentScreen('trash')}
+            className="flex items-center justify-center p-2 text-on-surface-variant hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors border border-transparent hover:border-red-200"
+            title="Papierkorb öffnen"
+          >
+            <span className="material-symbols-outlined text-[24px]">delete</span>
+          </button>
+          <Button onClick={() => openModal('project')}>
+            Neues Projekt
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">

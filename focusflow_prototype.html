@@ -2607,6 +2607,19 @@
                 if (text) text.classList.remove('line-through');
                 container.setAttribute('data-completed', 'false');
             }
+
+            const phaseCard = container.closest('.phase-card');
+            if (phaseCard) {
+                const taskItems = phaseCard.querySelectorAll('.task-item');
+                const completedItems = phaseCard.querySelectorAll('.task-item[data-completed="true"]');
+                const isAllCompleted = taskItems.length > 0 && completedItems.length === taskItems.length;
+                phaseCard.setAttribute('data-phase-completed', isAllCompleted ? 'true' : 'false');
+
+                const badge = phaseCard.querySelector('span[id$="-badge"]');
+                if (badge) {
+                    badge.textContent = isAllCompleted ? 'ERLEDIGT' : `${completedItems.length}/${taskItems.length} ERLEDIGT`;
+                }
+            }
         }
     </script>
 </body>

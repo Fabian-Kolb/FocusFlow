@@ -17,6 +17,7 @@ const Sidebar = ({ currentScreen, setCurrentScreen, collapsed, setCollapsed }) =
     { id: 'calendar', label: 'Kalender', icon: 'calendar_today' },
     { id: 'coach', label: 'AI Coach', icon: 'smart_toy' },
     { id: 'review', label: 'Wochenrückblick', icon: 'analytics' },
+    { id: 'trash', label: 'Papierkorb', icon: 'delete' },
   ];
 
   return (
