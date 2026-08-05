@@ -220,7 +220,7 @@ const Inbox = ({ setCurrentScreen }) => {
 
   return (
     <div className="screen-transition">
-      <div className="max-w-4xl mx-auto space-y-6 sm:space-y-8">
+      <div className="w-full mx-auto space-y-6 sm:space-y-8">
         <Card className="border-primary flex flex-col gap-3">
           <label className="text-xs font-mono block uppercase tracking-wider text-on-surface-variant">
             WAS GEHT DIR DURCH DEN KOPF?

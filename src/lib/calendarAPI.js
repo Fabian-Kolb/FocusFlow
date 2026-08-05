@@ -3,6 +3,14 @@
 
 const BASE_URL = 'https://www.googleapis.com/calendar/v3';
 
+// Spezieller Fehlertyp für abgelaufene Tokens (HTTP 401)
+export class TokenExpiredError extends Error {
+  constructor() {
+    super('Google access token expired');
+    this.name = 'TokenExpiredError';
+  }
+}
+
 /**
  * Holt die kommenden Termine aus dem Hauptkalender
  */
@@ -38,6 +46,7 @@ export async function fetchCalendarEvents(accessToken, year, monthIndex) {
   );
 
   if (!response.ok) {
+    if (response.status === 401) throw new TokenExpiredError();
     throw new Error(`Failed to fetch events: ${response.statusText}`);
   }
 
@@ -90,6 +99,7 @@ export async function createCalendarEvent(accessToken, eventData) {
   });
 
   if (!response.ok) {
+    if (response.status === 401) throw new TokenExpiredError();
     throw new Error(`Failed to create event: ${response.statusText}`);
   }
 
@@ -141,6 +151,7 @@ export async function updateCalendarEvent(accessToken, eventId, eventData) {
   });
 
   if (!response.ok) {
+    if (response.status === 401) throw new TokenExpiredError();
     throw new Error(`Failed to update event: ${response.statusText}`);
   }
 
@@ -161,6 +172,7 @@ export async function deleteCalendarEvent(accessToken, eventId) {
   });
 
   if (!response.ok) {
+    if (response.status === 401) throw new TokenExpiredError();
     throw new Error(`Failed to delete event: ${response.statusText}`);
   }
 

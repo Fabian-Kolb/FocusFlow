@@ -46,7 +46,7 @@ function AppContent() {
       />
 
       <main className="flex-grow min-w-0 overflow-y-auto relative pb-20 md:pb-0 h-full flex flex-col">
-        <div className={`mx-auto w-full flex-grow flex flex-col ${currentScreen === 'board' ? 'px-2 sm:px-4 md:px-8 py-4 sm:py-8' : currentScreen === 'coach' ? 'p-0 max-w-none' : 'max-w-[1400px] px-2 sm:px-4 md:px-8 py-4 sm:py-8'}`}>
+        <div className={`mx-auto w-full flex-grow flex flex-col ${currentScreen === 'coach' ? 'p-0 max-w-none' : 'max-w-none px-2 sm:px-4 md:px-8 py-4 sm:py-8'}`}>
           {currentScreen === 'dashboard' && <Dashboard setCurrentScreen={setCurrentScreen} />}
           {currentScreen === 'inbox' && <Inbox setCurrentScreen={setCurrentScreen} />}
           {currentScreen === 'reminders' && <Reminders setCurrentScreen={setCurrentScreen} />}

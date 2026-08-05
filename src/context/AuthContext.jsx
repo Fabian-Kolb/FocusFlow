@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { 
   onAuthStateChanged, 
   signInWithEmailAndPassword,
@@ -8,7 +8,8 @@ import {
   updateProfile,
   updatePassword,
   sendPasswordResetEmail,
-  linkWithPopup
+  linkWithPopup,
+  getAuth
 } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { doc, getDoc, getFirestore } from 'firebase/firestore';
@@ -118,6 +119,39 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Holt einen neuen Access Token ohne Nutzer-Interaktion (Token-Refresh)
+  const refreshGoogleToken = async () => {
+    if (!auth.currentUser) return null;
+    
+    const isGoogleUser = auth.currentUser.providerData.some(
+      (profile) => profile.providerId === 'google.com'
+    );
+    
+    if (!isGoogleUser) return null;
+    
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.addScope('https://www.googleapis.com/auth/calendar.events');
+      // prompt: 'none' versucht stumm zu authentifizieren
+      provider.setCustomParameters({ prompt: 'none' });
+      
+      const result = await signInWithPopup(auth, provider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      
+      if (credential && credential.accessToken) {
+        setGoogleCalendarToken(credential.accessToken);
+        localStorage.setItem('googleCalendarToken', credential.accessToken);
+        return credential.accessToken;
+      }
+    } catch (error) {
+      // Bei 'none'-Fehler (z.B. popup_failed_to_open) den Token löschen
+      console.warn('Token-Refresh fehlgeschlagen, bitte neu einloggen:', error.code);
+      localStorage.removeItem('googleCalendarToken');
+      setGoogleCalendarToken(null);
+    }
+    return null;
+  };
+
   const disconnectGoogleCalendar = () => {
     localStorage.removeItem('googleCalendarToken');
     setGoogleCalendarToken(null);
@@ -148,9 +182,11 @@ export function AuthProvider({ children }) {
     user,
     loading,
     googleCalendarToken,
+    setGoogleCalendarToken,
     loginWithEmail,
     loginWithGoogle,
     linkGoogleCalendar,
+    refreshGoogleToken,
     disconnectGoogleCalendar,
     logout,
     updateUserProfile,

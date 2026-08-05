@@ -2,6 +2,7 @@ import React from 'react';
 import { weeklyReport } from '../../data/mockData';
 import { useModalContext } from '../../context/ModalContext';
 import Card from '../ui/Card';
+import Badge from '../ui/Badge';
 
 const Review = () => {
   const { projects = [], inboxItems = { today: [], yesterday: [] } } = useModalContext();
@@ -46,6 +47,22 @@ const Review = () => {
   // 4. SVG Progress Gauge calculation
   const circumference = 264;
   const strokeDashoffset = Math.round(circumference * (1 - successRatePct / 100));
+
+  // 5. Open Inbox Items calculation
+  const openInboxItems = [
+    ...(inboxItems?.today || []),
+    ...(inboxItems?.yesterday || [])
+  ].filter(item => item && !item.completed);
+  const openInboxCount = openInboxItems.length;
+
+  // 6. Flagged / Delayed Projects calculation
+  const flaggedProjects = safeProjects.filter(p => {
+    if (!p) return false;
+    const hasWarning = Boolean(p.warning);
+    const isPaused = Boolean(p.isPaused);
+    const isBehindSchedule = (p.timeElapsed || 0) > (p.progress || 0);
+    return hasWarning || isPaused || isBehindSchedule;
+  });
 
   return (
     <div className="screen-transition p-4 sm:p-6">
@@ -145,8 +162,196 @@ const Review = () => {
           </Card>
         </div>
       </div>
+
+      {/* SECTION 2: SYSTEM HEALTH ÜBERSICHT */}
+      <div className="mt-8 space-y-6 border-t border-outline-variant/60 pt-8">
+        <div className="flex items-center gap-2 pb-2">
+          <span className="material-symbols-outlined text-amber-600 text-2xl">health_and_safety</span>
+          <h2 className="text-lg font-bold text-primary tracking-wide">
+            System Health & Handlungsbedarf
+          </h2>
+          <Badge variant="default" className="ml-2 font-mono">
+            {openInboxCount + flaggedProjects.length} HINWEISE
+          </Badge>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          {/* Open Inbox Items Card */}
+          <div className="lg:col-span-6">
+            <Card padding="normal" className="h-full flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-4 border-b border-outline-variant pb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-primary text-xl">inbox</span>
+                    <h3 className="text-xs font-mono font-bold text-primary uppercase tracking-wider">
+                      OFFENE INBOX ITEMS
+                    </h3>
+                  </div>
+                  <Badge variant="outline" className={openInboxCount > 0 ? "text-amber-700 bg-amber-50 border-amber-300" : "text-emerald-700 bg-emerald-50 border-emerald-300"}>
+                    {openInboxCount} OFFEN
+                  </Badge>
+                </div>
+
+                {openInboxItems.length === 0 ? (
+                  <div className="py-8 text-center text-on-surface-variant text-xs">
+                    <span className="material-symbols-outlined text-3xl text-emerald-500 mb-2 block">check_circle</span>
+                    <p className="font-medium text-emerald-700">Inbox ist vollständig aufgeräumt!</p>
+                  </div>
+                ) : (
+                  <ul className="space-y-3">
+                    {openInboxItems.map(item => (
+                      <li key={item.id} className="flex items-start justify-between gap-3 p-3 bg-surface-low rounded-lg border border-outline-variant text-xs">
+                        <div className="flex items-start gap-2 min-w-0">
+                          <span className="material-symbols-outlined text-base text-amber-600 shrink-0 mt-0.5">check_box_outline_blank</span>
+                          <span className="font-medium text-primary leading-tight line-clamp-2">
+                            {item.title || item.summary}
+                          </span>
+                        </div>
+                        <Badge variant="default" className="shrink-0 text-[10px]">
+                          OFFEN
+                        </Badge>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </Card>
+          </div>
+
+          {/* Flagged / Delayed Projects Card */}
+          <div className="lg:col-span-6">
+            <Card padding="normal" className="h-full flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-4 border-b border-outline-variant pb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-amber-600 text-xl">warning</span>
+                    <h3 className="text-xs font-mono font-bold text-primary uppercase tracking-wider">
+                      PROJEKTE MIT RÜCKSTAND / WARNUNGEN
+                    </h3>
+                  </div>
+                  <Badge variant="outline" className={flaggedProjects.length > 0 ? "text-red-700 bg-red-50 border-red-300" : "text-emerald-700 bg-emerald-50 border-emerald-300"}>
+                    {flaggedProjects.length} BETROFFEN
+                  </Badge>
+                </div>
+
+                {flaggedProjects.length === 0 ? (
+                  <div className="py-8 text-center text-on-surface-variant text-xs">
+                    <span className="material-symbols-outlined text-3xl text-emerald-500 mb-2 block">verified</span>
+                    <p className="font-medium text-emerald-700">Alle aktiven Projekte sind im Zeitplan!</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {flaggedProjects.map(project => {
+                      const delay = (project.timeElapsed || 0) - (project.progress || 0);
+                      return (
+                        <div key={project.id} className="p-3 bg-surface-low rounded-lg border border-outline-variant text-xs space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-bold text-primary truncate">{project.title}</span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {project.isPaused && (
+                                <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50">
+                                  PAUSIERT
+                                </Badge>
+                              )}
+                              {project.warning && (
+                                <Badge variant="outline" className="text-red-700 border-red-300 bg-red-50">
+                                  {project.warning}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between text-[11px] text-on-surface-variant font-mono">
+                            <span>Fortschritt: {project.progress || 0}%</span>
+                            <span>Zeit: {project.timeElapsed || 0}%</span>
+                            {delay > 0 && !project.warning && (
+                              <span className="text-amber-700 font-bold">Rückstand: +{delay}%</span>
+                            )}
+                          </div>
+
+                          {/* Progress vs Time Bar */}
+                          <div className="w-full bg-outline-variant/30 h-1.5 rounded-full overflow-hidden flex">
+                            <div className="bg-primary h-full transition-all duration-300" style={{ width: `${Math.min(100, project.progress || 0)}%` }} />
+                            {delay > 0 && (
+                              <div className="bg-amber-500/60 h-full transition-all duration-300" style={{ width: `${Math.min(100 - (project.progress || 0), delay)}%` }} />
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </Card>
+          </div>
+        </div>
+      </div>
+
+      {/* SECTION 3: AUSBLICK & FOKUS (NÄCHSTE SCHRITTE) */}
+      <div className="mt-8 space-y-6 border-t border-outline-variant/60 pt-8">
+        <div className="flex items-center gap-2 pb-2">
+          <span className="material-symbols-outlined text-primary text-2xl">arrow_forward</span>
+          <h2 className="text-lg font-bold text-primary tracking-wide">
+            Ausblick & Fokus (Nächste Schritte)
+          </h2>
+          <Badge variant="default" className="ml-2 font-mono">
+            {activeProjects.length} PROJEKTE
+          </Badge>
+        </div>
+
+        <Card padding="normal">
+          <h3 className="text-xs font-mono font-bold text-primary uppercase border-b border-outline-variant pb-3 tracking-wider mb-4">
+            NÄCHSTE SCHRITTE DER AKTIVEN PROJEKTE
+          </h3>
+
+          {activeProjects.length === 0 ? (
+            <div className="py-8 text-center text-on-surface-variant text-xs">
+              <span className="material-symbols-outlined text-3xl text-emerald-500 mb-2 block">task_alt</span>
+              <p className="font-bold text-primary text-sm mb-1">Keine aktiven Nächsten Schritte</p>
+              <p className="text-on-surface-variant">Alle aktiven Projekte sind abgeschlossen oder in der Planungsphase.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {activeProjects.map(project => {
+                const nextStepText = project?.nextStep && typeof project.nextStep === 'string' && project.nextStep.trim() !== ''
+                  ? project.nextStep
+                  : 'Kein nächster Schritt hinterlegt';
+
+                return (
+                  <div key={project?.id || project?.title} className="p-3.5 bg-surface-low rounded-lg border border-outline-variant space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-primary text-xs sm:text-sm truncate">{project?.title}</span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {project?.isPaused && (
+                          <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50">
+                            PAUSIERT
+                          </Badge>
+                        )}
+                        <Badge variant="outline" className="text-[10px]">
+                          {project?.status}
+                        </Badge>
+                        <span className="text-[11px] font-mono text-on-surface-variant">
+                          {project?.progress || 0}%
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1 text-xs text-primary bg-white/60 p-2.5 rounded border border-outline-variant/40">
+                      <span className="material-symbols-outlined text-primary text-base shrink-0">play_arrow</span>
+                      <span className="font-semibold text-primary leading-tight">
+                        {nextStepText}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+      </div>
     </div>
   );
 };
 
 export default Review;
+

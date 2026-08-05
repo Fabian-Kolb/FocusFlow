@@ -36,7 +36,7 @@ const ReminderDetail = ({ setCurrentScreen }) => {
 
   return (
     <div className="screen-transition">
-      <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
+      <div className="w-full mx-auto space-y-4 sm:space-y-6">
         <div>
           <button
             className="inline-flex items-center gap-2 text-xs font-mono text-on-surface-variant hover:text-primary mb-3 transition-colors cursor-pointer"

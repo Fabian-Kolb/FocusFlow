@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { fetchCalendarEvents, deleteCalendarEvent, createCalendarEvent, updateCalendarEvent } from '../../lib/calendarAPI';
+import { fetchCalendarEvents, deleteCalendarEvent, createCalendarEvent, updateCalendarEvent, TokenExpiredError } from '../../lib/calendarAPI';
 import Card from '../ui/Card';
 import Badge from '../ui/Badge';
 import EventEditForm from './EventEditForm';
@@ -25,8 +25,27 @@ const GOOGLE_COLORS = {
   "11": { bg: "#dc2127", text: "#590d10" }, // Tomato
 };
 
+const SkeletonCalendarGrid = () => (
+  <Card padding="none" className="w-full grid grid-cols-7 bg-outline-variant gap-px overflow-hidden border border-outline-variant select-none opacity-60">
+    {['MO', 'DI', 'MI', 'DO', 'FR', 'SA', 'SO'].map(d => (
+      <div key={d} className="bg-surface py-2 text-center text-xs font-mono font-bold">{d}</div>
+    ))}
+    {Array.from({ length: 31 }).map((_, i) => (
+      <div key={i} className="min-h-[120px] p-2 text-xs mono border-transparent border-b border-r border-outline-variant/30 bg-white">
+        <div className="flex flex-col sm:flex-row sm:justify-between items-center sm:items-start opacity-50">
+          <span>{i + 1}</span>
+        </div>
+        <div className="mt-1.5 space-y-1">
+           <div className="h-2.5 bg-outline-variant/40 rounded w-full"></div>
+           <div className="h-2.5 bg-outline-variant/40 rounded w-2/3"></div>
+        </div>
+      </div>
+    ))}
+  </Card>
+);
+
 const Calendar = () => {
-  const { user, googleCalendarToken, linkGoogleCalendar } = useAuth();
+  const { user, googleCalendarToken, linkGoogleCalendar, refreshGoogleToken, setGoogleCalendarToken } = useAuth();
   
   const today = new Date();
   const [currentMonthIndex, setCurrentMonthIndex] = useState(today.getMonth());
@@ -42,7 +61,6 @@ const Calendar = () => {
   
   const [showMonthPicker, setShowMonthPicker] = useState(false);
   const [pickerYear, setPickerYear] = useState(currentYear);
-  const [slideDirection, setSlideDirection] = useState(''); // Tracking swipe direction for animation
   const [isScrollingDown, setIsScrollingDown] = useState(false);
 
   // Swipe Gesten für Mobile
@@ -50,22 +68,27 @@ const Calendar = () => {
   const [touchEnd, setTouchEnd] = useState(null);
   const [swipeOffset, setSwipeOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [isSwapping, setIsSwapping] = useState(false);
 
   const onTouchStart = (e) => {
+    if (isAnimating) return;
     setTouchEnd(null);
     setTouchStart(e.targetTouches[0].clientX);
     setIsDragging(true);
+    setIsSwapping(false);
     setSwipeOffset(0);
   };
 
   const onTouchMove = (e) => {
-    if (touchStart === null) return;
+    if (touchStart === null || isAnimating) return;
     const currentX = e.targetTouches[0].clientX;
     setTouchEnd(currentX);
     setSwipeOffset(currentX - touchStart);
   };
 
   const onTouchEnd = () => {
+    if (isAnimating || !isDragging) return;
     setIsDragging(false);
     if (touchStart === null || touchEnd === null) {
       setSwipeOffset(0);
@@ -77,12 +100,35 @@ const Calendar = () => {
     const isRightSwipe = distance < -80;
     
     if (isLeftSwipe) {
-      handleNextMonth();
+      setIsAnimating(true);
+      setSwipeOffset(-window.innerWidth);
+      setTimeout(() => {
+        setIsSwapping(true);
+        handleNextMonth();
+        setSwipeOffset(0);
+        setTimeout(() => {
+          setIsSwapping(false);
+          setIsAnimating(false);
+        }, 50);
+      }, 300);
     } else if (isRightSwipe) {
-      handlePrevMonth();
+      setIsAnimating(true);
+      setSwipeOffset(window.innerWidth);
+      setTimeout(() => {
+        setIsSwapping(true);
+        handlePrevMonth();
+        setSwipeOffset(0);
+        setTimeout(() => {
+          setIsSwapping(false);
+          setIsAnimating(false);
+        }, 50);
+      }, 300);
+    } else {
+      setIsAnimating(true);
+      setSwipeOffset(0);
+      setTimeout(() => setIsAnimating(false), 300);
     }
     
-    setSwipeOffset(0);
     setTouchStart(null);
     setTouchEnd(null);
   };
@@ -124,8 +170,26 @@ const Calendar = () => {
         setEventsCache(prev => ({ ...prev, [cacheKey]: fetchedEvents }));
         setEvents(fetchedEvents);
       } catch (err) {
-        console.error("Fehler beim Laden der Kalenderdaten", err);
-        setError("Die Kalenderdaten konnten nicht geladen werden.");
+        // Token abgelaufen → automatisch erneuern und erneut versuchen
+        if (err instanceof TokenExpiredError) {
+          console.info('Google Token abgelaufen – versuche automatische Erneuerung...');
+          const newToken = await refreshGoogleToken();
+          if (newToken) {
+            try {
+              const fetchedEvents = await fetchCalendarEvents(newToken, currentYear, currentMonthIndex);
+              setEventsCache(prev => ({ ...prev, [cacheKey]: fetchedEvents }));
+              setEvents(fetchedEvents);
+              return; // Erfolgreich nach Refresh
+            } catch (retryErr) {
+              console.error('Fehler nach Token-Refresh', retryErr);
+            }
+          }
+          // Refresh fehlgeschlagen → Token-Verbindung unterbrochen
+          setError('Deine Google-Kalender-Verbindung ist abgelaufen. Bitte klicke auf "Neu verbinden".');
+        } else {
+          console.error("Fehler beim Laden der Kalenderdaten", err);
+          setError("Die Kalenderdaten konnten nicht geladen werden.");
+        }
       } finally {
         setIsLoading(false);
       }
@@ -144,7 +208,6 @@ const Calendar = () => {
   };
 
   const handlePrevMonth = () => {
-    setSlideDirection('right');
     if (currentMonthIndex === 0) {
       setCurrentMonthIndex(11);
       setCurrentYear((y) => y - 1);
@@ -154,13 +217,33 @@ const Calendar = () => {
   };
 
   const handleNextMonth = () => {
-    setSlideDirection('left');
     if (currentMonthIndex === 11) {
       setCurrentMonthIndex(0);
       setCurrentYear((y) => y + 1);
     } else {
       setCurrentMonthIndex((m) => m + 1);
     }
+  };
+
+  const triggerSwipe = (direction) => {
+    if (isAnimating) return;
+    setIsAnimating(true);
+    setIsDragging(false);
+    setIsSwapping(false);
+    
+    setSwipeOffset(direction === 'left' ? -window.innerWidth : window.innerWidth);
+    
+    setTimeout(() => {
+      setIsSwapping(true);
+      if (direction === 'left') handleNextMonth();
+      else handlePrevMonth();
+      setSwipeOffset(0);
+      
+      setTimeout(() => {
+        setIsSwapping(false);
+        setIsAnimating(false);
+      }, 50);
+    }, 300);
   };
 
   const handleResetToday = () => {
@@ -172,17 +255,29 @@ const Calendar = () => {
 
   const handleSaveEvent = async (eventData, eventId) => {
     try {
-      if (eventId) {
-        await updateCalendarEvent(googleCalendarToken, eventId, eventData);
-      } else {
-        await createCalendarEvent(googleCalendarToken, eventData);
+      let token = googleCalendarToken;
+      const runSave = async (t) => {
+        if (eventId) {
+          await updateCalendarEvent(t, eventId, eventData);
+        } else {
+          await createCalendarEvent(t, eventData);
+        }
+        const cacheKey = `${currentYear}-${currentMonthIndex}`;
+        const fetchedEvents = await fetchCalendarEvents(t, currentYear, currentMonthIndex);
+        setEventsCache(prev => ({ ...prev, [cacheKey]: fetchedEvents }));
+        setEvents(fetchedEvents);
+        setEditingEvent(null);
+      };
+      
+      try {
+        await runSave(token);
+      } catch (err) {
+        if (err instanceof TokenExpiredError) {
+          const newToken = await refreshGoogleToken();
+          if (newToken) await runSave(newToken);
+          else throw new Error('Token-Refresh fehlgeschlagen');
+        } else throw err;
       }
-      // Reload current month to reflect changes
-      const cacheKey = `${currentYear}-${currentMonthIndex}`;
-      const fetchedEvents = await fetchCalendarEvents(googleCalendarToken, currentYear, currentMonthIndex);
-      setEventsCache(prev => ({ ...prev, [cacheKey]: fetchedEvents }));
-      setEvents(fetchedEvents);
-      setEditingEvent(null);
     } catch (err) {
       console.error("Fehler beim Speichern", err);
       alert("Fehler beim Speichern des Termins.");
@@ -192,13 +287,25 @@ const Calendar = () => {
   const handleDeleteEvent = async (eventId) => {
     if (!window.confirm("Diesen Termin wirklich löschen?")) return;
     try {
-      await deleteCalendarEvent(googleCalendarToken, eventId);
-      // Reload
-      const cacheKey = `${currentYear}-${currentMonthIndex}`;
-      const fetchedEvents = await fetchCalendarEvents(googleCalendarToken, currentYear, currentMonthIndex);
-      setEventsCache(prev => ({ ...prev, [cacheKey]: fetchedEvents }));
-      setEvents(fetchedEvents);
-      setSelectedEvent(null);
+      let token = googleCalendarToken;
+      const runDelete = async (t) => {
+        await deleteCalendarEvent(t, eventId);
+        const cacheKey = `${currentYear}-${currentMonthIndex}`;
+        const fetchedEvents = await fetchCalendarEvents(t, currentYear, currentMonthIndex);
+        setEventsCache(prev => ({ ...prev, [cacheKey]: fetchedEvents }));
+        setEvents(fetchedEvents);
+        setSelectedEvent(null);
+      };
+      
+      try {
+        await runDelete(token);
+      } catch (err) {
+        if (err instanceof TokenExpiredError) {
+          const newToken = await refreshGoogleToken();
+          if (newToken) await runDelete(newToken);
+          else throw new Error('Token-Refresh fehlgeschlagen');
+        } else throw err;
+      }
     } catch (err) {
       console.error("Fehler beim Löschen", err);
       alert("Fehler beim Löschen des Termins.");
@@ -301,7 +408,7 @@ const Calendar = () => {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto justify-between sm:justify-start">
-          <button onClick={handlePrevMonth} className="hidden sm:flex p-2 hover:bg-surface-low rounded-full transition-colors text-on-surface-variant">
+          <button onClick={() => triggerSwipe('right')} className="hidden sm:flex p-2 hover:bg-surface-low rounded-full transition-colors text-on-surface-variant">
             <span className="material-symbols-outlined">chevron_left</span>
           </button>
 
@@ -316,7 +423,7 @@ const Calendar = () => {
             <span className="material-symbols-outlined text-[20px] sm:text-[24px]">arrow_drop_down</span>
           </h2>
 
-          <button onClick={handleNextMonth} className="hidden sm:flex p-2 hover:bg-surface-low rounded-full transition-colors text-on-surface-variant">
+          <button onClick={() => triggerSwipe('left')} className="hidden sm:flex p-2 hover:bg-surface-low rounded-full transition-colors text-on-surface-variant">
             <span className="material-symbols-outlined">chevron_right</span>
           </button>
         </div>
@@ -330,20 +437,51 @@ const Calendar = () => {
         </button>
       </div>
 
+      {/* Token-Ablauf / Fehler-Banner */}
+      {error && (
+        <div className="mb-4 flex items-center gap-3 bg-error/10 border border-error/30 text-error rounded-xl px-4 py-3 text-sm">
+          <span className="material-symbols-outlined text-[20px] flex-shrink-0">warning</span>
+          <span className="flex-1">{error}</span>
+          <button
+            onClick={async () => {
+              setError(null);
+              setEventsCache({});
+              await handleConnectCalendar();
+            }}
+            className="ml-2 font-bold underline whitespace-nowrap hover:opacity-70 transition-opacity"
+          >
+            Neu verbinden
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-col gap-8 overflow-x-hidden">
         {/* Kalender Raster (Volle Breite) */}
         <div 
-          key={`${currentYear}-${currentMonthIndex}`}
-          className={`w-full ${!isDragging && slideDirection === 'left' ? 'animate-swipe-left' : !isDragging && slideDirection === 'right' ? 'animate-swipe-right' : ''}`}
+          className="w-full relative"
           style={{
-            transform: swipeOffset !== 0 ? `translateX(${swipeOffset}px)` : undefined,
-            transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)'
+            transform: `translateX(${swipeOffset}px)`,
+            transition: isDragging || isSwapping ? 'none' : 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)'
           }}
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
         >
-          <Card padding="none" className="w-full grid grid-cols-7 bg-outline-variant gap-px overflow-hidden border border-outline-variant select-none">
+          {/* Previous Month Mockup (visible when dragging right) */}
+          {(isDragging || isAnimating) && swipeOffset > 0 && (
+            <div className="absolute top-0 w-full h-full pointer-events-none" style={{ left: 'calc(-100% - 24px)' }}>
+              <SkeletonCalendarGrid />
+            </div>
+          )}
+
+          {/* Next Month Mockup (visible when dragging left) */}
+          {(isDragging || isAnimating) && swipeOffset < 0 && (
+            <div className="absolute top-0 w-full h-full pointer-events-none" style={{ left: 'calc(100% + 24px)' }}>
+              <SkeletonCalendarGrid />
+            </div>
+          )}
+
+          <Card padding="none" className="w-full grid grid-cols-7 bg-outline-variant gap-px overflow-hidden border border-outline-variant select-none relative z-10">
             <div className="bg-surface py-2 text-center text-xs font-mono font-bold">MO</div>
             <div className="bg-surface py-2 text-center text-xs font-mono font-bold">DI</div>
             <div className="bg-surface py-2 text-center text-xs font-mono font-bold">MI</div>
@@ -374,7 +512,6 @@ const Calendar = () => {
                 >
                   <div className="flex flex-col sm:flex-row sm:justify-between items-center sm:items-start">
                     <span className={isSelected ? 'font-bold' : ''}>{dayNum}</span>
-                    {isSelected && <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 bg-primary rounded-full mt-1"></span>}
                   </div>
                   {isDataLoading ? (
                     <div className="mt-1.5 space-y-1 opacity-50">
@@ -431,8 +568,7 @@ const Calendar = () => {
             </h3>
 
             <div 
-              key={`timeline-${currentYear}-${currentMonthIndex}-${selectedDay}`}
-              className="relative pt-4 sm:pt-6 pb-2 pl-0 pr-0 overflow-hidden animate-fadeIn"
+              className="relative pt-4 sm:pt-6 pb-2 pl-0 pr-0 overflow-hidden"
             >
               {(isDataLoading || dayEvents.length > 0) && (
                 <div className="absolute left-[15px] sm:left-[23px] top-4 sm:top-6 bottom-0 w-[2px] bg-outline-variant/60 rounded-full"></div>
