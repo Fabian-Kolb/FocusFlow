@@ -590,12 +590,28 @@ export const ModalProvider = ({ children }) => {
     setProjectCategories(prev => prev.map(c => ({ ...c, isExpanded: true })));
   };
 
+  // Restore exact expand states from a saved {catId: boolean} map
+  const restoreProjectCategoryExpandStates = (statesMap) => {
+    setProjectCategories(prev => prev.map(c => ({
+      ...c,
+      isExpanded: statesMap[c.id] !== undefined ? statesMap[c.id] : c.isExpanded,
+    })));
+  };
+
   const collapseAllReminderCategories = () => {
     setReminderCategories(prev => prev.map(c => ({ ...c, isExpanded: false })));
   };
 
   const expandAllReminderCategories = () => {
     setReminderCategories(prev => prev.map(c => ({ ...c, isExpanded: true })));
+  };
+
+  // Restore exact expand states from a saved {catId: boolean} map
+  const restoreReminderCategoryExpandStates = (statesMap) => {
+    setReminderCategories(prev => prev.map(c => ({
+      ...c,
+      isExpanded: statesMap[c.id] !== undefined ? statesMap[c.id] : c.isExpanded,
+    })));
   };
 
   const reorderProjectCategories = async (newCategories) => {
@@ -851,6 +867,7 @@ export const ModalProvider = ({ children }) => {
       moveProjectCategoryOrder,
       collapseAllProjectCategories,
       expandAllProjectCategories,
+      restoreProjectCategoryExpandStates,
       reminderCategories,
       addReminderCategory,
       toggleReminderCategory,
@@ -860,6 +877,7 @@ export const ModalProvider = ({ children }) => {
       moveReminderCategoryOrder,
       collapseAllReminderCategories,
       expandAllReminderCategories,
+      restoreReminderCategoryExpandStates,
       addProject,
       addPhase,
       addTask,

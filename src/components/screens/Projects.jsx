@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useCategoryDrag } from '../ui/useCategoryDrag';
 import { useModalContext } from '../../context/ModalContext';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
@@ -23,7 +24,8 @@ const Projects = ({ setCurrentScreen }) => {
     reorderProjectCategories,
     moveProjectCategoryOrder,
     collapseAllProjectCategories,
-    expandAllProjectCategories
+    expandAllProjectCategories,
+    restoreProjectCategoryExpandStates,
   } = useModalContext();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -87,61 +89,34 @@ const Projects = ({ setCurrentScreen }) => {
 
   const [editingCatId, setEditingCatId] = useState(null);
   const [editingCatName, setEditingCatName] = useState('');
-  const [draggedCatId, setDraggedCatId] = useState(null);
-  const [savedExpandStates, setSavedExpandStates] = useState(null);
 
-  const handleCategoryPointerDown = (e, catId) => {
-    e.stopPropagation();
-    const states = {};
-    projectCategories.forEach(c => {
-      states[c.id] = c.isExpanded;
-    });
-    setSavedExpandStates(states);
-    setDraggedCatId(catId);
-    collapseAllProjectCategories();
-  };
+  // Edit-Mode: saves expand states, collapses all → easy sorting
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editModeSavedStates, setEditModeSavedStates] = useState(null);
 
-  const handleCategoryPointerEnter = (targetCatId) => {
-    if (draggedCatId && draggedCatId !== targetCatId) {
-      const fromIndex = projectCategories.findIndex(c => c.id === draggedCatId);
-      const toIndex = projectCategories.findIndex(c => c.id === targetCatId);
-      if (fromIndex !== -1 && toIndex !== -1) {
-        const newCats = [...projectCategories];
-        const [moved] = newCats.splice(fromIndex, 1);
-        newCats.splice(toIndex, 0, moved);
-        reorderProjectCategories(newCats);
+  const toggleEditMode = () => {
+    if (!isEditMode) {
+      const states = {};
+      projectCategories.forEach(c => { states[c.id] = c.isExpanded; });
+      setEditModeSavedStates(states);
+      collapseAllProjectCategories();
+      setIsEditMode(true);
+    } else {
+      if (editModeSavedStates) {
+        restoreProjectCategoryExpandStates(editModeSavedStates);
       }
+      setEditModeSavedStates(null);
+      setIsEditMode(false);
     }
   };
 
-  const handleCategoryPointerUp = () => {
-    if (draggedCatId) {
-      const restoredStates = savedExpandStates;
-      setDraggedCatId(null);
-      setSavedExpandStates(null);
-
-      if (restoredStates) {
-        setProjectCategories(prev => prev.map(c => ({
-          ...c,
-          isExpanded: restoredStates[c.id] !== undefined ? restoredStates[c.id] : c.isExpanded
-        })));
-      }
-    }
-  };
-
-  useEffect(() => {
-    if (draggedCatId) {
-      const onUp = () => handleCategoryPointerUp();
-      window.addEventListener('pointerup', onUp);
-      window.addEventListener('mouseup', onUp);
-      window.addEventListener('touchend', onUp);
-      return () => {
-        window.removeEventListener('pointerup', onUp);
-        window.removeEventListener('mouseup', onUp);
-        window.removeEventListener('touchend', onUp);
-      };
-    }
-  }, [draggedCatId, savedExpandStates, projectCategories]);
+  const { draggedCatId, startDrag } = useCategoryDrag({
+    categories: projectCategories,
+    reorderCategories: reorderProjectCategories,
+    collapseAll: collapseAllProjectCategories,
+    onDragEnd: restoreProjectCategoryExpandStates,
+    sectionIdPrefix: 'cat-sec-',
+  });
 
   const handleDragStart = (e, projectId) => {
     e.dataTransfer.setData('text/plain', projectId);
@@ -155,7 +130,6 @@ const Projects = ({ setCurrentScreen }) => {
 
   const handleDrop = (e, categoryId) => {
     e.preventDefault();
-    setDraggedCatId(null);
     const projectId = e.dataTransfer.getData('text/plain');
     if (projectId) {
       moveProjectToCategory(projectId, categoryId);
@@ -339,11 +313,25 @@ const Projects = ({ setCurrentScreen }) => {
           <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">
             Kategorien ({projectCategories.length})
           </span>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={toggleEditMode}
+              className={`text-[11px] font-bold transition-colors flex items-center gap-1 px-2.5 py-1 rounded-lg border cursor-pointer ${
+                isEditMode
+                  ? 'bg-primary text-white border-primary shadow-sm'
+                  : 'text-on-surface-variant hover:text-primary bg-surface-low border-outline-variant hover:border-primary/50'
+              }`}
+              title={isEditMode ? 'Bearbeiten beenden – Kategorien zurückklappen' : 'Kategorien bearbeiten – alle einklappen zum Sortieren'}
+            >
+              <span className="material-symbols-outlined text-[14px]">
+                {isEditMode ? 'edit_off' : 'edit'}
+              </span>
+              {isEditMode ? 'Bearbeiten beenden' : 'Kategorien bearbeiten'}
+            </button>
             <button
               onClick={collapseAllProjectCategories}
               className="text-[11px] font-bold text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1 bg-surface-low px-2.5 py-1 rounded-lg border border-outline-variant hover:border-primary/50 cursor-pointer"
-              title="Alle Kategorien einklappen um einfacher zu sortieren"
+              title="Alle Kategorien einklappen"
             >
               <span className="material-symbols-outlined text-[14px]">unfold_less</span>
               Alle einklappen
@@ -368,16 +356,11 @@ const Projects = ({ setCurrentScreen }) => {
             <div 
               key={cat.id} 
               id={`cat-sec-${cat.id}`}
-              onPointerEnter={() => handleCategoryPointerEnter(cat.id)}
-              onMouseEnter={() => handleCategoryPointerEnter(cat.id)}
-              onDragOver={(e) => {
-                e.preventDefault();
-                handleCategoryPointerEnter(cat.id);
-              }}
+              onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => handleDrop(e, cat.id)}
               className={`rounded-xl transition-all duration-150 border p-2 -m-1 scroll-mt-6 ${
                 draggedCatId === cat.id 
-                  ? 'border-primary ring-2 ring-primary/40 bg-surface shadow-xl scale-[1.01] z-30' 
+                  ? 'border-primary ring-2 ring-primary/40 bg-surface shadow-md opacity-60 scale-[0.99]' 
                   : 'border-transparent'
               }`}
             >
@@ -387,10 +370,9 @@ const Projects = ({ setCurrentScreen }) => {
                 onClick={() => toggleProjectCategory(cat.id)}
               >
                 <div className="flex items-center gap-1.5 text-on-surface hover:text-primary transition-colors shrink-0">
-                  {/* Drag Handle Isolated */}
+                  {/* Drag Handle */}
                   <span 
-                    onPointerDown={(e) => handleCategoryPointerDown(e, cat.id)}
-                    onMouseDown={(e) => handleCategoryPointerDown(e, cat.id)}
+                    onPointerDown={(e) => startDrag(e, cat.id)}
                     onClick={(e) => e.stopPropagation()}
                     className="material-symbols-outlined text-[18px] opacity-50 group-hover:opacity-100 hover:text-primary cursor-grab active:cursor-grabbing p-1 -m-1 transition-opacity touch-none select-none" 
                     title="Halten & Ziehen zum Sortieren"
