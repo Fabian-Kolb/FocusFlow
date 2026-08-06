@@ -21,7 +21,7 @@ export function useCategoryDrag({
 
   // Stable refs to avoid stale closures in event listeners
   const draggedCatIdRef = useRef(null);
-  const slotIndexRef    = useRef(null);
+  const dropTargetRef   = useRef(null);
   const savedStatesRef  = useRef(null);
   const categoriesRef   = useRef(categories);
   const reorderRef      = useRef(reorderCategories);
@@ -50,19 +50,19 @@ export function useCategoryDrag({
       transform: `translate(${x + 16}px, ${y - 16}px)`,
       pointerEvents: 'none',
       zIndex: '99999',
-      background: 'var(--color-primary, #6366f1)',
-      color: '#fff',
-      padding: '5px 16px',
+      background: '#1A1A1A',
+      color: '#FFFFFF',
+      border: '1px solid rgba(255, 255, 255, 0.12)',
+      padding: '6px 14px',
       borderRadius: '9999px',
       fontSize: '12px',
-      fontWeight: '700',
+      fontWeight: '600',
       fontFamily: 'inherit',
-      letterSpacing: '0.06em',
-      textTransform: 'uppercase',
-      boxShadow: '0 10px 30px rgba(0,0,0,0.28)',
+      letterSpacing: '0.03em',
+      boxShadow: '0 10px 25px -3px rgba(0,0,0,0.3), 0 4px 6px -2px rgba(0,0,0,0.05)',
       whiteSpace: 'nowrap',
       userSelect: 'none',
-      opacity: '0.96',
+      opacity: '0.95',
       display: 'flex',
       alignItems: 'center',
       gap: '6px',
@@ -131,12 +131,12 @@ export function useCategoryDrag({
       };
     }
 
-    return { slotIndex, dropTarget };
+    return { dropTarget };
   }, [sectionIdPrefix]);
 
   const updateDropTarget = useCallback((cursorY) => {
-    const { slotIndex, dropTarget } = calcDropSlot(cursorY);
-    slotIndexRef.current = slotIndex;
+    const { dropTarget } = calcDropSlot(cursorY);
+    dropTargetRef.current = dropTarget;
     setDropTarget(dropTarget);
   }, [calcDropSlot]);
 
@@ -155,20 +155,24 @@ export function useCategoryDrag({
 
   const onPointerUp = useCallback(() => {
     const dragged = draggedCatIdRef.current;
-    const slotIdx = slotIndexRef.current;
+    const target = dropTargetRef.current;
     const cats    = categoriesRef.current;
 
-    if (dragged !== null && slotIdx !== null) {
+    if (dragged !== null && target !== null) {
       const fromIndex = cats.findIndex(c => c.id === dragged);
       if (fromIndex !== -1) {
         const draggedCat = cats[fromIndex];
         const newCats = cats.filter(c => c.id !== dragged);
-        const safeSlot = Math.max(0, Math.min(slotIdx, newCats.length));
-        newCats.splice(safeSlot, 0, draggedCat);
+        const targetIndex = newCats.findIndex(c => c.id === target.targetCatId);
+        
+        if (targetIndex !== -1) {
+          const insertIndex = target.position === 'before' ? targetIndex : targetIndex + 1;
+          newCats.splice(insertIndex, 0, draggedCat);
 
-        const hasOrderChanged = newCats.some((c, idx) => c.id !== cats[idx]?.id);
-        if (hasOrderChanged) {
-          reorderRef.current(newCats);
+          const hasOrderChanged = newCats.some((c, idx) => c.id !== cats[idx]?.id);
+          if (hasOrderChanged) {
+            reorderRef.current(newCats);
+          }
         }
       }
     }
@@ -181,7 +185,7 @@ export function useCategoryDrag({
     // Cleanup state
     destroyGhost();
     draggedCatIdRef.current = null;
-    slotIndexRef.current    = null;
+    dropTargetRef.current   = null;
     setDraggedCatId(null);
     setDropTarget(null);
 

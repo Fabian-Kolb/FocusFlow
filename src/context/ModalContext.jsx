@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { collection, doc, onSnapshot, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, doc, onSnapshot, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from './AuthContext';
 
@@ -131,25 +131,51 @@ export const ModalProvider = ({ children }) => {
     const unsubCategories = onSnapshot(collection(db, 'users', user.uid, 'categories'), (snapshot) => {
       const cats = [];
       snapshot.forEach(doc => {
-        cats.push(doc.data());
+        const data = doc.data();
+        if (doc.id === 'allgemein') {
+          cats.push({ id: 'allgemein', name: 'Allgemein', isExpanded: true, createdAt: 0, ...data });
+        } else {
+          cats.push({ id: doc.id, ...data });
+        }
       });
       if (!cats.some(c => c.id === 'allgemein')) {
         cats.unshift({ id: 'allgemein', name: 'Allgemein', isExpanded: true, createdAt: 0, order: -1 });
       }
       cats.sort((a, b) => (a.order !== undefined ? a.order : a.createdAt || 0) - (b.order !== undefined ? b.order : b.createdAt || 0));
-      setProjectCategories(cats);
+
+      setProjectCategories(prev => {
+        const prevExpandMap = {};
+        prev.forEach(c => { prevExpandMap[c.id] = c.isExpanded; });
+        return cats.map(c => ({
+          ...c,
+          isExpanded: prevExpandMap[c.id] !== undefined ? prevExpandMap[c.id] : (c.isExpanded ?? true)
+        }));
+      });
     });
 
     const unsubReminderCategories = onSnapshot(collection(db, 'users', user.uid, 'reminderCategories'), (snapshot) => {
       const cats = [];
       snapshot.forEach(doc => {
-        cats.push(doc.data());
+        const data = doc.data();
+        if (doc.id === 'allgemein') {
+          cats.push({ id: 'allgemein', name: 'Allgemein', isExpanded: true, createdAt: 0, ...data });
+        } else {
+          cats.push({ id: doc.id, ...data });
+        }
       });
       if (!cats.some(c => c.id === 'allgemein')) {
         cats.unshift({ id: 'allgemein', name: 'Allgemein', isExpanded: true, createdAt: 0, order: -1 });
       }
       cats.sort((a, b) => (a.order !== undefined ? a.order : a.createdAt || 0) - (b.order !== undefined ? b.order : b.createdAt || 0));
-      setReminderCategories(cats);
+
+      setReminderCategories(prev => {
+        const prevExpandMap = {};
+        prev.forEach(c => { prevExpandMap[c.id] = c.isExpanded; });
+        return cats.map(c => ({
+          ...c,
+          isExpanded: prevExpandMap[c.id] !== undefined ? prevExpandMap[c.id] : (c.isExpanded ?? true)
+        }));
+      });
     });
 
     return () => {
@@ -535,10 +561,6 @@ export const ModalProvider = ({ children }) => {
 
   const toggleReminderCategory = async (categoryId) => {
     if (!user) return;
-    if (categoryId === 'allgemein') {
-      setReminderCategories(prev => prev.map(c => c.id === 'allgemein' ? { ...c, isExpanded: !c.isExpanded } : c));
-      return;
-    }
     const cat = reminderCategories.find(c => c.id === categoryId);
     if (!cat) return;
     setReminderCategories(prev => prev.map(c => c.id === categoryId ? { ...c, isExpanded: !c.isExpanded } : c));
@@ -571,12 +593,6 @@ export const ModalProvider = ({ children }) => {
 
   const toggleProjectCategory = async (categoryId) => {
     if (!user) return;
-    if (categoryId === 'allgemein') {
-      const cat = projectCategories.find(c => c.id === 'allgemein');
-      setProjectCategories(prev => prev.map(c => c.id === 'allgemein' ? { ...c, isExpanded: !c.isExpanded } : c));
-      // Local state only since it's not in DB
-      return;
-    }
     const cat = projectCategories.find(c => c.id === categoryId);
     if (!cat) return;
     await setDoc(doc(db, 'users', user.uid, 'categories', categoryId), { ...cat, isExpanded: !cat.isExpanded }, { merge: true });
@@ -618,10 +634,15 @@ export const ModalProvider = ({ children }) => {
     const updated = newCategories.map((c, index) => ({ ...c, order: index }));
     setProjectCategories(updated);
     if (!user) return;
-    for (const cat of updated) {
-      if (cat.id !== 'allgemein') {
-        await setDoc(doc(db, 'users', user.uid, 'categories', cat.id), { order: cat.order }, { merge: true });
+    try {
+      const batch = writeBatch(db);
+      for (const cat of updated) {
+        const ref = doc(db, 'users', user.uid, 'categories', cat.id);
+        batch.set(ref, { order: cat.order }, { merge: true });
       }
+      await batch.commit();
+    } catch (e) {
+      console.error('Error batch reordering project categories:', e);
     }
   };
 
@@ -641,10 +662,15 @@ export const ModalProvider = ({ children }) => {
     const updated = newCategories.map((c, index) => ({ ...c, order: index }));
     setReminderCategories(updated);
     if (!user) return;
-    for (const cat of updated) {
-      if (cat.id !== 'allgemein') {
-        await setDoc(doc(db, 'users', user.uid, 'reminderCategories', cat.id), { order: cat.order }, { merge: true });
+    try {
+      const batch = writeBatch(db);
+      for (const cat of updated) {
+        const ref = doc(db, 'users', user.uid, 'reminderCategories', cat.id);
+        batch.set(ref, { order: cat.order }, { merge: true });
       }
+      await batch.commit();
+    } catch (e) {
+      console.error('Error batch reordering reminder categories:', e);
     }
   };
 
