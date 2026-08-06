@@ -137,6 +137,10 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
                   inKanban={project.inKanban}
                   onToggleKanban={() => toggleProjectKanban(project.id)}
                   onDelete={() => deleteProject(project.id)}
+                  itemType="project"
+                  itemId={project.id}
+                  currentCategoryId={project.categoryId}
+                  itemStatus={project.status}
                 />
               </div>
               <div className="flex justify-between items-center gap-2 mb-2">
@@ -240,6 +244,10 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
                   inKanban={reminder.inKanban}
                   onToggleKanban={() => toggleReminderKanban(reminder.id)}
                   onDelete={() => deleteReminder(reminder.id)}
+                  itemType="reminder"
+                  itemId={reminder.id}
+                  currentCategoryId={reminder.categoryId}
+                  itemStatus={reminder.status}
                 />
               </div>
               <div className="mb-2 sm:mb-3">

@@ -199,3 +199,38 @@
   animation: swipeRight 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
 }
 
+/* React Quill Customizations */
+.custom-quill-container .ql-toolbar.ql-snow {
+  border: none !important;
+  border-bottom: 1px solid #E5E5E5 !important;
+  padding: 12px 0 !important;
+  font-family: inherit;
+}
+.custom-quill-container .ql-container.ql-snow {
+  border: none !important;
+  font-family: inherit;
+  font-size: 1rem;
+}
+.custom-quill-container .ql-editor {
+  padding: 16px 0 !important;
+}
+.quill-content-renderer {
+  font-family: inherit;
+}
+.quill-content-renderer ul {
+  list-style-type: disc !important;
+  padding-left: 1.5rem !important;
+  margin-bottom: 1rem;
+}
+.quill-content-renderer ol {
+  list-style-type: decimal !important;
+  padding-left: 1.5rem !important;
+  margin-bottom: 1rem;
+}
+.quill-content-renderer h1, .quill-content-renderer h2, .quill-content-renderer h3 {
+  font-weight: 800;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+}
+
+

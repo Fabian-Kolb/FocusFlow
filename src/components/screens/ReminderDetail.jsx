@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useModalContext } from '../../context/ModalContext';
+import NotesSection from '../ui/NotesSection';
 
 const ReminderDetail = ({ setCurrentScreen }) => {
-  const { reminders, trashItems, selectedReminderId, toggleReminderStatus, setReminderStatus, setActiveCoachScope, toggleReminderPause, mutateReminder } = useModalContext();
+  const { reminders, trashItems, selectedReminderId, toggleReminderStatus, setReminderStatus, setActiveCoachScope, toggleReminderPause, toggleReminderKanban, mutateReminder, reminderCategories } = useModalContext();
   const [isStructuring, setIsStructuring] = useState(false);
 
   const reminder = reminders.find(r => r.id === selectedReminderId) || (trashItems && trashItems.find(r => r.id === selectedReminderId));
   const isTrashed = !!reminder?.deletedAt;
+  const categoryObj = (reminderCategories || []).find(c => c.id === (reminder?.categoryId || 'allgemein')) || { id: 'allgemein', name: 'Allgemein' };
 
   if (!reminder) {
     return (
@@ -69,13 +71,34 @@ const ReminderDetail = ({ setCurrentScreen }) => {
     if (status === 'ABGESCHLOSSEN') return "bg-neutral-600";
   };
 
-  const handleStructureNotes = () => {
+  const handleStructureNotes = async () => {
+    if (isStructuring) return;
     setIsStructuring(true);
-    // Dummy simulate AI delay for now
+    // Simulate AI processing
     setTimeout(() => {
       setIsStructuring(false);
-      alert('Diese Funktion wird in Kürze mit dem Google Gemini Backend verknüpft!');
-    }, 1500);
+    }, 2000);
+  };
+
+  const handleAddNote = (note) => {
+    mutateReminder(reminder.id, (r) => ({
+      ...r,
+      notes: [...(r.notes || []), note]
+    }));
+  };
+
+  const handleUpdateNote = (noteId, updatedData) => {
+    mutateReminder(reminder.id, (r) => ({
+      ...r,
+      notes: (r.notes || []).map(n => n.id === noteId ? { ...n, ...updatedData } : n)
+    }));
+  };
+
+  const handleDeleteNote = (noteId) => {
+    mutateReminder(reminder.id, (r) => ({
+      ...r,
+      notes: (r.notes || []).filter(n => n.id !== noteId)
+    }));
   };
 
   // Date parsing and calculation
@@ -138,13 +161,37 @@ const ReminderDetail = ({ setCurrentScreen }) => {
       )}
       <div className="w-full mx-auto space-y-4 sm:space-y-6 relative z-10">
         <div>
-          <button
-            className="inline-flex items-center gap-2 text-xs font-mono text-on-surface-variant hover:text-primary mb-3 transition-colors cursor-pointer"
-            onClick={() => setCurrentScreen && setCurrentScreen('reminders')}
-          >
-            <span className="material-symbols-outlined text-[16px]">arrow_back</span>
-            Zurück zur Übersicht
-          </button>
+          {/* Breadcrumb Navigation */}
+          <nav className="flex items-center gap-1.5 text-xs font-mono text-on-surface-variant mb-4 flex-wrap bg-surface-low/60 p-2.5 rounded-xl border border-outline-variant/60">
+            <button
+              onClick={() => setCurrentScreen && setCurrentScreen('reminders')}
+              className="hover:text-primary transition-colors flex items-center gap-1 font-bold text-on-surface-variant hover:underline cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[16px]">arrow_back</span>
+              Übersicht
+            </button>
+            <span className="text-outline-variant font-bold">/</span>
+            <button
+              onClick={() => {
+                if (setCurrentScreen) {
+                  setCurrentScreen('reminders');
+                  setTimeout(() => {
+                    const el = document.getElementById(`rcat-sec-${categoryObj.id}`);
+                    if (el) {
+                      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                  }, 100);
+                }
+              }}
+              className="hover:text-primary transition-colors text-on-surface-variant hover:underline font-medium cursor-pointer"
+            >
+              {categoryObj.name}
+            </button>
+            <span className="text-outline-variant font-bold">/</span>
+            <span className="font-bold text-primary truncate max-w-[200px] sm:max-w-xs">
+              {reminder.title}
+            </span>
+          </nav>
 
           {isTrashed && (
             <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-start gap-3">
@@ -179,6 +226,26 @@ const ReminderDetail = ({ setCurrentScreen }) => {
                 <span className="material-symbols-outlined text-[18px]">
                   {reminder.isPaused ? 'play_arrow' : 'pause'}
                 </span>
+              </button>
+              
+              {/* Kanban Toggle Button */}
+              <button
+                className={`inline-flex items-center justify-center w-8 h-8 rounded-xl border transition-all shadow-sm cursor-pointer ${
+                  reminder.inKanban !== false
+                    ? 'bg-primary/10 border-primary/40 text-primary hover:bg-primary/20'
+                    : 'bg-slate-100 border-slate-300 text-slate-400 hover:bg-slate-200'
+                }`}
+                onClick={() => toggleReminderKanban(reminder.id)}
+                title={reminder.inKanban !== false ? 'Vom Kanban-Board ausblenden' : 'Auf Kanban-Board einblenden'}
+              >
+                <div className="relative inline-flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[18px]">view_kanban</span>
+                  {reminder.inKanban === false && (
+                    <span className="absolute text-slate-600 font-bold text-xs select-none pointer-events-none transform rotate-45">
+                      —
+                    </span>
+                  )}
+                </div>
               </button>
               
               <button
@@ -278,49 +345,12 @@ const ReminderDetail = ({ setCurrentScreen }) => {
           </div>
 
           {/* BOX 2: Notizen */}
-          <div className="p-3.5 sm:p-5 bg-white border border-outline-variant rounded-xl shadow-sm mb-4 flex flex-col h-full">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-outline-variant pb-3 mb-3">
-              <span className="text-xs font-mono font-bold text-primary uppercase whitespace-nowrap">
-                NOTIZEN & DETAILS
-              </span>
-              
-              {(reminder.description || reminder.note) && (
-                <button
-                  onClick={handleStructureNotes}
-                  disabled={isStructuring}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-primary/10 border border-primary/20 rounded-lg hover:bg-primary/20 text-primary font-mono text-[10px] font-bold transition-all shadow-sm cursor-pointer whitespace-nowrap disabled:opacity-50"
-                  title="Strukturiert den Text mithilfe von KI in Aufgaben, Kontext und Links"
-                >
-                  {isStructuring ? (
-                    <span className="material-symbols-outlined text-[14px] animate-spin">sync</span>
-                  ) : (
-                    <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
-                  )}
-                  <span>MIT KI STRUKTURIEREN</span>
-                </button>
-              )}
-            </div>
-            
-            <div className="pt-1 flex-1">
-              {reminder.structuredNotes ? (
-                 <div className="space-y-4">
-                    {/* Placeholder for future structured notes render */}
-                    <div className="text-sm text-primary leading-relaxed whitespace-pre-wrap">
-                      {reminder.structuredNotes}
-                    </div>
-                 </div>
-              ) : reminder.description || reminder.note ? (
-                 <div className="text-sm text-primary leading-relaxed whitespace-pre-wrap bg-surface-low/30 p-3 rounded-lg border border-outline-variant/30">
-                   {reminder.description || reminder.note}
-                 </div>
-              ) : (
-                 <div className="flex flex-col items-center justify-center py-6 text-on-surface-variant opacity-60">
-                   <span className="material-symbols-outlined text-3xl mb-2">description</span>
-                   <span className="italic text-sm">Keine Notizen oder Beschreibung hinterlegt.</span>
-                 </div>
-              )}
-            </div>
-          </div>
+          <NotesSection 
+            notes={reminder.notes || []}
+            onAddNote={handleAddNote}
+            onUpdateNote={handleUpdateNote}
+            onDeleteNote={handleDeleteNote}
+          />
 
         </div>
         

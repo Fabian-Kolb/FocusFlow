@@ -24,6 +24,13 @@ export const ModalProvider = ({ children }) => {
   const [selectedReminderId, setSelectedReminderId] = useState(null);
   const [activeCoachScope, setActiveCoachScope] = useState('all');
 
+  const [projectCategories, setProjectCategories] = useState([
+    { id: 'allgemein', name: 'Allgemein', isExpanded: true, createdAt: 0 }
+  ]);
+  const [reminderCategories, setReminderCategories] = useState([
+    { id: 'allgemein', name: 'Allgemein', isExpanded: true, createdAt: 0 }
+  ]);
+
   // Helper for auto-delete
   const checkAutoDelete = async (data, colName) => {
     if (data.deletedAt) {
@@ -121,10 +128,36 @@ export const ModalProvider = ({ children }) => {
       setTrashedInboxItems(trashed);
     });
 
+    const unsubCategories = onSnapshot(collection(db, 'users', user.uid, 'categories'), (snapshot) => {
+      const cats = [];
+      snapshot.forEach(doc => {
+        cats.push(doc.data());
+      });
+      if (!cats.some(c => c.id === 'allgemein')) {
+        cats.unshift({ id: 'allgemein', name: 'Allgemein', isExpanded: true, createdAt: 0, order: -1 });
+      }
+      cats.sort((a, b) => (a.order !== undefined ? a.order : a.createdAt || 0) - (b.order !== undefined ? b.order : b.createdAt || 0));
+      setProjectCategories(cats);
+    });
+
+    const unsubReminderCategories = onSnapshot(collection(db, 'users', user.uid, 'reminderCategories'), (snapshot) => {
+      const cats = [];
+      snapshot.forEach(doc => {
+        cats.push(doc.data());
+      });
+      if (!cats.some(c => c.id === 'allgemein')) {
+        cats.unshift({ id: 'allgemein', name: 'Allgemein', isExpanded: true, createdAt: 0, order: -1 });
+      }
+      cats.sort((a, b) => (a.order !== undefined ? a.order : a.createdAt || 0) - (b.order !== undefined ? b.order : b.createdAt || 0));
+      setReminderCategories(cats);
+    });
+
     return () => {
       unsubProjects();
       unsubReminders();
       unsubInbox();
+      unsubCategories();
+      unsubReminderCategories();
     };
   }, [user]);
 
@@ -215,6 +248,7 @@ export const ModalProvider = ({ children }) => {
       nextStep: newPhases.length > 0 ? `Nächste Etappe: ${newPhases[0].title}` : 'Erste Schritte planen',
       startDate: projectData.startDate || '',
       endDate: projectData.endDate || '',
+      categoryId: projectData.categoryId || 'allgemein',
       dateRange: `${startStr} – ${endStr}`,
       daysRemaining: 'NEU GESTARTET',
       progress: 0,
@@ -467,7 +501,175 @@ export const ModalProvider = ({ children }) => {
   };
 
   const toggleProjectKanban = (projectId) => {
-    mutateProject(projectId, (proj) => ({ ...proj, inKanban: proj.inKanban === false }));
+    mutateProject(projectId, (p) => {
+      p.inKanban = p.inKanban === false ? true : false;
+      return p;
+    });
+  };
+
+  const moveProjectToCategory = (projectId, categoryId) => {
+    mutateProject(projectId, (p) => {
+      p.categoryId = categoryId;
+      return p;
+    });
+  };
+
+  const moveReminderToCategory = (reminderId, categoryId) => {
+    mutateReminder(reminderId, (r) => {
+      r.categoryId = categoryId;
+      return r;
+    });
+  };
+
+  const addReminderCategory = async (name) => {
+    if (!user) return;
+    const id = `rcat_${Date.now()}`;
+    const newCat = { id, name, isExpanded: true, createdAt: Date.now() };
+    setReminderCategories(prev => [...prev.filter(c => c.id !== id), newCat]);
+    try {
+      await setDoc(doc(db, 'users', user.uid, 'reminderCategories', id), newCat);
+    } catch (e) {
+      console.error('Error adding reminder category:', e);
+    }
+  };
+
+  const toggleReminderCategory = async (categoryId) => {
+    if (!user) return;
+    if (categoryId === 'allgemein') {
+      setReminderCategories(prev => prev.map(c => c.id === 'allgemein' ? { ...c, isExpanded: !c.isExpanded } : c));
+      return;
+    }
+    const cat = reminderCategories.find(c => c.id === categoryId);
+    if (!cat) return;
+    setReminderCategories(prev => prev.map(c => c.id === categoryId ? { ...c, isExpanded: !c.isExpanded } : c));
+    await setDoc(doc(db, 'users', user.uid, 'reminderCategories', categoryId), { ...cat, isExpanded: !cat.isExpanded }, { merge: true });
+  };
+
+  const deleteReminderCategory = async (categoryId) => {
+    if (!user || categoryId === 'allgemein') return;
+    setReminderCategories(prev => prev.filter(c => c.id !== categoryId));
+    
+    const remsToMove = reminders.filter(r => r.categoryId === categoryId);
+    for (const r of remsToMove) {
+      await setDoc(doc(db, 'users', user.uid, 'reminders', r.id), { ...r, categoryId: 'allgemein' }, { merge: true });
+    }
+    
+    await deleteDoc(doc(db, 'users', user.uid, 'reminderCategories', categoryId));
+  };
+
+  const addProjectCategory = async (name) => {
+    if (!user) return;
+    const id = `cat_${Date.now()}`;
+    const newCat = { id, name, isExpanded: true, createdAt: Date.now() };
+    setProjectCategories(prev => [...prev.filter(c => c.id !== id), newCat]);
+    try {
+      await setDoc(doc(db, 'users', user.uid, 'categories', id), newCat);
+    } catch (e) {
+      console.error('Error adding project category:', e);
+    }
+  };
+
+  const toggleProjectCategory = async (categoryId) => {
+    if (!user) return;
+    if (categoryId === 'allgemein') {
+      const cat = projectCategories.find(c => c.id === 'allgemein');
+      setProjectCategories(prev => prev.map(c => c.id === 'allgemein' ? { ...c, isExpanded: !c.isExpanded } : c));
+      // Local state only since it's not in DB
+      return;
+    }
+    const cat = projectCategories.find(c => c.id === categoryId);
+    if (!cat) return;
+    await setDoc(doc(db, 'users', user.uid, 'categories', categoryId), { ...cat, isExpanded: !cat.isExpanded }, { merge: true });
+  };
+
+  const collapseAllProjectCategories = () => {
+    setProjectCategories(prev => prev.map(c => ({ ...c, isExpanded: false })));
+  };
+
+  const expandAllProjectCategories = () => {
+    setProjectCategories(prev => prev.map(c => ({ ...c, isExpanded: true })));
+  };
+
+  const collapseAllReminderCategories = () => {
+    setReminderCategories(prev => prev.map(c => ({ ...c, isExpanded: false })));
+  };
+
+  const expandAllReminderCategories = () => {
+    setReminderCategories(prev => prev.map(c => ({ ...c, isExpanded: true })));
+  };
+
+  const reorderProjectCategories = async (newCategories) => {
+    const updated = newCategories.map((c, index) => ({ ...c, order: index }));
+    setProjectCategories(updated);
+    if (!user) return;
+    for (const cat of updated) {
+      if (cat.id !== 'allgemein') {
+        await setDoc(doc(db, 'users', user.uid, 'categories', cat.id), { order: cat.order }, { merge: true });
+      }
+    }
+  };
+
+  const moveProjectCategoryOrder = (catId, direction) => {
+    const index = projectCategories.findIndex(c => c.id === catId);
+    if (index === -1) return;
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= projectCategories.length) return;
+    
+    const newCats = [...projectCategories];
+    const [moved] = newCats.splice(index, 1);
+    newCats.splice(targetIndex, 0, moved);
+    reorderProjectCategories(newCats);
+  };
+
+  const reorderReminderCategories = async (newCategories) => {
+    const updated = newCategories.map((c, index) => ({ ...c, order: index }));
+    setReminderCategories(updated);
+    if (!user) return;
+    for (const cat of updated) {
+      if (cat.id !== 'allgemein') {
+        await setDoc(doc(db, 'users', user.uid, 'reminderCategories', cat.id), { order: cat.order }, { merge: true });
+      }
+    }
+  };
+
+  const moveReminderCategoryOrder = (catId, direction) => {
+    const index = reminderCategories.findIndex(c => c.id === catId);
+    if (index === -1) return;
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= reminderCategories.length) return;
+    
+    const newCats = [...reminderCategories];
+    const [moved] = newCats.splice(index, 1);
+    newCats.splice(targetIndex, 0, moved);
+    reorderReminderCategories(newCats);
+  };
+
+  const updateProjectCategory = async (catId, newName) => {
+    if (!newName.trim()) return;
+    const name = newName.trim();
+    setProjectCategories(prev => prev.map(c => c.id === catId ? { ...c, name } : c));
+    if (!user || catId === 'allgemein') return;
+    await setDoc(doc(db, 'users', user.uid, 'categories', catId), { name }, { merge: true });
+  };
+
+  const updateReminderCategory = async (catId, newName) => {
+    if (!newName.trim()) return;
+    const name = newName.trim();
+    setReminderCategories(prev => prev.map(c => c.id === catId ? { ...c, name } : c));
+    if (!user || catId === 'allgemein') return;
+    await setDoc(doc(db, 'users', user.uid, 'reminderCategories', catId), { name }, { merge: true });
+  };
+
+  const deleteProjectCategory = async (categoryId) => {
+    if (!user || categoryId === 'allgemein') return;
+    
+    // Move all projects in this category to allgemein
+    const projsToMove = projects.filter(p => p.categoryId === categoryId);
+    for (const p of projsToMove) {
+      await setDoc(doc(db, 'users', user.uid, 'projects', p.id), { ...p, categoryId: 'allgemein' }, { merge: true });
+    }
+    
+    await deleteDoc(doc(db, 'users', user.uid, 'categories', categoryId));
   };
 
   const deleteProject = async (projectId) => {
@@ -499,6 +701,7 @@ export const ModalProvider = ({ children }) => {
       date: reminderData.date || 'Demnächst',
       time: reminderData.time || '',
       status: reminderData.status || 'GEPLANT',
+      categoryId: reminderData.categoryId || 'allgemein',
       isPaused: false,
       inKanban: true,
       createdAt: Date.now(),
@@ -638,6 +841,25 @@ export const ModalProvider = ({ children }) => {
       setSelectedReminderId,
       activeCoachScope,
       setActiveCoachScope,
+      projectCategories,
+      addProjectCategory,
+      toggleProjectCategory,
+      deleteProjectCategory,
+      updateProjectCategory,
+      updateReminderCategory,
+      reorderProjectCategories,
+      moveProjectCategoryOrder,
+      collapseAllProjectCategories,
+      expandAllProjectCategories,
+      reminderCategories,
+      addReminderCategory,
+      toggleReminderCategory,
+      deleteReminderCategory,
+      updateReminderCategory,
+      reorderReminderCategories,
+      moveReminderCategoryOrder,
+      collapseAllReminderCategories,
+      expandAllReminderCategories,
       addProject,
       addPhase,
       addTask,
