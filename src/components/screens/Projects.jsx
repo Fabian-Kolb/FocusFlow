@@ -399,8 +399,8 @@ const Projects = ({ setCurrentScreen }) => {
                   }`}
                   onClick={() => !isEditMode && toggleProjectCategory(cat.id)}
                 >
-                  <div className={`flex items-center gap-1.5 shrink-0 transition-colors ${
-                    isEditMode ? 'text-on-surface-variant' : 'text-on-surface hover:text-primary'
+                  <div className={`flex items-center gap-1.5 shrink-0 transition-colors text-on-surface ${
+                    isEditMode ? '' : 'hover:text-primary'
                   }`}>
                     {/* Drag Handle – always visible in edit mode */}
                     <span 
