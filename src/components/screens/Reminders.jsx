@@ -64,13 +64,23 @@ const Reminders = ({ setCurrentScreen }) => {
     }
   };
 
-  const { draggedCatId, startDrag } = useCategoryDrag({
+  const { draggedCatId, dropTarget, startDrag } = useCategoryDrag({
     categories: reminderCategories,
     reorderCategories: reorderReminderCategories,
     collapseAll: collapseAllReminderCategories,
-    onDragEnd: restoreReminderCategoryExpandStates,
+    // In edit mode: stay collapsed after drag. Only "Bearbeiten beenden" restores states.
+    onDragEnd: isEditMode ? collapseAllReminderCategories : restoreReminderCategoryExpandStates,
     sectionIdPrefix: 'rcat-sec-',
   });
+
+  // Visual drop indicator line
+  const DropIndicator = () => (
+    <div className="h-9 my-1 flex items-center gap-2 px-1 transition-all duration-150 animate-in fade-in zoom-in-95">
+      <div className="w-2.5 h-2.5 rounded-full bg-primary ring-2 ring-primary/30 shrink-0" />
+      <div className="flex-1 h-[2px] bg-primary rounded-full" />
+      <div className="w-2.5 h-2.5 rounded-full bg-primary ring-2 ring-primary/30 shrink-0" />
+    </div>
+  );
 
   const handleDragStart = (e, reminderId) => {
     e.dataTransfer.setData('text/plain', reminderId);
@@ -307,7 +317,12 @@ const Reminders = ({ setCurrentScreen }) => {
             </button>
             <button
               onClick={collapseAllReminderCategories}
-              className="text-[11px] font-bold text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1 bg-surface-low px-2.5 py-1 rounded-lg border border-outline-variant hover:border-primary/50 cursor-pointer"
+              disabled={isEditMode}
+              className={`text-[11px] font-bold transition-colors flex items-center gap-1 px-2.5 py-1 rounded-lg border ${
+                isEditMode
+                  ? 'opacity-30 cursor-not-allowed text-on-surface-variant bg-surface-low border-outline-variant'
+                  : 'text-on-surface-variant hover:text-primary bg-surface-low border-outline-variant hover:border-primary/50 cursor-pointer'
+              }`}
               title="Alle Kategorien einklappen"
             >
               <span className="material-symbols-outlined text-[14px]">unfold_less</span>
@@ -315,7 +330,13 @@ const Reminders = ({ setCurrentScreen }) => {
             </button>
             <button
               onClick={expandAllReminderCategories}
-              className="text-[11px] font-bold text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1 bg-surface-low px-2.5 py-1 rounded-lg border border-outline-variant hover:border-primary/50 cursor-pointer"
+              disabled={isEditMode}
+              className={`text-[11px] font-bold transition-colors flex items-center gap-1 px-2.5 py-1 rounded-lg border ${
+                isEditMode
+                  ? 'opacity-30 cursor-not-allowed text-on-surface-variant bg-surface-low border-outline-variant'
+                  : 'text-on-surface-variant hover:text-primary bg-surface-low border-outline-variant hover:border-primary/50 cursor-pointer'
+              }`}
+              title={isEditMode ? 'Im Bearbeitungsmodus nicht verfügbar' : 'Alle Kategorien ausklappen'}
             >
               <span className="material-symbols-outlined text-[14px]">unfold_more</span>
               Alle ausklappen
@@ -329,34 +350,52 @@ const Reminders = ({ setCurrentScreen }) => {
             return null;
           }
 
+          const showIndicatorBefore = dropTarget?.targetCatId === cat.id && dropTarget?.position === 'before';
+          const showIndicatorAfter  = dropTarget?.targetCatId === cat.id && dropTarget?.position === 'after';
+
           return (
-            <div 
-              key={cat.id} 
-              id={`rcat-sec-${cat.id}`}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => handleDrop(e, cat.id)}
-              className={`rounded-xl transition-all duration-150 border p-2 -m-1 scroll-mt-6 ${
-                draggedCatId === cat.id 
-                  ? 'border-primary ring-2 ring-primary/40 bg-surface shadow-md opacity-60 scale-[0.99]' 
-                  : 'border-transparent'
-              }`}
-            >
+            <React.Fragment key={cat.id}>
+              {showIndicatorBefore && <DropIndicator />}
+
+              <div 
+                id={`rcat-sec-${cat.id}`}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => handleDrop(e, cat.id)}
+                className={`rounded-xl transition-all duration-150 border p-2 -m-1 scroll-mt-6 ${
+                  draggedCatId === cat.id
+                    ? 'border-outline-variant/60 opacity-30 scale-[0.98]'
+                    : 'border-transparent'
+                }`}
+              >
               {/* Steam-Like Header */}
               <div 
-                className="flex items-center gap-3 cursor-pointer group mb-2 select-none py-1"
-                onClick={() => toggleReminderCategory(cat.id)}
+                className={`flex items-center gap-3 mb-2 select-none py-1 group ${
+                  isEditMode
+                    ? 'cursor-default'
+                    : 'cursor-pointer'
+                }`}
+                onClick={() => !isEditMode && toggleReminderCategory(cat.id)}
               >
-                <div className="flex items-center gap-1.5 text-on-surface hover:text-primary transition-colors shrink-0">
-                  {/* Drag Handle */}
+                <div className={`flex items-center gap-1.5 shrink-0 transition-colors ${
+                  isEditMode ? 'text-on-surface-variant' : 'text-on-surface hover:text-primary'
+                }`}>
+                  {/* Drag Handle – always visible in edit mode */}
                   <span 
                     onPointerDown={(e) => startDrag(e, cat.id)}
                     onClick={(e) => e.stopPropagation()}
-                    className="material-symbols-outlined text-[18px] opacity-50 group-hover:opacity-100 hover:text-primary cursor-grab active:cursor-grabbing p-1 -m-1 transition-opacity touch-none select-none" 
+                    className={`material-symbols-outlined text-[18px] hover:text-primary cursor-grab active:cursor-grabbing p-1 -m-1 transition-opacity touch-none select-none ${
+                      isEditMode ? 'opacity-100 text-primary' : 'opacity-50 group-hover:opacity-100'
+                    }`}
                     title="Halten & Ziehen zum Sortieren"
                   >
                     drag_indicator
                   </span>
-                  <span className={`material-symbols-outlined text-[20px] transition-transform ${cat.isExpanded ? 'rotate-90' : ''}`}>
+                  {/* Chevron – grayed out and non-interactive in edit mode */}
+                  <span className={`material-symbols-outlined text-[20px] transition-all ${
+                    isEditMode
+                      ? 'opacity-25 text-on-surface-variant'
+                      : `${cat.isExpanded ? 'rotate-90' : ''}`
+                  }`}>
                     chevron_right
                   </span>
                   
@@ -394,8 +433,10 @@ const Reminders = ({ setCurrentScreen }) => {
 
                 <div className="h-px bg-outline-variant flex-grow opacity-50 group-hover:bg-primary/50 transition-colors" />
                 
-                {/* Mobile / Quick Action Buttons (Edit, Up, Down, Delete) */}
-                <div className="flex items-center gap-0.5 opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                {/* Action Buttons – always visible in edit mode, hover-only otherwise */}
+                <div className={`flex items-center gap-0.5 shrink-0 transition-opacity ${
+                  isEditMode ? 'opacity-100' : 'opacity-90 sm:opacity-0 group-hover:opacity-100'
+                }`}>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -439,8 +480,8 @@ const Reminders = ({ setCurrentScreen }) => {
                 </div>
               </div>
 
-              {/* Grid */}
-              {cat.isExpanded && !draggedCatId && (
+              {/* Content grid – hidden in edit mode regardless of isExpanded state */}
+              {cat.isExpanded && !draggedCatId && !isEditMode && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                   {catReminders.length > 0 ? (
                     catReminders.map(renderCard)
@@ -452,6 +493,9 @@ const Reminders = ({ setCurrentScreen }) => {
                 </div>
               )}
             </div>
+
+              {showIndicatorAfter && <DropIndicator />}
+            </React.Fragment>
           );
         })}
       </div>

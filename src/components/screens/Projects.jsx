@@ -110,13 +110,23 @@ const Projects = ({ setCurrentScreen }) => {
     }
   };
 
-  const { draggedCatId, startDrag } = useCategoryDrag({
+  const { draggedCatId, dropTarget, startDrag } = useCategoryDrag({
     categories: projectCategories,
     reorderCategories: reorderProjectCategories,
     collapseAll: collapseAllProjectCategories,
-    onDragEnd: restoreProjectCategoryExpandStates,
+    // In edit mode: stay collapsed after drag. Only "Bearbeiten beenden" restores states.
+    onDragEnd: isEditMode ? collapseAllProjectCategories : restoreProjectCategoryExpandStates,
     sectionIdPrefix: 'cat-sec-',
   });
+
+  // Visual drop indicator line
+  const DropIndicator = () => (
+    <div className="h-9 my-1 flex items-center gap-2 px-1 transition-all duration-150 animate-in fade-in zoom-in-95">
+      <div className="w-2.5 h-2.5 rounded-full bg-primary ring-2 ring-primary/30 shrink-0" />
+      <div className="flex-1 h-[2px] bg-primary rounded-full" />
+      <div className="w-2.5 h-2.5 rounded-full bg-primary ring-2 ring-primary/30 shrink-0" />
+    </div>
+  );
 
   const handleDragStart = (e, projectId) => {
     e.dataTransfer.setData('text/plain', projectId);
@@ -330,7 +340,12 @@ const Projects = ({ setCurrentScreen }) => {
             </button>
             <button
               onClick={collapseAllProjectCategories}
-              className="text-[11px] font-bold text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1 bg-surface-low px-2.5 py-1 rounded-lg border border-outline-variant hover:border-primary/50 cursor-pointer"
+              disabled={isEditMode}
+              className={`text-[11px] font-bold transition-colors flex items-center gap-1 px-2.5 py-1 rounded-lg border ${
+                isEditMode
+                  ? 'opacity-30 cursor-not-allowed text-on-surface-variant bg-surface-low border-outline-variant'
+                  : 'text-on-surface-variant hover:text-primary bg-surface-low border-outline-variant hover:border-primary/50 cursor-pointer'
+              }`}
               title="Alle Kategorien einklappen"
             >
               <span className="material-symbols-outlined text-[14px]">unfold_less</span>
@@ -338,7 +353,13 @@ const Projects = ({ setCurrentScreen }) => {
             </button>
             <button
               onClick={expandAllProjectCategories}
-              className="text-[11px] font-bold text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1 bg-surface-low px-2.5 py-1 rounded-lg border border-outline-variant hover:border-primary/50 cursor-pointer"
+              disabled={isEditMode}
+              className={`text-[11px] font-bold transition-colors flex items-center gap-1 px-2.5 py-1 rounded-lg border ${
+                isEditMode
+                  ? 'opacity-30 cursor-not-allowed text-on-surface-variant bg-surface-low border-outline-variant'
+                  : 'text-on-surface-variant hover:text-primary bg-surface-low border-outline-variant hover:border-primary/50 cursor-pointer'
+              }`}
+              title={isEditMode ? 'Im Bearbeitungsmodus nicht verfügbar' : 'Alle Kategorien ausklappen'}
             >
               <span className="material-symbols-outlined text-[14px]">unfold_more</span>
               Alle ausklappen
@@ -352,129 +373,152 @@ const Projects = ({ setCurrentScreen }) => {
             return null;
           }
 
+          const showIndicatorBefore = dropTarget?.targetCatId === cat.id && dropTarget?.position === 'before';
+          const showIndicatorAfter  = dropTarget?.targetCatId === cat.id && dropTarget?.position === 'after';
+
           return (
-            <div 
-              key={cat.id} 
-              id={`cat-sec-${cat.id}`}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => handleDrop(e, cat.id)}
-              className={`rounded-xl transition-all duration-150 border p-2 -m-1 scroll-mt-6 ${
-                draggedCatId === cat.id 
-                  ? 'border-primary ring-2 ring-primary/40 bg-surface shadow-md opacity-60 scale-[0.99]' 
-                  : 'border-transparent'
-              }`}
-            >
-              {/* Steam-Like Header */}
+            <React.Fragment key={cat.id}>
+              {showIndicatorBefore && <DropIndicator />}
+
               <div 
-                className="flex items-center gap-3 cursor-pointer group mb-2 select-none py-1"
-                onClick={() => toggleProjectCategory(cat.id)}
+                id={`cat-sec-${cat.id}`}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => handleDrop(e, cat.id)}
+                className={`rounded-xl transition-all duration-150 border p-2 -m-1 scroll-mt-6 ${
+                  draggedCatId === cat.id
+                    ? 'border-outline-variant/60 opacity-30 scale-[0.98]'
+                    : 'border-transparent'
+                }`}
               >
-                <div className="flex items-center gap-1.5 text-on-surface hover:text-primary transition-colors shrink-0">
-                  {/* Drag Handle */}
-                  <span 
-                    onPointerDown={(e) => startDrag(e, cat.id)}
-                    onClick={(e) => e.stopPropagation()}
-                    className="material-symbols-outlined text-[18px] opacity-50 group-hover:opacity-100 hover:text-primary cursor-grab active:cursor-grabbing p-1 -m-1 transition-opacity touch-none select-none" 
-                    title="Halten & Ziehen zum Sortieren"
-                  >
-                    drag_indicator
-                  </span>
-                  <span className={`material-symbols-outlined text-[20px] transition-transform ${cat.isExpanded ? 'rotate-90' : ''}`}>
-                    chevron_right
-                  </span>
+                {/* Steam-Like Header */}
+                <div 
+                  className={`flex items-center gap-3 mb-2 select-none py-1 group ${
+                    isEditMode
+                      ? 'cursor-default'
+                      : 'cursor-pointer'
+                  }`}
+                  onClick={() => !isEditMode && toggleProjectCategory(cat.id)}
+                >
+                  <div className={`flex items-center gap-1.5 shrink-0 transition-colors ${
+                    isEditMode ? 'text-on-surface-variant' : 'text-on-surface hover:text-primary'
+                  }`}>
+                    {/* Drag Handle – always visible in edit mode */}
+                    <span 
+                      onPointerDown={(e) => startDrag(e, cat.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      className={`material-symbols-outlined text-[18px] hover:text-primary cursor-grab active:cursor-grabbing p-1 -m-1 transition-opacity touch-none select-none ${
+                        isEditMode ? 'opacity-100 text-primary' : 'opacity-50 group-hover:opacity-100'
+                      }`}
+                      title="Halten & Ziehen zum Sortieren"
+                    >
+                      drag_indicator
+                    </span>
+                    {/* Chevron – grayed out and non-interactive in edit mode */}
+                    <span className={`material-symbols-outlined text-[20px] transition-all ${
+                      isEditMode
+                        ? 'opacity-25 text-on-surface-variant'
+                        : `${cat.isExpanded ? 'rotate-90' : ''}`
+                    }`}>
+                      chevron_right
+                    </span>
+                    
+                    {editingCatId === cat.id ? (
+                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="text"
+                          value={editingCatName}
+                          onChange={(e) => setEditingCatName(e.target.value)}
+                          className="px-2 py-1 text-xs font-bold uppercase bg-surface-low border border-primary rounded-lg focus:outline-none"
+                          autoFocus
+                          onKeyDown={(e) => e.key === 'Enter' && saveEditCategory(cat.id)}
+                        />
+                        <button
+                          onClick={() => saveEditCategory(cat.id)}
+                          className="p-1 bg-primary text-white rounded-lg hover:bg-primary/90"
+                          title="Speichern"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">check</span>
+                        </button>
+                        <button
+                          onClick={() => setEditingCatId(null)}
+                          className="p-1 bg-surface-low text-on-surface-variant rounded-lg hover:bg-surface-variant"
+                          title="Abbrechen"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">close</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <h2 className="text-sm font-bold tracking-wider uppercase flex items-center gap-2">
+                        {cat.name} <span className="text-on-surface-variant font-normal text-xs">({catProjects.length})</span>
+                      </h2>
+                    )}
+                  </div>
+
+                  <div className="h-px bg-outline-variant flex-grow opacity-50 group-hover:bg-primary/50 transition-colors" />
                   
-                  {editingCatId === cat.id ? (
-                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                      <input
-                        type="text"
-                        value={editingCatName}
-                        onChange={(e) => setEditingCatName(e.target.value)}
-                        className="px-2 py-1 text-xs font-bold uppercase bg-surface-low border border-primary rounded-lg focus:outline-none"
-                        autoFocus
-                        onKeyDown={(e) => e.key === 'Enter' && saveEditCategory(cat.id)}
-                      />
-                      <button
-                        onClick={() => saveEditCategory(cat.id)}
-                        className="p-1 bg-primary text-white rounded-lg hover:bg-primary/90"
-                        title="Speichern"
-                      >
-                        <span className="material-symbols-outlined text-[16px]">check</span>
-                      </button>
-                      <button
-                        onClick={() => setEditingCatId(null)}
-                        className="p-1 bg-surface-low text-on-surface-variant rounded-lg hover:bg-surface-variant"
-                        title="Abbrechen"
+                  {/* Action Buttons – always visible in edit mode, hover-only otherwise */}
+                  <div className={`flex items-center gap-0.5 shrink-0 transition-opacity ${
+                    isEditMode ? 'opacity-100' : 'opacity-90 sm:opacity-0 group-hover:opacity-100'
+                  }`}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingCatId(cat.id);
+                        setEditingCatName(cat.name);
+                      }}
+                      className="p-1 text-on-surface-variant hover:text-primary hover:bg-surface-low rounded transition-colors"
+                      title="Kategorie umbenennen"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">edit</span>
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        moveProjectCategoryOrder(cat.id, 'up');
+                      }}
+                      className="p-1 text-on-surface-variant hover:text-primary hover:bg-surface-low rounded transition-colors"
+                      title="Kategorie nach oben verschieben"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">keyboard_arrow_up</span>
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        moveProjectCategoryOrder(cat.id, 'down');
+                      }}
+                      className="p-1 text-on-surface-variant hover:text-primary hover:bg-surface-low rounded transition-colors"
+                      title="Kategorie nach unten verschieben"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">keyboard_arrow_down</span>
+                    </button>
+                    {cat.id !== 'allgemein' && (
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); deleteProjectCategory(cat.id); }}
+                        className="p-1 text-on-surface-variant hover:text-red-500 hover:bg-red-50 rounded transition-colors ml-1"
+                        title="Kategorie löschen"
                       >
                         <span className="material-symbols-outlined text-[16px]">close</span>
                       </button>
-                    </div>
-                  ) : (
-                    <h2 className="text-sm font-bold tracking-wider uppercase flex items-center gap-2">
-                      {cat.name} <span className="text-on-surface-variant font-normal text-xs">({catProjects.length})</span>
-                    </h2>
-                  )}
+                    )}
+                  </div>
                 </div>
 
-                <div className="h-px bg-outline-variant flex-grow opacity-50 group-hover:bg-primary/50 transition-colors" />
-                
-                {/* Mobile / Quick Action Buttons (Edit, Up, Down, Delete) */}
-                <div className="flex items-center gap-0.5 opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditingCatId(cat.id);
-                      setEditingCatName(cat.name);
-                    }}
-                    className="p-1 text-on-surface-variant hover:text-primary hover:bg-surface-low rounded transition-colors"
-                    title="Kategorie umbenennen"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">edit</span>
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      moveProjectCategoryOrder(cat.id, 'up');
-                    }}
-                    className="p-1 text-on-surface-variant hover:text-primary hover:bg-surface-low rounded transition-colors"
-                    title="Kategorie nach oben verschieben"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">keyboard_arrow_up</span>
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      moveProjectCategoryOrder(cat.id, 'down');
-                    }}
-                    className="p-1 text-on-surface-variant hover:text-primary hover:bg-surface-low rounded transition-colors"
-                    title="Kategorie nach unten verschieben"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">keyboard_arrow_down</span>
-                  </button>
-                  {cat.id !== 'allgemein' && (
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); deleteProjectCategory(cat.id); }}
-                      className="p-1 text-on-surface-variant hover:text-red-500 hover:bg-red-50 rounded transition-colors ml-1"
-                      title="Kategorie löschen"
-                    >
-                      <span className="material-symbols-outlined text-[16px]">close</span>
-                    </button>
-                  )}
-                </div>
+                {/* Content grid – hidden in edit mode regardless of isExpanded state */}
+                {cat.isExpanded && !draggedCatId && !isEditMode && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                    {catProjects.length > 0 ? (
+                      catProjects.map(renderCard)
+                    ) : (
+                      <div className="col-span-full py-8 border-2 border-dashed border-outline-variant rounded-xl flex items-center justify-center text-on-surface-variant">
+                        Projekte hier ablegen
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
-              {/* Grid */}
-              {cat.isExpanded && !draggedCatId && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-                  {catProjects.length > 0 ? (
-                    catProjects.map(renderCard)
-                  ) : (
-                    <div className="col-span-full py-8 border-2 border-dashed border-outline-variant rounded-xl flex items-center justify-center text-on-surface-variant">
-                      Projekte hier ablegen
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+              {showIndicatorAfter && <DropIndicator />}
+            </React.Fragment>
           );
         })}
       </div>

@@ -1,18 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
 /**
- * useCategoryDrag – Stable insert-indicator drag-and-drop for category lists.
- *
- * Strategy (no oscillation):
- *   - The list stays in its ORIGINAL ORDER the entire time while dragging.
- *   - A "dropIndex" tracks WHERE the item will land (0 = before first, N = after last).
- *   - The dropIndex is derived from cursor Y vs. the midpoints of each category row.
- *   - Only on pointerup is the list actually reordered.
- *   - A floating ghost pill follows the cursor.
- *
- * What the component renders:
- *   - The dragged category row: slightly faded (opacity-40) but still in place.
- *   - A <DropIndicator> line between the correct rows based on `dropIndex`.
+ * useCategoryDrag – Precise slot-based drag-and-drop for category lists.
  *
  * @param {Array}    categories        - ordered array of category objects {id, name, isExpanded, ...}
  * @param {Function} reorderCategories - (newOrderedArray) => void — called once on drop
@@ -27,27 +16,21 @@ export function useCategoryDrag({
   onDragEnd,
   sectionIdPrefix,
 }) {
-  const [draggedCatId, setDraggedCatId]   = useState(null);
-  const [dropIndex, setDropIndex]         = useState(null);
+  const [draggedCatId, setDraggedCatId] = useState(null);
+  const [dropTarget, setDropTarget]     = useState(null); // { targetCatId: string, position: 'before'|'after' }
 
   // Stable refs to avoid stale closures in event listeners
-  const draggedCatIdRef  = useRef(null);
-  const dropIndexRef     = useRef(null);
-  const savedStatesRef   = useRef(null);
-  const categoriesRef    = useRef(categories);
-  const reorderRef       = useRef(reorderCategories);
-  const onDragEndRef     = useRef(onDragEnd);
-  const ghostRef         = useRef(null);
+  const draggedCatIdRef = useRef(null);
+  const slotIndexRef    = useRef(null);
+  const savedStatesRef  = useRef(null);
+  const categoriesRef   = useRef(categories);
+  const reorderRef      = useRef(reorderCategories);
+  const onDragEndRef    = useRef(onDragEnd);
+  const ghostRef        = useRef(null);
 
   useEffect(() => { categoriesRef.current = categories; }, [categories]);
   useEffect(() => { reorderRef.current = reorderCategories; }, [reorderCategories]);
   useEffect(() => { onDragEndRef.current = onDragEnd; }, [onDragEnd]);
-
-  // Keep dropIndex ref in sync
-  const setDropIndexBoth = useCallback((idx) => {
-    dropIndexRef.current = idx;
-    setDropIndex(idx);
-  }, []);
 
   // ── Ghost ────────────────────────────────────────────────────────────────────
 
@@ -100,29 +83,64 @@ export function useCategoryDrag({
     }
   }, []);
 
-  // ── Drop-index calculation ───────────────────────────────────────────────────
-  // Divides the vertical space using midpoints between adjacent category rows.
-  // This gives generous, stable hit zones — no tiny sliver issues.
+  // ── Slot & Drop Target Calculation ─────────────────────────────────────────
 
-  const calcDropIndex = useCallback((cursorY) => {
+  const calcDropSlot = useCallback((cursorY) => {
     const cats = categoriesRef.current;
-    let result = cats.length; // default: after last
+    const draggedId = draggedCatIdRef.current;
 
+    // Collect visible category DOM elements excluding the dragged category
+    const visibleOtherItems = [];
     for (let i = 0; i < cats.length; i++) {
-      const el = document.getElementById(`${sectionIdPrefix}${cats[i].id}`);
+      const cat = cats[i];
+      if (cat.id === draggedId) continue;
+      const el = document.getElementById(`${sectionIdPrefix}${cat.id}`);
       if (!el) continue;
       const rect = el.getBoundingClientRect();
-      // Use the midpoint of each row as the threshold
-      const midY = rect.top + rect.height / 2;
-      if (cursorY < midY) {
-        result = i;
+      visibleOtherItems.push({
+        catId: cat.id,
+        indexInFullList: i,
+        midY: rect.top + rect.height / 2,
+      });
+    }
+
+    if (visibleOtherItems.length === 0) {
+      return { slotIndex: 0, dropTarget: null };
+    }
+
+    // Determine insertion slot relative to visibleOtherItems
+    let slotIndex = visibleOtherItems.length;
+    for (let k = 0; k < visibleOtherItems.length; k++) {
+      if (cursorY < visibleOtherItems[k].midY) {
+        slotIndex = k;
         break;
       }
     }
-    return result;
+
+    // Determine visual dropTarget descriptor
+    let dropTarget = null;
+    if (slotIndex < visibleOtherItems.length) {
+      dropTarget = {
+        targetCatId: visibleOtherItems[slotIndex].catId,
+        position: 'before',
+      };
+    } else {
+      dropTarget = {
+        targetCatId: visibleOtherItems[visibleOtherItems.length - 1].catId,
+        position: 'after',
+      };
+    }
+
+    return { slotIndex, dropTarget };
   }, [sectionIdPrefix]);
 
-  // ── Event handlers ───────────────────────────────────────────────────────────
+  const updateDropTarget = useCallback((cursorY) => {
+    const { slotIndex, dropTarget } = calcDropSlot(cursorY);
+    slotIndexRef.current = slotIndex;
+    setDropTarget(dropTarget);
+  }, [calcDropSlot]);
+
+  // ── Event Handlers ─────────────────────────────────────────────────────────
 
   const onPointerMove = useCallback((e) => {
     const x = e.clientX ?? e.touches?.[0]?.clientX;
@@ -130,29 +148,26 @@ export function useCategoryDrag({
     if (x == null || y == null) return;
 
     moveGhost(x, y);
-    const di = calcDropIndex(y);
-    setDropIndexBoth(di);
-  }, [moveGhost, calcDropIndex, setDropIndexBoth]);
+    updateDropTarget(y);
+  }, [moveGhost, updateDropTarget]);
 
-  // Ref so cleanup can always call the current version
   const onPointerUpRef = useRef(null);
 
   const onPointerUp = useCallback(() => {
-    const dragged  = draggedCatIdRef.current;
-    const di       = dropIndexRef.current;
-    const cats     = categoriesRef.current;
+    const dragged = draggedCatIdRef.current;
+    const slotIdx = slotIndexRef.current;
+    const cats    = categoriesRef.current;
 
-    // Apply reorder only if item actually moved
-    if (dragged !== null && di !== null) {
+    if (dragged !== null && slotIdx !== null) {
       const fromIndex = cats.findIndex(c => c.id === dragged);
       if (fromIndex !== -1) {
-        // Adjust insertion index for the removal of the dragged item
-        const adjustedTo = di > fromIndex ? di - 1 : di;
+        const draggedCat = cats[fromIndex];
+        const newCats = cats.filter(c => c.id !== dragged);
+        const safeSlot = Math.max(0, Math.min(slotIdx, newCats.length));
+        newCats.splice(safeSlot, 0, draggedCat);
 
-        if (fromIndex !== adjustedTo) {
-          const newCats = [...cats];
-          const [moved] = newCats.splice(fromIndex, 1);
-          newCats.splice(adjustedTo, 0, moved);
+        const hasOrderChanged = newCats.some((c, idx) => c.id !== cats[idx]?.id);
+        if (hasOrderChanged) {
           reorderRef.current(newCats);
         }
       }
@@ -166,9 +181,9 @@ export function useCategoryDrag({
     // Cleanup state
     destroyGhost();
     draggedCatIdRef.current = null;
-    dropIndexRef.current    = null;
+    slotIndexRef.current    = null;
     setDraggedCatId(null);
-    setDropIndex(null);
+    setDropTarget(null);
 
     // Remove listeners
     window.removeEventListener('pointermove', onPointerMove);
@@ -183,9 +198,8 @@ export function useCategoryDrag({
 
   onPointerUpRef.current = onPointerUp;
 
-  // ── Public API ───────────────────────────────────────────────────────────────
+  // ── Public API ─────────────────────────────────────────────────────────────
 
-  /** Attach to onPointerDown of each category's drag handle. */
   const startDrag = useCallback((e, catId) => {
     e.preventDefault();
     e.stopPropagation();
@@ -198,16 +212,13 @@ export function useCategoryDrag({
     draggedCatIdRef.current = catId;
     setDraggedCatId(catId);
 
-    // Initial drop index from current pointer Y
+    collapseAll();
+
     const x = e.clientX ?? e.touches?.[0]?.clientX ?? 0;
     const y = e.clientY ?? e.touches?.[0]?.clientY ?? 0;
 
-    collapseAll();
-
-    // Small delay so collapsed state takes effect before we read rects
     requestAnimationFrame(() => {
-      const di = calcDropIndex(y);
-      setDropIndexBoth(di);
+      updateDropTarget(y);
     });
 
     const cat = categoriesRef.current.find(c => c.id === catId);
@@ -220,9 +231,8 @@ export function useCategoryDrag({
     window.addEventListener('pointerup',   onPointerUp);
     window.addEventListener('touchmove',   onPointerMove, { passive: true });
     window.addEventListener('touchend',    onPointerUp);
-  }, [collapseAll, createGhost, calcDropIndex, setDropIndexBoth, onPointerMove, onPointerUp]);
+  }, [collapseAll, createGhost, updateDropTarget, onPointerMove, onPointerUp]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       destroyGhost();
@@ -231,5 +241,5 @@ export function useCategoryDrag({
     };
   }, [destroyGhost]);
 
-  return { draggedCatId, dropIndex, startDrag };
+  return { draggedCatId, dropTarget, startDrag };
 }
