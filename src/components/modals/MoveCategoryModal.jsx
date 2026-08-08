@@ -36,13 +36,18 @@ const MoveCategoryModal = () => {
   const handleCreateCategory = async (e) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
+    let createdCatId = null;
     if (isProject) {
-      await addProjectCategory(newCatName.trim());
+      createdCatId = await addProjectCategory(newCatName.trim());
     } else {
-      await addReminderCategory(newCatName.trim());
+      createdCatId = await addReminderCategory(newCatName.trim());
     }
     setNewCatName('');
     setShowAdd(false);
+
+    if (createdCatId && itemId) {
+      handleSelectCategory(createdCatId);
+    }
   };
 
   return (

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useCategoryDrag } from '../ui/useCategoryDrag';
+import { useCardTouchDrag } from '../ui/useCardTouchDrag';
 import { useModalContext } from '../../context/ModalContext';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
@@ -27,6 +28,26 @@ const Projects = ({ setCurrentScreen }) => {
     expandAllProjectCategories,
     restoreProjectCategoryExpandStates,
   } = useModalContext();
+
+  const handleMoveProjectToCategory = (projectId, categoryId) => {
+    moveProjectToCategory(projectId, categoryId);
+    const cat = projectCategories.find(c => c.id === categoryId);
+    if (cat && !cat.isExpanded) {
+      toggleProjectCategory(categoryId);
+    }
+  };
+
+  const {
+    draggedCardId: touchDraggedProjectId,
+    cardDropTargetId: touchCardDropTargetCatId,
+    startCardTouchDrag: startProjectCardDrag,
+    handleHtml5DragStart: handleProjectHtml5DragStart,
+    handleHtml5DragOver: handleProjectHtml5DragOver,
+    handleHtml5DragEnd: handleProjectHtml5DragEnd
+  } = useCardTouchDrag({
+    onMoveItemToCategory: handleMoveProjectToCategory,
+    categoryPrefix: 'cat-sec-'
+  });
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -89,6 +110,7 @@ const Projects = ({ setCurrentScreen }) => {
 
   const [editingCatId, setEditingCatId] = useState(null);
   const [editingCatName, setEditingCatName] = useState('');
+  const [cardDragOverCatId, setCardDragOverCatId] = useState(null);
 
   // Edit-Mode: saves expand states, collapses all → easy sorting
   const [isEditMode, setIsEditMode] = useState(false);
@@ -128,21 +150,26 @@ const Projects = ({ setCurrentScreen }) => {
     </div>
   );
 
-  const handleDragStart = (e, projectId) => {
-    e.dataTransfer.setData('text/plain', projectId);
-    e.dataTransfer.effectAllowed = 'move';
+  const handleCategoryDragOver = (e, categoryId) => {
+    handleProjectHtml5DragOver(e, categoryId);
+    if (!draggedCatId && cardDragOverCatId !== categoryId) {
+      setCardDragOverCatId(categoryId);
+    }
   };
 
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
+  const handleCategoryDragLeave = (e, categoryId) => {
+    if (cardDragOverCatId === categoryId && !e.currentTarget.contains(e.relatedTarget)) {
+      setCardDragOverCatId(null);
+    }
   };
 
   const handleDrop = (e, categoryId) => {
     e.preventDefault();
+    setCardDragOverCatId(null);
+    handleProjectHtml5DragEnd();
     const projectId = e.dataTransfer.getData('text/plain');
     if (projectId) {
-      moveProjectToCategory(projectId, categoryId);
+      handleMoveProjectToCategory(projectId, categoryId);
     }
   };
 
@@ -165,8 +192,10 @@ const Projects = ({ setCurrentScreen }) => {
     <div
       key={project.id}
       draggable
-      onDragStart={(e) => handleDragStart(e, project.id)}
-      className="cursor-grab active:cursor-grabbing"
+      onDragStart={(e) => handleProjectHtml5DragStart(e, project.id)}
+      onDragEnd={handleProjectHtml5DragEnd}
+      onPointerDown={(e) => startProjectCardDrag(e, project.id, project.title)}
+      className="cursor-grab active:cursor-grabbing touch-action-none"
     >
       <Card
         interactive
@@ -382,11 +411,14 @@ const Projects = ({ setCurrentScreen }) => {
 
               <div 
                 id={`cat-sec-${cat.id}`}
-                onDragOver={(e) => e.preventDefault()}
+                onDragOver={(e) => handleCategoryDragOver(e, cat.id)}
+                onDragLeave={(e) => handleCategoryDragLeave(e, cat.id)}
                 onDrop={(e) => handleDrop(e, cat.id)}
                 className={`rounded-xl transition-all duration-150 border p-2 -m-1 scroll-mt-6 ${
                   draggedCatId === cat.id
                     ? 'border-outline-variant/60 opacity-30 scale-[0.98]'
+                    : (cardDragOverCatId === cat.id || touchCardDropTargetCatId === cat.id)
+                    ? 'border-primary bg-primary/10 ring-2 ring-primary/40 shadow-lg scale-[1.01]'
                     : 'border-transparent'
                 }`}
               >

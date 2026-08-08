@@ -548,7 +548,7 @@ export const ModalProvider = ({ children }) => {
   };
 
   const addReminderCategory = async (name) => {
-    if (!user) return;
+    if (!user) return null;
     const id = `rcat_${Date.now()}`;
     const newCat = { id, name, isExpanded: true, createdAt: Date.now() };
     setReminderCategories(prev => [...prev.filter(c => c.id !== id), newCat]);
@@ -557,14 +557,20 @@ export const ModalProvider = ({ children }) => {
     } catch (e) {
       console.error('Error adding reminder category:', e);
     }
+    return id;
   };
 
   const toggleReminderCategory = async (categoryId) => {
     if (!user) return;
     const cat = reminderCategories.find(c => c.id === categoryId);
     if (!cat) return;
-    setReminderCategories(prev => prev.map(c => c.id === categoryId ? { ...c, isExpanded: !c.isExpanded } : c));
-    await setDoc(doc(db, 'users', user.uid, 'reminderCategories', categoryId), { ...cat, isExpanded: !cat.isExpanded }, { merge: true });
+    const newIsExpanded = !cat.isExpanded;
+    setReminderCategories(prev => prev.map(c => c.id === categoryId ? { ...c, isExpanded: newIsExpanded } : c));
+    try {
+      await setDoc(doc(db, 'users', user.uid, 'reminderCategories', categoryId), { ...cat, isExpanded: newIsExpanded }, { merge: true });
+    } catch (e) {
+      console.error('Error toggling reminder category:', e);
+    }
   };
 
   const deleteReminderCategory = async (categoryId) => {
@@ -580,7 +586,7 @@ export const ModalProvider = ({ children }) => {
   };
 
   const addProjectCategory = async (name) => {
-    if (!user) return;
+    if (!user) return null;
     const id = `cat_${Date.now()}`;
     const newCat = { id, name, isExpanded: true, createdAt: Date.now() };
     setProjectCategories(prev => [...prev.filter(c => c.id !== id), newCat]);
@@ -589,13 +595,20 @@ export const ModalProvider = ({ children }) => {
     } catch (e) {
       console.error('Error adding project category:', e);
     }
+    return id;
   };
 
   const toggleProjectCategory = async (categoryId) => {
     if (!user) return;
     const cat = projectCategories.find(c => c.id === categoryId);
     if (!cat) return;
-    await setDoc(doc(db, 'users', user.uid, 'categories', categoryId), { ...cat, isExpanded: !cat.isExpanded }, { merge: true });
+    const newIsExpanded = !cat.isExpanded;
+    setProjectCategories(prev => prev.map(c => c.id === categoryId ? { ...c, isExpanded: newIsExpanded } : c));
+    try {
+      await setDoc(doc(db, 'users', user.uid, 'categories', categoryId), { ...cat, isExpanded: newIsExpanded }, { merge: true });
+    } catch (e) {
+      console.error('Error toggling project category:', e);
+    }
   };
 
   const collapseAllProjectCategories = () => {
@@ -889,6 +902,7 @@ export const ModalProvider = ({ children }) => {
       deleteProjectCategory,
       updateProjectCategory,
       updateReminderCategory,
+      moveProjectToCategory,
       reorderProjectCategories,
       moveProjectCategoryOrder,
       collapseAllProjectCategories,
@@ -899,6 +913,7 @@ export const ModalProvider = ({ children }) => {
       toggleReminderCategory,
       deleteReminderCategory,
       updateReminderCategory,
+      moveReminderToCategory,
       reorderReminderCategories,
       moveReminderCategoryOrder,
       collapseAllReminderCategories,

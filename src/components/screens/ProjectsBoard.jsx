@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useModalContext } from '../../context/ModalContext';
+import { useCardTouchDrag } from '../ui/useCardTouchDrag';
 import Card from '../ui/Card';
 import Badge from '../ui/Badge';
 import CardContextMenu from '../ui/CardContextMenu';
@@ -21,6 +22,26 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
     toggleProjectStatus,
     toggleReminderStatus
   } = useModalContext();
+
+  const handleMoveKanbanItem = (itemId, column) => {
+    const proj = projects.find(p => p.id === itemId);
+    if (proj) {
+      updateProjectForKanban(itemId, column);
+    } else {
+      updateReminderForKanban(itemId, column);
+    }
+  };
+
+  const {
+    cardDropTargetId: touchKanbanColTarget,
+    startCardTouchDrag: startKanbanCardDrag,
+    handleHtml5DragStart: handleKanbanHtml5DragStart,
+    handleHtml5DragOver: handleKanbanHtml5DragOver,
+    handleHtml5DragEnd: handleKanbanHtml5DragEnd
+  } = useCardTouchDrag({
+    onMoveItemToCategory: handleMoveKanbanItem,
+    categoryPrefix: 'kanban-col-'
+  });
 
   const [draggedItem, setDraggedItem] = useState(null);
   const [showProjects, setShowProjects] = useState(true);
@@ -46,19 +67,23 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
 
   const handleDragStart = (e, item) => {
     setDraggedItem({ id: item.id, itemType: item.itemType });
-    e.dataTransfer.effectAllowed = 'move';
-    setTimeout(() => {
-      e.target.style.opacity = '0.5';
-    }, 0);
+    handleKanbanHtml5DragStart(e, item.id);
+    if (e.target) {
+      setTimeout(() => {
+        if (e.target) e.target.style.opacity = '0.5';
+      }, 0);
+    }
   };
 
   const handleDragEnd = (e) => {
-    e.target.style.opacity = '1';
+    if (e.target) e.target.style.opacity = '1';
     setDraggedItem(null);
+    handleKanbanHtml5DragEnd();
   };
 
-  const handleDragOver = (e) => {
+  const handleDragOver = (e, column) => {
     e.preventDefault();
+    handleKanbanHtml5DragOver(e, column);
     e.currentTarget.classList.add('bg-surface-variant/30');
   };
   
@@ -69,6 +94,7 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
   const handleDrop = (e, column) => {
     e.preventDefault();
     e.currentTarget.classList.remove('bg-surface-variant/30');
+    handleKanbanHtml5DragEnd();
     if (draggedItem) {
       if (draggedItem.itemType === 'project') {
         updateProjectForKanban(draggedItem.id, column);
@@ -107,7 +133,8 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
           draggable
           onDragStart={(e) => handleDragStart(e, project)}
           onDragEnd={handleDragEnd}
-          className="mb-4 cursor-grab active:cursor-grabbing"
+          onPointerDown={(e) => startKanbanCardDrag(e, project.id, project.title)}
+          className="mb-4 cursor-grab active:cursor-grabbing touch-action-none"
         >
           <Card
             interactive
@@ -214,7 +241,8 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
           draggable
           onDragStart={(e) => handleDragStart(e, reminder)}
           onDragEnd={handleDragEnd}
-          className="mb-4 cursor-grab active:cursor-grabbing"
+          onPointerDown={(e) => startKanbanCardDrag(e, reminder.id, reminder.title)}
+          className="mb-4 cursor-grab active:cursor-grabbing touch-action-none"
         >
           <Card
             interactive
@@ -321,8 +349,10 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 pb-4 pt-2 overflow-y-auto lg:overflow-hidden">
         {/* Geplant Column */}
         <div 
+          id="kanban-col-TODO"
+          data-kanban-column="TODO"
           className="flex flex-col min-h-0 lg:h-full"
-          onDragOver={handleDragOver}
+          onDragOver={(e) => handleDragOver(e, 'TODO')}
           onDragLeave={handleDragLeave}
           onDrop={(e) => handleDrop(e, 'TODO')}
         >
@@ -337,7 +367,11 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
               {todoItems.length}
             </span>
           </div>
-          <div className="flex-1 lg:overflow-y-auto rounded-xl p-2 sm:p-3 border border-dashed border-outline-variant/60 transition-colors bg-surface-low/30">
+          <div className={`flex-1 lg:overflow-y-auto rounded-xl p-2 sm:p-3 border border-dashed transition-all ${
+            touchKanbanColTarget === 'TODO'
+              ? 'border-primary bg-primary/10 ring-2 ring-primary/40'
+              : 'border-outline-variant/60 bg-surface-low/30'
+          }`}>
             {todoItems.map(renderCard)}
             {todoItems.length === 0 && (
               <div className="h-32 lg:h-full flex items-center justify-center text-on-surface-variant/50 text-sm italic font-mono border-2 border-dashed border-transparent">
@@ -349,8 +383,10 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
 
         {/* In Arbeit Column */}
         <div 
+          id="kanban-col-IN_PROGRESS"
+          data-kanban-column="IN_PROGRESS"
           className="flex flex-col min-h-0 lg:h-full"
-          onDragOver={handleDragOver}
+          onDragOver={(e) => handleDragOver(e, 'IN_PROGRESS')}
           onDragLeave={handleDragLeave}
           onDrop={(e) => handleDrop(e, 'IN_PROGRESS')}
         >
@@ -364,7 +400,11 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
               {inProgressItems.length}
             </span>
           </div>
-          <div className="flex-1 lg:overflow-y-auto rounded-xl p-2 sm:p-3 border border-dashed border-outline-variant/60 transition-colors bg-surface-low/30">
+          <div className={`flex-1 lg:overflow-y-auto rounded-xl p-2 sm:p-3 border border-dashed transition-all ${
+            touchKanbanColTarget === 'IN_PROGRESS'
+              ? 'border-primary bg-primary/10 ring-2 ring-primary/40'
+              : 'border-outline-variant/60 bg-surface-low/30'
+          }`}>
             {inProgressItems.map(renderCard)}
             {inProgressItems.length === 0 && (
               <div className="h-32 lg:h-full flex items-center justify-center text-on-surface-variant/50 text-sm italic font-mono border-2 border-dashed border-transparent">
@@ -376,8 +416,10 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
 
         {/* Abgeschlossen Column */}
         <div 
+          id="kanban-col-DONE"
+          data-kanban-column="DONE"
           className="flex flex-col min-h-0 lg:h-full"
-          onDragOver={handleDragOver}
+          onDragOver={(e) => handleDragOver(e, 'DONE')}
           onDragLeave={handleDragLeave}
           onDrop={(e) => handleDrop(e, 'DONE')}
         >
@@ -388,7 +430,11 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
               {doneItems.length}
             </span>
           </div>
-          <div className="flex-1 lg:overflow-y-auto rounded-xl p-2 sm:p-3 border border-dashed border-outline-variant/60 transition-colors bg-surface-low/30">
+          <div className={`flex-1 lg:overflow-y-auto rounded-xl p-2 sm:p-3 border border-dashed transition-all ${
+            touchKanbanColTarget === 'DONE'
+              ? 'border-primary bg-primary/10 ring-2 ring-primary/40'
+              : 'border-outline-variant/60 bg-surface-low/30'
+          }`}>
             {doneItems.map(renderCard)}
             {doneItems.length === 0 && (
               <div className="h-32 lg:h-full flex items-center justify-center text-on-surface-variant/50 text-sm italic font-mono border-2 border-dashed border-transparent">

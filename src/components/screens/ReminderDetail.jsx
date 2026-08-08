@@ -3,7 +3,7 @@ import { useModalContext } from '../../context/ModalContext';
 import NotesSection from '../ui/NotesSection';
 
 const ReminderDetail = ({ setCurrentScreen }) => {
-  const { reminders, trashItems, selectedReminderId, toggleReminderStatus, setReminderStatus, setActiveCoachScope, toggleReminderPause, toggleReminderKanban, mutateReminder, reminderCategories } = useModalContext();
+  const { reminders, trashItems, selectedReminderId, openModal, toggleReminderStatus, setReminderStatus, setActiveCoachScope, toggleReminderPause, toggleReminderKanban, mutateReminder, reminderCategories } = useModalContext();
   const [isStructuring, setIsStructuring] = useState(false);
 
   const reminder = reminders.find(r => r.id === selectedReminderId) || (trashItems && trashItems.find(r => r.id === selectedReminderId));
@@ -171,22 +171,31 @@ const ReminderDetail = ({ setCurrentScreen }) => {
               Übersicht
             </button>
             <span className="text-outline-variant font-bold">/</span>
-            <button
-              onClick={() => {
-                if (setCurrentScreen) {
-                  setCurrentScreen('reminders');
-                  setTimeout(() => {
-                    const el = document.getElementById(`rcat-sec-${categoryObj.id}`);
-                    if (el) {
-                      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }
-                  }, 100);
-                }
-              }}
-              className="hover:text-primary transition-colors text-on-surface-variant hover:underline font-medium cursor-pointer"
-            >
-              {categoryObj.name}
-            </button>
+            <div className="inline-flex items-center gap-1">
+              <button
+                onClick={() => {
+                  if (setCurrentScreen) {
+                    setCurrentScreen('reminders');
+                    setTimeout(() => {
+                      const el = document.getElementById(`rcat-sec-${categoryObj.id}`);
+                      if (el) {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }
+                    }, 100);
+                  }
+                }}
+                className="hover:text-primary transition-colors text-on-surface-variant hover:underline font-medium cursor-pointer"
+              >
+                {categoryObj.name}
+              </button>
+              <button
+                onClick={() => openModal('moveCategory', { type: 'reminder', itemId: reminder.id, currentCategoryId: reminder.categoryId })}
+                className="p-1 hover:bg-surface-low text-on-surface-variant hover:text-primary rounded-lg transition-colors cursor-pointer flex items-center"
+                title="Kategorie ändern"
+              >
+                <span className="material-symbols-outlined text-[15px]">folder_open</span>
+              </button>
+            </div>
             <span className="text-outline-variant font-bold">/</span>
             <span className="font-bold text-primary truncate max-w-[200px] sm:max-w-xs">
               {reminder.title}

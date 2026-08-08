@@ -1,13 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useAutoScroll } from './useAutoScroll';
 
 /**
  * useCategoryDrag – Precise slot-based drag-and-drop for category lists.
- *
- * @param {Array}    categories        - ordered array of category objects {id, name, isExpanded, ...}
- * @param {Function} reorderCategories - (newOrderedArray) => void — called once on drop
- * @param {Function} collapseAll       - () => void — called on drag start
- * @param {Function} onDragEnd         - ({id: boolean}) => void — called with pre-drag expand snapshot
- * @param {string}   sectionIdPrefix   - DOM id prefix: e.g. "cat-sec-" or "rcat-sec-"
  */
 export function useCategoryDrag({
   categories,
@@ -17,7 +12,9 @@ export function useCategoryDrag({
   sectionIdPrefix,
 }) {
   const [draggedCatId, setDraggedCatId] = useState(null);
-  const [dropTarget, setDropTarget]     = useState(null); // { targetCatId: string, position: 'before'|'after' }
+  const [dropTarget, setDropTarget]     = useState(null);
+
+  const { startDragScroll, onDragMove: triggerAutoScrollMove, stopDragScroll } = useAutoScroll();
 
   // Stable refs to avoid stale closures in event listeners
   const draggedCatIdRef = useRef(null);
@@ -89,7 +86,6 @@ export function useCategoryDrag({
     const cats = categoriesRef.current;
     const draggedId = draggedCatIdRef.current;
 
-    // Collect visible category DOM elements excluding the dragged category
     const visibleOtherItems = [];
     for (let i = 0; i < cats.length; i++) {
       const cat = cats[i];
@@ -108,7 +104,6 @@ export function useCategoryDrag({
       return { slotIndex: 0, dropTarget: null };
     }
 
-    // Determine insertion slot relative to visibleOtherItems
     let slotIndex = visibleOtherItems.length;
     for (let k = 0; k < visibleOtherItems.length; k++) {
       if (cursorY < visibleOtherItems[k].midY) {
@@ -117,7 +112,6 @@ export function useCategoryDrag({
       }
     }
 
-    // Determine visual dropTarget descriptor
     let dropTarget = null;
     if (slotIndex < visibleOtherItems.length) {
       dropTarget = {
@@ -149,11 +143,13 @@ export function useCategoryDrag({
 
     moveGhost(x, y);
     updateDropTarget(y);
-  }, [moveGhost, updateDropTarget]);
+    triggerAutoScrollMove(y);
+  }, [moveGhost, updateDropTarget, triggerAutoScrollMove]);
 
   const onPointerUpRef = useRef(null);
 
   const onPointerUp = useCallback(() => {
+    stopDragScroll();
     const dragged = draggedCatIdRef.current;
     const target = dropTargetRef.current;
     const cats    = categoriesRef.current;
@@ -198,7 +194,7 @@ export function useCategoryDrag({
     }
     document.body.style.userSelect = '';
     document.body.style.cursor     = '';
-  }, [destroyGhost, onPointerMove]);
+  }, [destroyGhost, onPointerMove, stopDragScroll]);
 
   onPointerUpRef.current = onPointerUp;
 
@@ -221,6 +217,8 @@ export function useCategoryDrag({
     const x = e.clientX ?? e.touches?.[0]?.clientX ?? 0;
     const y = e.clientY ?? e.touches?.[0]?.clientY ?? 0;
 
+    startDragScroll(y);
+
     requestAnimationFrame(() => {
       updateDropTarget(y);
     });
@@ -235,7 +233,7 @@ export function useCategoryDrag({
     window.addEventListener('pointerup',   onPointerUp);
     window.addEventListener('touchmove',   onPointerMove, { passive: true });
     window.addEventListener('touchend',    onPointerUp);
-  }, [collapseAll, createGhost, updateDropTarget, onPointerMove, onPointerUp]);
+  }, [collapseAll, createGhost, updateDropTarget, onPointerMove, onPointerUp, startDragScroll]);
 
   useEffect(() => {
     return () => {

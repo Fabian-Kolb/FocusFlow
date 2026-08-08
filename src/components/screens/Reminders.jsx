@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useCategoryDrag } from '../ui/useCategoryDrag';
+import { useCardTouchDrag } from '../ui/useCardTouchDrag';
 import { useModalContext } from '../../context/ModalContext';
 import Card from '../ui/Card';
 import Badge from '../ui/Badge';
@@ -29,6 +30,26 @@ const Reminders = ({ setCurrentScreen }) => {
     restoreReminderCategoryExpandStates,
   } = useModalContext();
 
+  const handleMoveReminderToCategory = (reminderId, categoryId) => {
+    moveReminderToCategory(reminderId, categoryId);
+    const cat = reminderCategories.find(c => c.id === categoryId);
+    if (cat && !cat.isExpanded) {
+      toggleReminderCategory(categoryId);
+    }
+  };
+
+  const {
+    draggedCardId: touchDraggedReminderId,
+    cardDropTargetId: touchCardDropTargetCatId,
+    startCardTouchDrag: startReminderCardDrag,
+    handleHtml5DragStart: handleReminderHtml5DragStart,
+    handleHtml5DragOver: handleReminderHtml5DragOver,
+    handleHtml5DragEnd: handleReminderHtml5DragEnd
+  } = useCardTouchDrag({
+    onMoveItemToCategory: handleMoveReminderToCategory,
+    categoryPrefix: 'rcat-sec-'
+  });
+
   const handleReminderClick = (reminderId) => {
     setSelectedReminderId(reminderId);
     setCurrentScreen('reminder-detail');
@@ -41,6 +62,7 @@ const Reminders = ({ setCurrentScreen }) => {
 
   const [editingCatId, setEditingCatId] = useState(null);
   const [editingCatName, setEditingCatName] = useState('');
+  const [cardDragOverCatId, setCardDragOverCatId] = useState(null);
 
   // Edit-Mode: saves expand states, collapses all → easy sorting
   const [isEditMode, setIsEditMode] = useState(false);
@@ -82,21 +104,26 @@ const Reminders = ({ setCurrentScreen }) => {
     </div>
   );
 
-  const handleDragStart = (e, reminderId) => {
-    e.dataTransfer.setData('text/plain', reminderId);
-    e.dataTransfer.effectAllowed = 'move';
+  const handleCategoryDragOver = (e, categoryId) => {
+    handleReminderHtml5DragOver(e, categoryId);
+    if (!draggedCatId && cardDragOverCatId !== categoryId) {
+      setCardDragOverCatId(categoryId);
+    }
   };
 
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
+  const handleCategoryDragLeave = (e, categoryId) => {
+    if (cardDragOverCatId === categoryId && !e.currentTarget.contains(e.relatedTarget)) {
+      setCardDragOverCatId(null);
+    }
   };
 
   const handleDrop = (e, categoryId) => {
     e.preventDefault();
+    setCardDragOverCatId(null);
+    handleReminderHtml5DragEnd();
     const reminderId = e.dataTransfer.getData('text/plain');
     if (reminderId) {
-      moveReminderToCategory(reminderId, categoryId);
+      handleMoveReminderToCategory(reminderId, categoryId);
     }
   };
 
@@ -169,8 +196,10 @@ const Reminders = ({ setCurrentScreen }) => {
     <div
       key={reminder.id}
       draggable
-      onDragStart={(e) => handleDragStart(e, reminder.id)}
-      className="cursor-grab active:cursor-grabbing"
+      onDragStart={(e) => handleReminderHtml5DragStart(e, reminder.id)}
+      onDragEnd={handleReminderHtml5DragEnd}
+      onPointerDown={(e) => startReminderCardDrag(e, reminder.id, reminder.title)}
+      className="cursor-grab active:cursor-grabbing touch-action-none"
     >
       <Card
         interactive
@@ -359,11 +388,14 @@ const Reminders = ({ setCurrentScreen }) => {
 
               <div 
                 id={`rcat-sec-${cat.id}`}
-                onDragOver={(e) => e.preventDefault()}
+                onDragOver={(e) => handleCategoryDragOver(e, cat.id)}
+                onDragLeave={(e) => handleCategoryDragLeave(e, cat.id)}
                 onDrop={(e) => handleDrop(e, cat.id)}
                 className={`rounded-xl transition-all duration-150 border p-2 -m-1 scroll-mt-6 ${
                   draggedCatId === cat.id
                     ? 'border-outline-variant/60 opacity-30 scale-[0.98]'
+                    : (cardDragOverCatId === cat.id || touchCardDropTargetCatId === cat.id)
+                    ? 'border-primary bg-primary/10 ring-2 ring-primary/40 shadow-lg scale-[1.01]'
                     : 'border-transparent'
                 }`}
               >

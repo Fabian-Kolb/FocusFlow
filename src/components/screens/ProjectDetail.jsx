@@ -7,6 +7,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
     projects: contextProjects, 
     trashItems,
     selectedProjectId, 
+    openModal,
     toggleTask: contextToggleTask, 
     toggleProjectStatus: contextToggleProjectStatus,
     setActiveCoachScope,
@@ -523,22 +524,31 @@ const ProjectDetail = ({ setCurrentScreen }) => {
               Übersicht
             </button>
             <span className="text-outline-variant font-bold">/</span>
-            <button
-              onClick={() => {
-                if (setCurrentScreen) {
-                  setCurrentScreen('projects');
-                  setTimeout(() => {
-                    const el = document.getElementById(`cat-sec-${categoryObj.id}`);
-                    if (el) {
-                      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }
-                  }, 100);
-                }
-              }}
-              className="hover:text-primary transition-colors text-on-surface-variant hover:underline font-medium cursor-pointer"
-            >
-              {categoryObj.name}
-            </button>
+            <div className="inline-flex items-center gap-1">
+              <button
+                onClick={() => {
+                  if (setCurrentScreen) {
+                    setCurrentScreen('projects');
+                    setTimeout(() => {
+                      const el = document.getElementById(`cat-sec-${categoryObj.id}`);
+                      if (el) {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }
+                    }, 100);
+                  }
+                }}
+                className="hover:text-primary transition-colors text-on-surface-variant hover:underline font-medium cursor-pointer"
+              >
+                {categoryObj.name}
+              </button>
+              <button
+                onClick={() => openModal('moveCategory', { type: 'project', itemId: projectData.id, currentCategoryId: projectData.categoryId })}
+                className="p-1 hover:bg-surface-low text-on-surface-variant hover:text-primary rounded-lg transition-colors cursor-pointer flex items-center"
+                title="Kategorie ändern"
+              >
+                <span className="material-symbols-outlined text-[15px]">folder_open</span>
+              </button>
+            </div>
             <span className="text-outline-variant font-bold">/</span>
             <span className="font-bold text-primary truncate max-w-[200px] sm:max-w-xs">
               {projectData.title}
