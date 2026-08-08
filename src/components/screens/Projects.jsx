@@ -169,7 +169,9 @@ const Projects = ({ setCurrentScreen }) => {
     handleProjectHtml5DragEnd();
     const projectId = e.dataTransfer.getData('text/plain');
     if (projectId) {
-      handleMoveProjectToCategory(projectId, categoryId);
+      setTimeout(() => {
+        handleMoveProjectToCategory(projectId, categoryId);
+      }, 50);
     }
   };
 
@@ -194,7 +196,7 @@ const Projects = ({ setCurrentScreen }) => {
       draggable
       onDragStart={(e) => handleProjectHtml5DragStart(e, project.id)}
       onDragEnd={handleProjectHtml5DragEnd}
-      onPointerDown={(e) => startProjectCardDrag(e, project.id, project.title)}
+      onTouchStart={(e) => startProjectCardDrag(e, project.id, project.title)}
       className="cursor-grab active:cursor-grabbing touch-action-none"
     >
       <Card
@@ -436,7 +438,8 @@ const Projects = ({ setCurrentScreen }) => {
                   }`}>
                     {/* Drag Handle – always visible in edit mode */}
                     <span 
-                      onPointerDown={(e) => startDrag(e, cat.id)}
+                      onMouseDown={(e) => startDrag(e, cat.id)}
+                      onTouchStart={(e) => startDrag(e, cat.id)}
                       onClick={(e) => e.stopPropagation()}
                       className={`material-symbols-outlined text-[18px] hover:text-primary cursor-grab active:cursor-grabbing p-1 -m-1 transition-opacity touch-none select-none ${
                         isEditMode ? 'opacity-100 text-primary' : 'opacity-50 group-hover:opacity-100'

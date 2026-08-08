@@ -123,7 +123,9 @@ const Reminders = ({ setCurrentScreen }) => {
     handleReminderHtml5DragEnd();
     const reminderId = e.dataTransfer.getData('text/plain');
     if (reminderId) {
-      handleMoveReminderToCategory(reminderId, categoryId);
+      setTimeout(() => {
+        handleMoveReminderToCategory(reminderId, categoryId);
+      }, 50);
     }
   };
 
@@ -198,7 +200,7 @@ const Reminders = ({ setCurrentScreen }) => {
       draggable
       onDragStart={(e) => handleReminderHtml5DragStart(e, reminder.id)}
       onDragEnd={handleReminderHtml5DragEnd}
-      onPointerDown={(e) => startReminderCardDrag(e, reminder.id, reminder.title)}
+      onTouchStart={(e) => startReminderCardDrag(e, reminder.id, reminder.title)}
       className="cursor-grab active:cursor-grabbing touch-action-none"
     >
       <Card
@@ -413,7 +415,8 @@ const Reminders = ({ setCurrentScreen }) => {
                 }`}>
                   {/* Drag Handle – always visible in edit mode */}
                   <span 
-                    onPointerDown={(e) => startDrag(e, cat.id)}
+                    onMouseDown={(e) => startDrag(e, cat.id)}
+                    onTouchStart={(e) => startDrag(e, cat.id)}
                     onClick={(e) => e.stopPropagation()}
                     className={`material-symbols-outlined text-[18px] hover:text-primary cursor-grab active:cursor-grabbing p-1 -m-1 transition-opacity touch-none select-none ${
                       isEditMode ? 'opacity-100 text-primary' : 'opacity-50 group-hover:opacity-100'

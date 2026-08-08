@@ -1,8 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useAutoScroll } from './useAutoScroll';
 
 /**
- * useCategoryDrag – Precise slot-based drag-and-drop for category lists.
+ * useCategoryDrag – Safe slot-based drag-and-drop for category lists.
+ *
+ * Uses mousedown/mousemove/mouseup for desktop mouse (NOT pointer events).
+ * Uses touchstart/touchmove/touchend for touch devices.
+ *
+ * The key safety principle: event handler functions are stored in refs so
+ * removeEventListener always uses the exact same reference as addEventListener.
+ * No pointer events are used anywhere.
  */
 export function useCategoryDrag({
   categories,
@@ -14,9 +20,7 @@ export function useCategoryDrag({
   const [draggedCatId, setDraggedCatId] = useState(null);
   const [dropTarget, setDropTarget]     = useState(null);
 
-  const { startDragScroll, onDragMove: triggerAutoScrollMove, stopDragScroll } = useAutoScroll();
-
-  // Stable refs to avoid stale closures in event listeners
+  // Stable refs
   const draggedCatIdRef = useRef(null);
   const dropTargetRef   = useRef(null);
   const savedStatesRef  = useRef(null);
@@ -24,16 +28,23 @@ export function useCategoryDrag({
   const reorderRef      = useRef(reorderCategories);
   const onDragEndRef    = useRef(onDragEnd);
   const ghostRef        = useRef(null);
+  const isDraggingRef   = useRef(false);
+
+  // Handler refs for guaranteed cleanup
+  const moveHandlerRef  = useRef(null);
+  const endHandlerRef   = useRef(null);
 
   useEffect(() => { categoriesRef.current = categories; }, [categories]);
   useEffect(() => { reorderRef.current = reorderCategories; }, [reorderCategories]);
   useEffect(() => { onDragEndRef.current = onDragEnd; }, [onDragEnd]);
 
-  // ── Ghost ────────────────────────────────────────────────────────────────────
+  // ── Ghost ──────────────────────────────────────────────────────────────────
 
   const destroyGhost = useCallback(() => {
-    ghostRef.current?.remove();
-    ghostRef.current = null;
+    if (ghostRef.current) {
+      ghostRef.current.remove();
+      ghostRef.current = null;
+    }
   }, []);
 
   const createGhost = useCallback((label, x, y) => {
@@ -74,13 +85,7 @@ export function useCategoryDrag({
     ghostRef.current = el;
   }, [destroyGhost]);
 
-  const moveGhost = useCallback((x, y) => {
-    if (ghostRef.current) {
-      ghostRef.current.style.transform = `translate(${x + 16}px, ${y - 16}px)`;
-    }
-  }, []);
-
-  // ── Slot & Drop Target Calculation ─────────────────────────────────────────
+  // ── Drop Target Calculation ────────────────────────────────────────────────
 
   const calcDropSlot = useCallback((cursorY) => {
     const cats = categoriesRef.current;
@@ -101,7 +106,7 @@ export function useCategoryDrag({
     }
 
     if (visibleOtherItems.length === 0) {
-      return { slotIndex: 0, dropTarget: null };
+      return null;
     }
 
     let slotIndex = visibleOtherItems.length;
@@ -112,103 +117,65 @@ export function useCategoryDrag({
       }
     }
 
-    let dropTarget = null;
     if (slotIndex < visibleOtherItems.length) {
-      dropTarget = {
+      return {
         targetCatId: visibleOtherItems[slotIndex].catId,
         position: 'before',
       };
     } else {
-      dropTarget = {
+      return {
         targetCatId: visibleOtherItems[visibleOtherItems.length - 1].catId,
         position: 'after',
       };
     }
-
-    return { dropTarget };
   }, [sectionIdPrefix]);
 
-  const updateDropTarget = useCallback((cursorY) => {
-    const { dropTarget } = calcDropSlot(cursorY);
-    dropTargetRef.current = dropTarget;
-    setDropTarget(dropTarget);
-  }, [calcDropSlot]);
+  // ── Cleanup (bulletproof) ──────────────────────────────────────────────────
 
-  // ── Event Handlers ─────────────────────────────────────────────────────────
+  const cleanup = useCallback(() => {
+    isDraggingRef.current = false;
+    destroyGhost();
 
-  const onPointerMove = useCallback((e) => {
-    const x = e.clientX ?? e.touches?.[0]?.clientX;
-    const y = e.clientY ?? e.touches?.[0]?.clientY;
-    if (x == null || y == null) return;
-
-    moveGhost(x, y);
-    updateDropTarget(y);
-    triggerAutoScrollMove(y);
-  }, [moveGhost, updateDropTarget, triggerAutoScrollMove]);
-
-  const onPointerUpRef = useRef(null);
-
-  const onPointerUp = useCallback(() => {
-    stopDragScroll();
-    const dragged = draggedCatIdRef.current;
-    const target = dropTargetRef.current;
-    const cats    = categoriesRef.current;
-
-    if (dragged !== null && target !== null) {
-      const fromIndex = cats.findIndex(c => c.id === dragged);
-      if (fromIndex !== -1) {
-        const draggedCat = cats[fromIndex];
-        const newCats = cats.filter(c => c.id !== dragged);
-        const targetIndex = newCats.findIndex(c => c.id === target.targetCatId);
-        
-        if (targetIndex !== -1) {
-          const insertIndex = target.position === 'before' ? targetIndex : targetIndex + 1;
-          newCats.splice(insertIndex, 0, draggedCat);
-
-          const hasOrderChanged = newCats.some((c, idx) => c.id !== cats[idx]?.id);
-          if (hasOrderChanged) {
-            reorderRef.current(newCats);
-          }
-        }
-      }
+    // Remove listeners using the exact same function references
+    if (moveHandlerRef.current) {
+      window.removeEventListener('mousemove', moveHandlerRef.current);
+      window.removeEventListener('touchmove', moveHandlerRef.current);
+      moveHandlerRef.current = null;
+    }
+    if (endHandlerRef.current) {
+      window.removeEventListener('mouseup', endHandlerRef.current);
+      window.removeEventListener('touchend', endHandlerRef.current);
+      window.removeEventListener('touchcancel', endHandlerRef.current);
+      endHandlerRef.current = null;
     }
 
-    // Restore expand states
-    const saved = savedStatesRef.current;
-    savedStatesRef.current = null;
-    if (saved) onDragEndRef.current?.(saved);
-
-    // Cleanup state
-    destroyGhost();
     draggedCatIdRef.current = null;
-    dropTargetRef.current   = null;
+    dropTargetRef.current = null;
     setDraggedCatId(null);
     setDropTarget(null);
 
-    // Remove listeners
-    window.removeEventListener('pointermove', onPointerMove);
-    window.removeEventListener('touchmove',   onPointerMove);
-    if (onPointerUpRef.current) {
-      window.removeEventListener('pointerup',  onPointerUpRef.current);
-      window.removeEventListener('touchend',   onPointerUpRef.current);
-    }
     document.body.style.userSelect = '';
-    document.body.style.cursor     = '';
-  }, [destroyGhost, onPointerMove, stopDragScroll]);
-
-  onPointerUpRef.current = onPointerUp;
+    document.body.style.cursor = '';
+  }, [destroyGhost]);
 
   // ── Public API ─────────────────────────────────────────────────────────────
 
   const startDrag = useCallback((e, catId) => {
+    // Only respond to left mouse button or touch
+    if (e.type === 'mousedown' && e.button !== 0) return;
+
     e.preventDefault();
     e.stopPropagation();
+
+    // Clean up any previous drag
+    cleanup();
 
     // Snapshot expand states BEFORE collapsing
     const states = {};
     categoriesRef.current.forEach(c => { states[c.id] = c.isExpanded; });
     savedStatesRef.current = states;
 
+    isDraggingRef.current = true;
     draggedCatIdRef.current = catId;
     setDraggedCatId(catId);
 
@@ -217,31 +184,101 @@ export function useCategoryDrag({
     const x = e.clientX ?? e.touches?.[0]?.clientX ?? 0;
     const y = e.clientY ?? e.touches?.[0]?.clientY ?? 0;
 
-    startDragScroll(y);
-
-    requestAnimationFrame(() => {
-      updateDropTarget(y);
-    });
-
     const cat = categoriesRef.current.find(c => c.id === catId);
     createGhost(cat?.name ?? catId, x, y);
 
     document.body.style.userSelect = 'none';
-    document.body.style.cursor     = 'grabbing';
+    document.body.style.cursor = 'grabbing';
 
-    window.addEventListener('pointermove', onPointerMove, { passive: true });
-    window.addEventListener('pointerup',   onPointerUp);
-    window.addEventListener('touchmove',   onPointerMove, { passive: true });
-    window.addEventListener('touchend',    onPointerUp);
-  }, [collapseAll, createGhost, updateDropTarget, onPointerMove, onPointerUp, startDragScroll]);
+    requestAnimationFrame(() => {
+      const dt = calcDropSlot(y);
+      dropTargetRef.current = dt;
+      setDropTarget(dt);
+    });
+
+    // Create handler functions and store references for safe removal
+    const moveHandler = (me) => {
+      if (!isDraggingRef.current) return;
+      const mx = me.clientX ?? me.touches?.[0]?.clientX;
+      const my = me.clientY ?? me.touches?.[0]?.clientY;
+      if (mx == null || my == null) return;
+
+      // Move ghost
+      if (ghostRef.current) {
+        ghostRef.current.style.transform = `translate(${mx + 16}px, ${my - 16}px)`;
+      }
+
+      // Update drop target
+      const dt = calcDropSlot(my);
+      dropTargetRef.current = dt;
+      setDropTarget(dt);
+
+      // Auto-scroll at edges
+      const edgeThreshold = 120;
+      const viewportHeight = window.innerHeight;
+      if (my < edgeThreshold) {
+        const intensity = (edgeThreshold - Math.max(0, my)) / edgeThreshold;
+        window.scrollBy(0, -Math.max(3, Math.round(intensity * 22)));
+      } else if (my > viewportHeight - edgeThreshold) {
+        const intensity = (Math.min(viewportHeight, my) - (viewportHeight - edgeThreshold)) / edgeThreshold;
+        window.scrollBy(0, Math.max(3, Math.round(intensity * 22)));
+      }
+    };
+
+    const endHandler = () => {
+      const dragged = draggedCatIdRef.current;
+      const target = dropTargetRef.current;
+      const cats = categoriesRef.current;
+
+      if (dragged !== null && target !== null) {
+        const fromIndex = cats.findIndex(c => c.id === dragged);
+        if (fromIndex !== -1) {
+          const draggedCat = cats[fromIndex];
+          const newCats = cats.filter(c => c.id !== dragged);
+          const targetIndex = newCats.findIndex(c => c.id === target.targetCatId);
+
+          if (targetIndex !== -1) {
+            const insertIndex = target.position === 'before' ? targetIndex : targetIndex + 1;
+            newCats.splice(insertIndex, 0, draggedCat);
+
+            const hasOrderChanged = newCats.some((c, idx) => c.id !== cats[idx]?.id);
+            if (hasOrderChanged) {
+              reorderRef.current(newCats);
+            }
+          }
+        }
+      }
+
+      // Restore expand states
+      const saved = savedStatesRef.current;
+      savedStatesRef.current = null;
+      if (saved) onDragEndRef.current?.(saved);
+
+      cleanup();
+    };
+
+    // Store refs for cleanup
+    moveHandlerRef.current = moveHandler;
+    endHandlerRef.current = endHandler;
+
+    // Use mouse events for mouse, touch events for touch
+    if (e.type === 'mousedown') {
+      window.addEventListener('mousemove', moveHandler, { passive: true });
+      window.addEventListener('mouseup', endHandler);
+    } else {
+      window.addEventListener('touchmove', moveHandler, { passive: true });
+      window.addEventListener('touchend', endHandler);
+      window.addEventListener('touchcancel', endHandler);
+    }
+  }, [cleanup, collapseAll, createGhost, calcDropSlot]);
+
+  // ── Safety net: cleanup on unmount ─────────────────────────────────────────
 
   useEffect(() => {
     return () => {
-      destroyGhost();
-      document.body.style.userSelect = '';
-      document.body.style.cursor     = '';
+      cleanup();
     };
-  }, [destroyGhost]);
+  }, [cleanup]);
 
   return { draggedCatId, dropTarget, startDrag };
 }

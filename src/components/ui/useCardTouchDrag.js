@@ -1,31 +1,44 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { useAutoScroll } from './useAutoScroll';
 
 /**
- * useCardTouchDrag – Universal card drag hook for Tablets, Smartphones, and Desktop.
- * Provides separate, safe paths for Desktop HTML5 drag & Touchscreen Pointer drag.
+ * useCardTouchDrag – Safe card drag hook.
  *
- * @param {Function} onMoveItemToCategory - (itemId, categoryIdOrColumn) => void
- * @param {string}   categoryPrefix       - 'cat-sec-' | 'rcat-sec-' | 'kanban-col-'
+ * Desktop: pure HTML5 drag-and-drop (draggable + onDragStart/onDragOver/onDrop/onDragEnd).
+ *   NO pointer events, NO touch events, NO window listeners for desktop mouse.
+ *
+ * Touch (tablet/phone): touchstart → touchmove → touchend with a custom ghost element.
+ *   NO pointer events used at all, only native Touch API.
+ *
+ * The key safety principle: we NEVER add window-level mouse/pointer listeners.
+ * All desktop drag state is managed purely through the HTML5 drag events which the
+ * browser guarantees will fire (dragstart → drag → dragend).
  */
 export function useCardTouchDrag({ onMoveItemToCategory, categoryPrefix = 'cat-sec-' }) {
   const [draggedCardId, setDraggedCardId] = useState(null);
   const [cardDropTargetId, setCardDropTargetId] = useState(null);
 
-  const { startDragScroll, onDragMove: triggerScrollMove, stopDragScroll } = useAutoScroll();
-
+  // Use refs for everything to avoid stale closures in event handlers
   const draggedCardIdRef = useRef(null);
   const cardDropTargetIdRef = useRef(null);
   const ghostRef = useRef(null);
   const onMoveRef = useRef(onMoveItemToCategory);
+  const isTouchDraggingRef = useRef(false);
+
+  // Stable refs for event handler functions (prevents stale closures)
+  const touchMoveHandlerRef = useRef(null);
+  const touchEndHandlerRef = useRef(null);
 
   useEffect(() => {
     onMoveRef.current = onMoveItemToCategory;
   }, [onMoveItemToCategory]);
 
+  // ── Ghost element ─────────────────────────────────────────────────────────
+
   const destroyGhost = useCallback(() => {
-    ghostRef.current?.remove();
-    ghostRef.current = null;
+    if (ghostRef.current) {
+      ghostRef.current.remove();
+      ghostRef.current = null;
+    }
   }, []);
 
   const createGhost = useCallback((title, x, y) => {
@@ -73,11 +86,7 @@ export function useCardTouchDrag({ onMoveItemToCategory, categoryPrefix = 'cat-s
     ghostRef.current = el;
   }, [destroyGhost]);
 
-  const moveGhost = useCallback((x, y) => {
-    if (ghostRef.current) {
-      ghostRef.current.style.transform = `translate(${x + 12}px, ${y - 12}px)`;
-    }
-  }, []);
+  // ── Drop target detection ─────────────────────────────────────────────────
 
   const findDropCategory = useCallback((x, y) => {
     const elements = document.elementsFromPoint(x, y);
@@ -94,111 +103,133 @@ export function useCardTouchDrag({ onMoveItemToCategory, categoryPrefix = 'cat-s
     return null;
   }, [categoryPrefix]);
 
-  const onPointerMove = useCallback((e) => {
-    const x = e.clientX ?? e.touches?.[0]?.clientX;
-    const y = e.clientY ?? e.touches?.[0]?.clientY;
-    if (x == null || y == null) return;
+  // ── Touch cleanup (bulletproof) ───────────────────────────────────────────
 
-    moveGhost(x, y);
-    triggerScrollMove(y);
+  const cleanupTouch = useCallback(() => {
+    isTouchDraggingRef.current = false;
+    destroyGhost();
 
-    const catId = findDropCategory(x, y);
-    cardDropTargetIdRef.current = catId;
-    setCardDropTargetId(catId);
-  }, [moveGhost, triggerScrollMove, findDropCategory]);
-
-  const onPointerUp = useCallback(() => {
-    stopDragScroll();
-    const itemId = draggedCardIdRef.current;
-    const targetCatId = cardDropTargetIdRef.current;
-
-    if (itemId && targetCatId) {
-      onMoveRef.current?.(itemId, targetCatId);
+    // Remove listeners using the SAME function references
+    if (touchMoveHandlerRef.current) {
+      window.removeEventListener('touchmove', touchMoveHandlerRef.current);
+      touchMoveHandlerRef.current = null;
+    }
+    if (touchEndHandlerRef.current) {
+      window.removeEventListener('touchend', touchEndHandlerRef.current);
+      window.removeEventListener('touchcancel', touchEndHandlerRef.current);
+      touchEndHandlerRef.current = null;
     }
 
-    destroyGhost();
     draggedCardIdRef.current = null;
     cardDropTargetIdRef.current = null;
     setDraggedCardId(null);
     setCardDropTargetId(null);
 
-    window.removeEventListener('pointermove', onPointerMove);
-    window.removeEventListener('touchmove', onPointerMove);
-    window.removeEventListener('pointerup', onPointerUp);
-    window.removeEventListener('touchend', onPointerUp);
-    window.removeEventListener('pointercancel', onPointerUp);
-
     document.body.style.userSelect = '';
     document.body.style.cursor = '';
-  }, [destroyGhost, onPointerMove, stopDragScroll]);
+  }, [destroyGhost]);
 
-  // Touch Pointer start (for touchscreens / tablets only)
+  // ── Touch drag (tablets / phones only) ────────────────────────────────────
+
   const startCardTouchDrag = useCallback((e, itemId, itemTitle) => {
-    // Desktop mouse uses native HTML5 Drag, do not intercept mouse down!
-    if (e.pointerType === 'mouse') {
-      return;
-    }
+    // ONLY real touch events. Mouse never enters here.
+    if (!e.touches || e.touches.length === 0) return;
 
     const target = e.target;
-    if (target.closest('button') || target.closest('a') || target.closest('input')) {
-      return;
-    }
+    if (target.closest('button') || target.closest('a') || target.closest('input')) return;
 
-    const x = e.clientX ?? e.touches?.[0]?.clientX ?? 0;
-    const y = e.clientY ?? e.touches?.[0]?.clientY ?? 0;
+    // Clean up any previous drag that didn't end properly
+    cleanupTouch();
 
+    const x = e.touches[0].clientX;
+    const y = e.touches[0].clientY;
+
+    isTouchDraggingRef.current = true;
     draggedCardIdRef.current = itemId;
     setDraggedCardId(itemId);
-
-    startDragScroll(y);
     createGhost(itemTitle, x, y);
 
     document.body.style.userSelect = 'none';
-    document.body.style.cursor = 'grabbing';
 
-    window.addEventListener('pointermove', onPointerMove, { passive: true });
-    window.addEventListener('pointerup', onPointerUp);
-    window.addEventListener('touchmove', onPointerMove, { passive: true });
-    window.addEventListener('touchend', onPointerUp);
-    window.addEventListener('pointercancel', onPointerUp);
-  }, [createGhost, onPointerMove, onPointerUp, startDragScroll]);
+    // Create handler functions and store references for safe removal
+    const moveHandler = (te) => {
+      if (!isTouchDraggingRef.current) return;
+      const touch = te.touches[0];
+      if (!touch) return;
 
-  // Desktop HTML5 drag helpers
+      const tx = touch.clientX;
+      const ty = touch.clientY;
+
+      // Move ghost
+      if (ghostRef.current) {
+        ghostRef.current.style.transform = `translate(${tx + 12}px, ${ty - 12}px)`;
+      }
+
+      // Auto-scroll at edges
+      const edgeThreshold = 100;
+      const viewportHeight = window.innerHeight;
+      if (ty < edgeThreshold) {
+        window.scrollBy(0, -8);
+      } else if (ty > viewportHeight - edgeThreshold) {
+        window.scrollBy(0, 8);
+      }
+
+      // Find drop target
+      const catId = findDropCategory(tx, ty);
+      cardDropTargetIdRef.current = catId;
+      setCardDropTargetId(catId);
+    };
+
+    const endHandler = () => {
+      const droppedItemId = draggedCardIdRef.current;
+      const targetCatId = cardDropTargetIdRef.current;
+
+      if (droppedItemId && targetCatId) {
+        onMoveRef.current?.(droppedItemId, targetCatId);
+      }
+
+      cleanupTouch();
+    };
+
+    // Store refs for cleanup
+    touchMoveHandlerRef.current = moveHandler;
+    touchEndHandlerRef.current = endHandler;
+
+    window.addEventListener('touchmove', moveHandler, { passive: true });
+    window.addEventListener('touchend', endHandler);
+    window.addEventListener('touchcancel', endHandler);
+  }, [cleanupTouch, createGhost, findDropCategory]);
+
+  // ── Desktop HTML5 drag (pure, no custom listeners) ────────────────────────
+
   const handleHtml5DragStart = useCallback((e, itemId) => {
     e.dataTransfer.setData('text/plain', itemId);
     e.dataTransfer.effectAllowed = 'move';
     draggedCardIdRef.current = itemId;
     setDraggedCardId(itemId);
-    startDragScroll(e.clientY);
-  }, [startDragScroll]);
+  }, []);
 
   const handleHtml5DragOver = useCallback((e, categoryId) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    triggerScrollMove(e.clientY);
     cardDropTargetIdRef.current = categoryId;
     setCardDropTargetId(categoryId);
-  }, [triggerScrollMove]);
+  }, []);
 
   const handleHtml5DragEnd = useCallback(() => {
-    stopDragScroll();
-    destroyGhost();
     draggedCardIdRef.current = null;
     cardDropTargetIdRef.current = null;
     setDraggedCardId(null);
     setCardDropTargetId(null);
-    document.body.style.userSelect = '';
-    document.body.style.cursor = '';
-  }, [destroyGhost, stopDragScroll]);
+  }, []);
+
+  // ── Safety net: cleanup on unmount ────────────────────────────────────────
 
   useEffect(() => {
     return () => {
-      stopDragScroll();
-      destroyGhost();
-      document.body.style.userSelect = '';
-      document.body.style.cursor = '';
+      cleanupTouch();
     };
-  }, [destroyGhost, stopDragScroll]);
+  }, [cleanupTouch]);
 
   return {
     draggedCardId,

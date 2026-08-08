@@ -96,11 +96,13 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
     e.currentTarget.classList.remove('bg-surface-variant/30');
     handleKanbanHtml5DragEnd();
     if (draggedItem) {
-      if (draggedItem.itemType === 'project') {
-        updateProjectForKanban(draggedItem.id, column);
-      } else {
-        updateReminderForKanban(draggedItem.id, column);
-      }
+      setTimeout(() => {
+        if (draggedItem.itemType === 'project') {
+          updateProjectForKanban(draggedItem.id, column);
+        } else {
+          updateReminderForKanban(draggedItem.id, column);
+        }
+      }, 50);
     }
   };
 
@@ -133,7 +135,7 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
           draggable
           onDragStart={(e) => handleDragStart(e, project)}
           onDragEnd={handleDragEnd}
-          onPointerDown={(e) => startKanbanCardDrag(e, project.id, project.title)}
+          onTouchStart={(e) => startKanbanCardDrag(e, project.id, project.title)}
           className="mb-4 cursor-grab active:cursor-grabbing touch-action-none"
         >
           <Card
@@ -241,7 +243,7 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
           draggable
           onDragStart={(e) => handleDragStart(e, reminder)}
           onDragEnd={handleDragEnd}
-          onPointerDown={(e) => startKanbanCardDrag(e, reminder.id, reminder.title)}
+          onTouchStart={(e) => startKanbanCardDrag(e, reminder.id, reminder.title)}
           className="mb-4 cursor-grab active:cursor-grabbing touch-action-none"
         >
           <Card
