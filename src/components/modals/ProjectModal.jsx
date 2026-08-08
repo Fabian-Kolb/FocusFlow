@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useModalContext } from '../../context/ModalContext';
-import { generateProjectStructure } from '../../lib/gemini';
+import { generateProjectStructure, ensureBulletPoints } from '../../lib/gemini';
+import { marked } from 'marked';
 
 const ProjectModal = ({ setCurrentScreen }) => {
   const { activeModal, modalPayload, closeModal, addProject } = useModalContext();
@@ -12,6 +13,16 @@ const ProjectModal = ({ setCurrentScreen }) => {
   const [endDate, setEndDate] = useState('');
   const [status, setStatus] = useState('GEPLANT');
   const [phases, setPhases] = useState([]);
+  // State for AI phase generation options and preview
+  const [isAiConfigOpen, setIsAiConfigOpen] = useState(false);
+  const [aiGranularity, setAiGranularity] = useState('balanced');
+  const [aiEstimateDates, setAiEstimateDates] = useState(true);
+  const [generatedPreview, setGeneratedPreview] = useState(null);
+
+  // Checkbox states for the 3 separate notes when converting from Inbox
+  const [includeSummaryNote, setIncludeSummaryNote] = useState(true);
+  const [includeCleanNote, setIncludeCleanNote] = useState(true);
+  const [includeRawNote, setIncludeRawNote] = useState(false);
   
   const [isGenerating, setIsGenerating] = useState(false);
   const nameInputRef = useRef(null);
@@ -23,6 +34,10 @@ const ProjectModal = ({ setCurrentScreen }) => {
       setStartDate(modalPayload.startDate || '');
       setEndDate(modalPayload.endDate || '');
       setStatus(modalPayload.status || 'GEPLANT');
+
+      setIncludeSummaryNote(Boolean(modalPayload.summaryText));
+      setIncludeCleanNote(Boolean(modalPayload.cleanText));
+      setIncludeRawNote(Boolean(modalPayload.originalText && !modalPayload.cleanText));
       
       // Initialize with one empty phase if not a conversion, else start empty so AI can fill
       const initialPhase = modalPayload.firstPhase ? [{ title: modalPayload.firstPhase, tasks: [] }] : [];
@@ -42,9 +57,54 @@ const ProjectModal = ({ setCurrentScreen }) => {
     return null;
   }
 
+  const isConversion = Boolean(modalPayload.inboxItemId);
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!name.trim()) return;
+
+    const notes = [];
+    const now = Date.now();
+
+    if (isConversion) {
+      // 1. KI-Zusammenfassung Note
+      if (includeSummaryNote && modalPayload.summaryText) {
+        const htmlContent = marked.parse(ensureBulletPoints(modalPayload.summaryText));
+        notes.push({
+          id: `note_sum_${now}`,
+          title: 'KI-Zusammenfassung',
+          content: htmlContent,
+          source: 'inbox',
+          createdAt: now,
+          updatedAt: now
+        });
+      }
+
+      // 2. Zusammenfassung des Textes (Bereinigter Fließtext) Note
+      if (includeCleanNote && (modalPayload.cleanText || modalPayload.summaryText)) {
+        const textContent = modalPayload.cleanText || modalPayload.summaryText;
+        notes.push({
+          id: `note_clean_${now + 1}`,
+          title: 'Zusammenfassung des Textes',
+          content: `<p>${textContent.replace(/\n/g, '<br/>')}</p>`,
+          source: 'inbox',
+          createdAt: now + 1,
+          updatedAt: now + 1
+        });
+      }
+
+      // 3. Roh-Transkription Note
+      if (includeRawNote && modalPayload.originalText) {
+        notes.push({
+          id: `note_raw_${now + 2}`,
+          title: 'Roh-Transkription',
+          content: `<p>${modalPayload.originalText.replace(/\n/g, '<br/>')}</p>`,
+          source: 'inbox',
+          createdAt: now + 2,
+          updatedAt: now + 2
+        });
+      }
+    }
 
     addProject({
       title: name.trim(),
@@ -53,6 +113,7 @@ const ProjectModal = ({ setCurrentScreen }) => {
       endDate,
       status,
       phases,
+      notes,
       inboxItemId: modalPayload.inboxItemId
     });
 
@@ -61,8 +122,6 @@ const ProjectModal = ({ setCurrentScreen }) => {
       setCurrentScreen('projects');
     }
   };
-
-  const isConversion = Boolean(modalPayload.inboxItemId);
 
   const handleAddPhase = () => setPhases([...phases, { title: '', date: '', note: '', tasks: [] }]);
   const handleUpdatePhaseTitle = (idx, newTitle) => {
@@ -176,35 +235,82 @@ const ProjectModal = ({ setCurrentScreen }) => {
             </div>
 
             {/* AI Generation Button */}
+            {/* AI Phase Generation Button & Notes Selection when converting from Inbox */}
             {isConversion && (
-              <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="text-xs text-on-surface-variant max-w-sm leading-relaxed">
-                  Lass die KI aus deiner Notiz automatisch einen Projektplan mit <strong>Phasen und Aufgaben</strong> erstellen.
+              <>
+                <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="text-xs text-on-surface-variant max-w-sm leading-relaxed">
+                    Lass die KI aus deiner Notiz automatisch <strong>Phasen und Aufgaben</strong> mit eigener Granularität und Zeitschätzung erstellen.
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGeneratedPreview(null);
+                      setIsAiConfigOpen(true);
+                    }}
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:bg-neutral-800 transition-colors shadow-sm cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">auto_awesome</span>
+                    Phasen & Aufgaben generieren...
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const textToStructure = description || name;
-                    if (!textToStructure.trim()) return;
-                    setIsGenerating(true);
-                    const result = await generateProjectStructure(textToStructure);
-                    if (result) {
-                      if (result.title) setName(result.title);
-                      if (result.description) setDescription(result.description);
-                      if (result.status) setStatus(result.status);
-                      if (result.phases && Array.isArray(result.phases)) {
-                        setPhases(result.phases);
-                      }
-                    }
-                    setIsGenerating(false);
-                  }}
-                  disabled={isGenerating}
-                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:bg-neutral-800 transition-colors disabled:opacity-50 shadow-sm"
-                >
-                  <span className="material-symbols-outlined text-[18px]">{isGenerating ? 'sync' : 'auto_awesome'}</span>
-                  {isGenerating ? 'Strukturiere...' : 'Projekt strukturieren'}
-                </button>
-              </div>
+
+                {/* 3 Notes Selection */}
+                <div className="bg-surface-low border border-outline-variant rounded-xl p-4 space-y-3">
+                  <label className="block text-xs font-mono font-bold text-primary uppercase tracking-wide">
+                    Inbox-Notizen übernehmen
+                  </label>
+                  <p className="text-xs text-on-surface-variant leading-relaxed">
+                    Wähle aus, welche Notizen in das neue Projekt abgelegt werden sollen (sie werden nicht nochmals zusammengefasst):
+                  </p>
+                  <div className="space-y-2.5 pt-1">
+                    {modalPayload.summaryText && (
+                      <label className="flex items-center gap-3 p-3 bg-white border border-outline-variant rounded-xl cursor-pointer hover:border-primary transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={includeSummaryNote}
+                          onChange={(e) => setIncludeSummaryNote(e.target.checked)}
+                          className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                        />
+                        <div className="flex-grow">
+                          <span className="text-xs font-bold text-primary block">Notiz 1: KI-Zusammenfassung</span>
+                          <span className="text-[11px] text-on-surface-variant block">Strukturierte Stichpunkte & Übersichten</span>
+                        </div>
+                      </label>
+                    )}
+
+                    {(modalPayload.cleanText || modalPayload.summaryText) && (
+                      <label className="flex items-center gap-3 p-3 bg-white border border-outline-variant rounded-xl cursor-pointer hover:border-primary transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={includeCleanNote}
+                          onChange={(e) => setIncludeCleanNote(e.target.checked)}
+                          className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                        />
+                        <div className="flex-grow">
+                          <span className="text-xs font-bold text-primary block">Notiz 2: Zusammenfassung des Textes</span>
+                          <span className="text-[11px] text-on-surface-variant block">Bereinigter Fließtext ohne Füllwörter</span>
+                        </div>
+                      </label>
+                    )}
+
+                    {modalPayload.originalText && (
+                      <label className="flex items-center gap-3 p-3 bg-white border border-outline-variant rounded-xl cursor-pointer hover:border-primary transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={includeRawNote}
+                          onChange={(e) => setIncludeRawNote(e.target.checked)}
+                          className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                        />
+                        <div className="flex-grow">
+                          <span className="text-xs font-bold text-primary block">Notiz 3: Roh-Transkription</span>
+                          <span className="text-[11px] text-on-surface-variant block">Wortgetreues Original-Diktat</span>
+                        </div>
+                      </label>
+                    )}
+                  </div>
+                </div>
+              </>
             )}
 
             {/* Description */}
@@ -379,6 +485,208 @@ const ProjectModal = ({ setCurrentScreen }) => {
           </button>
         </div>
       </div>
+
+      {/* AI Phase Generator Dialog (Feedback & Preferences) */}
+      {isAiConfigOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl p-5 sm:p-6 space-y-5 border-2 border-primary relative max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-outline-variant pb-3">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary text-[22px]">auto_awesome</span>
+                <h3 className="text-sm font-bold font-mono uppercase text-primary">
+                  KI-Phasengenerierung anpassen
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAiConfigOpen(false);
+                  setGeneratedPreview(null);
+                }}
+                className="p-1 hover:bg-surface-low rounded-full text-on-surface-variant transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            {!generatedPreview ? (
+              <div className="space-y-5">
+                {/* 1. Granularitätsauswahl */}
+                <div>
+                  <label className="block text-xs font-mono font-bold text-primary mb-2 uppercase">
+                    1. Phasen & Aufgaben Aufteilung
+                  </label>
+                  <div className="space-y-2">
+                    <label className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                      aiGranularity === 'few_phases' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-outline-variant bg-white hover:border-primary/50'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="granularity"
+                        value="few_phases"
+                        checked={aiGranularity === 'few_phases'}
+                        onChange={(e) => setAiGranularity(e.target.value)}
+                        className="text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                      />
+                      <div>
+                        <span className="text-xs font-bold text-primary block">Wenige Phasen, mehr Aufgaben</span>
+                        <span className="text-[11px] text-on-surface-variant block">Große Meilensteine mit mehreren Unteraufgaben (z. B. 2 Phasen, 5-7 Tasks)</span>
+                      </div>
+                    </label>
+
+                    <label className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                      aiGranularity === 'balanced' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-outline-variant bg-white hover:border-primary/50'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="granularity"
+                        value="balanced"
+                        checked={aiGranularity === 'balanced'}
+                        onChange={(e) => setAiGranularity(e.target.value)}
+                        className="text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                      />
+                      <div>
+                        <span className="text-xs font-bold text-primary block">Ausgewogen (Empfohlen)</span>
+                        <span className="text-[11px] text-on-surface-variant block">Ausgewogene Phasenaufteilung (z. B. 3-4 Phasen, 2-4 Tasks)</span>
+                      </div>
+                    </label>
+
+                    <label className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                      aiGranularity === 'many_phases' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-outline-variant bg-white hover:border-primary/50'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="granularity"
+                        value="many_phases"
+                        checked={aiGranularity === 'many_phases'}
+                        onChange={(e) => setAiGranularity(e.target.value)}
+                        className="text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                      />
+                      <div>
+                        <span className="text-xs font-bold text-primary block">Mehrere Phasen, wenige Aufgaben</span>
+                        <span className="text-[11px] text-on-surface-variant block">Viele kleine Einzelschritte (z. B. 5-6 Phasen, 1-2 Tasks)</span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                {/* 2. Zeitangaben / Deadlines Schätzung */}
+                <div className="pt-3 border-t border-outline-variant">
+                  <label className="block text-xs font-mono font-bold text-primary mb-2 uppercase">
+                    2. Zeitplanung & Termine
+                  </label>
+                  <label className="flex items-start gap-3 p-3 bg-surface-low border border-outline-variant rounded-xl cursor-pointer hover:border-primary transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={aiEstimateDates}
+                      onChange={(e) => setAiEstimateDates(e.target.checked)}
+                      className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4 mt-0.5 cursor-pointer"
+                    />
+                    <div>
+                      <span className="text-xs font-bold text-primary block">KI soll Zeitpunkte automatisch verteilen</span>
+                      <span className="text-[11px] text-on-surface-variant block leading-relaxed mt-0.5">
+                        {(startDate || endDate)
+                          ? `Phasen & Aufgaben werden zeitlich logisch zwischen ${startDate || 'Startdatum'} und ${endDate || 'Deadline'} aufgeteilt.`
+                          : 'Verteilt geschätzte Daten ab heute.'}
+                      </span>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-3 border-t border-outline-variant">
+                  <button
+                    type="button"
+                    onClick={() => setIsAiConfigOpen(false)}
+                    className="px-4 py-2 text-xs font-bold text-on-surface-variant hover:bg-surface-low rounded-lg transition-colors cursor-pointer"
+                  >
+                    Abbrechen
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const textToStructure = modalPayload.cleanText || modalPayload.originalText || modalPayload.summaryText || description || name;
+                      if (!textToStructure.trim()) return;
+                      setIsGenerating(true);
+                      const result = await generateProjectStructure(textToStructure, {
+                        granularity: aiGranularity,
+                        startDate,
+                        endDate,
+                        estimateDates: aiEstimateDates
+                      });
+                      if (result && result.phases) {
+                        setGeneratedPreview(result.phases);
+                      }
+                      setIsGenerating(false);
+                    }}
+                    disabled={isGenerating}
+                    className="px-5 py-2.5 bg-primary text-white text-xs font-bold rounded-xl hover:bg-neutral-800 transition-colors disabled:opacity-50 flex items-center gap-2 shadow-sm cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">{isGenerating ? 'sync' : 'auto_awesome'}</span>
+                    {isGenerating ? 'Phasen werden generiert...' : 'Phasen jetzt generieren'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Vorschau & Feedback Ansicht */
+              <div className="space-y-4">
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-900 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[18px] text-emerald-600">check_circle</span>
+                  <span className="font-bold">Generierte Phasenstruktur im Überblick:</span>
+                </div>
+
+                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                  {generatedPreview.map((ph, idx) => (
+                    <div key={idx} className="bg-surface-low border border-outline-variant rounded-xl p-3 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-primary uppercase">
+                          P{idx + 1}: {ph.title}
+                        </span>
+                        {ph.date && (
+                          <span className="text-[10px] font-mono bg-white px-2 py-0.5 border rounded text-on-surface-variant font-bold">
+                            📅 {ph.date}
+                          </span>
+                        )}
+                      </div>
+                      <div className="pl-3 space-y-1">
+                        {ph.tasks && ph.tasks.map((t, tIdx) => (
+                          <div key={tIdx} className="text-xs text-on-surface flex items-center justify-between gap-2">
+                            <span>• {t.title}</span>
+                            {t.date && <span className="text-[10px] text-on-surface-variant font-mono">{t.date}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex items-center justify-between gap-3 pt-3 border-t border-outline-variant">
+                  <button
+                    type="button"
+                    onClick={() => setGeneratedPreview(null)}
+                    className="px-4 py-2 text-xs font-bold text-on-surface-variant hover:bg-surface-low border border-outline-variant rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">tune</span>
+                    Einstellungen anpassen
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPhases(generatedPreview);
+                      setIsAiConfigOpen(false);
+                      setGeneratedPreview(null);
+                    }}
+                    className="px-5 py-2.5 bg-primary text-white text-xs font-bold rounded-xl hover:bg-neutral-800 transition-colors flex items-center gap-2 shadow-sm cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">check</span>
+                    Phasen übernehmen
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

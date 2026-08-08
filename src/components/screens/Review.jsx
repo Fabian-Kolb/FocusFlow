@@ -18,14 +18,12 @@ const Review = () => {
   const safeProjects = Array.isArray(projects) ? projects : [];
 
   // 1. Calculate Total Completed Tasks (Projects + Inbox)
+  const allInboxItems = typeof inboxItems === 'object' && inboxItems ? Object.values(inboxItems).flat() : [];
   const projectCompletedTasks = safeProjects.reduce(
     (acc, p) => acc + (p?.tasksCompleted ?? 0),
     0
   );
-  const inboxCompletedTasks = [
-    ...(inboxItems?.today || []),
-    ...(inboxItems?.yesterday || [])
-  ].filter(item => item?.completed).length;
+  const inboxCompletedTasks = allInboxItems.filter(item => item?.completed).length;
   const totalCompletedTasks = projectCompletedTasks + inboxCompletedTasks;
 
   // 2. Calculate Total Completed Phases / Milestones across all projects
@@ -49,10 +47,7 @@ const Review = () => {
   const strokeDashoffset = Math.round(circumference * (1 - successRatePct / 100));
 
   // 5. Open Inbox Items calculation
-  const openInboxItems = [
-    ...(inboxItems?.today || []),
-    ...(inboxItems?.yesterday || [])
-  ].filter(item => item && !item.completed);
+  const openInboxItems = allInboxItems.filter(item => item && !item.completed);
   const openInboxCount = openInboxItems.length;
 
   // 6. Flagged / Delayed Projects calculation

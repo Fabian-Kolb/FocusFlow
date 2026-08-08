@@ -1,14 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
 /**
- * useCategoryDrag – Safe slot-based drag-and-drop for category lists.
+ * useCategoryDrag – Safe slot-based drag-and-drop for category lists with Mobile Long-Press gesture.
  *
- * Uses mousedown/mousemove/mouseup for desktop mouse (NOT pointer events).
- * Uses touchstart/touchmove/touchend for touch devices.
- *
- * The key safety principle: event handler functions are stored in refs so
- * removeEventListener always uses the exact same reference as addEventListener.
- * No pointer events are used anywhere.
+ * Uses mousedown/mousemove/mouseup for desktop mouse (instant).
+ * Uses 400ms long-press for touch devices (allows normal page scrolling unless held).
+ * Supports manual wheel scrolling and edge auto-scrolling during category reordering.
  */
 export function useCategoryDrag({
   categories,
@@ -30,8 +27,13 @@ export function useCategoryDrag({
   const ghostRef        = useRef(null);
   const isDraggingRef   = useRef(false);
 
+  // Touch long press refs
+  const longPressTimerRef = useRef(null);
+  const earlyTouchListenersRef = useRef(null);
+
   // Handler refs for guaranteed cleanup
   const moveHandlerRef  = useRef(null);
+  const wheelHandlerRef = useRef(null);
   const endHandlerRef   = useRef(null);
 
   useEffect(() => { categoriesRef.current = categories; }, [categories]);
@@ -47,40 +49,51 @@ export function useCategoryDrag({
     }
   }, []);
 
-  const createGhost = useCallback((label, x, y) => {
+  const createGhost = useCallback((label, x, y, isTouch = false) => {
     destroyGhost();
     const el = document.createElement('div');
     el.id = '__cat-drag-ghost__';
+
+    // On touch, position 60px above finger so thumb does not obscure the preview
+    const posX = isTouch ? Math.max(10, x - 70) : x + 16;
+    const posY = isTouch ? Math.max(10, y - 60) : y - 16;
+
     Object.assign(el.style, {
       position: 'fixed',
       top: '0',
       left: '0',
-      transform: `translate(${x + 16}px, ${y - 16}px)`,
+      transform: `translate(${posX}px, ${posY}px)`,
       pointerEvents: 'none',
       zIndex: '99999',
-      background: '#1A1A1A',
-      color: '#FFFFFF',
-      border: '1px solid rgba(255, 255, 255, 0.12)',
-      padding: '6px 14px',
+      background: 'linear-gradient(135deg, #1E1B4B 0%, #312E81 100%)',
+      color: '#EEF2FF',
+      border: '1.5px solid rgba(129, 140, 248, 0.7)',
+      padding: '8px 16px',
       borderRadius: '9999px',
       fontSize: '12px',
-      fontWeight: '600',
+      fontWeight: '700',
       fontFamily: 'inherit',
-      letterSpacing: '0.03em',
-      boxShadow: '0 10px 25px -3px rgba(0,0,0,0.3), 0 4px 6px -2px rgba(0,0,0,0.05)',
+      letterSpacing: '0.02em',
+      boxShadow: '0 20px 30px -5px rgba(0,0,0,0.5), 0 0 15px rgba(99, 102, 241, 0.3)',
       whiteSpace: 'nowrap',
       userSelect: 'none',
       opacity: '0.95',
       display: 'flex',
       alignItems: 'center',
-      gap: '6px',
+      gap: '8px',
     });
+
     const icon = document.createElement('span');
     icon.className = 'material-symbols-outlined';
-    icon.style.fontSize = '14px';
-    icon.textContent = 'drag_indicator';
+    icon.style.fontSize = '16px';
+    icon.style.color = '#818CF8';
+    icon.textContent = 'folder_open';
     el.appendChild(icon);
-    el.appendChild(document.createTextNode(label));
+
+    const textNode = document.createElement('span');
+    textNode.textContent = label.startsWith('Kategorie') ? label : `Kategorie: ${label}`;
+    el.appendChild(textNode);
+
     document.body.appendChild(el);
     ghostRef.current = el;
   }, [destroyGhost]);
@@ -130,17 +143,37 @@ export function useCategoryDrag({
     }
   }, [sectionIdPrefix]);
 
+  // ── Long press cleanup ─────────────────────────────────────────────────────
+
+  const cancelLongPress = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    if (earlyTouchListenersRef.current) {
+      const { move, end } = earlyTouchListenersRef.current;
+      window.removeEventListener('touchmove', move);
+      window.removeEventListener('touchend', end);
+      window.removeEventListener('touchcancel', end);
+      earlyTouchListenersRef.current = null;
+    }
+  }, []);
+
   // ── Cleanup (bulletproof) ──────────────────────────────────────────────────
 
   const cleanup = useCallback(() => {
+    cancelLongPress();
     isDraggingRef.current = false;
     destroyGhost();
 
-    // Remove listeners using the exact same function references
     if (moveHandlerRef.current) {
       window.removeEventListener('mousemove', moveHandlerRef.current);
       window.removeEventListener('touchmove', moveHandlerRef.current);
       moveHandlerRef.current = null;
+    }
+    if (wheelHandlerRef.current) {
+      window.removeEventListener('wheel', wheelHandlerRef.current);
+      wheelHandlerRef.current = null;
     }
     if (endHandlerRef.current) {
       window.removeEventListener('mouseup', endHandlerRef.current);
@@ -156,123 +189,175 @@ export function useCategoryDrag({
 
     document.body.style.userSelect = '';
     document.body.style.cursor = '';
-  }, [destroyGhost]);
+  }, [destroyGhost, cancelLongPress]);
 
   // ── Public API ─────────────────────────────────────────────────────────────
 
   const startDrag = useCallback((e, catId) => {
-    // Only respond to left mouse button or touch
     if (e.type === 'mousedown' && e.button !== 0) return;
 
-    e.preventDefault();
-    e.stopPropagation();
-
-    // Clean up any previous drag
     cleanup();
 
-    // Snapshot expand states BEFORE collapsing
-    const states = {};
-    categoriesRef.current.forEach(c => { states[c.id] = c.isExpanded; });
-    savedStatesRef.current = states;
+    const isTouch = e.type === 'touchstart';
 
-    isDraggingRef.current = true;
-    draggedCatIdRef.current = catId;
-    setDraggedCatId(catId);
+    const executeDragStart = (startX, startY) => {
+      const states = {};
+      categoriesRef.current.forEach(c => { states[c.id] = c.isExpanded; });
+      savedStatesRef.current = states;
 
-    collapseAll();
+      isDraggingRef.current = true;
+      draggedCatIdRef.current = catId;
+      setDraggedCatId(catId);
 
-    const x = e.clientX ?? e.touches?.[0]?.clientX ?? 0;
-    const y = e.clientY ?? e.touches?.[0]?.clientY ?? 0;
+      collapseAll();
 
-    const cat = categoriesRef.current.find(c => c.id === catId);
-    createGhost(cat?.name ?? catId, x, y);
+      const cat = categoriesRef.current.find(c => c.id === catId);
+      const catLabel = cat?.name ?? catId;
+      createGhost(catLabel, startX, startY, isTouch);
 
-    document.body.style.userSelect = 'none';
-    document.body.style.cursor = 'grabbing';
+      document.body.style.userSelect = 'none';
+      document.body.style.cursor = 'grabbing';
 
-    requestAnimationFrame(() => {
-      const dt = calcDropSlot(y);
-      dropTargetRef.current = dt;
-      setDropTarget(dt);
-    });
+      requestAnimationFrame(() => {
+        const dt = calcDropSlot(startY);
+        dropTargetRef.current = dt;
+        setDropTarget(dt);
+      });
 
-    // Create handler functions and store references for safe removal
-    const moveHandler = (me) => {
-      if (!isDraggingRef.current) return;
-      const mx = me.clientX ?? me.touches?.[0]?.clientX;
-      const my = me.clientY ?? me.touches?.[0]?.clientY;
-      if (mx == null || my == null) return;
+      const moveHandler = (me) => {
+        if (!isDraggingRef.current) return;
+        const mx = me.clientX ?? me.touches?.[0]?.clientX;
+        const my = me.clientY ?? me.touches?.[0]?.clientY;
+        if (mx == null || my == null) return;
 
-      // Move ghost
-      if (ghostRef.current) {
-        ghostRef.current.style.transform = `translate(${mx + 16}px, ${my - 16}px)`;
-      }
+        if (ghostRef.current) {
+          const posX = isTouch ? Math.max(10, mx - 70) : mx + 16;
+          const posY = isTouch ? Math.max(10, my - 60) : my - 16;
+          ghostRef.current.style.transform = `translate(${posX}px, ${posY}px)`;
+        }
 
-      // Update drop target
-      const dt = calcDropSlot(my);
-      dropTargetRef.current = dt;
-      setDropTarget(dt);
+        const dt = calcDropSlot(my);
+        dropTargetRef.current = dt;
+        setDropTarget(dt);
 
-      // Auto-scroll at edges
-      const edgeThreshold = 120;
-      const viewportHeight = window.innerHeight;
-      if (my < edgeThreshold) {
-        const intensity = (edgeThreshold - Math.max(0, my)) / edgeThreshold;
-        window.scrollBy(0, -Math.max(3, Math.round(intensity * 22)));
-      } else if (my > viewportHeight - edgeThreshold) {
-        const intensity = (Math.min(viewportHeight, my) - (viewportHeight - edgeThreshold)) / edgeThreshold;
-        window.scrollBy(0, Math.max(3, Math.round(intensity * 22)));
-      }
-    };
+        // Auto-scroll at edges
+        const edgeThreshold = 120;
+        const viewportHeight = window.innerHeight;
+        const main = document.querySelector('main');
+        
+        if (my < edgeThreshold) {
+          const intensity = (edgeThreshold - Math.max(0, my)) / edgeThreshold;
+          const speed = Math.max(3, Math.round(intensity * 22));
+          if (main) main.scrollBy(0, -speed);
+          else window.scrollBy(0, -speed);
+        } else if (my > viewportHeight - edgeThreshold) {
+          const intensity = (Math.min(viewportHeight, my) - (viewportHeight - edgeThreshold)) / edgeThreshold;
+          const speed = Math.max(3, Math.round(intensity * 22));
+          if (main) main.scrollBy(0, speed);
+          else window.scrollBy(0, speed);
+        }
+      };
 
-    const endHandler = () => {
-      const dragged = draggedCatIdRef.current;
-      const target = dropTargetRef.current;
-      const cats = categoriesRef.current;
+      const wheelHandler = (we) => {
+        if (isDraggingRef.current) {
+          const main = document.querySelector('main');
+          if (main) main.scrollBy(0, we.deltaY);
+          else window.scrollBy(0, we.deltaY);
+        }
+      };
 
-      if (dragged !== null && target !== null) {
-        const fromIndex = cats.findIndex(c => c.id === dragged);
-        if (fromIndex !== -1) {
-          const draggedCat = cats[fromIndex];
-          const newCats = cats.filter(c => c.id !== dragged);
-          const targetIndex = newCats.findIndex(c => c.id === target.targetCatId);
+      const endHandler = () => {
+        const dragged = draggedCatIdRef.current;
+        const target = dropTargetRef.current;
+        const cats = categoriesRef.current;
 
-          if (targetIndex !== -1) {
-            const insertIndex = target.position === 'before' ? targetIndex : targetIndex + 1;
-            newCats.splice(insertIndex, 0, draggedCat);
+        if (dragged !== null && target !== null) {
+          const fromIndex = cats.findIndex(c => c.id === dragged);
+          if (fromIndex !== -1) {
+            const draggedCat = cats[fromIndex];
+            const newCats = cats.filter(c => c.id !== dragged);
+            const targetIndex = newCats.findIndex(c => c.id === target.targetCatId);
 
-            const hasOrderChanged = newCats.some((c, idx) => c.id !== cats[idx]?.id);
-            if (hasOrderChanged) {
-              reorderRef.current(newCats);
+            if (targetIndex !== -1) {
+              const insertIndex = target.position === 'before' ? targetIndex : targetIndex + 1;
+              newCats.splice(insertIndex, 0, draggedCat);
+
+              const hasOrderChanged = newCats.some((c, idx) => c.id !== cats[idx]?.id);
+              if (hasOrderChanged) {
+                reorderRef.current(newCats);
+              }
             }
           }
         }
+
+        const saved = savedStatesRef.current;
+        savedStatesRef.current = null;
+        if (saved) onDragEndRef.current?.(saved);
+
+        cleanup();
+      };
+
+      moveHandlerRef.current = moveHandler;
+      wheelHandlerRef.current = wheelHandler;
+      endHandlerRef.current = endHandler;
+
+      if (!isTouch) {
+        window.addEventListener('mousemove', moveHandler, { passive: true });
+        window.addEventListener('wheel', wheelHandler, { passive: true });
+        window.addEventListener('mouseup', endHandler);
+      } else {
+        window.addEventListener('touchmove', moveHandler, { passive: true });
+        window.addEventListener('touchend', endHandler);
+        window.addEventListener('touchcancel', endHandler);
       }
-
-      // Restore expand states
-      const saved = savedStatesRef.current;
-      savedStatesRef.current = null;
-      if (saved) onDragEndRef.current?.(saved);
-
-      cleanup();
     };
 
-    // Store refs for cleanup
-    moveHandlerRef.current = moveHandler;
-    endHandlerRef.current = endHandler;
-
-    // Use mouse events for mouse, touch events for touch
-    if (e.type === 'mousedown') {
-      window.addEventListener('mousemove', moveHandler, { passive: true });
-      window.addEventListener('mouseup', endHandler);
+    if (!isTouch) {
+      e.preventDefault();
+      e.stopPropagation();
+      const x = e.clientX ?? 0;
+      const y = e.clientY ?? 0;
+      executeDragStart(x, y);
     } else {
-      window.addEventListener('touchmove', moveHandler, { passive: true });
-      window.addEventListener('touchend', endHandler);
-      window.addEventListener('touchcancel', endHandler);
-    }
-  }, [cleanup, collapseAll, createGhost, calcDropSlot]);
+      // Touch event: apply 400ms long press delay before activating category drag
+      const startX = e.touches[0].clientX;
+      const startY = e.touches[0].clientY;
 
-  // ── Safety net: cleanup on unmount ─────────────────────────────────────────
+      const earlyMoveHandler = (te) => {
+        const touch = te.touches[0];
+        if (!touch) return;
+        const dist = Math.hypot(touch.clientX - startX, touch.clientY - startY);
+        if (dist > 8) {
+          cancelLongPress();
+        }
+      };
+
+      const earlyEndHandler = () => {
+        cancelLongPress();
+      };
+
+      earlyTouchListenersRef.current = { move: earlyMoveHandler, end: earlyEndHandler };
+
+      window.addEventListener('touchmove', earlyMoveHandler, { passive: true });
+      window.addEventListener('touchend', earlyEndHandler);
+      window.addEventListener('touchcancel', earlyEndHandler);
+
+      longPressTimerRef.current = setTimeout(() => {
+        if (earlyTouchListenersRef.current) {
+          window.removeEventListener('touchmove', earlyMoveHandler);
+          window.removeEventListener('touchend', earlyEndHandler);
+          window.removeEventListener('touchcancel', earlyEndHandler);
+          earlyTouchListenersRef.current = null;
+        }
+
+        if (typeof window !== 'undefined' && window.navigator && navigator.vibrate) {
+          try { navigator.vibrate(45); } catch (_) {}
+        }
+
+        executeDragStart(startX, startY);
+      }, 400);
+    }
+  }, [cleanup, cancelLongPress, collapseAll, createGhost, calcDropSlot]);
 
   useEffect(() => {
     return () => {

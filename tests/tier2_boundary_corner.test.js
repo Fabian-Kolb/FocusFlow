@@ -324,5 +324,33 @@ export function registerTier2Tests(runner) {
       const protoHtml = context.prototypeHtmlContent;
       assert(protoHtml.includes('delete') || protoHtml.includes('Entfernen') || protoHtml.includes('close') || protoHtml.includes('Material'), 'Material list items must support deletion / remove action');
     });
+
+    // Mobile Horizontal Kanban Board Navigation
+    runner.test('T2-KANBAN-01: ProjectsBoard implements horizontal swipe layout with mobile tab navigation for Geplant, In Arbeit, and Abgeschlossen', () => {
+      const boardSrc = context.getComponentSource('src/components/screens/ProjectsBoard.jsx');
+      assert(boardSrc.includes('scrollToColumn'), 'ProjectsBoard must define scrollToColumn for tab switching');
+      assert(boardSrc.includes('container.scrollTo'), 'scrollToColumn must use container.scrollTo to scroll horizontally without vertical page jump');
+      assert(boardSrc.includes('activeTab'), 'ProjectsBoard must track activeTab state');
+      assert(boardSrc.includes('snap-x') && boardSrc.includes('overflow-x-auto'), 'ProjectsBoard container must feature horizontal scroll-snap layout');
+      assert(boardSrc.includes('Geplant') && boardSrc.includes('In Arbeit') && boardSrc.includes('Erledigt'), 'Mobile tab bar must contain buttons for Geplant, In Arbeit, and Erledigt');
+    });
+
+    // Mobile Phone Link Prevention Meta Tag
+    runner.test('T2-PHONE-01: Index HTML configures format-detection telephone=no to prevent automatic phone app link prompts', () => {
+      const indexHtml = context.indexHtmlContent;
+      assert(indexHtml.includes('format-detection') && indexHtml.includes('telephone=no'), 'index.html must include telephone=no format detection meta tag');
+    });
+
+    // Mobile Long-Press Drag & Drop Gesture
+    runner.test('T2-DRAG-01: Touch drag hooks enforce 400ms long-press activation, haptic feedback vibration, and above-thumb ghost offset', () => {
+      const cardDragSrc = context.getComponentSource('src/components/ui/useCardTouchDrag.js');
+      const catDragSrc = context.getComponentSource('src/components/ui/useCategoryDrag.js');
+
+      assert(cardDragSrc.includes('longPressTimerRef') && cardDragSrc.includes('vibrate'), 'useCardTouchDrag must feature long press timer and haptic vibration');
+      assert(cardDragSrc.includes('y - 60') || cardDragSrc.includes('posY'), 'useCardTouchDrag ghost element must position preview above thumb');
+
+      assert(catDragSrc.includes('longPressTimerRef') && catDragSrc.includes('vibrate'), 'useCategoryDrag must feature long press timer and haptic vibration');
+      assert(catDragSrc.includes('y - 60') || catDragSrc.includes('posY'), 'useCategoryDrag ghost element must position preview above thumb');
+    });
   });
 }

@@ -18,18 +18,95 @@ const Inbox = ({ setCurrentScreen }) => {
   const [isTriageOpen, setIsTriageOpen] = useState(false);
   const [triageView, setTriageView] = useState('main'); // 'main', 'inbox', 'project', 'reminder'
   const [expandedItems, setExpandedItems] = useState({});
-  const [activeDropdownId, setActiveDropdownId] = useState(null);
   const [activeModel, setActiveModel] = useState('eco');
   const [summaryLength, setSummaryLength] = useState('normal');
   const [isSummaryEnabled, setIsSummaryEnabled] = useState(true);
+  const [sectionOpen, setSectionOpen] = useState({
+    today: true,
+    yesterday: true,
+    thisWeek: false,
+    older: false
+  });
+  const [deleteModeCategory, setDeleteModeCategory] = useState({});
+
+  const toggleSection = (sectionKey) => {
+    setSectionOpen(prev => ({ ...prev, [sectionKey]: !prev[sectionKey] }));
+  };
+
+  const toggleDeleteMode = (categoryKey) => {
+    setDeleteModeCategory(prev => ({
+      ...prev,
+      [categoryKey]: !prev[categoryKey]
+    }));
+  };
+
+  const renderSection = (title, key, items, isDimmed = false) => {
+    if (!items || items.length === 0) return null;
+    const isOpen = !!sectionOpen[key];
+    const isDeleteMode = !!deleteModeCategory[key];
+
+    return (
+      <div key={key} className="space-y-3">
+        <div className="flex items-center justify-between py-1.5 border-b border-outline-variant/60">
+          <div 
+            className="flex items-center gap-2 cursor-pointer select-none group flex-grow"
+            onClick={() => toggleSection(key)}
+          >
+            <span className={`material-symbols-outlined text-[20px] text-on-surface-variant group-hover:text-primary transition-transform duration-200 ${
+              isOpen ? 'rotate-90 text-primary' : ''
+            }`}>
+              chevron_right
+            </span>
+            <h2 className="text-sm font-bold text-on-surface group-hover:text-primary transition-colors flex items-center gap-1.5">
+              <span>{title}</span>
+              <span className="text-on-surface-variant font-medium">({items.length})</span>
+            </h2>
+          </div>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleDeleteMode(key);
+            }}
+            className={`px-2 py-1 rounded-lg transition-all flex items-center gap-1 cursor-pointer text-xs font-mono font-bold ${
+              isDeleteMode
+                ? 'bg-red-600 text-white border border-red-600 shadow-sm'
+                : 'text-on-surface-variant hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200'
+            }`}
+            title={isDeleteMode ? 'Löschmodus beenden' : 'Löschmodus aktivieren'}
+          >
+            <span className="material-symbols-outlined text-[16px]">
+              {isDeleteMode ? 'check' : 'delete'}
+            </span>
+            {isDeleteMode && <span>Fertig</span>}
+          </button>
+        </div>
+
+        {isOpen && (
+          <div className="space-y-3">
+            {items.map((item) => renderItemCard(item, isDimmed, isDeleteMode))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const recognitionRef = useRef(null);
   const isListeningRef = useRef(false);
   const textareaRef = useRef(null);
+  const baseTextRef = useRef('');
 
   useEffect(() => {
     isListeningRef.current = isListening;
   }, [isListening]);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 250)}px`;
+    }
+  }, [inputValue]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -41,14 +118,6 @@ const Inbox = ({ setCurrentScreen }) => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isTriageOpen]);
-
-  useEffect(() => {
-    const handleClickOutside = () => {
-      if (activeDropdownId) setActiveDropdownId(null);
-    };
-    window.addEventListener('click', handleClickOutside);
-    return () => window.removeEventListener('click', handleClickOutside);
-  }, [activeDropdownId]);
 
   const toggleExpand = (id) => {
     setExpandedItems((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -75,6 +144,8 @@ const Inbox = ({ setCurrentScreen }) => {
     }
 
     try {
+      baseTextRef.current = inputValue.trim();
+
       const recognition = new SpeechRecognition();
       recognition.lang = 'de-DE';
       recognition.interimResults = true;
@@ -86,11 +157,18 @@ const Inbox = ({ setCurrentScreen }) => {
       };
 
       recognition.onresult = (event) => {
-        let finalTranscript = '';
+        let transcript = '';
         for (let i = 0; i < event.results.length; i++) {
-          finalTranscript += event.results[i][0].transcript;
+          transcript += event.results[i][0].transcript;
         }
-        setInputValue(finalTranscript);
+
+        const base = baseTextRef.current;
+        if (base) {
+          const separator = base.endsWith(' ') || base.endsWith('\n') ? '' : ' ';
+          setInputValue(`${base}${separator}${transcript}`);
+        } else {
+          setInputValue(transcript);
+        }
       };
 
       recognition.onerror = (event) => {
@@ -152,15 +230,25 @@ const Inbox = ({ setCurrentScreen }) => {
     setTriageText(null);
 
     let summaryText = ensureBulletPoints(textToProcess);
-    let finalTitle = summaryText;
+    let extractedTitle = textToProcess.split('\n')[0].substring(0, 40);
+    let cleanText = null;
+    let extractedDateType = null;
+    let extractedDate = null;
+    let extractedEndDate = null;
+    let extractedTime = null;
 
-    if (textToProcess.length > 35 && isSummaryEnabled) {
+    if (textToProcess.length > 20 && isSummaryEnabled) {
       setIsSummarizing(true);
       try {
-        const summary = await summarizeVoiceNote(textToProcess, activeModel, summaryLength);
-        if (summary) {
-          summaryText = ensureBulletPoints(summary);
-          finalTitle = summaryText;
+        const result = await summarizeVoiceNote(textToProcess, activeModel, summaryLength);
+        if (result) {
+          summaryText = result.summary;
+          extractedTitle = result.title || extractedTitle;
+          cleanText = result.cleanText || null;
+          extractedDateType = result.extractedDateType || null;
+          extractedDate = result.extractedDate || null;
+          extractedEndDate = result.extractedEndDate || null;
+          extractedTime = result.extractedTime || null;
         }
       } catch (e) {
         console.error(e);
@@ -170,9 +258,15 @@ const Inbox = ({ setCurrentScreen }) => {
     }
 
     addInboxItem({
-      title: finalTitle,
+      title: extractedTitle,
       summary: summaryText,
       originalText: textToProcess,
+      cleanText,
+      extractedDateType,
+      extractedDate,
+      extractedEndDate,
+      extractedTime,
+      createdAt: Date.now(),
       type: choice === 'inbox' ? 'unclassified' : choice
     });
   };
@@ -216,8 +310,33 @@ const Inbox = ({ setCurrentScreen }) => {
 
   const handleConvert = (item) => {
     if (!item.type || item.type === 'unclassified') return;
-    const fullDescription = `${item.title}\n\n---\n\n${item.originalText || ''}`.trim();
-    openModal(item.type, { inboxItemId: item.id, prefillTitle: '', prefillDescription: fullDescription });
+
+    // Clean title extraction
+    const rawTitle = item.title || (item.summary ? item.summary.split('\n')[0].replace(/^#{1,6}\s*/, '').replace(/\*/g, '').trim() : '');
+    const cleanTitle = rawTitle || 'Neuer Eintrag';
+
+    const fullDescription = `${item.summary || item.title || ''}\n\n---\n\n${item.cleanText || item.originalText || ''}`.trim();
+
+    if (item.type === 'reminder') {
+      openModal('reminder', {
+        inboxItemId: item.id,
+        prefillTitle: cleanTitle,
+        date: item.extractedDate || '',
+        time: item.extractedTime || '',
+        prefillDescription: fullDescription
+      });
+    } else if (item.type === 'project') {
+      openModal('project', {
+        inboxItemId: item.id,
+        prefillTitle: cleanTitle,
+        startDate: (item.extractedDateType === 'timeframe' ? item.extractedDate : '') || '',
+        endDate: item.extractedEndDate || item.extractedDate || '',
+        summaryText: item.summary || item.title || '',
+        cleanText: item.cleanText || '',
+        originalText: item.originalText || '',
+        prefillDescription: ''
+      });
+    }
   };
 
   const handleAppendToProject = (item) => {
@@ -234,7 +353,7 @@ const Inbox = ({ setCurrentScreen }) => {
     }
     
     // Extract a nice title from the summary (first line)
-    const firstLine = (item.summary || item.title || '').split('\n')[0].replace(/[*#]/g, '').trim();
+    const firstLine = (item.title || item.summary || '').split('\n')[0].replace(/[*#]/g, '').trim();
     const shortTitle = firstLine.substring(0, 30) + (firstLine.length > 30 ? '...' : '');
 
     const newNote = {
@@ -253,8 +372,44 @@ const Inbox = ({ setCurrentScreen }) => {
     deleteInboxItem(item.id);
   };
 
-  const renderItemCard = (item, isYesterday = false) => {
+  const renderItemCard = (item, isYesterday = false, isDeleteMode = false) => {
     const isExpanded = !!expandedItems[item.id];
+
+    // Format creation time
+    const createdTimestamp = item.createdAt || parseInt((item.id || '').replace('i_', '')) || Date.now();
+    const createdDateObj = new Date(createdTimestamp);
+    const createdFormattedStr = createdDateObj.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr';
+    const createdDateStr = createdDateObj.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+
+    // Format target/extracted date badge
+    let targetBadgeLabel = null;
+    let targetBadgeIcon = 'event';
+
+    if (item.extractedDate) {
+      const formatDate = (isoStr) => {
+        if (!isoStr) return '';
+        const parts = isoStr.split('-');
+        if (parts.length !== 3) return isoStr;
+        return `${parts[2]}.${parts[1]}.${parts[0]}`;
+      };
+
+      const startStr = formatDate(item.extractedDate);
+      const endStr = formatDate(item.extractedEndDate);
+      const timeStr = item.extractedTime ? `, ${item.extractedTime} Uhr` : '';
+
+      if (item.extractedDateType === 'timeframe' || (endStr && endStr !== startStr)) {
+        targetBadgeLabel = `Zeitraum: ${startStr}${endStr ? ` - ${endStr}` : ''}`;
+        targetBadgeIcon = 'date_range';
+      } else if (item.extractedDateType === 'appointment') {
+        targetBadgeLabel = `Termin: ${startStr}${timeStr}`;
+        targetBadgeIcon = 'alarm';
+      } else {
+        // default / deadline
+        targetBadgeLabel = `Fällig: ${startStr}${timeStr}`;
+        targetBadgeIcon = 'event';
+      }
+    }
+
     return (
       <Card
         key={item.id}
@@ -264,44 +419,46 @@ const Inbox = ({ setCurrentScreen }) => {
         }`}
       >
         <div className="flex items-start justify-between gap-3">
-          <div className="flex-grow space-y-1">
+          <div className="flex-grow space-y-1.5">
+            {/* Meta-Header: Timestamp & optional Target Date */}
+            <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono text-on-surface-variant">
+              <span className="bg-surface-low border border-outline-variant rounded-md px-2 py-0.5 flex items-center gap-1">
+                <span className="material-symbols-outlined text-[13px]">schedule</span>
+                {createdDateStr}, {createdFormattedStr}
+              </span>
+              {targetBadgeLabel && (
+                <span className="bg-primary/10 text-primary border border-primary/20 rounded-md px-2 py-0.5 font-bold flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[13px]">{targetBadgeIcon}</span>
+                  {targetBadgeLabel}
+                </span>
+              )}
+            </div>
+
+            {/* Summary Content */}
             <div className="text-xs sm:text-sm font-medium leading-snug">
               <div className="markdown-body markdown-compact">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {ensureBulletPoints(item.title)}
+                  {ensureBulletPoints(item.summary || item.title)}
                 </ReactMarkdown>
               </div>
             </div>
           </div>
 
-          <div className="relative flex-shrink-0">
-            <button
-              type="button"
-              className="p-1 hover:bg-surface-low rounded-md transition-colors text-on-surface-variant cursor-pointer"
-              onClick={(e) => {
-                e.stopPropagation();
-                setActiveDropdownId(prev => prev === item.id ? null : item.id);
-              }}
-              title="Optionen"
-            >
-              <span className="material-symbols-outlined text-[20px]">more_vert</span>
-            </button>
-            {activeDropdownId === item.id && (
-              <div className="absolute right-0 top-full mt-1 bg-white border border-primary rounded-xl z-30 w-48 shadow-lg overflow-hidden">
-                <button
-                  className="w-full text-left px-4 py-2.5 hover:bg-red-50 text-xs font-medium text-red-600 flex items-center gap-2 cursor-pointer"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    deleteInboxItem(item.id);
-                    setActiveDropdownId(null);
-                  }}
-                >
-                  <span className="material-symbols-outlined text-[16px]">delete</span>
-                  Löschen
-                </button>
-              </div>
-            )}
-          </div>
+          {isDeleteMode && (
+            <div className="relative flex-shrink-0">
+              <button
+                type="button"
+                className="p-1.5 bg-red-50 hover:bg-red-600 text-red-600 hover:text-white border border-red-200 hover:border-red-600 rounded-lg transition-all flex items-center justify-center cursor-pointer shadow-sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  deleteInboxItem(item.id);
+                }}
+                title="1-Klick Löschen"
+              >
+                <span className="material-symbols-outlined text-[18px]">delete</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Klassifizierung / Aktionen */}
@@ -358,23 +515,34 @@ const Inbox = ({ setCurrentScreen }) => {
           </div>
         </div>
 
-        {item.originalText && (
+        {(item.cleanText || item.originalText) && (
           <div className="mt-2 border border-outline-variant rounded-xl overflow-hidden bg-surface-low">
             <button
               className="w-full flex items-center justify-between p-2.5 hover:bg-surface-variant/30 transition-colors text-left cursor-pointer"
               onClick={() => toggleExpand(item.id)}
             >
-              <span className="text-[10px] font-mono font-bold text-on-surface-variant uppercase tracking-wider">
-                Original-Transkript
+              <span className="text-[11px] font-mono font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[14px]">auto_fix_high</span>
+                {item.cleanText ? 'Bereinigter Fließtext' : 'Original-Transkript'}
               </span>
-              <span className="material-symbols-outlined text-[16px] text-on-surface-variant">
+              <span className="material-symbols-outlined text-[16px] text-primary">
                 {isExpanded ? 'keyboard_arrow_up' : 'keyboard_arrow_down'}
               </span>
             </button>
             
             {isExpanded && (
-              <div className="px-3 pb-3 pt-1 text-sm text-on-surface leading-relaxed">
-                {item.originalText}
+              <div className="px-3 pb-3 pt-1 text-sm text-primary leading-relaxed space-y-2">
+                <div className="text-primary font-normal">{item.cleanText || item.originalText}</div>
+                {item.cleanText && item.originalText && item.cleanText !== item.originalText && (
+                  <details className="text-xs text-primary pt-2 border-t border-outline-variant">
+                    <summary className="cursor-pointer font-mono text-[11px] uppercase font-bold text-primary hover:text-black transition-colors">
+                      Roh-Transkript anzeigen
+                    </summary>
+                    <div className="mt-2 text-sm text-primary leading-relaxed">
+                      {item.originalText}
+                    </div>
+                  </details>
+                )}
               </div>
             )}
           </div>
@@ -505,23 +673,16 @@ const Inbox = ({ setCurrentScreen }) => {
           </div>
         </Card>
 
-        <div>
-          <h2 className="text-xs font-mono text-on-surface-variant mb-3 border-b border-outline-variant pb-1 uppercase">
-            HEUTE
-          </h2>
-          <div className="space-y-3">
-            {inboxItems.today.map((item) => renderItemCard(item, false))}
-          </div>
-        </div>
+        {renderSection('Heute', 'today', inboxItems?.today, false)}
+        {renderSection('Gestern', 'yesterday', inboxItems?.yesterday, true)}
+        {renderSection('Diese Woche', 'thisWeek', inboxItems?.thisWeek, true)}
+        {renderSection('Älter', 'older', inboxItems?.older, true)}
 
-        <div>
-          <h2 className="text-xs font-mono text-on-surface-variant mb-3 border-b border-outline-variant pb-1 uppercase">
-            GESTERN
-          </h2>
-          <div className="space-y-3">
-            {inboxItems.yesterday.map((item) => renderItemCard(item, true))}
+        {(!inboxItems?.today?.length && !inboxItems?.yesterday?.length && !inboxItems?.thisWeek?.length && !inboxItems?.older?.length) && (
+          <div className="text-center py-8 text-on-surface-variant text-xs font-mono">
+            Keine offenen Notizen in der Inbox.
           </div>
-        </div>
+        )}
       </div>
 
       {isTriageOpen && (

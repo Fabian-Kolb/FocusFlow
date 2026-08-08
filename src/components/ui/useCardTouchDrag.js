@@ -1,30 +1,39 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 
 /**
- * useCardTouchDrag – Safe card drag hook.
+ * useCardTouchDrag – Safe card drag hook with Mobile Long-Press gesture.
  *
- * Desktop: pure HTML5 drag-and-drop (draggable + onDragStart/onDragOver/onDrop/onDragEnd).
- *   NO pointer events, NO touch events, NO window listeners for desktop mouse.
+ * Desktop: HTML5 drag-and-drop with edge auto-scrolling & manual mouse wheel scrolling.
+ * Touch (tablet/phone): 400ms Long-press → Haptic feedback → Drag mode with above-thumb ghost badge.
  *
- * Touch (tablet/phone): touchstart → touchmove → touchend with a custom ghost element.
- *   NO pointer events used at all, only native Touch API.
- *
- * The key safety principle: we NEVER add window-level mouse/pointer listeners.
- * All desktop drag state is managed purely through the HTML5 drag events which the
- * browser guarantees will fire (dragstart → drag → dragend).
+ * Safety guarantees:
+ * - Listeners added during drag are cleanly removed via stored refs.
+ * - Long press cancels immediately if finger moves > 8px (enables natural scrolling).
+ * - Component unmount triggers complete cleanup.
  */
 export function useCardTouchDrag({ onMoveItemToCategory, categoryPrefix = 'cat-sec-' }) {
   const [draggedCardId, setDraggedCardId] = useState(null);
   const [cardDropTargetId, setCardDropTargetId] = useState(null);
 
-  // Use refs for everything to avoid stale closures in event handlers
+  // Stable refs
   const draggedCardIdRef = useRef(null);
   const cardDropTargetIdRef = useRef(null);
   const ghostRef = useRef(null);
   const onMoveRef = useRef(onMoveItemToCategory);
   const isTouchDraggingRef = useRef(false);
 
-  // Stable refs for event handler functions (prevents stale closures)
+  // Touch long press refs
+  const longPressTimerRef = useRef(null);
+  const earlyTouchListenersRef = useRef(null);
+
+  // HTML5 drag scroll refs
+  const isHtml5DraggingRef = useRef(false);
+  const currentDragYRef = useRef(null);
+  const animFrameRef = useRef(null);
+  const html5WheelHandlerRef = useRef(null);
+  const html5DragOverHandlerRef = useRef(null);
+
+  // Touch handler refs for guaranteed cleanup
   const touchMoveHandlerRef = useRef(null);
   const touchEndHandlerRef = useRef(null);
 
@@ -41,31 +50,36 @@ export function useCardTouchDrag({ onMoveItemToCategory, categoryPrefix = 'cat-s
     }
   }, []);
 
-  const createGhost = useCallback((title, x, y) => {
+  const createGhost = useCallback((title, x, y, isTouch = false) => {
     destroyGhost();
     const el = document.createElement('div');
     el.id = '__card-drag-ghost__';
+
+    // On touch, position 60px above finger so thumb does not obscure the preview
+    const posX = isTouch ? Math.max(10, x - 70) : x + 12;
+    const posY = isTouch ? Math.max(10, y - 60) : y - 12;
+
     Object.assign(el.style, {
       position: 'fixed',
       top: '0',
       left: '0',
-      transform: `translate(${x + 12}px, ${y - 12}px)`,
+      transform: `translate(${posX}px, ${posY}px)`,
       pointerEvents: 'none',
       zIndex: '999999',
-      background: '#0F172A',
+      background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
       color: '#F8FAFC',
-      border: '1px solid rgba(59, 130, 246, 0.4)',
+      border: '1.5px solid rgba(96, 165, 250, 0.7)',
       padding: '8px 16px',
-      borderRadius: '12px',
+      borderRadius: '14px',
       fontSize: '13px',
       fontWeight: '700',
       fontFamily: 'inherit',
-      boxShadow: '0 20px 30px -10px rgba(0,0,0,0.4), 0 8px 10px -6px rgba(0,0,0,0.1)',
+      boxShadow: '0 20px 35px -5px rgba(0,0,0,0.5), 0 0 15px rgba(59, 130, 246, 0.3)',
       whiteSpace: 'nowrap',
       maxWidth: '260px',
       overflow: 'hidden',
       textOverflow: 'ellipsis',
-      opacity: '0.92',
+      opacity: '0.95',
       display: 'flex',
       alignItems: 'center',
       gap: '8px',
@@ -103,13 +117,103 @@ export function useCardTouchDrag({ onMoveItemToCategory, categoryPrefix = 'cat-s
     return null;
   }, [categoryPrefix]);
 
-  // ── Touch cleanup (bulletproof) ───────────────────────────────────────────
+  // ── Long press cleanup ──────────────────────────────────────────────────
+
+  const cancelLongPress = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    if (earlyTouchListenersRef.current) {
+      const { move, end } = earlyTouchListenersRef.current;
+      window.removeEventListener('touchmove', move);
+      window.removeEventListener('touchend', end);
+      window.removeEventListener('touchcancel', end);
+      earlyTouchListenersRef.current = null;
+    }
+  }, []);
+
+  // ── HTML5 Drag Scroll & Auto-scroll ───────────────────────────────────────
+
+  const stopHtml5DragScroll = useCallback(() => {
+    isHtml5DraggingRef.current = false;
+    currentDragYRef.current = null;
+
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
+    if (html5WheelHandlerRef.current) {
+      window.removeEventListener('wheel', html5WheelHandlerRef.current);
+      html5WheelHandlerRef.current = null;
+    }
+    if (html5DragOverHandlerRef.current) {
+      window.removeEventListener('dragover', html5DragOverHandlerRef.current);
+      html5DragOverHandlerRef.current = null;
+    }
+  }, []);
+
+  const startHtml5DragScroll = useCallback((initialY) => {
+    stopHtml5DragScroll();
+    isHtml5DraggingRef.current = true;
+    currentDragYRef.current = initialY;
+
+    const wheelHandler = (we) => {
+      if (isHtml5DraggingRef.current) {
+        const main = document.querySelector('main');
+        if (main) main.scrollBy(0, we.deltaY);
+        else window.scrollBy(0, we.deltaY);
+      }
+    };
+
+    const dragOverHandler = (de) => {
+      if (de.clientY != null) {
+        currentDragYRef.current = de.clientY;
+      }
+    };
+
+    html5WheelHandlerRef.current = wheelHandler;
+    html5DragOverHandlerRef.current = dragOverHandler;
+
+    window.addEventListener('wheel', wheelHandler, { passive: true });
+    window.addEventListener('dragover', dragOverHandler, { passive: true });
+
+    const autoScrollLoop = () => {
+      if (!isHtml5DraggingRef.current) return;
+
+      const y = currentDragYRef.current;
+      if (y != null) {
+        const edgeThreshold = 120;
+        const viewportHeight = window.innerHeight;
+
+        const main = document.querySelector('main');
+        
+        if (y < edgeThreshold) {
+          const intensity = (edgeThreshold - Math.max(0, y)) / edgeThreshold;
+          const speed = Math.max(3, Math.round(intensity * 22));
+          if (main) main.scrollBy(0, -speed);
+          else window.scrollBy(0, -speed);
+        } else if (y > viewportHeight - edgeThreshold) {
+          const intensity = (Math.min(viewportHeight, y) - (viewportHeight - edgeThreshold)) / edgeThreshold;
+          const speed = Math.max(3, Math.round(intensity * 22));
+          if (main) main.scrollBy(0, speed);
+          else window.scrollBy(0, speed);
+        }
+      }
+
+      animFrameRef.current = requestAnimationFrame(autoScrollLoop);
+    };
+
+    animFrameRef.current = requestAnimationFrame(autoScrollLoop);
+  }, [stopHtml5DragScroll]);
+
+  // ── Touch cleanup ──────────────────────────────────────────────────────────
 
   const cleanupTouch = useCallback(() => {
+    cancelLongPress();
     isTouchDraggingRef.current = false;
     destroyGhost();
 
-    // Remove listeners using the SAME function references
     if (touchMoveHandlerRef.current) {
       window.removeEventListener('touchmove', touchMoveHandlerRef.current);
       touchMoveHandlerRef.current = null;
@@ -127,109 +231,167 @@ export function useCardTouchDrag({ onMoveItemToCategory, categoryPrefix = 'cat-s
 
     document.body.style.userSelect = '';
     document.body.style.cursor = '';
-  }, [destroyGhost]);
+  }, [destroyGhost, cancelLongPress]);
 
-  // ── Touch drag (tablets / phones only) ────────────────────────────────────
+  // ── Touch drag (tablets / phones) with 400ms Long-Press ────────────────────
 
   const startCardTouchDrag = useCallback((e, itemId, itemTitle) => {
-    // ONLY real touch events. Mouse never enters here.
     if (!e.touches || e.touches.length === 0) return;
 
     const target = e.target;
-    if (target.closest('button') || target.closest('a') || target.closest('input')) return;
+    if (target.closest('button') || target.closest('a') || target.closest('input') || target.closest('textarea')) return;
 
-    // Clean up any previous drag that didn't end properly
     cleanupTouch();
 
-    const x = e.touches[0].clientX;
-    const y = e.touches[0].clientY;
+    const startX = e.touches[0].clientX;
+    const startY = e.touches[0].clientY;
 
-    isTouchDraggingRef.current = true;
-    draggedCardIdRef.current = itemId;
-    setDraggedCardId(itemId);
-    createGhost(itemTitle, x, y);
-
-    document.body.style.userSelect = 'none';
-
-    // Create handler functions and store references for safe removal
-    const moveHandler = (te) => {
-      if (!isTouchDraggingRef.current) return;
+    const earlyMoveHandler = (te) => {
       const touch = te.touches[0];
       if (!touch) return;
-
-      const tx = touch.clientX;
-      const ty = touch.clientY;
-
-      // Move ghost
-      if (ghostRef.current) {
-        ghostRef.current.style.transform = `translate(${tx + 12}px, ${ty - 12}px)`;
+      const dist = Math.hypot(touch.clientX - startX, touch.clientY - startY);
+      if (dist > 8) {
+        cancelLongPress();
       }
-
-      // Auto-scroll at edges
-      const edgeThreshold = 100;
-      const viewportHeight = window.innerHeight;
-      if (ty < edgeThreshold) {
-        window.scrollBy(0, -8);
-      } else if (ty > viewportHeight - edgeThreshold) {
-        window.scrollBy(0, 8);
-      }
-
-      // Find drop target
-      const catId = findDropCategory(tx, ty);
-      cardDropTargetIdRef.current = catId;
-      setCardDropTargetId(catId);
     };
 
-    const endHandler = () => {
-      const droppedItemId = draggedCardIdRef.current;
-      const targetCatId = cardDropTargetIdRef.current;
-
-      if (droppedItemId && targetCatId) {
-        onMoveRef.current?.(droppedItemId, targetCatId);
-      }
-
-      cleanupTouch();
+    const earlyEndHandler = () => {
+      cancelLongPress();
     };
 
-    // Store refs for cleanup
-    touchMoveHandlerRef.current = moveHandler;
-    touchEndHandlerRef.current = endHandler;
+    earlyTouchListenersRef.current = { move: earlyMoveHandler, end: earlyEndHandler };
 
-    window.addEventListener('touchmove', moveHandler, { passive: true });
-    window.addEventListener('touchend', endHandler);
-    window.addEventListener('touchcancel', endHandler);
-  }, [cleanupTouch, createGhost, findDropCategory]);
+    window.addEventListener('touchmove', earlyMoveHandler, { passive: true });
+    window.addEventListener('touchend', earlyEndHandler);
+    window.addEventListener('touchcancel', earlyEndHandler);
 
-  // ── Desktop HTML5 drag (pure, no custom listeners) ────────────────────────
+    longPressTimerRef.current = setTimeout(() => {
+      if (earlyTouchListenersRef.current) {
+        window.removeEventListener('touchmove', earlyMoveHandler);
+        window.removeEventListener('touchend', earlyEndHandler);
+        window.removeEventListener('touchcancel', earlyEndHandler);
+        earlyTouchListenersRef.current = null;
+      }
+
+      if (typeof window !== 'undefined' && window.navigator && navigator.vibrate) {
+        try { navigator.vibrate(45); } catch (_) {}
+      }
+
+      isTouchDraggingRef.current = true;
+      draggedCardIdRef.current = itemId;
+      setDraggedCardId(itemId);
+
+      createGhost(itemTitle, startX, startY, true);
+
+      document.body.style.userSelect = 'none';
+
+      const moveHandler = (te) => {
+        if (!isTouchDraggingRef.current) return;
+        const touch = te.touches[0];
+        if (!touch) return;
+
+        const tx = touch.clientX;
+        const ty = touch.clientY;
+
+        if (ghostRef.current) {
+          const posX = Math.max(10, tx - 70);
+          const posY = Math.max(10, ty - 60);
+          ghostRef.current.style.transform = `translate(${posX}px, ${posY}px)`;
+        }
+
+        const edgeThreshold = 120;
+        const viewportHeight = window.innerHeight;
+        const main = document.querySelector('main');
+        
+        if (ty < edgeThreshold) {
+          const intensity = (edgeThreshold - Math.max(0, ty)) / edgeThreshold;
+          const speed = Math.max(3, Math.round(intensity * 22));
+          if (main) main.scrollBy(0, -speed);
+          else window.scrollBy(0, -speed);
+        } else if (ty > viewportHeight - edgeThreshold) {
+          const intensity = (Math.min(viewportHeight, ty) - (viewportHeight - edgeThreshold)) / edgeThreshold;
+          const speed = Math.max(3, Math.round(intensity * 22));
+          if (main) main.scrollBy(0, speed);
+          else window.scrollBy(0, speed);
+        }
+
+        const kanbanContainer = document.querySelector('[data-kanban-container="true"]');
+        if (kanbanContainer) {
+          const horizThreshold = 90;
+          const viewportWidth = window.innerWidth;
+          if (tx < horizThreshold) {
+            const intensity = (horizThreshold - Math.max(0, tx)) / horizThreshold;
+            const speed = Math.max(8, Math.round(intensity * 32));
+            kanbanContainer.scrollBy({ left: -speed, behavior: 'auto' });
+          } else if (tx > viewportWidth - horizThreshold) {
+            const intensity = (Math.min(viewportWidth, tx) - (viewportWidth - horizThreshold)) / horizThreshold;
+            const speed = Math.max(8, Math.round(intensity * 32));
+            kanbanContainer.scrollBy({ left: speed, behavior: 'auto' });
+          }
+        }
+
+        const catId = findDropCategory(tx, ty);
+        cardDropTargetIdRef.current = catId;
+        setCardDropTargetId(catId);
+      };
+
+      const endHandler = () => {
+        const droppedItemId = draggedCardIdRef.current;
+        const targetCatId = cardDropTargetIdRef.current;
+
+        if (droppedItemId && targetCatId) {
+          onMoveRef.current?.(droppedItemId, targetCatId);
+        }
+
+        cleanupTouch();
+      };
+
+      touchMoveHandlerRef.current = moveHandler;
+      touchEndHandlerRef.current = endHandler;
+
+      window.addEventListener('touchmove', moveHandler, { passive: true });
+      window.addEventListener('touchend', endHandler);
+      window.addEventListener('touchcancel', endHandler);
+    }, 400);
+  }, [cleanupTouch, cancelLongPress, createGhost, findDropCategory]);
+
+  // ── Desktop HTML5 drag ────────────────────────────────────────────────────
 
   const handleHtml5DragStart = useCallback((e, itemId) => {
     e.dataTransfer.setData('text/plain', itemId);
     e.dataTransfer.effectAllowed = 'move';
     draggedCardIdRef.current = itemId;
     setDraggedCardId(itemId);
-  }, []);
+
+    startHtml5DragScroll(e.clientY);
+  }, [startHtml5DragScroll]);
 
   const handleHtml5DragOver = useCallback((e, categoryId) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
+    if (e.clientY != null) {
+      currentDragYRef.current = e.clientY;
+    }
     cardDropTargetIdRef.current = categoryId;
     setCardDropTargetId(categoryId);
   }, []);
 
   const handleHtml5DragEnd = useCallback(() => {
+    stopHtml5DragScroll();
     draggedCardIdRef.current = null;
     cardDropTargetIdRef.current = null;
     setDraggedCardId(null);
     setCardDropTargetId(null);
-  }, []);
+  }, [stopHtml5DragScroll]);
 
   // ── Safety net: cleanup on unmount ────────────────────────────────────────
 
   useEffect(() => {
     return () => {
+      stopHtml5DragScroll();
       cleanupTouch();
     };
-  }, [cleanupTouch]);
+  }, [stopHtml5DragScroll, cleanupTouch]);
 
   return {
     draggedCardId,

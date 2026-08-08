@@ -114,17 +114,26 @@ export const ModalProvider = ({ children }) => {
       
       const today = [];
       const yesterday = [];
-      const now = Date.now();
+      const thisWeek = [];
+      const older = [];
+      const now = new Date();
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      const startOfYesterday = startOfToday - 24 * 60 * 60 * 1000;
+      const startOfThisWeek = startOfToday - 6 * 24 * 60 * 60 * 1000;
+
       items.forEach(item => {
-        const timestampParts = item.id.split('_');
-        const timestamp = timestampParts.length > 1 ? parseInt(timestampParts[1]) : now;
-        if (now - timestamp > 24 * 60 * 60 * 1000) {
-          yesterday.push(item);
-        } else {
+        const timestamp = item.createdAt || (item.id && item.id.includes('_') ? parseInt(item.id.split('_')[1]) : now.getTime());
+        if (timestamp >= startOfToday) {
           today.push(item);
+        } else if (timestamp >= startOfYesterday) {
+          yesterday.push(item);
+        } else if (timestamp >= startOfThisWeek) {
+          thisWeek.push(item);
+        } else {
+          older.push(item);
         }
       });
-      setInboxItems({ today, yesterday });
+      setInboxItems({ today, yesterday, thisWeek, older });
       setTrashedInboxItems(trashed);
     });
 
@@ -285,6 +294,7 @@ export const ModalProvider = ({ children }) => {
       tasksTotal: newPhases.reduce((acc, ph) => acc + ph.tasks.length, 0),
       warning: null,
       phases: newPhases,
+      notes: projectData.notes || [],
       history: [
         {
           id: `h_${Date.now()}`,
@@ -298,11 +308,10 @@ export const ModalProvider = ({ children }) => {
     };
 
     await saveProject(newProject);
-    setSelectedProjectId(newId);
-
     if (projectData.inboxItemId) {
       deleteInboxItem(projectData.inboxItemId);
     }
+    setSelectedProjectId(newId);
     return newId;
   };
 
@@ -821,20 +830,33 @@ export const ModalProvider = ({ children }) => {
   const addInboxItem = async (itemData) => {
     if (!user) return;
     let newItem;
+    const now = Date.now();
     if (typeof itemData === 'object' && itemData !== null) {
       newItem = {
-        id: `i_${Date.now()}`,
+        id: `i_${now}`,
+        createdAt: itemData.createdAt || now,
         title: itemData.title || itemData.summary,
         summary: itemData.summary,
         originalText: itemData.originalText,
+        cleanText: itemData.cleanText || null,
+        extractedDateType: itemData.extractedDateType || null,
+        extractedDate: itemData.extractedDate || null,
+        extractedEndDate: itemData.extractedEndDate || null,
+        extractedTime: itemData.extractedTime || null,
         type: itemData.type || 'unclassified',
         completed: false
       };
     } else {
       if (!itemData || !itemData.trim()) return;
       newItem = {
-        id: `i_${Date.now()}`,
+        id: `i_${now}`,
+        createdAt: now,
         title: itemData.trim(),
+        cleanText: null,
+        extractedDateType: null,
+        extractedDate: null,
+        extractedEndDate: null,
+        extractedTime: null,
         type: 'unclassified',
         completed: false
       };
@@ -844,7 +866,8 @@ export const ModalProvider = ({ children }) => {
 
   const updateInboxItem = async (id, updates) => {
     if (!user) return;
-    let itemToUpdate = inboxItems.today.find(i => i.id === id) || inboxItems.yesterday.find(i => i.id === id);
+    const allItems = Object.values(inboxItems).flat();
+    let itemToUpdate = allItems.find(i => i.id === id);
     if (!itemToUpdate) return;
     
     const updated = { ...itemToUpdate, ...updates };
@@ -853,7 +876,8 @@ export const ModalProvider = ({ children }) => {
 
   const deleteInboxItem = async (id) => {
     if (!user) return;
-    let itemToUpdate = inboxItems.today.find(i => i.id === id) || inboxItems.yesterday.find(i => i.id === id);
+    const allItems = Object.values(inboxItems).flat();
+    let itemToUpdate = allItems.find(i => i.id === id);
     if (!itemToUpdate) return;
     const updated = { ...itemToUpdate, deletedAt: new Date().toISOString() };
     await setDoc(doc(db, 'users', user.uid, 'inboxItems', id), updated);

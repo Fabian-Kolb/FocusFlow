@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useModalContext } from '../../context/ModalContext';
 import { useCardTouchDrag } from '../ui/useCardTouchDrag';
 import Card from '../ui/Card';
@@ -46,6 +46,34 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
   const [draggedItem, setDraggedItem] = useState(null);
   const [showProjects, setShowProjects] = useState(true);
   const [showReminders, setShowReminders] = useState(true);
+
+  // Mobile horizontal column tab navigation & scroll detection
+  const [activeTab, setActiveTab] = useState('TODO');
+  const scrollContainerRef = useRef(null);
+
+  const scrollToColumn = (colId) => {
+    setActiveTab(colId);
+    const container = scrollContainerRef.current;
+    const colEl = document.getElementById(`kanban-col-${colId}`);
+    if (container && colEl) {
+      const targetLeft = colEl.offsetLeft - container.offsetLeft;
+      container.scrollTo({ left: targetLeft, behavior: 'smooth' });
+    }
+  };
+
+  const handleScroll = () => {
+    if (!scrollContainerRef.current) return;
+    const container = scrollContainerRef.current;
+    const scrollLeft = container.scrollLeft;
+    const width = container.clientWidth;
+    if (width > 0) {
+      const index = Math.round(scrollLeft / width);
+      const cols = ['TODO', 'IN_PROGRESS', 'DONE'];
+      if (cols[index] && cols[index] !== activeTab) {
+        setActiveTab(cols[index]);
+      }
+    }
+  };
 
   // Combine arrays based on filters
   const allItems = [];
@@ -347,13 +375,74 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
   );
 
   return (
-    <div className="h-full flex flex-col w-full">
-      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 pb-4 pt-2 overflow-y-auto lg:overflow-hidden">
+    <div className="h-full flex flex-col w-full min-h-0">
+      {/* Mobile Kanban Navigation Tabs & Filters */}
+      <div className="flex lg:hidden items-center justify-between gap-1.5 mb-3 bg-surface-low border border-outline-variant p-1.5 rounded-2xl shadow-sm shrink-0">
+        <div className="flex items-center gap-1 flex-1 min-w-0">
+          <button
+            type="button"
+            onClick={() => scrollToColumn('TODO')}
+            className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl text-xs font-bold transition-all truncate ${
+              activeTab === 'TODO'
+                ? 'bg-amber-500 text-white shadow-sm ring-1 ring-amber-400/50'
+                : 'text-on-surface-variant hover:bg-on-surface/5'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full shrink-0 ${activeTab === 'TODO' ? 'bg-white' : 'bg-amber-400'}`}></span>
+            <span className="truncate">Geplant</span>
+            <span className={`text-[10px] font-mono shrink-0 ${activeTab === 'TODO' ? 'text-amber-100' : 'opacity-70'}`}>
+              ({todoItems.length})
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => scrollToColumn('IN_PROGRESS')}
+            className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl text-xs font-bold transition-all truncate ${
+              activeTab === 'IN_PROGRESS'
+                ? 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-400/50'
+                : 'text-on-surface-variant hover:bg-on-surface/5'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full shrink-0 ${activeTab === 'IN_PROGRESS' ? 'bg-white' : 'bg-emerald-400'}`}></span>
+            <span className="truncate">In Arbeit</span>
+            <span className={`text-[10px] font-mono shrink-0 ${activeTab === 'IN_PROGRESS' ? 'text-emerald-100' : 'opacity-70'}`}>
+              ({inProgressItems.length})
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => scrollToColumn('DONE')}
+            className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl text-xs font-bold transition-all truncate ${
+              activeTab === 'DONE'
+                ? 'bg-neutral-700 text-white shadow-sm ring-1 ring-neutral-400/50'
+                : 'text-on-surface-variant hover:bg-on-surface/5'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full shrink-0 ${activeTab === 'DONE' ? 'bg-white' : 'bg-neutral-400'}`}></span>
+            <span className="truncate">Erledigt</span>
+            <span className={`text-[10px] font-mono shrink-0 ${activeTab === 'DONE' ? 'text-neutral-200' : 'opacity-70'}`}>
+              ({doneItems.length})
+            </span>
+          </button>
+        </div>
+
+        {renderFilter("shrink-0")}
+      </div>
+
+      {/* Main Kanban Board Container */}
+      <div 
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        data-kanban-container="true"
+        className="flex-1 min-h-0 flex lg:grid lg:grid-cols-3 gap-4 sm:gap-6 overflow-x-auto lg:overflow-x-visible snap-x snap-mandatory scroll-smooth pb-4 pt-1 px-0.5"
+      >
         {/* Geplant Column */}
         <div 
           id="kanban-col-TODO"
           data-kanban-column="TODO"
-          className="flex flex-col min-h-0 lg:h-full"
+          className="w-full flex-shrink-0 snap-center min-w-full lg:w-auto lg:min-w-0 lg:flex-shrink flex flex-col min-h-0 lg:h-full"
           onDragOver={(e) => handleDragOver(e, 'TODO')}
           onDragLeave={handleDragLeave}
           onDrop={(e) => handleDrop(e, 'TODO')}
@@ -361,15 +450,12 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
           <div className="relative flex items-center gap-2 mb-3 px-1">
             <div className="w-2.5 h-2.5 rounded-full bg-amber-400"></div>
             <h3 className="font-bold text-sm">Geplant</h3>
-            
-            {/* Mobile Filter */}
-            {renderFilter("lg:hidden absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2")}
 
             <span className="ml-auto bg-surface-low border border-outline-variant text-on-surface-variant text-[10px] font-mono px-2 py-0.5 rounded-full">
               {todoItems.length}
             </span>
           </div>
-          <div className={`flex-1 lg:overflow-y-auto rounded-xl p-2 sm:p-3 border border-dashed transition-all ${
+          <div className={`flex-1 overflow-y-auto rounded-xl p-2 sm:p-3 border border-dashed transition-all ${
             touchKanbanColTarget === 'TODO'
               ? 'border-primary bg-primary/10 ring-2 ring-primary/40'
               : 'border-outline-variant/60 bg-surface-low/30'
@@ -387,7 +473,7 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
         <div 
           id="kanban-col-IN_PROGRESS"
           data-kanban-column="IN_PROGRESS"
-          className="flex flex-col min-h-0 lg:h-full"
+          className="w-full flex-shrink-0 snap-center min-w-full lg:w-auto lg:min-w-0 lg:flex-shrink flex flex-col min-h-0 lg:h-full"
           onDragOver={(e) => handleDragOver(e, 'IN_PROGRESS')}
           onDragLeave={handleDragLeave}
           onDrop={(e) => handleDrop(e, 'IN_PROGRESS')}
@@ -402,7 +488,7 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
               {inProgressItems.length}
             </span>
           </div>
-          <div className={`flex-1 lg:overflow-y-auto rounded-xl p-2 sm:p-3 border border-dashed transition-all ${
+          <div className={`flex-1 overflow-y-auto rounded-xl p-2 sm:p-3 border border-dashed transition-all ${
             touchKanbanColTarget === 'IN_PROGRESS'
               ? 'border-primary bg-primary/10 ring-2 ring-primary/40'
               : 'border-outline-variant/60 bg-surface-low/30'
@@ -420,7 +506,7 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
         <div 
           id="kanban-col-DONE"
           data-kanban-column="DONE"
-          className="flex flex-col min-h-0 lg:h-full"
+          className="w-full flex-shrink-0 snap-center min-w-full lg:w-auto lg:min-w-0 lg:flex-shrink flex flex-col min-h-0 lg:h-full"
           onDragOver={(e) => handleDragOver(e, 'DONE')}
           onDragLeave={handleDragLeave}
           onDrop={(e) => handleDrop(e, 'DONE')}
@@ -432,7 +518,7 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
               {doneItems.length}
             </span>
           </div>
-          <div className={`flex-1 lg:overflow-y-auto rounded-xl p-2 sm:p-3 border border-dashed transition-all ${
+          <div className={`flex-1 overflow-y-auto rounded-xl p-2 sm:p-3 border border-dashed transition-all ${
             touchKanbanColTarget === 'DONE'
               ? 'border-primary bg-primary/10 ring-2 ring-primary/40'
               : 'border-outline-variant/60 bg-surface-low/30'
