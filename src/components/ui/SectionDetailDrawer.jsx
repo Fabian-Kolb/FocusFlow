@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 
 const SectionDetailDrawer = ({
   phase,
+  allNotes = [],
   isOpen,
   onClose,
   onUpdatePhase,
   onDeletePhase,
   onAddMaterial,
-  onDeleteMaterial
+  onDeleteMaterial,
+  onOpenNote
 }) => {
   const [localTitle, setLocalTitle] = useState('');
   const [localDesc, setLocalDesc] = useState('');
@@ -22,6 +24,23 @@ const SectionDetailDrawer = ({
   }, [phase]);
 
   if (!isOpen || !phase) return null;
+
+  const formatPreview = (html) => {
+    if (!html) return '';
+    let text = html
+      .replace(/<\/p>/gi, '\n')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/h[1-6]>/gi, '\n')
+      .replace(/<\/li>/gi, '\n');
+    const tmp = document.createElement('DIV');
+    tmp.innerHTML = text;
+    return (tmp.textContent || tmp.innerText || '').trim();
+  };
+
+  const isNoteItem = (item) => item.type === 'note' || item.noteId || (item.url && item.url.startsWith('#note-'));
+
+  const linkedNotes = (phase.materials || []).filter(isNoteItem);
+  const webMaterials = (phase.materials || []).filter(mat => !isNoteItem(mat));
 
   const handleTitleBlur = () => {
     if (localTitle !== phase.title) {
@@ -100,23 +119,23 @@ const SectionDetailDrawer = ({
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-8">
           
-          {/* Zeitraum */}
+          {/* Fälligkeitsdatum */}
           <div className="flex flex-col gap-2">
             <h3 className="text-xs font-mono font-bold text-primary uppercase flex items-center gap-2">
               <span className="material-symbols-outlined text-base">calendar_today</span>
-              Zeitraum / Datum
+              Fälligkeitsdatum
             </h3>
-            <div className="relative group">
+            <div className="relative">
               <input 
-                type="text"
+                type="date"
                 value={localDate}
-                onChange={(e) => setLocalDate(e.target.value)}
-                onBlur={handleDateBlur}
-                onKeyDown={handleDateKeyDown}
-                placeholder="z.B. Q3 2024, Mai-Juli, 01.10.2024..."
-                className="w-full px-3 py-2 border border-outline-variant hover:border-primary focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary rounded-lg bg-surface font-sans text-sm transition-all pr-8"
+                onChange={(e) => {
+                  const newDate = e.target.value;
+                  setLocalDate(newDate);
+                  onUpdatePhase(phase.id, { dateInfo: newDate });
+                }}
+                className="w-full px-3 py-2 border border-outline-variant rounded-lg bg-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-sans text-sm"
               />
-              <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[16px] text-on-surface-variant opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">edit</span>
             </div>
           </div>
 
@@ -138,6 +157,73 @@ const SectionDetailDrawer = ({
             </div>
           </div>
 
+          {/* Linked Notes Section */}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-mono font-bold text-primary uppercase flex items-center gap-2">
+                <span className="material-symbols-outlined text-base">sticky_note_2</span>
+                Verknüpfte Notizen
+              </h3>
+              {linkedNotes.length > 0 && (
+                <span className="text-[10px] font-mono bg-surface-low px-2 py-0.5 rounded-full text-on-surface-variant font-bold border border-outline-variant">
+                  {linkedNotes.length}
+                </span>
+              )}
+            </div>
+
+            {linkedNotes.length === 0 ? (
+              <p className="text-xs text-on-surface-variant/60 italic p-2 bg-surface-low/50 rounded-lg border border-outline-variant/40">
+                Keine Notizen mit diesem Abschnitt verknüpft.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-2 mt-1">
+                {linkedNotes.map((mat, idx) => {
+                  const fullNote = allNotes.find(n => n.id === mat.noteId || mat.url === `#note-${n.id}`) || { title: mat.name, content: '' };
+                  const previewText = formatPreview(fullNote.content);
+
+                  return (
+                    <div
+                      key={`note-${idx}`}
+                      onClick={() => onOpenNote && onOpenNote(fullNote)}
+                      className="group p-3 rounded-xl border border-outline-variant bg-white hover:border-primary hover:shadow-md transition-all cursor-pointer flex flex-col gap-1.5 relative"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="material-symbols-outlined text-primary text-[18px]">notes</span>
+                          <span className="font-bold text-sm text-primary truncate group-hover:underline">
+                            {fullNote.title || mat.name}
+                          </span>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const targetId = mat.id || mat.noteId || mat.url;
+                            onDeleteMaterial && onDeleteMaterial({ type: 'phase', phaseId: phase.id, materialId: targetId });
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-50 text-red-500 transition-all shrink-0"
+                          title="Verknüpfung entfernen"
+                        >
+                          <span className="material-symbols-outlined text-sm">close</span>
+                        </button>
+                      </div>
+
+                      {previewText && (
+                        <p className="text-xs text-on-surface-variant line-clamp-2 pl-6 opacity-85 font-sans leading-relaxed">
+                          {previewText}
+                        </p>
+                      )}
+
+                      <div className="text-[10px] font-mono text-primary/70 pl-6 flex items-center gap-1 mt-0.5 group-hover:text-primary">
+                        <span className="material-symbols-outlined text-[12px]">open_in_new</span>
+                        Klicken zum Anzeigen & Bearbeiten
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           {/* Materials */}
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
@@ -145,15 +231,15 @@ const SectionDetailDrawer = ({
                 <span className="material-symbols-outlined text-base">attach_file</span>
                 Materialien
               </h3>
-              {(phase.materials?.length || 0) > 0 && (
+              {webMaterials.length > 0 && (
                 <span className="text-[10px] font-mono bg-surface-low px-2 py-0.5 rounded-full text-on-surface-variant font-bold border border-outline-variant">
-                  {phase.materials?.length || 0}
+                  {webMaterials.length}
                 </span>
               )}
             </div>
             
             <div className="flex flex-col gap-2 mt-2">
-              {phase.materials?.map((mat, idx) => (
+              {webMaterials.map((mat, idx) => (
                 <div 
                   key={`mat-${idx}`}
                   className="group flex items-center justify-between p-3 rounded-lg border border-outline-variant bg-white hover:border-primary hover:shadow-sm transition-all"

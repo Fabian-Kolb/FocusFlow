@@ -44,10 +44,22 @@ const ProjectDetail = ({ setCurrentScreen }) => {
     }
   };
 
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '';
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return dateStr;
+      return new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium' }).format(date);
+    } catch {
+      return dateStr;
+    }
+  };
+
   const [filterType, setFilterType] = useState('all'); // 'all' | 'open' | 'completed'
   const [collapsedPhases, setCollapsedPhases] = useState({});
   const [selectedTask, setSelectedTask] = useState(null); // { task, phase }
   const [selectedPhase, setSelectedPhase] = useState(null); // the phase object for the SectionDetailDrawer
+  const [activeNoteModal, setActiveNoteModal] = useState(null); // note to view/edit in full modal
   
   // Modals state
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -152,6 +164,168 @@ const ProjectDetail = ({ setCurrentScreen }) => {
       ...p,
       notes: (p.notes || []).filter(n => n.id !== noteId)
     }));
+  };
+
+  const cleanNoteReferences = (phases, noteId) => {
+    return (phases || []).map(phase => {
+      const updatedMaterials = (phase.materials || []).filter(m => m.noteId !== noteId && m.url !== `#note-${noteId}`);
+      const updatedTasks = (phase.tasks || []).map(task => {
+        const updatedLinks = (task.links || []).filter(l => l.noteId !== noteId && l.url !== `#note-${noteId}`);
+        return { ...task, links: updatedLinks };
+      });
+      return { ...phase, materials: updatedMaterials, tasks: updatedTasks };
+    });
+  };
+
+  const handleConvertNoteToPhase = (note) => {
+    setProjectData((prev) => {
+      const cleanedPhases = cleanNoteReferences(prev.phases || [], note.id);
+      const newPhaseId = `ph_${Date.now()}`;
+      const newPhase = {
+        id: newPhaseId,
+        phaseNum: '',
+        title: note.title || 'Aus Notiz erstellt',
+        description: note.content || '',
+        badgeText: '0/0 ERLEDIGT',
+        completed: false,
+        materials: [],
+        tasks: []
+      };
+      const updatedPhases = [...cleanedPhases, newPhase];
+      const updatedNotes = (prev.notes || []).filter(n => n.id !== note.id);
+
+      return {
+        ...prev,
+        phasesTotal: updatedPhases.length,
+        phases: updatedPhases,
+        notes: updatedNotes,
+        history: [
+          {
+            id: `h_${Date.now()}`,
+            timestamp: 'HEUTE • gerade eben',
+            text: `Neuer Abschnitt aus Notiz erstellt: '${newPhase.title}'`,
+            phase: 'Projekt-Fortschritt',
+            icon: 'note_add',
+            iconStyle: 'bg-primary/10 text-primary border border-primary/20'
+          },
+          ...(prev.history || [])
+        ]
+      };
+    });
+  };
+
+  const handleConvertNoteToTask = (note, phaseId) => {
+    setProjectData((prev) => {
+      const cleanedPhases = cleanNoteReferences(prev.phases || [], note.id);
+      const updatedPhases = cleanedPhases.map((phase) => {
+        if (phase.id !== phaseId) return phase;
+        
+        const newTask = {
+          id: `t_${Date.now()}`,
+          title: note.title || 'Aus Notiz erstellt',
+          note: note.content || '',
+          completed: false,
+          date: 'Geplant: Demnächst',
+          links: []
+        };
+        const updatedTasks = [...(phase.tasks || []), newTask];
+        const completed = updatedTasks.filter((t) => t.completed).length;
+        const total = updatedTasks.length;
+        
+        return {
+          ...phase,
+          badgeText: `${completed}/${total} ERLEDIGT`,
+          tasks: updatedTasks
+        };
+      });
+
+      const updatedNotes = (prev.notes || []).filter(n => n.id !== note.id);
+      
+      const totalTasks = updatedPhases.reduce((acc, p) => acc + (p.tasks ? p.tasks.length : 0), 0);
+      const completedTasks = updatedPhases.reduce((acc, p) => acc + (p.tasks ? p.tasks.filter((t) => t.completed).length : 0), 0);
+      const progressPct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+      return {
+        ...prev,
+        phases: updatedPhases,
+        notes: updatedNotes,
+        tasksTotal: totalTasks,
+        tasksCompleted: completedTasks,
+        progress: progressPct,
+        tasksCountText: `(${completedTasks} / ${totalTasks} Tasks)`,
+        history: [
+          {
+            id: `h_${Date.now()}`,
+            timestamp: 'HEUTE • gerade eben',
+            text: `Neue Aufgabe aus Notiz erstellt: '${note.title}'`,
+            phase: 'Projekt-Fortschritt',
+            icon: 'add_task',
+            iconStyle: 'bg-primary/10 text-primary border border-primary/20'
+          },
+          ...(prev.history || [])
+        ]
+      };
+    });
+  };
+
+  const handleLinkNote = (note, targetType, targetId, phaseId = null) => {
+    setProjectData((prev) => {
+      const cleanedPhases = cleanNoteReferences(prev.phases || [], note.id);
+
+      const updatedPhases = cleanedPhases.map((phase) => {
+        if (targetType === 'phase' && phase.id === targetId) {
+          const newMaterial = {
+            id: `pm_${Date.now()}`,
+            name: note.title || 'Verknüpfte Notiz',
+            url: `#note-${note.id}`,
+            noteId: note.id,
+            type: 'note'
+          };
+          return {
+            ...phase,
+            materials: [...(phase.materials || []), newMaterial]
+          };
+        }
+        
+        if (targetType === 'task' && phase.id === phaseId) {
+          const updatedTasks = (phase.tasks || []).map(task => {
+            if (task.id === targetId) {
+              const newLink = {
+                id: `tl_${Date.now()}`,
+                name: note.title || 'Verknüpfte Notiz',
+                url: `#note-${note.id}`,
+                noteId: note.id,
+                type: 'note'
+              };
+              return {
+                ...task,
+                links: [...(task.links || []), newLink]
+              };
+            }
+            return task;
+          });
+          return { ...phase, tasks: updatedTasks };
+        }
+        
+        return phase;
+      });
+
+      return {
+        ...prev,
+        phases: updatedPhases,
+        history: [
+          {
+            id: `h_${Date.now()}`,
+            timestamp: 'HEUTE • gerade eben',
+            text: `Notiz '${note.title}' verknüpft`,
+            phase: 'Wissensmanagement',
+            icon: 'link',
+            iconStyle: 'bg-surface-low text-primary border border-outline-variant'
+          },
+          ...(prev.history || [])
+        ]
+      };
+    });
   };
 
   const getStatusButtonClass = (status, isActive) => {
@@ -434,7 +608,9 @@ const ProjectDetail = ({ setCurrentScreen }) => {
       setProjectData((prev) => {
         const updatedPhases = prev.phases.map((phase) => {
           if (phase.id !== phaseId) return phase;
-          const updatedMaterials = (phase.materials || []).filter(m => m.id !== materialId);
+          const updatedMaterials = (phase.materials || []).filter(
+            m => m.id !== materialId && m.noteId !== materialId && m.url !== materialId && `#note-${m.noteId}` !== materialId
+          );
           return { ...phase, materials: updatedMaterials };
         });
         return { ...prev, phases: updatedPhases };
@@ -446,7 +622,9 @@ const ProjectDetail = ({ setCurrentScreen }) => {
           if (phase.id !== phaseId) return phase;
           const updatedTasks = phase.tasks.map((t) => {
             if (t.id !== taskId) return t;
-            const updatedLinks = (t.links || []).filter(l => l.id !== linkId);
+            const updatedLinks = (t.links || []).filter(
+              l => l.id !== linkId && l.noteId !== linkId && l.url !== linkId && `#note-${l.noteId}` !== linkId
+            );
             return { ...t, links: updatedLinks };
           });
           return { ...phase, tasks: updatedTasks };
@@ -855,9 +1033,15 @@ const ProjectDetail = ({ setCurrentScreen }) => {
 
         <NotesSection 
           notes={projectData.notes || []}
+          phases={projectData.phases || []}
+          activeNote={activeNoteModal}
+          onCloseActiveNote={() => setActiveNoteModal(null)}
           onAddNote={handleAddNote}
           onUpdateNote={handleUpdateNote}
           onDeleteNote={handleDeleteNote}
+          onConvertNoteToPhase={handleConvertNoteToPhase}
+          onConvertNoteToTask={handleConvertNoteToTask}
+          onLinkNote={handleLinkNote}
         />
 
         {/* BEREICHS-HEADER: PROJEKT-PHASEN & PHASEN-FILTER */}
@@ -939,7 +1123,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                         {phase.dateInfo && (
                           <span className="text-[10px] font-mono text-primary bg-primary/5 px-2 py-0.5 rounded border border-primary/20 flex items-center gap-1">
                             <span className="material-symbols-outlined text-[11px]">calendar_today</span>
-                            <span>{phase.dateInfo}</span>
+                            <span>{formatDate(phase.dateInfo)}</span>
                           </span>
                         )}
                       </div>
@@ -1049,6 +1233,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
       <TaskDetailDrawer
         task={selectedTask?.task}
         phase={selectedTask?.phase}
+        allNotes={projectData.notes || []}
         isOpen={!!selectedTask}
         onClose={() => setSelectedTask(null)}
         onUpdateTask={handleDrawerUpdateTask}
@@ -1059,10 +1244,12 @@ const ProjectDetail = ({ setCurrentScreen }) => {
           setShowMaterialModal(true);
         }}
         onDeleteMaterial={handleDeleteMaterial}
+        onOpenNote={(note) => setActiveNoteModal(note)}
       />
       
       <SectionDetailDrawer
         phase={selectedPhase}
+        allNotes={projectData.notes || []}
         isOpen={!!selectedPhase}
         onClose={() => setSelectedPhase(null)}
         onUpdatePhase={handleDrawerUpdatePhase}
@@ -1072,6 +1259,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
           setShowMaterialModal(true);
         }}
         onDeleteMaterial={handleDeleteMaterial}
+        onOpenNote={(note) => setActiveNoteModal(note)}
       />
 
       {/* --- MODALS --- */}

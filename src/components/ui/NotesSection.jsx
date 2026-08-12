@@ -2,8 +2,42 @@ import React, { useState, useRef, useEffect } from 'react';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 
-const NotesSection = ({ notes = [], onAddNote, onUpdateNote, onDeleteNote }) => {
+const NotesSection = ({ 
+  notes = [], 
+  activeNote = null,
+  onCloseActiveNote,
+  onAddNote, 
+  onUpdateNote, 
+  onDeleteNote,
+  phases = [],
+  onConvertNoteToPhase,
+  onConvertNoteToTask,
+  onLinkNote
+}) => {
   const [selectedNote, setSelectedNote] = useState(null);
+  const [openedFromDrawer, setOpenedFromDrawer] = useState(false);
+
+  useEffect(() => {
+    if (activeNote) {
+      setSelectedNote(activeNote);
+      setEditTitle(activeNote.title || '');
+      setEditContent(activeNote.content || '');
+      setIsEditing(false);
+      setOpenedFromDrawer(true);
+      resetWizard();
+    }
+  }, [activeNote]);
+
+  const handleCloseModal = () => {
+    setSelectedNote(null);
+    setIsEditing(false);
+    setOpenedFromDrawer(false);
+    resetWizard();
+    if (onCloseActiveNote) {
+      onCloseActiveNote();
+    }
+  };
+
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
@@ -12,6 +46,24 @@ const NotesSection = ({ notes = [], onAddNote, onUpdateNote, onDeleteNote }) => 
   const [showAllNotes, setShowAllNotes] = useState(false);
   const [needsCollapse, setNeedsCollapse] = useState(false);
   const gridRef = useRef(null);
+
+  // Wizard state for "+ Hinzufügen"
+  const [showAddWizard, setShowAddWizard] = useState(false);
+  const [wizardCategory, setWizardCategory] = useState(null); // 'section' | 'task'
+  const [wizardAction, setWizardAction] = useState(null); 
+  // 'createSection' | 'linkSectionMaterial' | 'createTask' | 'linkTaskMaterial'
+  const [wizardPhaseId, setWizardPhaseId] = useState('');
+  const [wizardTaskId, setWizardTaskId] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const resetWizard = () => {
+    setShowAddWizard(false);
+    setWizardCategory(null);
+    setWizardAction(null);
+    setWizardPhaseId('');
+    setWizardTaskId('');
+    setSearchTerm('');
+  };
 
   const filteredNotes = notes.filter(n => {
     if (activeFilter === 'all') return true;
@@ -46,8 +98,10 @@ const NotesSection = ({ notes = [], onAddNote, onUpdateNote, onDeleteNote }) => 
     setSelectedNote(note);
     setEditTitle(note.title);
     setEditContent(note.content);
-    setIsEditing(false); // Can view first or jump straight to edit
-  };
+    setIsEditing(false);
+    setOpenedFromDrawer(false);
+    resetWizard();
+  };;
 
   const handleAddClick = () => {
     setSelectedNote({ id: `note_${Date.now()}`, isNew: true });
@@ -76,7 +130,7 @@ const NotesSection = ({ notes = [], onAddNote, onUpdateNote, onDeleteNote }) => 
       });
     }
     
-    setSelectedNote(null);
+    handleCloseModal();
     setIsEditing(false);
   };
 
@@ -85,7 +139,7 @@ const NotesSection = ({ notes = [], onAddNote, onUpdateNote, onDeleteNote }) => 
       if (!selectedNote.isNew) {
         onDeleteNote(selectedNote.id);
       }
-      setSelectedNote(null);
+      handleCloseModal();
       setIsEditing(false);
     }
   };
@@ -101,6 +155,48 @@ const NotesSection = ({ notes = [], onAddNote, onUpdateNote, onDeleteNote }) => 
     const tmp = document.createElement('DIV');
     tmp.innerHTML = text;
     return (tmp.textContent || tmp.innerText || '').trim();
+  };
+
+  // Execute wizard actions
+  const handleExecuteCreateSection = () => {
+    if (onConvertNoteToPhase) {
+      onConvertNoteToPhase({
+        ...selectedNote,
+        content: formatPreview(selectedNote.content)
+      });
+    }
+    handleCloseModal();
+    resetWizard();
+  };
+
+  const handleExecuteLinkSectionMaterial = () => {
+    if (!wizardPhaseId) return;
+    if (onLinkNote) {
+      onLinkNote(selectedNote, 'phase', wizardPhaseId);
+    }
+    handleCloseModal();
+    resetWizard();
+  };
+
+  const handleExecuteCreateTask = () => {
+    if (!wizardPhaseId) return;
+    if (onConvertNoteToTask) {
+      onConvertNoteToTask({
+        ...selectedNote,
+        content: formatPreview(selectedNote.content)
+      }, wizardPhaseId);
+    }
+    handleCloseModal();
+    resetWizard();
+  };
+
+  const handleExecuteLinkTaskMaterial = () => {
+    if (!wizardTaskId || !wizardPhaseId) return;
+    if (onLinkNote) {
+      onLinkNote(selectedNote, 'task', wizardTaskId, wizardPhaseId);
+    }
+    handleCloseModal();
+    resetWizard();
   };
 
   return (
@@ -208,8 +304,309 @@ const NotesSection = ({ notes = [], onAddNote, onUpdateNote, onDeleteNote }) => 
       )}
 
       {selectedNote && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-2 sm:p-4">
           <div className="bg-white border-2 border-primary rounded-[2rem] w-full max-w-3xl flex flex-col shadow-2xl relative h-[90vh] sm:h-[80vh] overflow-hidden">
+            
+            {/* STEP-BY-STEP ADD WIZARD OVERLAY */}
+            {showAddWizard && (
+              <div className="absolute inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
+                <div className="bg-white border border-outline-variant rounded-2xl shadow-2xl p-6 max-w-md w-full relative max-h-[85vh] flex flex-col">
+                  
+                  {/* Wizard Header */}
+                  <div className="flex items-center justify-between border-b border-outline-variant pb-3 mb-4 shrink-0">
+                    <div className="flex items-center gap-2">
+                      {wizardCategory && (
+                        <button
+                          onClick={() => {
+                            if (wizardAction) {
+                              setWizardAction(null);
+                            } else {
+                              setWizardCategory(null);
+                            }
+                          }}
+                          className="p-1 rounded-lg hover:bg-surface-low text-on-surface-variant transition-colors"
+                          title="Zurück"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+                        </button>
+                      )}
+                      <h3 className="text-base font-bold text-primary font-mono uppercase">
+                        {!wizardCategory ? 'Notiz zuweisen' : wizardCategory === 'section' ? 'Abschnitt-Optionen' : 'Aufgaben-Optionen'}
+                      </h3>
+                    </div>
+                    <button
+                      onClick={resetWizard}
+                      className="p-1 rounded-lg hover:bg-surface-low text-on-surface-variant transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">close</span>
+                    </button>
+                  </div>
+
+                  <div className="overflow-y-auto flex-1 pr-1 space-y-4">
+                    {/* STEP 1: Choose Category (Abschnitt vs Aufgabe) */}
+                    {!wizardCategory && (
+                      <div className="space-y-3">
+                        <p className="text-xs text-on-surface-variant mb-4">
+                          Wozu möchtest du diese Notiz hinzufügen?
+                        </p>
+                        
+                        <button
+                          onClick={() => setWizardCategory('section')}
+                          className="w-full p-4 border border-outline-variant rounded-xl hover:border-primary hover:bg-primary/5 transition-all text-left flex items-start gap-3 group cursor-pointer"
+                        >
+                          <div className="p-2.5 bg-primary/10 text-primary rounded-lg group-hover:bg-primary group-hover:text-white transition-colors">
+                            <span className="material-symbols-outlined text-[24px]">layers</span>
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-sm text-primary">Abschnitt</h4>
+                            <p className="text-xs text-on-surface-variant mt-0.5">Neuen Abschnitt erstellen oder als Material anheften</p>
+                          </div>
+                        </button>
+
+                        <button
+                          onClick={() => setWizardCategory('task')}
+                          className="w-full p-4 border border-outline-variant rounded-xl hover:border-primary hover:bg-primary/5 transition-all text-left flex items-start gap-3 group cursor-pointer"
+                        >
+                          <div className="p-2.5 bg-primary/10 text-primary rounded-lg group-hover:bg-primary group-hover:text-white transition-colors">
+                            <span className="material-symbols-outlined text-[24px]">task</span>
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-sm text-primary">Aufgabe</h4>
+                            <p className="text-xs text-on-surface-variant mt-0.5">In neue Aufgabe umwandeln oder an Aufgabe anheften</p>
+                          </div>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* STEP 2a: Section Options */}
+                    {wizardCategory === 'section' && !wizardAction && (
+                      <div className="space-y-3">
+                        <p className="text-xs text-on-surface-variant mb-4">
+                          Was möchtest du mit dem Abschnitt tun?
+                        </p>
+
+                        <button
+                          onClick={handleExecuteCreateSection}
+                          className="w-full p-3.5 border border-outline-variant rounded-xl hover:border-primary hover:bg-primary/5 transition-all text-left flex items-center gap-3 cursor-pointer group"
+                        >
+                          <span className="material-symbols-outlined text-primary text-[20px] group-hover:scale-110 transition-transform">add_circle</span>
+                          <div>
+                            <h4 className="font-bold text-sm text-primary">Neuen Abschnitt mit dieser Notiz erstellen</h4>
+                            <p className="text-[11px] text-on-surface-variant">Notiz wird als neuer Abschnitt angelegt und umgewandelt</p>
+                          </div>
+                        </button>
+
+                        <button
+                          onClick={() => setWizardAction('linkSectionMaterial')}
+                          className="w-full p-3.5 border border-outline-variant rounded-xl hover:border-primary hover:bg-primary/5 transition-all text-left flex items-center gap-3 cursor-pointer group"
+                        >
+                          <span className="material-symbols-outlined text-primary text-[20px] group-hover:scale-110 transition-transform">attach_file</span>
+                          <div>
+                            <h4 className="font-bold text-sm text-primary">Material zu bestehendem Abschnitt hinzufügen</h4>
+                            <p className="text-[11px] text-on-surface-variant">Verknüpft die Notiz als Material (Notiz bleibt erhalten)</p>
+                          </div>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* STEP 2b: Task Options */}
+                    {wizardCategory === 'task' && !wizardAction && (
+                      <div className="space-y-3">
+                        <p className="text-xs text-on-surface-variant mb-4">
+                          Was möchtest du mit der Aufgabe tun?
+                        </p>
+
+                        <button
+                          onClick={() => setWizardAction('createTask')}
+                          className="w-full p-3.5 border border-outline-variant rounded-xl hover:border-primary hover:bg-primary/5 transition-all text-left flex items-center gap-3 cursor-pointer group"
+                        >
+                          <span className="material-symbols-outlined text-primary text-[20px] group-hover:scale-110 transition-transform">add_task</span>
+                          <div>
+                            <h4 className="font-bold text-sm text-primary">Neue Aufgabe aus Notiz erstellen</h4>
+                            <p className="text-[11px] text-on-surface-variant">Erstellt eine Aufgabe in einem Abschnitt (Notiz wird umgewandelt)</p>
+                          </div>
+                        </button>
+
+                        <button
+                          onClick={() => setWizardAction('linkTaskMaterial')}
+                          className="w-full p-3.5 border border-outline-variant rounded-xl hover:border-primary hover:bg-primary/5 transition-all text-left flex items-center gap-3 cursor-pointer group"
+                        >
+                          <span className="material-symbols-outlined text-primary text-[20px] group-hover:scale-110 transition-transform">attach_file</span>
+                          <div>
+                            <h4 className="font-bold text-sm text-primary">Material zu bestehender Aufgabe hinzufügen</h4>
+                            <p className="text-[11px] text-on-surface-variant">Verknüpft die Notiz mit einer Aufgabe (Notiz bleibt erhalten)</p>
+                          </div>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* STEP 3a: Select Section for Section Material */}
+                    {wizardAction === 'linkSectionMaterial' && (
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-xs font-bold text-primary uppercase mb-2">Abschnitt auswählen</label>
+                          
+                          <div className="relative mb-3">
+                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span>
+                            <input
+                              type="text"
+                              placeholder="Abschnitt suchen..."
+                              value={searchTerm}
+                              onChange={(e) => setSearchTerm(e.target.value)}
+                              className="w-full pl-9 pr-3 py-2 border border-outline-variant rounded-xl text-sm focus:border-primary outline-none"
+                            />
+                          </div>
+
+                          <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
+                            {phases
+                              .filter(p => p.title.toLowerCase().includes(searchTerm.toLowerCase()))
+                              .map(p => (
+                                <div
+                                  key={p.id}
+                                  onClick={() => setWizardPhaseId(p.id)}
+                                  className={`p-3 rounded-xl border text-sm font-medium cursor-pointer transition-all flex items-center justify-between ${wizardPhaseId === p.id ? 'border-primary bg-primary/10 text-primary font-bold shadow-sm' : 'border-outline-variant hover:border-primary/50 text-on-surface bg-surface-low/50'}`}
+                                >
+                                  <span className="truncate">{p.title}</span>
+                                  {wizardPhaseId === p.id && <span className="material-symbols-outlined text-[18px]">check_circle</span>}
+                                </div>
+                              ))}
+                            {phases.filter(p => p.title.toLowerCase().includes(searchTerm.toLowerCase())).length === 0 && (
+                              <p className="text-xs text-on-surface-variant italic p-2 text-center">Kein Abschnitt gefunden</p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-2">
+                          <button
+                            disabled={!wizardPhaseId}
+                            onClick={handleExecuteLinkSectionMaterial}
+                            className="w-full py-2.5 bg-primary text-white text-xs font-mono font-bold uppercase rounded-xl hover:bg-neutral-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                          >
+                            Material verknüpfen
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* STEP 3b: Select Section for New Task */}
+                    {wizardAction === 'createTask' && (
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-xs font-bold text-primary uppercase mb-2">Ziel-Abschnitt auswählen</label>
+                          
+                          <div className="relative mb-3">
+                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span>
+                            <input
+                              type="text"
+                              placeholder="Abschnitt suchen..."
+                              value={searchTerm}
+                              onChange={(e) => setSearchTerm(e.target.value)}
+                              className="w-full pl-9 pr-3 py-2 border border-outline-variant rounded-xl text-sm focus:border-primary outline-none"
+                            />
+                          </div>
+
+                          <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
+                            {phases
+                              .filter(p => p.title.toLowerCase().includes(searchTerm.toLowerCase()))
+                              .map(p => (
+                                <div
+                                  key={p.id}
+                                  onClick={() => setWizardPhaseId(p.id)}
+                                  className={`p-3 rounded-xl border text-sm font-medium cursor-pointer transition-all flex items-center justify-between ${wizardPhaseId === p.id ? 'border-primary bg-primary/10 text-primary font-bold shadow-sm' : 'border-outline-variant hover:border-primary/50 text-on-surface bg-surface-low/50'}`}
+                                >
+                                  <span className="truncate">{p.title}</span>
+                                  {wizardPhaseId === p.id && <span className="material-symbols-outlined text-[18px]">check_circle</span>}
+                                </div>
+                              ))}
+                            {phases.filter(p => p.title.toLowerCase().includes(searchTerm.toLowerCase())).length === 0 && (
+                              <p className="text-xs text-on-surface-variant italic p-2 text-center">Kein Abschnitt gefunden</p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-2">
+                          <button
+                            disabled={!wizardPhaseId}
+                            onClick={handleExecuteCreateTask}
+                            className="w-full py-2.5 bg-primary text-white text-xs font-mono font-bold uppercase rounded-xl hover:bg-neutral-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                          >
+                            Aufgabe erstellen
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* STEP 3c: Select Section & Task for Task Material */}
+                    {wizardAction === 'linkTaskMaterial' && (
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-xs font-bold text-primary uppercase mb-2">1. Abschnitt auswählen</label>
+                          
+                          <div className="relative mb-3">
+                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span>
+                            <input
+                              type="text"
+                              placeholder="Abschnitt suchen..."
+                              value={searchTerm}
+                              onChange={(e) => setSearchTerm(e.target.value)}
+                              className="w-full pl-9 pr-3 py-2 border border-outline-variant rounded-xl text-sm focus:border-primary outline-none"
+                            />
+                          </div>
+
+                          <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1">
+                            {phases
+                              .filter(p => p.title.toLowerCase().includes(searchTerm.toLowerCase()))
+                              .map(p => (
+                                <div
+                                  key={p.id}
+                                  onClick={() => { setWizardPhaseId(p.id); setWizardTaskId(''); }}
+                                  className={`p-2.5 rounded-xl border text-sm font-medium cursor-pointer transition-all flex items-center justify-between ${wizardPhaseId === p.id ? 'border-primary bg-primary/10 text-primary font-bold shadow-sm' : 'border-outline-variant hover:border-primary/50 text-on-surface bg-surface-low/50'}`}
+                                >
+                                  <span className="truncate">{p.title}</span>
+                                  {wizardPhaseId === p.id && <span className="material-symbols-outlined text-[18px]">check_circle</span>}
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+
+                        {wizardPhaseId && (
+                          <div>
+                            <label className="block text-xs font-bold text-primary uppercase mb-2">2. Aufgabe auswählen</label>
+                            <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1">
+                              {phases.find(p => p.id === wizardPhaseId)?.tasks?.map(t => (
+                                <div
+                                  key={t.id}
+                                  onClick={() => setWizardTaskId(t.id)}
+                                  className={`p-2.5 rounded-xl border text-sm font-medium cursor-pointer transition-all flex items-center justify-between ${wizardTaskId === t.id ? 'border-primary bg-primary/10 text-primary font-bold shadow-sm' : 'border-outline-variant hover:border-primary/50 text-on-surface bg-surface-low/50'}`}
+                                >
+                                  <span className="truncate">{t.title}</span>
+                                  {wizardTaskId === t.id && <span className="material-symbols-outlined text-[18px]">check_circle</span>}
+                                </div>
+                              ))}
+                              {(phases.find(p => p.id === wizardPhaseId)?.tasks?.length || 0) === 0 && (
+                                <p className="text-xs text-on-surface-variant italic p-2 text-center">Keine Aufgaben in diesem Abschnitt</p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex justify-end gap-2 pt-2">
+                          <button
+                            disabled={!wizardTaskId}
+                            onClick={handleExecuteLinkTaskMaterial}
+                            className="w-full py-2.5 bg-primary text-white text-xs font-mono font-bold uppercase rounded-xl hover:bg-neutral-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                          >
+                            Material zu Aufgabe verknüpfen
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                </div>
+              </div>
+            )}
+
             {/* Header */}
             <div className="flex items-center justify-between border-b border-outline-variant p-4 sm:p-5 flex-shrink-0 bg-surface-low rounded-t-[2rem]">
               <div className="flex items-center gap-2">
@@ -221,6 +618,17 @@ const NotesSection = ({ notes = [], onAddNote, onUpdateNote, onDeleteNote }) => 
                 </h3>
               </div>
               <div className="flex items-center gap-2">
+                {!isEditing && !selectedNote.isNew && (
+                  <button
+                    onClick={() => { setShowAddWizard(true); setWizardCategory(null); setWizardAction(null); }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-xl hover:bg-neutral-800 transition-colors text-xs font-mono font-bold uppercase shadow-sm cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">
+                      {openedFromDrawer ? 'swap_horiz' : 'add'}
+                    </span>
+                    {openedFromDrawer ? 'Woanders hinzufügen' : '+ Hinzufügen'}
+                  </button>
+                )}
                 {!isEditing && (
                   <button
                     onClick={() => setIsEditing(true)}
@@ -240,7 +648,7 @@ const NotesSection = ({ notes = [], onAddNote, onUpdateNote, onDeleteNote }) => 
                   </button>
                 )}
                 <button
-                  onClick={() => setSelectedNote(null)}
+                  onClick={() => handleCloseModal()}
                   className="p-2 hover:bg-surface border border-transparent hover:border-outline-variant rounded-xl transition-colors cursor-pointer"
                   title="Schließen"
                 >
@@ -289,7 +697,7 @@ const NotesSection = ({ notes = [], onAddNote, onUpdateNote, onDeleteNote }) => 
             {isEditing && (
               <div className="p-4 sm:p-5 border-t border-outline-variant bg-surface-low rounded-b-[2rem] flex justify-end gap-3 flex-shrink-0">
                 <button
-                  onClick={() => setSelectedNote(null)}
+                  onClick={() => handleCloseModal()}
                   className="px-5 py-2.5 text-sm font-bold text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
                 >
                   Abbrechen

@@ -3,13 +3,15 @@ import React, { useState, useEffect } from 'react';
 const TaskDetailDrawer = ({
   task,
   phase,
+  allNotes = [],
   isOpen,
   onClose,
   onUpdateTask,
   onDeleteTask,
   onToggleTask,
   onAddMaterial,
-  onDeleteMaterial
+  onDeleteMaterial,
+  onOpenNote
 }) => {
   const [localTitle, setLocalTitle] = useState('');
   const [localNote, setLocalNote] = useState('');
@@ -24,6 +26,25 @@ const TaskDetailDrawer = ({
   }, [task]);
 
   if (!isOpen || !task || !phase) return null;
+
+  const formatPreview = (html) => {
+    if (!html) return '';
+    let text = html
+      .replace(/<\/p>/gi, '\n')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/h[1-6]>/gi, '\n')
+      .replace(/<\/li>/gi, '\n');
+    const tmp = document.createElement('DIV');
+    tmp.innerHTML = text;
+    return (tmp.textContent || tmp.innerText || '').trim();
+  };
+
+  const isNoteItem = (item) => item.type === 'note' || item.noteId || (item.url && item.url.startsWith('#note-'));
+
+  const linkedNotes = (task.links || []).filter(isNoteItem);
+  const webLinks = (task.links || []).filter(link => !isNoteItem(link));
+  const phaseMaterials = (phase.materials || []).filter(mat => !isNoteItem(mat));
+  const phaseLinkedNotes = (phase.materials || []).filter(isNoteItem);
 
   const handleTitleBlur = () => {
     if (localTitle !== task.title) {
@@ -144,6 +165,77 @@ const TaskDetailDrawer = ({
             />
           </div>
 
+          {/* Linked Notes Section */}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-mono font-bold text-primary uppercase flex items-center gap-2">
+                <span className="material-symbols-outlined text-base">sticky_note_2</span>
+                Verknüpfte Notizen
+              </h3>
+              {(linkedNotes.length + phaseLinkedNotes.length) > 0 && (
+                <span className="text-[10px] font-mono bg-surface-low px-2 py-0.5 rounded-full text-on-surface-variant font-bold border border-outline-variant">
+                  {linkedNotes.length + phaseLinkedNotes.length}
+                </span>
+              )}
+            </div>
+
+            {(linkedNotes.length + phaseLinkedNotes.length) === 0 ? (
+              <p className="text-xs text-on-surface-variant/60 italic p-2 bg-surface-low/50 rounded-lg border border-outline-variant/40">
+                Keine Notizen mit dieser Aufgabe verknüpft.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-2 mt-1">
+                {[...linkedNotes, ...phaseLinkedNotes].map((link, idx) => {
+                  const fullNote = allNotes.find(n => n.id === link.noteId || link.url === `#note-${n.id}`) || { title: link.name, content: '' };
+                  const previewText = formatPreview(fullNote.content);
+
+                  return (
+                    <div
+                      key={`note-${idx}`}
+                      onClick={() => onOpenNote && onOpenNote(fullNote)}
+                      className="group p-3 rounded-xl border border-outline-variant bg-white hover:border-primary hover:shadow-md transition-all cursor-pointer flex flex-col gap-1.5 relative"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="material-symbols-outlined text-primary text-[18px]">notes</span>
+                          <span className="font-bold text-sm text-primary truncate group-hover:underline">
+                            {fullNote.title || link.name}
+                          </span>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const targetId = link.id || link.noteId || link.url;
+                            if (phaseLinkedNotes.includes(link)) {
+                              onDeleteMaterial && onDeleteMaterial({ type: 'phase', phaseId: phase.id, materialId: targetId });
+                            } else {
+                              onDeleteMaterial && onDeleteMaterial({ type: 'task', taskId: task.id, phaseId: phase.id, linkId: targetId });
+                            }
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-50 text-red-500 transition-all shrink-0"
+                          title="Verknüpfung entfernen"
+                        >
+                          <span className="material-symbols-outlined text-sm">close</span>
+                        </button>
+                      </div>
+
+                      {previewText && (
+                        <p className="text-xs text-on-surface-variant line-clamp-2 pl-6 opacity-85 font-sans leading-relaxed">
+                          {previewText}
+                        </p>
+                      )}
+
+                      <div className="text-[10px] font-mono text-primary/70 pl-6 flex items-center gap-1 mt-0.5 group-hover:text-primary">
+                        <span className="material-symbols-outlined text-[12px]">open_in_new</span>
+                        Klicken zum Anzeigen & Bearbeiten
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           {/* Materials & Links */}
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
@@ -151,16 +243,16 @@ const TaskDetailDrawer = ({
                 <span className="material-symbols-outlined text-base">attach_file</span>
                 Materialien & Links
               </h3>
-              {((task.links?.length || 0) + (phase.materials?.length || 0)) > 0 && (
+              {(webLinks.length + phaseMaterials.length) > 0 && (
                 <span className="text-[10px] font-mono bg-surface-low px-2 py-0.5 rounded-full text-on-surface-variant font-bold border border-outline-variant">
-                  {(task.links?.length || 0) + (phase.materials?.length || 0)}
+                  {webLinks.length + phaseMaterials.length}
                 </span>
               )}
             </div>
             
             <div className="flex flex-col gap-2 mt-2">
               {/* Task Links */}
-              {task.links?.map((link, idx) => (
+              {webLinks.map((link, idx) => (
                 <a 
                   key={`link-${idx}`} 
                   href={link.url}
@@ -185,7 +277,7 @@ const TaskDetailDrawer = ({
               ))}
 
               {/* Phase Materials */}
-              {phase.materials?.map((mat, idx) => (
+              {phaseMaterials.map((mat, idx) => (
                 <div 
                   key={`mat-${idx}`}
                   className="group flex items-center justify-between p-3 rounded-lg border border-outline-variant bg-surface hover:border-primary hover:shadow-sm transition-all cursor-pointer"
