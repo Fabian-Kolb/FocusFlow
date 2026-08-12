@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useModalContext } from '../../context/ModalContext';
 import NotesSection from '../ui/NotesSection';
+import TaskDetailDrawer from '../ui/TaskDetailDrawer';
+import SectionDetailDrawer from '../ui/SectionDetailDrawer';
 
 const ProjectDetail = ({ setCurrentScreen }) => {
   const { 
@@ -44,7 +46,8 @@ const ProjectDetail = ({ setCurrentScreen }) => {
 
   const [filterType, setFilterType] = useState('all'); // 'all' | 'open' | 'completed'
   const [collapsedPhases, setCollapsedPhases] = useState({});
-  const [expandedTasks, setExpandedTasks] = useState({ t1: true, t2: true });
+  const [selectedTask, setSelectedTask] = useState(null); // { task, phase }
+  const [selectedPhase, setSelectedPhase] = useState(null); // the phase object for the SectionDetailDrawer
   
   // Modals state
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -70,82 +73,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
   const [editStartDate, setEditStartDate] = useState(selectedProject?.startDate || '');
   const [editEndDate, setEditEndDate] = useState(selectedProject?.endDate || '');
 
-  const [editingPhaseDateId, setEditingPhaseDateId] = useState(null);
-  const [editPhaseDateVal, setEditPhaseDateVal] = useState('');
-
-  const [editingTaskDateKey, setEditingTaskDateKey] = useState(null); // `${phaseId}_${taskId}`
-  const [editTaskDateVal, setEditTaskDateVal] = useState('');
-
-  const [editingTaskNoteKey, setEditingTaskNoteKey] = useState(null); // `${phaseId}_${taskId}`
-  const [editTaskNoteText, setEditTaskNoteText] = useState('');
-
-  const startEditPhaseDate = (phase) => {
-    setEditingPhaseDateId(phase.id);
-    setEditPhaseDateVal(phase.dateInfo || phase.startDate || '');
-  };
-
-  const savePhaseDate = (phaseId) => {
-    setProjectData((prev) => {
-      const updatedPhases = (prev.phases || []).map((p) =>
-        p.id === phaseId ? { ...p, dateInfo: editPhaseDateVal.trim() || 'Demnächst' } : p
-      );
-      return { ...prev, phases: updatedPhases };
-    });
-    setEditingPhaseDateId(null);
-  };
-
-  const startEditTaskDate = (task, phaseId) => {
-    setEditingTaskDateKey(`${phaseId}_${task.id}`);
-    setEditTaskDateVal(task.date || '');
-  };
-
-  const saveTaskDate = (phaseId, taskId) => {
-    setProjectData((prev) => {
-      const updatedPhases = (prev.phases || []).map((phase) => {
-        if (phase.id !== phaseId) return phase;
-        const updatedTasks = (phase.tasks || []).map((t) =>
-          t.id === taskId ? { ...t, date: editTaskDateVal.trim() || 'Geplant: Demnächst' } : t
-        );
-        return { ...phase, tasks: updatedTasks };
-      });
-      return { ...prev, phases: updatedPhases };
-    });
-    setEditingTaskDateKey(null);
-  };
-
-  const startEditTaskNote = (task, phaseId) => {
-    setEditingTaskNoteKey(`${phaseId}_${task.id}`);
-    setEditTaskNoteText(task.note || '');
-    setExpandedTasks((prev) => ({ ...prev, [task.id]: true }));
-  };
-
-  const saveTaskNote = (phaseId, taskId) => {
-    setProjectData((prev) => {
-      const updatedPhases = (prev.phases || []).map((phase) => {
-        if (phase.id !== phaseId) return phase;
-        const updatedTasks = (phase.tasks || []).map((t) =>
-          t.id === taskId ? { ...t, note: editTaskNoteText.trim() } : t
-        );
-        return { ...phase, tasks: updatedTasks };
-      });
-      return { ...prev, phases: updatedPhases };
-    });
-    setEditingTaskNoteKey(null);
-  };
-
-  const deleteTaskNote = (phaseId, taskId) => {
-    setProjectData((prev) => {
-      const updatedPhases = (prev.phases || []).map((phase) => {
-        if (phase.id !== phaseId) return phase;
-        const updatedTasks = (phase.tasks || []).map((t) =>
-          t.id === taskId ? { ...t, note: '' } : t
-        );
-        return { ...phase, tasks: updatedTasks };
-      });
-      return { ...prev, phases: updatedPhases };
-    });
-    setEditingTaskNoteKey(null);
-  };
+  // Removed unneeded inline edit functions
 
   const handleSaveDates = () => {
     const startStr = editStartDate ? new Date(editStartDate).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '01.08.24';
@@ -176,6 +104,27 @@ const ProjectDetail = ({ setCurrentScreen }) => {
     if (selectedProject) {
       setEditStartDate(selectedProject.startDate || '');
       setEditEndDate(selectedProject.endDate || '');
+    }
+  }, [selectedProject]);
+
+  useEffect(() => {
+    if (selectedTask && selectedProject) {
+      const phase = selectedProject.phases?.find(p => p.id === selectedTask.phase.id);
+      const task = phase?.tasks?.find(t => t.id === selectedTask.task.id);
+      if (task && phase) {
+        setSelectedTask({ task, phase });
+      } else {
+        setSelectedTask(null);
+      }
+    }
+    
+    if (selectedPhase && selectedProject) {
+      const phase = selectedProject.phases?.find(p => p.id === selectedPhase.id);
+      if (phase) {
+        setSelectedPhase(phase);
+      } else {
+        setSelectedPhase(null);
+      }
     }
   }, [selectedProject]);
 
@@ -243,9 +192,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
     setCollapsedPhases((prev) => ({ ...prev, [phaseId]: !prev[phaseId] }));
   };
 
-  const toggleTaskDetails = (taskId) => {
-    setExpandedTasks((prev) => ({ ...prev, [taskId]: !prev[taskId] }));
-  };
+
 
   const toggleTaskCompletion = (phaseId, taskId) => {
     setProjectData((prev) => {
@@ -318,25 +265,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
     });
   };
 
-  // Add Note to Task
-  const handleAddNoteToTask = (phaseId, taskId) => {
-    const noteText = window.prompt('Anmerkung / Notiz eingeben:');
-    if (!noteText || !noteText.trim()) return;
 
-    setProjectData((prev) => {
-      const updatedPhases = prev.phases.map((phase) => {
-        if (phase.id !== phaseId) return phase;
-        const updatedTasks = phase.tasks.map((t) => {
-          if (t.id !== taskId) return t;
-          return { ...t, note: noteText.trim() };
-        });
-        return { ...phase, tasks: updatedTasks };
-      });
-      return { ...prev, phases: updatedPhases };
-    });
-
-    setExpandedTasks((prev) => ({ ...prev, [taskId]: true }));
-  };
 
   // Handle Add Phase
   const handlePhaseSubmit = (e) => {
@@ -346,7 +275,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
     const newPhaseId = `ph_${Date.now()}`;
     const newPhase = {
       id: newPhaseId,
-      phaseNum: `Phase 0${(projectData.phases || []).length + 1}`,
+      phaseNum: '',
       title: newPhaseTitle.trim(),
       badgeText: '0/0 ERLEDIGT',
       completed: false,
@@ -366,7 +295,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
           {
             id: `h_${Date.now()}`,
             timestamp: 'HEUTE • gerade eben',
-            text: `Neue Phase angelegt: '${newPhaseTitle.trim()}'`,
+            text: `Neuer Abschnitt angelegt: '${newPhaseTitle.trim()}'`,
             phase: 'Projekt-Fortschritt',
             icon: 'flag',
             iconStyle: 'bg-surface-low border border-outline-variant rounded-lg text-primary'
@@ -465,8 +394,8 @@ const ProjectDetail = ({ setCurrentScreen }) => {
             {
               id: `h_${Date.now()}`,
               timestamp: 'HEUTE • gerade eben',
-              text: `Neues Phasenmaterial hinzugefügt: '${name}'`,
-              phase: `Phase Material`,
+              text: `Neues Material hinzugefügt: '${name}'`,
+              phase: `Abschnitt Material`,
               icon: 'attach_file',
               iconStyle: 'bg-surface-low border border-outline-variant rounded-lg text-primary'
             },
@@ -492,12 +421,131 @@ const ProjectDetail = ({ setCurrentScreen }) => {
         });
         return { ...prev, phases: updatedPhases };
       });
-      setExpandedTasks((prev) => ({ ...prev, [taskId]: true }));
     }
 
     setNewMaterialName('');
     setShowMaterialModal(false);
     setActiveTargetForMaterial(null);
+  };
+
+  const handleDeleteMaterial = (target) => {
+    if (target.type === 'phase') {
+      const { phaseId, materialId } = target;
+      setProjectData((prev) => {
+        const updatedPhases = prev.phases.map((phase) => {
+          if (phase.id !== phaseId) return phase;
+          const updatedMaterials = (phase.materials || []).filter(m => m.id !== materialId);
+          return { ...phase, materials: updatedMaterials };
+        });
+        return { ...prev, phases: updatedPhases };
+      });
+    } else if (target.type === 'task') {
+      const { phaseId, taskId, linkId } = target;
+      setProjectData((prev) => {
+        const updatedPhases = prev.phases.map((phase) => {
+          if (phase.id !== phaseId) return phase;
+          const updatedTasks = phase.tasks.map((t) => {
+            if (t.id !== taskId) return t;
+            const updatedLinks = (t.links || []).filter(l => l.id !== linkId);
+            return { ...t, links: updatedLinks };
+          });
+          return { ...phase, tasks: updatedTasks };
+        });
+        return { ...prev, phases: updatedPhases };
+      });
+    }
+  };
+
+  const handleDrawerUpdateTask = (phaseId, taskId, updatedFields) => {
+    setProjectData((prev) => {
+      const updatedPhases = (prev.phases || []).map((phase) => {
+        if (phase.id !== phaseId) return phase;
+        const updatedTasks = (phase.tasks || []).map((t) =>
+          t.id === taskId ? { ...t, ...updatedFields } : t
+        );
+        return { ...phase, tasks: updatedTasks };
+      });
+      return { ...prev, phases: updatedPhases };
+    });
+    // Also update the selected task in the drawer so it reflects changes
+    setSelectedTask(prev => {
+      if (!prev || prev.task.id !== taskId) return prev;
+      return { ...prev, task: { ...prev.task, ...updatedFields } };
+    });
+  };
+
+  const handleDrawerUpdatePhase = (phaseId, updatedFields) => {
+    setProjectData((prev) => {
+      const updatedPhases = (prev.phases || []).map((phase) =>
+        phase.id === phaseId ? { ...phase, ...updatedFields } : phase
+      );
+      return { ...prev, phases: updatedPhases };
+    });
+  };
+
+  const handleDeletePhase = (phaseId) => {
+    setProjectData((prev) => {
+      const phaseToDelete = prev.phases.find(p => p.id === phaseId);
+      const updatedPhases = prev.phases.filter(p => p.id !== phaseId);
+      
+      const totalTasks = updatedPhases.reduce((acc, p) => acc + (p.tasks ? p.tasks.length : 0), 0);
+      const completedTasks = updatedPhases.reduce((acc, p) => acc + (p.tasks ? p.tasks.filter((t) => t.completed).length : 0), 0);
+      const completedPhasesCount = updatedPhases.filter((p) => p.completed).length;
+      const progressPct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+      
+      return {
+        ...prev,
+        tasksTotal: totalTasks,
+        tasksCompleted: completedTasks,
+        phasesCompleted: completedPhasesCount,
+        phasesTotal: updatedPhases.length,
+        progress: progressPct,
+        tasksCountText: `(${completedTasks} / ${totalTasks} Tasks)`,
+        history: [
+          {
+            id: `h_${Date.now()}`,
+            timestamp: 'HEUTE • gerade eben',
+            text: `Abschnitt gelöscht: '${phaseToDelete?.title}'`,
+            phase: 'Projekt-Fortschritt',
+            icon: 'delete',
+            iconStyle: 'bg-red-50 text-red-600 border border-red-200'
+          },
+          ...(prev.history || [])
+        ],
+        phases: updatedPhases
+      };
+    });
+    setSelectedPhase(null);
+  };
+
+  const handleDeleteTask = (phaseId, taskId) => {
+    setProjectData((prev) => {
+      const updatedPhases = (prev.phases || []).map((phase) => {
+        if (phase.id !== phaseId) return phase;
+        const updatedTasks = (phase.tasks || []).filter((t) => t.id !== taskId);
+        const completedInPhase = updatedTasks.filter((t) => t.completed).length;
+        const totalInPhase = updatedTasks.length;
+        const phaseCompleted = totalInPhase > 0 && completedInPhase === totalInPhase;
+        return {
+          ...phase,
+          completed: phaseCompleted,
+          badgeText: phaseCompleted ? 'ERLEDIGT' : `${completedInPhase}/${totalInPhase} ERLEDIGT`,
+          tasks: updatedTasks
+        };
+      });
+      const totalTasks = updatedPhases.reduce((acc, p) => acc + (p.tasks ? p.tasks.length : 0), 0);
+      const completedTasks = updatedPhases.reduce((acc, p) => acc + (p.tasks ? p.tasks.filter((t) => t.completed).length : 0), 0);
+      const progressPct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+      return {
+        ...prev,
+        tasksTotal: totalTasks,
+        tasksCompleted: completedTasks,
+        progress: progressPct,
+        tasksCountText: `(${completedTasks} / ${totalTasks} Tasks)`,
+        phases: updatedPhases
+      };
+    });
+    setSelectedTask(null);
   };
 
   // Filter phases logic
@@ -512,7 +560,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
       {projectData.isPaused && (
         <div className="fixed top-0 left-0 right-0 h-64 sm:h-80 bg-gradient-to-b from-blue-200/70 via-blue-100/25 to-transparent pointer-events-none z-0" />
       )}
-      <div className="w-full mx-auto space-y-4 sm:space-y-6 relative z-10">
+      <div className={`w-full mx-auto space-y-4 sm:space-y-6 relative z-10 transition-all duration-300 ${selectedTask || selectedPhase ? 'lg:mr-[420px]' : ''}`}>
         <div>
           {/* Breadcrumb Navigation */}
           <nav className="flex items-center gap-1.5 text-xs font-mono text-on-surface-variant mb-4 flex-wrap bg-surface-low/60 p-2.5 rounded-xl border border-outline-variant/60">
@@ -745,7 +793,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                   auto_stories
                 </span>
                 <div className="min-w-0">
-                  <span className="text-on-surface-variant text-[9px] sm:text-[10px] uppercase block truncate">PHASEN</span>
+                  <span className="text-on-surface-variant text-[9px] sm:text-[10px] uppercase block truncate">ABSCHNITTE</span>
                   <span className="font-bold text-primary truncate block">
                     {projectData.phasesCompleted} / {projectData.phasesTotal} Erledigt
                   </span>
@@ -756,7 +804,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                   check_box
                 </span>
                 <div className="min-w-0">
-                  <span className="text-on-surface-variant text-[9px] sm:text-[10px] uppercase block truncate">UNTERPUNKTE</span>
+                  <span className="text-on-surface-variant text-[9px] sm:text-[10px] uppercase block truncate">AUFGABEN</span>
                   <span className="font-bold text-primary truncate block">
                     {projectData.tasksCompleted} / {projectData.tasksTotal} Tasks
                   </span>
@@ -780,11 +828,6 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                     <div
                       key={step.id}
                       className="p-3 bg-surface-low border border-outline-variant rounded-lg hover:border-primary transition-all cursor-pointer flex items-center justify-between gap-2 group"
-                      onClick={() => {
-                        if (step.targetTaskId) {
-                          setExpandedTasks((prev) => ({ ...prev, [step.targetTaskId]: true }));
-                        }
-                      }}
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <span className="w-5 h-5 bg-primary text-white text-[10px] font-mono flex items-center justify-center font-bold flex-shrink-0">
@@ -822,7 +865,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[20px] text-primary">layers</span>
             <h2 className="text-sm font-mono font-bold text-primary uppercase tracking-wider">
-              PROJEKT-PHASEN
+              ABSCHNITTE
             </h2>
           </div>
 
@@ -834,7 +877,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                 }`}
                 onClick={() => setFilterType('all')}
               >
-                ALLE PHASEN
+                ALLE
               </button>
               <button
                 className={`px-2.5 py-1 transition-all font-medium rounded-md ${
@@ -875,347 +918,106 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                 className="border border-outline-variant bg-white rounded-xl p-3.5 sm:p-6 space-y-4 transition-all phase-card"
               >
                 {/* Collapsible Header */}
-                <div
-                  className="flex items-center justify-between gap-2 border-b border-outline-variant pb-3 cursor-pointer select-none group"
-                  onClick={() => togglePhaseCollapse(phase.id)}
-                >
+                <div className="flex items-center justify-between gap-2 border-b border-outline-variant pb-3 select-none">
                   <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                    <span className="material-symbols-outlined text-[20px] text-primary transition-transform duration-200 flex-shrink-0">
-                      {isCollapsed ? 'chevron_right' : 'expand_more'}
-                    </span>
-                    <div className="min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => togglePhaseCollapse(phase.id)}
+                      className="p-1 rounded-lg hover:bg-surface-low text-primary transition-colors flex-shrink-0 cursor-pointer"
+                      title={isCollapsed ? 'Abschnitt ausklappen' : 'Abschnitt einklappen'}
+                    >
+                      <span className="material-symbols-outlined text-[20px] transition-transform duration-200">
+                        {isCollapsed ? 'chevron_right' : 'expand_more'}
+                      </span>
+                    </button>
+                    
+                    <div 
+                      className="min-w-0 cursor-pointer group"
+                      onClick={() => setSelectedPhase(phase)}
+                    >
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[10px] font-mono text-on-surface-variant uppercase font-bold block">
-                          {phase.phaseNum}
-                        </span>
-                        <span className="text-[10px] font-mono text-primary bg-primary/5 px-2 py-0.5 rounded border border-primary/20 flex items-center gap-1">
-                          <span className="material-symbols-outlined text-[11px]">calendar_today</span>
-                          <span>{phase.dateInfo || 'Termin festlegen'}</span>
-                        </span>
-                        <button
-                          type="button"
-                          title="Phasentermin bearbeiten"
-                          className="p-0.5 text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            startEditPhaseDate(phase);
-                          }}
-                        >
-                          <span className="material-symbols-outlined text-[14px]">edit_calendar</span>
-                        </button>
+                        {phase.dateInfo && (
+                          <span className="text-[10px] font-mono text-primary bg-primary/5 px-2 py-0.5 rounded border border-primary/20 flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[11px]">calendar_today</span>
+                            <span>{phase.dateInfo}</span>
+                          </span>
+                        )}
                       </div>
                       <h3 className="text-base sm:text-lg font-bold group-hover:underline truncate mt-0.5">
                         {phase.title}
                       </h3>
                     </div>
                   </div>
-                  <span className="text-[10px] sm:text-xs mono font-bold text-primary bg-surface-low px-2 py-1 border border-outline-variant rounded-lg whitespace-nowrap flex-shrink-0">
-                    {phase.badgeText}
-                  </span>
-                </div>
-
-                {/* Inline Phase Date Editor */}
-                {editingPhaseDateId === phase.id && (
-                  <div className="p-3 bg-surface-low border border-primary rounded-xl space-y-2 my-2 cursor-default" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-between text-xs font-mono font-bold text-primary">
-                      <span className="flex items-center gap-1.5">
-                        <span className="material-symbols-outlined text-[16px]">edit_calendar</span>
-                        <span>START- & ENDTERMIN DER PHASE BEARBEITEN</span>
-                      </span>
-                    </div>
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                      <input
-                        type="text"
-                        className="w-full border border-outline-variant px-3 py-1.5 text-xs font-mono rounded-lg bg-white focus:border-primary outline-none"
-                        placeholder="z.B. 01. – 15. Mai 2024"
-                        value={editPhaseDateVal}
-                        onChange={(e) => setEditPhaseDateVal(e.target.value)}
-                      />
-                      <div className="flex gap-2">
-                        <button onClick={() => savePhaseDate(phase.id)} className="px-3.5 py-1.5 bg-primary text-white text-xs font-mono font-bold rounded-lg whitespace-nowrap cursor-pointer shadow-sm">Speichern</button>
-                        <button onClick={() => setEditingPhaseDateId(null)} className="px-3.5 py-1.5 border border-outline-variant text-xs font-mono font-bold rounded-lg text-on-surface-variant whitespace-nowrap cursor-pointer">Abbrechen</button>
-                      </div>
-                    </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] sm:text-xs mono font-bold text-primary bg-surface-low px-2 py-1 border border-outline-variant rounded-lg whitespace-nowrap flex-shrink-0">
+                      {phase.badgeText}
+                    </span>
+                    <button
+                      onClick={() => setSelectedPhase(phase)}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg border border-outline-variant text-on-surface-variant hover:text-primary hover:border-primary hover:bg-surface-low transition-all shrink-0 bg-white shadow-sm cursor-pointer"
+                      title="Abschnitt bearbeiten"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">edit</span>
+                    </button>
                   </div>
-                )}
+                </div>
 
                 {/* Phase Body */}
                 {!isCollapsed && (
                   <div className="space-y-4 pt-1">
-                    {/* Phase Materials Box */}
-                    <div className="p-3 bg-surface-low border border-outline-variant rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-mono font-bold text-primary uppercase">MATERIAL:</span>
-                        <div className="flex flex-wrap gap-2">
-                          {phase.materials && phase.materials.length > 0 ? (
-                            phase.materials.map((mat) => (
-                              <a
-                                key={mat.id}
-                                href={mat.url || '#'}
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  alert(`${mat.name} geöffnet!`);
-                                }}
-                                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-outline-variant rounded-xl text-xs hover:border-primary font-medium transition-all shadow-sm"
-                              >
-                                <span className="material-symbols-outlined text-[14px]">description</span>
-                                <span>{mat.name}</span>
-                              </a>
-                            ))
-                          ) : (
-                            <span className="text-xs text-on-surface-variant font-mono">Keine Materialien</span>
+                    {/* Task List - Slim */}
+                    <div className="space-y-1">
+                      {(phase.tasks || []).map((task) => (
+                        <div
+                          key={task.id}
+                          id={`task-${task.id}`}
+                          className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all group ${
+                            selectedTask?.task.id === task.id
+                              ? 'bg-primary/5 border border-primary/20'
+                              : 'hover:bg-surface-low border border-transparent'
+                          }`}
+                          onClick={() => setSelectedTask({ task, phase })}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={task.completed}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              toggleTaskCompletion(phase.id, task.id);
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-4 h-4 text-primary rounded-none border-outline-variant focus:ring-0 flex-shrink-0 cursor-pointer"
+                          />
+                          <span
+                            className={`flex-1 text-sm font-medium truncate ${
+                              task.completed ? 'line-through text-on-surface-variant' : 'text-primary'
+                            }`}
+                          >
+                            {task.title}
+                          </span>
+                          {task.date && task.date !== 'Geplant: Demnächst' && (
+                            <span className="text-[10px] font-mono text-on-surface-variant bg-surface-low px-2 py-0.5 rounded-lg border border-outline-variant flex-shrink-0 hidden sm:inline">
+                              📅 {task.date}
+                            </span>
+                          )}
+                          {((task.note) || (task.links && task.links.length > 0)) && (
+                            <span className="material-symbols-outlined text-[14px] text-on-surface-variant/50 flex-shrink-0">attachment</span>
                           )}
                         </div>
-                      </div>
+                      ))}
+
+                      {/* Add Task Button */}
                       <button
-                        className="text-[11px] font-mono text-primary flex items-center gap-1 hover:underline font-bold whitespace-nowrap self-start sm:self-auto cursor-pointer"
-                        onClick={() => {
-                          setActiveTargetForMaterial({ type: 'phase', id: phase.id });
-                          setShowMaterialModal(true);
-                        }}
-                      >
-                        <span className="material-symbols-outlined text-[14px]">add</span>
-                        <span>Link / Datei hinzufügen</span>
-                      </button>
-                    </div>
-
-                    <div className="border-t border-outline-variant my-4"></div>
-
-                    {/* Task List */}
-                    <div className="space-y-3">
-                      {(phase.tasks || []).map((task) => {
-                        const isTaskExpanded = expandedTasks[task.id];
-                        const isEditingTaskDate = editingTaskDateKey === `${phase.id}_${task.id}`;
-                        const isEditingTaskNote = editingTaskNoteKey === `${phase.id}_${task.id}`;
-
-                        return (
-                          <div
-                            key={task.id}
-                            id={`task-${task.id}`}
-                            className="p-3 bg-surface-low border border-outline-variant rounded-lg space-y-2 task-item"
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                                <input
-                                  type="checkbox"
-                                  checked={task.completed}
-                                  onChange={() => toggleTaskCompletion(phase.id, task.id)}
-                                  className="w-4 h-4 text-primary rounded-none border-outline-variant focus:ring-0 flex-shrink-0 mt-0.5 cursor-pointer"
-                                />
-                                <div className="min-w-0 flex-1">
-                                  <span
-                                    className={`text-xs sm:text-sm font-medium leading-snug block ${
-                                      task.completed ? 'line-through text-on-surface-variant' : 'text-primary'
-                                    }`}
-                                  >
-                                    {task.title}
-                                  </span>
-
-                                  {/* Task Date Display & Inline Date Editor */}
-                                  {isEditingTaskDate ? (
-                                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-1.5">
-                                      <input
-                                        type="text"
-                                        className="border border-outline-variant px-2.5 py-1 text-xs font-mono rounded-lg bg-white w-full max-w-xs focus:border-primary outline-none"
-                                        placeholder="z.B. Freitag, 17. Mai"
-                                        value={editTaskDateVal}
-                                        onChange={(e) => setEditTaskDateVal(e.target.value)}
-                                      />
-                                      <div className="flex gap-1.5">
-                                        <button
-                                          type="button"
-                                          onClick={() => saveTaskDate(phase.id, task.id)}
-                                          className="px-2.5 py-1 text-[11px] font-mono font-bold bg-primary text-white rounded-lg cursor-pointer shadow-sm"
-                                        >
-                                          Speichern
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => setEditingTaskDateKey(null)}
-                                          className="px-2.5 py-1 text-[11px] font-mono border border-outline-variant rounded-lg text-on-surface-variant cursor-pointer"
-                                        >
-                                          Abbrechen
-                                        </button>
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div className="flex items-center gap-1.5 mt-0.5">
-                                      <span className="text-[10px] sm:text-[11px] font-mono text-on-surface-variant font-normal">
-                                        🗓️ {task.date || 'Geplant: Demnächst'}
-                                      </span>
-                                      <button
-                                        type="button"
-                                        title="Termin für diesen Unterpunkt bearbeiten"
-                                        className="p-0.5 text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
-                                        onClick={() => startEditTaskDate(task, phase.id)}
-                                      >
-                                        <span className="material-symbols-outlined text-[13px]">edit_calendar</span>
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                              <button
-                                className="p-0.5 text-on-surface-variant hover:text-primary hover:bg-white border border-transparent hover:border-outline-variant transition-all rounded flex-shrink-0 mt-0.5 cursor-pointer"
-                                onClick={() => toggleTaskDetails(task.id)}
-                                title="Quellen & Notizen ein-/ausklappen"
-                              >
-                                <span className="material-symbols-outlined text-[16px]">
-                                  {isTaskExpanded ? 'expand_less' : 'expand_more'}
-                                </span>
-                              </button>
-                            </div>
-
-                            {/* Task Details Accordion Body */}
-                            {isTaskExpanded && (
-                              <div className="task-details-body pt-1.5 space-y-2 border-t border-outline-variant/60 mt-2">
-                                {/* Task Note Inline Editor */}
-                                {isEditingTaskNote ? (
-                                  <div className="p-3 bg-white border-2 border-primary rounded-xl space-y-2 shadow-sm my-2">
-                                    <div className="flex items-center justify-between text-xs font-mono font-bold text-primary border-b border-outline-variant/60 pb-1.5">
-                                      <span className="flex items-center gap-1.5">
-                                        <span className="material-symbols-outlined text-[16px] text-primary">sticky_note_2</span>
-                                        <span>NOTIZ / ANMERKUNG BEARBEITEN</span>
-                                      </span>
-                                    </div>
-                                    <textarea
-                                      rows={3}
-                                      className="w-full border border-outline-variant p-2.5 text-xs focus:border-primary outline-none rounded-lg font-sans"
-                                      placeholder="Gedanken, Notizen oder Details zu dieser Aufgabe..."
-                                      value={editTaskNoteText}
-                                      onChange={(e) => setEditTaskNoteText(e.target.value)}
-                                    />
-                                    <div className="flex items-center justify-between pt-1">
-                                      {task.note ? (
-                                        <button
-                                          type="button"
-                                          onClick={() => deleteTaskNote(phase.id, task.id)}
-                                          className="text-xs text-red-600 hover:underline font-mono font-bold flex items-center gap-1 cursor-pointer"
-                                        >
-                                          <span className="material-symbols-outlined text-[14px]">delete</span>
-                                          <span>Notiz löschen</span>
-                                        </button>
-                                      ) : <div />}
-                                      <div className="flex gap-2">
-                                        <button
-                                          type="button"
-                                          onClick={() => setEditingTaskNoteKey(null)}
-                                          className="px-3 py-1 text-xs border border-outline-variant rounded-lg font-mono font-bold text-on-surface-variant cursor-pointer"
-                                        >
-                                          Abbrechen
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => saveTaskNote(phase.id, task.id)}
-                                          className="px-3.5 py-1 text-xs bg-primary text-white rounded-lg font-mono font-bold cursor-pointer shadow-sm"
-                                        >
-                                          Speichern
-                                        </button>
-                                      </div>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  task.note && (
-                                    <div className="p-2.5 bg-white border border-outline-variant rounded-xl text-xs space-y-1.5 shadow-sm">
-                                      <div className="flex items-center justify-between text-[10px] font-mono text-on-surface-variant font-bold border-b border-outline-variant/60 pb-1">
-                                        <span className="flex items-center gap-1 text-primary">
-                                          <span className="material-symbols-outlined text-[14px]">sticky_note_2</span>
-                                          <span>ANMERKUNG / NOTIZ:</span>
-                                        </span>
-                                        <div className="flex items-center gap-1">
-                                          <button
-                                            type="button"
-                                            title="Notiz bearbeiten"
-                                            onClick={() => startEditTaskNote(task, phase.id)}
-                                            className="p-0.5 text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
-                                          >
-                                            <span className="material-symbols-outlined text-[13px]">edit</span>
-                                          </button>
-                                          <button
-                                            type="button"
-                                            title="Notiz löschen"
-                                            onClick={() => deleteTaskNote(phase.id, task.id)}
-                                            className="p-0.5 text-on-surface-variant hover:text-red-600 transition-colors cursor-pointer"
-                                          >
-                                            <span className="material-symbols-outlined text-[13px]">delete</span>
-                                          </button>
-                                        </div>
-                                      </div>
-                                      <p className="text-primary text-[11px] leading-relaxed whitespace-pre-wrap">{task.note}</p>
-                                    </div>
-                                  )
-                                )}
-
-                                {task.links && task.links.length > 0 && (
-                                  <div>
-                                    <span className="text-[10px] font-mono text-on-surface-variant block">Task-Links:</span>
-                                    <div className="flex flex-wrap gap-1 mt-1">
-                                      {task.links.map((link) => (
-                                        <a
-                                          key={link.id}
-                                          href={link.url || '#'}
-                                          onClick={(e) => {
-                                            e.preventDefault();
-                                            alert(`${link.name} geöffnet!`);
-                                          }}
-                                          className="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-outline-variant rounded-xl text-[11px] hover:border-primary"
-                                        >
-                                          <span className="material-symbols-outlined text-[12px]">link</span>
-                                          <span>{link.name}</span>
-                                        </a>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-
-                                <div className="flex items-center gap-3 pt-0.5 flex-wrap">
-                                  <button
-                                    type="button"
-                                    className="text-[11px] font-mono text-primary hover:underline flex items-center gap-1 font-bold cursor-pointer"
-                                    onClick={() => startEditTaskNote(task, phase.id)}
-                                  >
-                                    <span className="material-symbols-outlined text-[13px]">add_comment</span>
-                                    <span>{task.note ? 'Notiz bearbeiten' : 'Notiz hinzufügen'}</span>
-                                  </button>
-                                  <span className="text-outline-variant hidden sm:inline">•</span>
-                                  <button
-                                    type="button"
-                                    className="text-[11px] font-mono text-on-surface-variant hover:text-primary flex items-center gap-1 cursor-pointer"
-                                    onClick={() => {
-                                      setActiveTargetForMaterial({ type: 'task', phaseId: phase.id, taskId: task.id });
-                                      setShowMaterialModal(true);
-                                    }}
-                                  >
-                                    <span className="material-symbols-outlined text-[13px]">link</span>
-                                    <span>Link / Datei hinzufügen</span>
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-
-                      {/* Add Subtask Button */}
-                      <div
-                        className="p-3 border border-dashed border-outline-variant rounded-xl hover:border-primary bg-white hover:bg-surface-low cursor-pointer transition-all flex items-center justify-between group"
+                        className="flex items-center gap-2.5 px-3 py-2 w-full rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-low transition-all cursor-pointer group"
                         onClick={() => {
                           setActivePhaseIdForTask(phase.id);
                           setShowTaskModal(true);
                         }}
                       >
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-4 h-4 border border-dashed border-primary flex items-center justify-center font-mono text-[10px] font-bold text-primary group-hover:bg-primary group-hover:text-white transition-colors">
-                            +
-                          </div>
-                          <span className="text-xs font-mono font-bold text-primary group-hover:underline uppercase">
-                            + UNTERPUNKT HINZUFÜGEN
-                          </span>
-                        </div>
-                        <span className="text-[10px] font-mono px-2 py-0.5 bg-surface-low border border-outline-variant rounded-lg text-on-surface-variant font-medium">
-                          TASK
-                        </span>
-                      </div>
+                        <span className="material-symbols-outlined text-[16px] group-hover:text-primary">add</span>
+                        <span className="text-xs font-mono font-bold uppercase">+ Aufgabe hinzufügen</span>
+                      </button>
                     </div>
                   </div>
                 )}
@@ -1234,14 +1036,43 @@ const ProjectDetail = ({ setCurrentScreen }) => {
               +
             </div>
             <span className="text-xs font-mono font-bold text-primary group-hover:underline uppercase">
-              + NEUE PHASE ANLEGEN
+              + NEUER ABSCHNITT
             </span>
           </div>
           <span className="text-[10px] font-mono px-2.5 py-1 bg-surface-low border border-outline-variant rounded-lg text-primary font-bold">
-            MEILENSTEINE
+            ORGANISIEREN
           </span>
         </div>
       </div>
+
+      {/* Detail Drawers */}
+      <TaskDetailDrawer
+        task={selectedTask?.task}
+        phase={selectedTask?.phase}
+        isOpen={!!selectedTask}
+        onClose={() => setSelectedTask(null)}
+        onUpdateTask={handleDrawerUpdateTask}
+        onDeleteTask={handleDeleteTask}
+        onToggleTask={toggleTaskCompletion}
+        onAddMaterial={(target) => {
+          setActiveTargetForMaterial(target);
+          setShowMaterialModal(true);
+        }}
+        onDeleteMaterial={handleDeleteMaterial}
+      />
+      
+      <SectionDetailDrawer
+        phase={selectedPhase}
+        isOpen={!!selectedPhase}
+        onClose={() => setSelectedPhase(null)}
+        onUpdatePhase={handleDrawerUpdatePhase}
+        onDeletePhase={handleDeletePhase}
+        onAddMaterial={(target) => {
+          setActiveTargetForMaterial(target);
+          setShowMaterialModal(true);
+        }}
+        onDeleteMaterial={handleDeleteMaterial}
+      />
 
       {/* --- MODALS --- */}
 
@@ -1306,7 +1137,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
             <div className="flex items-center justify-between border-b border-outline-variant pb-3">
               <div className="flex items-center gap-2 min-w-0">
                 <span className="material-symbols-outlined text-[22px] text-primary">layers</span>
-                <h2 className="text-xs sm:text-sm font-bold font-mono uppercase truncate">NEUE PHASE ANLEGEN</h2>
+                <h2 className="text-xs sm:text-sm font-bold font-mono uppercase truncate">NEUER ABSCHNITT</h2>
               </div>
               <button
                 className="p-1 hover:bg-surface-low border border-outline-variant rounded-lg transition-colors cursor-pointer"
@@ -1318,14 +1149,14 @@ const ProjectDetail = ({ setCurrentScreen }) => {
 
             <form onSubmit={handlePhaseSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-mono font-bold text-primary mb-1 uppercase">PHASEN-TITEL *</label>
+                <label className="block text-xs font-mono font-bold text-primary mb-1 uppercase">ABSCHNITT-TITEL *</label>
                 <input
                   type="text"
                   required
                   value={newPhaseTitle}
                   onChange={(e) => setNewPhaseTitle(e.target.value)}
                   className="w-full border border-outline-variant px-3 py-2 text-sm focus:border-primary outline-none"
-                  placeholder="z.B. Phase 03: Testing & Launch"
+                  placeholder="z.B. Marketing, Design, Recherche"
                 />
               </div>
 
@@ -1354,7 +1185,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                   type="submit"
                   className="px-5 py-2 bg-primary text-white text-xs font-mono font-bold hover:bg-neutral-800 transition-colors shadow-sm cursor-pointer"
                 >
-                  PHASE ANLEGEN
+                  ABSCHNITT ANLEGEN
                 </button>
               </div>
             </form>
@@ -1369,7 +1200,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
             <div className="flex items-center justify-between border-b border-outline-variant pb-3">
               <div className="flex items-center gap-2 min-w-0">
                 <span className="material-symbols-outlined text-[22px] text-primary">add_task</span>
-                <h2 className="text-xs sm:text-sm font-bold font-mono uppercase truncate">UNTERPUNKT HINZUFÜGEN</h2>
+                <h2 className="text-xs sm:text-sm font-bold font-mono uppercase truncate">AUFGABE HINZUFÜGEN</h2>
               </div>
               <button
                 className="p-1 hover:bg-surface-low border border-outline-variant rounded-lg transition-colors cursor-pointer"
@@ -1430,7 +1261,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                   type="submit"
                   className="px-5 py-2 bg-primary text-white text-xs font-mono font-bold hover:bg-neutral-800 transition-colors shadow-sm cursor-pointer"
                 >
-                  TASK SPEICHERN
+                  AUFGABE SPEICHERN
                 </button>
               </div>
             </form>

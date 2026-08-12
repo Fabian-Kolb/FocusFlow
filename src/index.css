@@ -233,4 +233,30 @@
   margin-bottom: 0.5em;
 }
 
+/* Task Detail Drawer Animations */
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
 
+@keyframes slideInBottom {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.drawer-slide-in-right {
+  animation: slideInRight 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+.drawer-slide-in-bottom {
+  animation: slideInBottom 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+.drawer-backdrop-fade {
+  animation: fadeIn 0.2s ease-out forwards;
+}
