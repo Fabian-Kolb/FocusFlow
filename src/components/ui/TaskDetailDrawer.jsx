@@ -51,17 +51,17 @@ const TaskDetailDrawer = ({
     }
   }, [task]);
 
-  useEffect(() => {
-    if (titleTextareaRef.current) {
-      titleTextareaRef.current.style.height = 'auto';
-      titleTextareaRef.current.style.height = `${titleTextareaRef.current.scrollHeight}px`;
-    }
-  }, [localTitle, isOpen]);
-
   const [shouldRender, setShouldRender] = useState(isOpen);
   const [isClosing, setIsClosing] = useState(false);
   const drawerPanelRef = useRef(null);
   const scrollContainerRef = useRef(null);
+
+  useEffect(() => {
+    if (titleTextareaRef.current) {
+      titleTextareaRef.current.style.height = '0px';
+      titleTextareaRef.current.style.height = `${titleTextareaRef.current.scrollHeight}px`;
+    }
+  }, [localTitle, isOpen, shouldRender]);
 
   useEffect(() => {
     if (isOpen) {
@@ -81,7 +81,7 @@ const TaskDetailDrawer = ({
     onClose();
   };
 
-  const { drawerStyle } = useSwipeToClose({
+  const { drawerStyle, entryAnimActive, wasSwipedClosed } = useSwipeToClose({
     isOpen: isOpen && shouldRender,
     onClose: handleCloseAnimated,
     drawerRef: drawerPanelRef,
@@ -195,48 +195,48 @@ const TaskDetailDrawer = ({
         className={`fixed z-50 flex flex-col bg-white border border-outline-variant shadow-2xl overflow-hidden
           bottom-0 inset-x-0 h-[85vh] rounded-t-3xl w-full
           sm:bottom-auto sm:inset-x-auto sm:inset-y-0 sm:right-0 sm:h-[calc(100vh-24px)] sm:w-[420px] sm:max-w-[420px] sm:my-3 sm:mr-3 sm:rounded-2xl
-          ${isClosing || isSwitching ? 'drawer-slide-out' : 'drawer-slide-in'}
+          ${(isClosing || isSwitching) ? (wasSwipedClosed ? '' : 'drawer-slide-out') : (entryAnimActive ? 'drawer-slide-in' : '')}
         `}
       >
         {/* Notch / Drag Handle for Mobile */}
-        <div className="w-full flex justify-center pt-3 pb-1 sm:hidden shrink-0">
+        <div className="w-full flex justify-center pt-2 pb-1 sm:hidden shrink-0">
           <div className="w-12 h-1.5 bg-outline-variant/60 rounded-full" />
         </div>
         
         {/* Header (Sticky) */}
-        <div className="sticky top-0 bg-white/95 backdrop-blur-md z-10 px-5 py-4 border-b border-outline-variant flex flex-col gap-3 lg:pt-5">
+        <div className="sticky top-0 bg-white/95 backdrop-blur-md z-10 px-4 py-2.5 sm:px-5 sm:py-3.5 border-b border-outline-variant flex flex-col gap-2 sm:gap-2.5 lg:pt-4">
           {/* Top Bar: Meta Info + Actions */}
           <div className="flex items-center justify-between gap-2 w-full">
-            <span className="text-[11px] font-mono text-on-surface-variant font-semibold uppercase tracking-wider truncate flex items-center gap-1.5 bg-surface-low px-2.5 py-1 rounded-lg border border-outline-variant/60 max-w-[65%]">
-              <span className="material-symbols-outlined text-[14px]">layers</span>
+            <span className="text-[10px] sm:text-[11px] font-mono text-on-surface-variant font-semibold uppercase tracking-wider truncate flex items-center gap-1.5 bg-surface-low px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg border border-outline-variant/60 max-w-[65%]">
+              <span className="material-symbols-outlined text-[13px] sm:text-[14px]">layers</span>
               <span className="truncate">{currentPhase.title}</span>
             </span>
 
             <div className="flex items-center gap-1 shrink-0">
               <button 
                 onClick={() => onToggleTask(currentPhase.id, currentTask.id)}
-                className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer ${
+                className={`w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer ${
                   currentTask.completed 
                     ? 'bg-primary text-white' 
                     : 'text-on-surface-variant/60 hover:text-primary hover:bg-surface-low'
                 }`}
                 title={currentTask.completed ? 'Als unerledigt markieren' : 'Als erledigt markieren'}
               >
-                <span className="material-symbols-outlined text-xl">check</span>
+                <span className="material-symbols-outlined text-lg sm:text-xl">check</span>
               </button>
 
               <button 
                 onClick={handleCloseAnimated}
-                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-low text-on-surface-variant transition-colors cursor-pointer"
+                className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg hover:bg-surface-low text-on-surface-variant transition-colors cursor-pointer"
                 title="Schließen"
               >
-                <span className="material-symbols-outlined text-xl">close</span>
+                <span className="material-symbols-outlined text-lg sm:text-xl">close</span>
               </button>
             </div>
           </div>
 
           {/* Bottom Row: Full-width Editable Title Box */}
-          <div className="relative group w-full bg-surface-low border border-outline-variant hover:border-primary/50 focus-within:border-primary focus-within:bg-white rounded-xl p-2 transition-all">
+          <div className="relative group w-full bg-surface-low border border-outline-variant hover:border-primary/50 focus-within:border-primary focus-within:bg-white rounded-lg sm:rounded-xl px-3 py-1 sm:py-1.5 transition-all flex items-center">
             <textarea
               ref={titleTextareaRef}
               value={localTitle}
@@ -244,14 +244,13 @@ const TaskDetailDrawer = ({
               onBlur={handleTitleBlur}
               placeholder="Aufgaben-Titel..."
               rows={1}
-              className={`text-base font-bold bg-transparent border-none outline-none focus:ring-0 w-full transition-all pr-8 resize-none min-h-[32px] overflow-hidden ${currentTask.completed ? 'line-through text-on-surface-variant' : 'text-primary'}`}
+              className={`text-sm sm:text-base font-bold bg-transparent border-none outline-none focus:ring-0 w-full p-0 m-0 leading-tight block resize-none overflow-hidden ${currentTask.completed ? 'line-through text-on-surface-variant' : 'text-primary'}`}
             />
-            <span className="material-symbols-outlined absolute right-2.5 top-2.5 text-[16px] text-on-surface-variant opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">edit</span>
           </div>
         </div>
 
         {/* Scrollable Content */}
-        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-5 flex flex-col gap-6">
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 sm:p-5 flex flex-col gap-4 sm:gap-5">
           
           {/* Due Date */}
           <div className="flex flex-col gap-2">
@@ -262,9 +261,9 @@ const TaskDetailDrawer = ({
             <div className="relative">
               <input 
                 type="date"
-                value={localDate}
+                value={typeof localDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(localDate) ? localDate : ''}
                 onChange={handleDateChange}
-                className="w-full px-3.5 py-2.5 border border-outline-variant rounded-xl bg-surface-low focus:bg-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-sans text-sm transition-all"
+                className="w-full px-3 py-1.5 sm:py-2 border border-outline-variant rounded-lg sm:rounded-xl bg-surface-low focus:bg-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-sans text-sm transition-all"
               />
             </div>
           </div>
@@ -280,8 +279,8 @@ const TaskDetailDrawer = ({
               onChange={(e) => setLocalNote(e.target.value)}
               onBlur={handleNoteBlur}
               placeholder="Gedanken, Details oder Anmerkungen zu dieser Aufgabe..."
-              className="w-full px-3.5 py-2.5 border border-outline-variant rounded-xl bg-surface-low focus:bg-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-sans text-sm resize-y min-h-[110px] transition-all"
-              rows={4}
+              className="w-full px-3 py-1.5 sm:py-2 border border-outline-variant rounded-lg sm:rounded-xl bg-surface-low focus:bg-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-sans text-sm resize-y min-h-[80px] sm:min-h-[100px] transition-all"
+              rows={3}
             />
           </div>
 
@@ -313,7 +312,7 @@ const TaskDetailDrawer = ({
                     <div
                       key={`note-${idx}`}
                       onClick={() => onOpenNote && onOpenNote(fullNote)}
-                      className="group p-3.5 rounded-xl border border-outline-variant bg-surface-low hover:bg-white hover:border-primary hover:shadow-sm transition-all cursor-pointer flex flex-col gap-1.5 relative"
+                      className="group p-2.5 sm:p-3.5 rounded-lg sm:rounded-xl border border-outline-variant bg-surface-low hover:bg-white hover:border-primary hover:shadow-sm transition-all cursor-pointer flex flex-col gap-1 sm:gap-1.5 relative"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">

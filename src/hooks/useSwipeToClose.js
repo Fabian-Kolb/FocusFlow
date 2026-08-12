@@ -9,6 +9,7 @@ export const useSwipeToClose = ({
 }) => {
   const [translateY, setTranslateY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [wasSwipedClosed, setWasSwipedClosed] = useState(false);
   
   const startYRef = useRef(null);
   const currentYRef = useRef(null);
@@ -67,10 +68,10 @@ export const useSwipeToClose = ({
       const deltaY = currentYRef.current - startYRef.current;
 
       if (deltaY > threshold) {
+        setWasSwipedClosed(true);
+        setTranslateY(window.innerHeight); 
         // Close drawer
         onClose();
-        // Keep it down visually while it unmounts
-        setTranslateY(window.innerHeight); 
       } else {
         // Snap back
         setTranslateY(0);
@@ -99,20 +100,45 @@ export const useSwipeToClose = ({
   // Reset translateY when drawer closes normally
   useEffect(() => {
     if (!isOpen) {
+      if (!wasSwipedClosed) {
+        setTranslateY(0);
+        setIsDragging(false);
+      }
+    } else {
+      setWasSwipedClosed(false);
       setTranslateY(0);
       setIsDragging(false);
     }
+  }, [isOpen, wasSwipedClosed]);
+
+  // Management of the entry animation class to prevent conflicts with inline transforms
+  const [entryAnimActive, setEntryAnimActive] = useState(true);
+  
+  useEffect(() => {
+    if (isOpen) {
+      setEntryAnimActive(true);
+      // Remove the animation class after it finishes so it doesn't lock the transform property
+      const timer = setTimeout(() => setEntryAnimActive(false), 350); 
+      return () => clearTimeout(timer);
+    }
   }, [isOpen]);
+
+  // If user starts dragging early, immediately kill the entry animation
+  useEffect(() => {
+    if (isDragging) {
+      setEntryAnimActive(false);
+    }
+  }, [isDragging]);
 
   return {
     translateY,
     isDragging,
+    entryAnimActive,
+    wasSwipedClosed,
     // Add inline styles for the drawer panel
     drawerStyle: {
       transform: translateY > 0 ? `translateY(${translateY}px)` : undefined,
-      transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)',
-      // Note: we let CSS classes handle the entry/exit animations, 
-      // but override with inline transform when dragging.
+      transition: isDragging ? 'none' : 'transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1)',
     }
   };
 };
