@@ -27,7 +27,8 @@ Falls Sie dieses Projekt im Rahmen einer Bewerbung oder eines Portfolio-Reviews 
 
 ## 💡 Über FocusFlow
 
-FocusFlow kombiniert bewährte Selbstorganisations-Konzepte (wie *Getting Things Done* / GTD, Kanban und Wochenrückblicke) in einer modernen, performanten Webanwendung. Sie hilft Nutzern dabei, den Überblick über offene Inbox-Items zu behalten, Projekte in strukturierte Phasen zu gliedern und vieles mehr.
+FocusFlow ist eine moderne Web-App für intelligentes Aufgaben- und Projektmanagement. Sie vereint Smart Inbox, Kanban-Boards, Fristen-Kalender und Wochenrückblicke mit einem integrierten KI-Coach auf Basis der Google Gemini API – entwickelt für maximale Produktivität und strukturiertes Arbeiten.
+
 ---
 
 ## ✨ Hauptfunktionen (Features)
