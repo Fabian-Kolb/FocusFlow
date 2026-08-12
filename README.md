@@ -27,8 +27,7 @@ Falls Sie dieses Projekt im Rahmen einer Bewerbung oder eines Portfolio-Reviews 
 
 ## 💡 Über FocusFlow
 
-FocusFlow kombiniert bewährte Selbstorganisations-Konzepte (wie *Getting Things Done* / GTD, Kanban und Wochenrückblicke) in einer modernen, performanten Webanwendung. Sie hilft Nutzern dabei, den Überblick über offene Inbox-Items zu behalten, Projekte in strukturierte Phasen zu gliedern und wöchentliche Fortschritte datenbasiert zu reflektieren.
-
+FocusFlow kombiniert bewährte Selbstorganisations-Konzepte (wie *Getting Things Done* / GTD, Kanban und Wochenrückblicke) in einer modernen, performanten Webanwendung. Sie hilft Nutzern dabei, den Überblick über offene Inbox-Items zu behalten, Projekte in strukturierte Phasen zu gliedern und vieles mehr.
 ---
 
 ## ✨ Hauptfunktionen (Features)
