@@ -1116,8 +1116,16 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                     </button>
                     
                     <div 
-                      className="min-w-0 cursor-pointer group"
-                      onClick={() => setSelectedPhase(phase)}
+                      className="min-w-0 cursor-pointer group section-header"
+                      data-drawer-trigger="true"
+                      onClick={() => {
+                        if (selectedPhase?.id === phase.id && !selectedTask) {
+                          setSelectedPhase(null);
+                        } else {
+                          setSelectedTask(null);
+                          setSelectedPhase(phase);
+                        }
+                      }}
                     >
                       <div className="flex items-center gap-2 flex-wrap">
                         {phase.dateInfo && (
@@ -1134,15 +1142,22 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                   </div>
                   
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] sm:text-xs mono font-bold text-primary bg-surface-low px-2 py-1 border border-outline-variant rounded-lg whitespace-nowrap flex-shrink-0">
-                      {phase.badgeText}
+                    <span className="text-xs font-mono font-bold text-on-surface-variant bg-surface-low px-2.5 py-1 rounded-lg border border-outline-variant">
+                      {phase.badgeText || '0/0 ERLEDIGT'}
                     </span>
                     <button
-                      onClick={() => setSelectedPhase(phase)}
-                      className="w-8 h-8 flex items-center justify-center rounded-lg border border-outline-variant text-on-surface-variant hover:text-primary hover:border-primary hover:bg-surface-low transition-all shrink-0 bg-white shadow-sm cursor-pointer"
+                      onClick={() => {
+                        if (selectedPhase?.id === phase.id && !selectedTask) {
+                          setSelectedPhase(null);
+                        } else {
+                          setSelectedTask(null);
+                          setSelectedPhase(phase);
+                        }
+                      }}
+                      className="p-1 rounded-lg hover:bg-surface-low text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
                       title="Abschnitt bearbeiten"
                     >
-                      <span className="material-symbols-outlined text-[16px]">edit</span>
+                      <span className="material-symbols-outlined text-[18px]">edit</span>
                     </button>
                   </div>
                 </div>
@@ -1156,12 +1171,20 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                         <div
                           key={task.id}
                           id={`task-${task.id}`}
-                          className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all group ${
+                          data-drawer-trigger="true"
+                          className={`task-item flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all group ${
                             selectedTask?.task.id === task.id
                               ? 'bg-primary/5 border border-primary/20'
                               : 'hover:bg-surface-low border border-transparent'
                           }`}
-                          onClick={() => setSelectedTask({ task, phase })}
+                          onClick={() => {
+                            if (selectedTask?.task.id === task.id) {
+                              setSelectedTask(null);
+                            } else {
+                              setSelectedPhase(null);
+                              setSelectedTask({ task, phase });
+                            }
+                          }}
                         >
                           <input
                             type="checkbox"

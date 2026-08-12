@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useSwipeToClose } from '../../hooks/useSwipeToClose';
 
 const TaskDetailDrawer = ({
   task,
@@ -16,6 +17,31 @@ const TaskDetailDrawer = ({
   const [localTitle, setLocalTitle] = useState('');
   const [localNote, setLocalNote] = useState('');
   const [localDate, setLocalDate] = useState('');
+  const titleTextareaRef = useRef(null);
+
+  const [displayedTaskId, setDisplayedTaskId] = useState(null);
+  const [isSwitching, setIsSwitching] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setDisplayedTaskId(null);
+      setIsSwitching(false);
+      return;
+    }
+
+    if (task) {
+      if (displayedTaskId && task.id !== displayedTaskId) {
+        setIsSwitching(true);
+        const timer = setTimeout(() => {
+          setDisplayedTaskId(task.id);
+          setIsSwitching(false);
+        }, 150);
+        return () => clearTimeout(timer);
+      } else {
+        setDisplayedTaskId(task.id);
+      }
+    }
+  }, [task?.id, isOpen]);
 
   useEffect(() => {
     if (task) {
@@ -25,7 +51,87 @@ const TaskDetailDrawer = ({
     }
   }, [task]);
 
-  if (!isOpen || !task || !phase) return null;
+  useEffect(() => {
+    if (titleTextareaRef.current) {
+      titleTextareaRef.current.style.height = 'auto';
+      titleTextareaRef.current.style.height = `${titleTextareaRef.current.scrollHeight}px`;
+    }
+  }, [localTitle, isOpen]);
+
+  const [shouldRender, setShouldRender] = useState(isOpen);
+  const [isClosing, setIsClosing] = useState(false);
+  const drawerPanelRef = useRef(null);
+  const scrollContainerRef = useRef(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setShouldRender(true);
+      setIsClosing(false);
+    } else if (shouldRender && !isClosing) {
+      setIsClosing(true);
+      const timer = setTimeout(() => {
+        setShouldRender(false);
+        setIsClosing(false);
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
+
+  const handleCloseAnimated = () => {
+    onClose();
+  };
+
+  const { drawerStyle } = useSwipeToClose({
+    isOpen: isOpen && shouldRender,
+    onClose: handleCloseAnimated,
+    drawerRef: drawerPanelRef,
+    scrollContainerRef: scrollContainerRef,
+    threshold: 120
+  });
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handlePointerDownOutside = (e) => {
+      if (drawerPanelRef.current && !drawerPanelRef.current.contains(e.target)) {
+        // Ignore clicks inside note modals, rich-text toolbars, or any drawer triggers (tasks/sections)
+        if (
+          e.target.closest && (
+            e.target.closest('.fixed') ||
+            e.target.closest('.ql-container') ||
+            e.target.closest('.ql-toolbar') ||
+            e.target.closest('[data-drawer-trigger]') ||
+            e.target.closest('.task-item') ||
+            e.target.closest('.section-header') ||
+            e.target.closest('[id^="task-"]')
+          )
+        ) {
+          return;
+        }
+        handleCloseAnimated();
+      }
+    };
+
+    const timer = setTimeout(() => {
+      document.addEventListener('pointerdown', handlePointerDownOutside);
+    }, 50);
+
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('pointerdown', handlePointerDownOutside);
+    };
+  }, [isOpen]);
+
+  const lastTaskRef = useRef(task);
+  const lastPhaseRef = useRef(phase);
+
+  if (task) lastTaskRef.current = task;
+  if (phase) lastPhaseRef.current = phase;
+
+  const currentTask = task || lastTaskRef.current;
+  const currentPhase = phase || lastPhaseRef.current;
+
+  if (!shouldRender || !currentTask || !currentPhase) return null;
 
   const formatPreview = (html) => {
     if (!html) return '';
@@ -41,14 +147,14 @@ const TaskDetailDrawer = ({
 
   const isNoteItem = (item) => item.type === 'note' || item.noteId || (item.url && item.url.startsWith('#note-'));
 
-  const linkedNotes = (task.links || []).filter(isNoteItem);
-  const webLinks = (task.links || []).filter(link => !isNoteItem(link));
-  const phaseMaterials = (phase.materials || []).filter(mat => !isNoteItem(mat));
-  const phaseLinkedNotes = (phase.materials || []).filter(isNoteItem);
+  const linkedNotes = (currentTask.links || []).filter(isNoteItem);
+  const webLinks = (currentTask.links || []).filter(link => !isNoteItem(link));
+  const phaseMaterials = (currentPhase.materials || []).filter(mat => !isNoteItem(mat));
+  const phaseLinkedNotes = (currentPhase.materials || []).filter(isNoteItem);
 
   const handleTitleBlur = () => {
-    if (localTitle !== task.title) {
-      onUpdateTask(phase.id, task.id, { title: localTitle });
+    if (localTitle !== currentTask.title) {
+      onUpdateTask(currentPhase.id, currentTask.id, { title: localTitle });
     }
   };
 
@@ -59,15 +165,15 @@ const TaskDetailDrawer = ({
   };
 
   const handleNoteBlur = () => {
-    if (localNote !== task.note) {
-      onUpdateTask(phase.id, task.id, { note: localNote });
+    if (localNote !== currentTask.note) {
+      onUpdateTask(currentPhase.id, currentTask.id, { note: localNote });
     }
   };
 
   const handleDateChange = (e) => {
     const newDate = e.target.value;
     setLocalDate(newDate);
-    onUpdateTask(phase.id, task.id, { date: newDate });
+    onUpdateTask(currentPhase.id, currentTask.id, { date: newDate });
   };
 
   const formatDate = (dateStr) => {
@@ -82,60 +188,74 @@ const TaskDetailDrawer = ({
 
   return (
     <>
-      {/* Mobile Backdrop */}
+      {/* Drawer Panel - Non-blocking Side Slide-In */}
       <div 
-        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 lg:hidden drawer-backdrop-fade"
-        onClick={onClose}
-      />
-
-      {/* Drawer Panel */}
-      <div className="fixed inset-x-0 bottom-0 lg:inset-y-0 lg:left-auto lg:right-0 z-50 flex flex-col bg-white rounded-t-2xl lg:rounded-none lg:w-[420px] lg:border-l lg:border-outline-variant shadow-xl drawer-slide-in-bottom lg:drawer-slide-in-right h-[90vh] lg:h-full">
-        
-        {/* Mobile Drag Handle */}
-        <div className="flex justify-center pt-3 pb-1 lg:hidden">
-          <div className="w-10 h-1 rounded-full bg-outline-variant" />
+        ref={drawerPanelRef}
+        style={drawerStyle}
+        className={`fixed z-50 flex flex-col bg-white border border-outline-variant shadow-2xl overflow-hidden
+          bottom-0 inset-x-0 h-[85vh] rounded-t-3xl w-full
+          sm:bottom-auto sm:inset-x-auto sm:inset-y-0 sm:right-0 sm:h-[calc(100vh-24px)] sm:w-[420px] sm:max-w-[420px] sm:my-3 sm:mr-3 sm:rounded-2xl
+          ${isClosing || isSwitching ? 'drawer-slide-out' : 'drawer-slide-in'}
+        `}
+      >
+        {/* Notch / Drag Handle for Mobile */}
+        <div className="w-full flex justify-center pt-3 pb-1 sm:hidden shrink-0">
+          <div className="w-12 h-1.5 bg-outline-variant/60 rounded-full" />
         </div>
-
+        
         {/* Header (Sticky) */}
-        <div className="sticky top-0 bg-white/95 backdrop-blur-sm z-10 px-6 py-4 border-b border-outline-variant flex items-center justify-between lg:pt-6">
-          <div className="flex flex-col gap-1 w-full mr-4">
-            <span className="text-[11px] font-mono text-on-surface-variant uppercase tracking-wider">
-              {phase.title}
+        <div className="sticky top-0 bg-white/95 backdrop-blur-md z-10 px-5 py-4 border-b border-outline-variant flex flex-col gap-3 lg:pt-5">
+          {/* Top Bar: Meta Info + Actions */}
+          <div className="flex items-center justify-between gap-2 w-full">
+            <span className="text-[11px] font-mono text-on-surface-variant font-semibold uppercase tracking-wider truncate flex items-center gap-1.5 bg-surface-low px-2.5 py-1 rounded-lg border border-outline-variant/60 max-w-[65%]">
+              <span className="material-symbols-outlined text-[14px]">layers</span>
+              <span className="truncate">{currentPhase.title}</span>
             </span>
-            <div className="flex items-center gap-3 w-full">
+
+            <div className="flex items-center gap-1 shrink-0">
               <button 
-                onClick={() => onToggleTask(phase.id, task.id)}
-                className={`w-5 h-5 rounded border flex items-center justify-center transition-colors shrink-0 ${task.completed ? 'bg-primary border-primary text-white' : 'border-outline-variant text-transparent hover:border-primary'}`}
+                onClick={() => onToggleTask(currentPhase.id, currentTask.id)}
+                className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer ${
+                  currentTask.completed 
+                    ? 'bg-primary text-white' 
+                    : 'text-on-surface-variant/60 hover:text-primary hover:bg-surface-low'
+                }`}
+                title={currentTask.completed ? 'Als unerledigt markieren' : 'Als erledigt markieren'}
               >
-                <span className="material-symbols-outlined text-[16px] leading-none">check</span>
+                <span className="material-symbols-outlined text-xl">check</span>
               </button>
-              <div className="relative flex-1 group">
-                <input
-                  type="text"
-                  value={localTitle}
-                  onChange={(e) => setLocalTitle(e.target.value)}
-                  onBlur={handleTitleBlur}
-                  onKeyDown={handleTitleKeyDown}
-                  className={`text-lg font-bold bg-transparent border border-transparent hover:border-outline-variant focus:border-primary focus:bg-white rounded px-2 py-1 outline-none focus:ring-0 w-full transition-all pr-8 ${task.completed ? 'line-through text-on-surface-variant' : 'text-primary'}`}
-                />
-                <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-[16px] text-on-surface-variant opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">edit</span>
-              </div>
+
+              <button 
+                onClick={handleCloseAnimated}
+                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-low text-on-surface-variant transition-colors cursor-pointer"
+                title="Schließen"
+              >
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
             </div>
           </div>
-          <button 
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-low text-on-surface-variant transition-colors shrink-0"
-          >
-            <span className="material-symbols-outlined text-xl">close</span>
-          </button>
+
+          {/* Bottom Row: Full-width Editable Title Box */}
+          <div className="relative group w-full bg-surface-low border border-outline-variant hover:border-primary/50 focus-within:border-primary focus-within:bg-white rounded-xl p-2 transition-all">
+            <textarea
+              ref={titleTextareaRef}
+              value={localTitle}
+              onChange={(e) => setLocalTitle(e.target.value)}
+              onBlur={handleTitleBlur}
+              placeholder="Aufgaben-Titel..."
+              rows={1}
+              className={`text-base font-bold bg-transparent border-none outline-none focus:ring-0 w-full transition-all pr-8 resize-none min-h-[32px] overflow-hidden ${currentTask.completed ? 'line-through text-on-surface-variant' : 'text-primary'}`}
+            />
+            <span className="material-symbols-outlined absolute right-2.5 top-2.5 text-[16px] text-on-surface-variant opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">edit</span>
+          </div>
         </div>
 
         {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-8">
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-5 flex flex-col gap-6">
           
           {/* Due Date */}
           <div className="flex flex-col gap-2">
-            <h3 className="text-xs font-mono font-bold text-primary uppercase flex items-center gap-2">
+            <h3 className="text-xs font-mono font-bold text-primary uppercase flex items-center gap-2 tracking-wider">
               <span className="material-symbols-outlined text-base">calendar_today</span>
               Fälligkeitsdatum
             </h3>
@@ -144,14 +264,14 @@ const TaskDetailDrawer = ({
                 type="date"
                 value={localDate}
                 onChange={handleDateChange}
-                className="w-full px-3 py-2 border border-outline-variant rounded-lg bg-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-sans text-sm"
+                className="w-full px-3.5 py-2.5 border border-outline-variant rounded-xl bg-surface-low focus:bg-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-sans text-sm transition-all"
               />
             </div>
           </div>
 
           {/* Description */}
           <div className="flex flex-col gap-2">
-            <h3 className="text-xs font-mono font-bold text-primary uppercase flex items-center gap-2">
+            <h3 className="text-xs font-mono font-bold text-primary uppercase flex items-center gap-2 tracking-wider">
               <span className="material-symbols-outlined text-base">description</span>
               Beschreibung
             </h3>
@@ -160,27 +280,27 @@ const TaskDetailDrawer = ({
               onChange={(e) => setLocalNote(e.target.value)}
               onBlur={handleNoteBlur}
               placeholder="Gedanken, Details oder Anmerkungen zu dieser Aufgabe..."
-              className="w-full px-3 py-3 border border-outline-variant rounded-lg bg-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-sans text-sm resize-y min-h-[120px]"
-              rows={6}
+              className="w-full px-3.5 py-2.5 border border-outline-variant rounded-xl bg-surface-low focus:bg-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-sans text-sm resize-y min-h-[110px] transition-all"
+              rows={4}
             />
           </div>
 
           {/* Linked Notes Section */}
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-mono font-bold text-primary uppercase flex items-center gap-2">
+              <h3 className="text-xs font-mono font-bold text-primary uppercase flex items-center gap-2 tracking-wider">
                 <span className="material-symbols-outlined text-base">sticky_note_2</span>
                 Verknüpfte Notizen
               </h3>
               {(linkedNotes.length + phaseLinkedNotes.length) > 0 && (
-                <span className="text-[10px] font-mono bg-surface-low px-2 py-0.5 rounded-full text-on-surface-variant font-bold border border-outline-variant">
+                <span className="text-[10px] font-mono bg-surface-low px-2 py-0.5 rounded-md text-on-surface-variant font-bold border border-outline-variant">
                   {linkedNotes.length + phaseLinkedNotes.length}
                 </span>
               )}
             </div>
 
             {(linkedNotes.length + phaseLinkedNotes.length) === 0 ? (
-              <p className="text-xs text-on-surface-variant/60 italic p-2 bg-surface-low/50 rounded-lg border border-outline-variant/40">
+              <p className="text-xs text-on-surface-variant/60 italic p-3 bg-surface-low/60 rounded-xl border border-outline-variant/40">
                 Keine Notizen mit dieser Aufgabe verknüpft.
               </p>
             ) : (
@@ -193,7 +313,7 @@ const TaskDetailDrawer = ({
                     <div
                       key={`note-${idx}`}
                       onClick={() => onOpenNote && onOpenNote(fullNote)}
-                      className="group p-3 rounded-xl border border-outline-variant bg-white hover:border-primary hover:shadow-md transition-all cursor-pointer flex flex-col gap-1.5 relative"
+                      className="group p-3.5 rounded-xl border border-outline-variant bg-surface-low hover:bg-white hover:border-primary hover:shadow-sm transition-all cursor-pointer flex flex-col gap-1.5 relative"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
@@ -207,12 +327,12 @@ const TaskDetailDrawer = ({
                             e.stopPropagation();
                             const targetId = link.id || link.noteId || link.url;
                             if (phaseLinkedNotes.includes(link)) {
-                              onDeleteMaterial && onDeleteMaterial({ type: 'phase', phaseId: phase.id, materialId: targetId });
+                              onDeleteMaterial && onDeleteMaterial({ type: 'phase', phaseId: currentPhase.id, materialId: targetId });
                             } else {
-                              onDeleteMaterial && onDeleteMaterial({ type: 'task', taskId: task.id, phaseId: phase.id, linkId: targetId });
+                              onDeleteMaterial && onDeleteMaterial({ type: 'task', taskId: currentTask.id, phaseId: currentPhase.id, linkId: targetId });
                             }
                           }}
-                          className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-50 text-red-500 transition-all shrink-0"
+                          className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-red-50 text-red-500 transition-all shrink-0"
                           title="Verknüpfung entfernen"
                         >
                           <span className="material-symbols-outlined text-sm">close</span>
@@ -239,18 +359,18 @@ const TaskDetailDrawer = ({
           {/* Materials & Links */}
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-mono font-bold text-primary uppercase flex items-center gap-2">
+              <h3 className="text-xs font-mono font-bold text-primary uppercase flex items-center gap-2 tracking-wider">
                 <span className="material-symbols-outlined text-base">attach_file</span>
                 Materialien & Links
               </h3>
               {(webLinks.length + phaseMaterials.length) > 0 && (
-                <span className="text-[10px] font-mono bg-surface-low px-2 py-0.5 rounded-full text-on-surface-variant font-bold border border-outline-variant">
+                <span className="text-[10px] font-mono bg-surface-low px-2 py-0.5 rounded-md text-on-surface-variant font-bold border border-outline-variant">
                   {webLinks.length + phaseMaterials.length}
                 </span>
               )}
             </div>
             
-            <div className="flex flex-col gap-2 mt-2">
+            <div className="flex flex-col gap-2 mt-1">
               {/* Task Links */}
               {webLinks.map((link, idx) => (
                 <a 
@@ -258,18 +378,18 @@ const TaskDetailDrawer = ({
                   href={link.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group flex items-center justify-between p-3 rounded-lg border border-outline-variant bg-white hover:border-primary hover:shadow-sm transition-all"
+                  className="group flex items-center justify-between p-3 rounded-xl border border-outline-variant bg-surface-low hover:bg-white hover:border-primary hover:shadow-sm transition-all"
                 >
                   <div className="flex items-center gap-3 overflow-hidden">
-                    <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors text-[20px]">link</span>
+                    <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors text-[18px]">link</span>
                     <span className="text-sm truncate text-primary font-medium">{link.name || link.url}</span>
                   </div>
                   <button 
                     onClick={(e) => {
                       e.preventDefault();
-                      onDeleteMaterial({ type: 'task', taskId: task.id, phaseId: phase.id, linkId: link.id });
+                      onDeleteMaterial({ type: 'task', taskId: currentTask.id, phaseId: currentPhase.id, linkId: link.id });
                     }}
-                    className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-surface-low text-on-surface-variant transition-all"
+                    className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-surface-low text-on-surface-variant transition-all"
                   >
                     <span className="material-symbols-outlined text-sm">delete</span>
                   </button>
@@ -280,10 +400,10 @@ const TaskDetailDrawer = ({
               {phaseMaterials.map((mat, idx) => (
                 <div 
                   key={`mat-${idx}`}
-                  className="group flex items-center justify-between p-3 rounded-lg border border-outline-variant bg-surface hover:border-primary hover:shadow-sm transition-all cursor-pointer"
+                  className="group flex items-center justify-between p-3 rounded-xl border border-outline-variant bg-surface-low hover:bg-white hover:border-primary hover:shadow-sm transition-all cursor-pointer"
                 >
                   <div className="flex items-center gap-3 overflow-hidden">
-                    <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors text-[20px]">description</span>
+                    <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors text-[18px]">description</span>
                     <div className="flex flex-col">
                       <span className="text-sm truncate text-primary font-medium">{mat.name || mat.title}</span>
                       <span className="text-[10px] font-mono text-on-surface-variant uppercase">Abschnitt-Material</span>
@@ -292,9 +412,9 @@ const TaskDetailDrawer = ({
                   <button 
                     onClick={(e) => {
                       e.preventDefault();
-                      onDeleteMaterial({ type: 'phase', phaseId: phase.id, materialId: mat.id });
+                      onDeleteMaterial({ type: 'phase', phaseId: currentPhase.id, materialId: mat.id });
                     }}
-                    className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-surface-low text-on-surface-variant transition-all"
+                    className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-surface-low text-on-surface-variant transition-all"
                   >
                     <span className="material-symbols-outlined text-sm">delete</span>
                   </button>
@@ -302,10 +422,10 @@ const TaskDetailDrawer = ({
               ))}
 
               <button
-                onClick={() => onAddMaterial({ type: 'task', taskId: task.id, phaseId: phase.id })}
-                className="mt-2 w-full py-3 flex items-center justify-center gap-2 rounded-lg border border-dashed border-outline-variant text-on-surface-variant hover:text-primary hover:border-primary hover:bg-surface-low transition-all font-mono text-xs uppercase font-bold"
+                onClick={() => onAddMaterial({ type: 'task', taskId: currentTask.id, phaseId: currentPhase.id })}
+                className="mt-1 w-full py-2.5 flex items-center justify-center gap-2 rounded-xl border border-dashed border-outline-variant text-on-surface-variant hover:text-primary hover:border-primary hover:bg-primary/5 transition-all font-mono text-xs uppercase font-bold cursor-pointer"
               >
-                <span className="material-symbols-outlined text-[18px]">add</span>
+                <span className="material-symbols-outlined text-[16px]">add</span>
                 Material hinzufügen
               </button>
             </div>
@@ -314,12 +434,12 @@ const TaskDetailDrawer = ({
           <div className="flex-1" /> {/* Spacer */}
 
           {/* Danger Zone */}
-          <div className="pt-6 mt-4 border-t border-outline-variant">
+          <div className="pt-3 mt-1 border-t border-outline-variant/60">
             <button
-              onClick={() => onDeleteTask(phase.id, task.id)}
-              className="w-full py-3 flex items-center justify-center gap-2 rounded-lg text-red-600 hover:bg-red-50 transition-colors font-mono text-xs uppercase font-bold"
+              onClick={() => onDeleteTask(currentPhase.id, currentTask.id)}
+              className="w-full py-2.5 flex items-center justify-center gap-2 rounded-xl bg-red-50 text-red-600 border border-red-200 hover:bg-red-600 hover:text-white transition-all font-mono text-xs uppercase font-bold cursor-pointer"
             >
-              <span className="material-symbols-outlined text-[18px]">delete</span>
+              <span className="material-symbols-outlined text-[16px]">delete</span>
               Aufgabe löschen
             </button>
           </div>

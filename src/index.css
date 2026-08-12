@@ -148,55 +148,67 @@
   background-color: #1e293b;
   color: #f8fafc;
   padding: 0.75em;
-  border-radius: 4px;
+  border-radius: 6px;
   overflow-x: auto;
-  margin-bottom: 0.75em;
+  margin-top: 0.5em;
+  margin-bottom: 1em;
 }
 .markdown-body pre code {
   background-color: transparent;
-  color: inherit;
   padding: 0;
+  color: inherit;
+  border-radius: 0;
+  font-size: 0.9em;
 }
-
-/* Compact Markdown Styling for Inbox/Cards */
-.markdown-compact > *:first-child {
-  margin-top: 0 !important;
+.markdown-body blockquote {
+  border-left: 4px solid #cbd5e1;
+  padding-left: 1em;
+  margin-left: 0;
+  margin-right: 0;
+  color: #64748b;
+  font-style: italic;
+  background-color: #f8fafc;
+  padding: 0.5em 1em;
+  border-radius: 0 4px 4px 0;
 }
-.markdown-compact > *:last-child,
-.markdown-compact ul:last-child {
-  margin-bottom: 0 !important;
+.markdown-body blockquote p {
+  margin: 0;
 }
-.markdown-compact p {
-  margin-bottom: 0.25em !important;
+.markdown-body img {
+  max-width: 100%;
+  border-radius: 8px;
+  margin: 1em 0;
+  border: 1px solid #e2e8f0;
 }
-.markdown-compact ul, .markdown-compact ol {
-  margin-bottom: 0.25em !important;
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid #e2e8f0;
+  margin: 1.5em 0;
 }
-.markdown-compact ul ul {
-  margin-bottom: 0.15em !important;
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1em;
 }
-.markdown-compact h1, .markdown-compact h2, .markdown-compact h3 {
-  margin-top: 0.5em !important;
-  margin-bottom: 0.25em !important;
+.markdown-body th, .markdown-body td {
+  border: 1px solid #e2e8f0;
+  padding: 0.5em 0.75em;
+  text-align: left;
 }
-
-/* Calendar Swipe Animations */
-@keyframes swipeLeft {
-  from { transform: translateX(60px); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
+.markdown-body th {
+  background-color: #f8fafc;
+  font-weight: 600;
 }
-
-@keyframes swipeRight {
-  from { transform: translateX(-60px); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
+.markdown-body a {
+  color: #0f172a;
+  text-decoration: underline;
+  text-decoration-color: #94a3b8;
+  text-underline-offset: 2px;
+  transition: all 0.2s;
 }
-
-.animate-swipe-left {
-  animation: swipeLeft 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-}
-
-.animate-swipe-right {
-  animation: swipeRight 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+.markdown-body a:hover {
+  color: #000;
+  text-decoration-color: #000;
 }
 
 /* React Quill Customizations */
@@ -244,19 +256,38 @@
   to { transform: translateY(0); }
 }
 
+@keyframes slideOutRight {
+  from { transform: translateX(0); }
+  to { transform: translateX(110%); }
+}
+
+@keyframes slideOutBottom {
+  from { transform: translateY(0); }
+  to { transform: translateY(110%); }
+}
+
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 
-.drawer-slide-in-right {
-  animation: slideInRight 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-}
-
-.drawer-slide-in-bottom {
-  animation: slideInBottom 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-}
-
 .drawer-backdrop-fade {
   animation: fadeIn 0.2s ease-out forwards;
+}
+
+/* Responsive Drawer Animation Classes */
+.drawer-slide-in {
+  animation: slideInBottom 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+.drawer-slide-out {
+  animation: slideOutBottom 0.25s cubic-bezier(0.3, 0, 0, 1) forwards;
+}
+
+@media (min-width: 640px) {
+  .drawer-slide-in {
+    animation: slideInRight 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  }
+  .drawer-slide-out {
+    animation: slideOutRight 0.22s cubic-bezier(0.4, 0, 1, 1) forwards;
+  }
 }
