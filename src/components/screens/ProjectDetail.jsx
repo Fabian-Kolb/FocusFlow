@@ -3,6 +3,7 @@ import { useModalContext } from '../../context/ModalContext';
 import NotesSection from '../ui/NotesSection';
 import TaskDetailDrawer from '../ui/TaskDetailDrawer';
 import SectionDetailDrawer from '../ui/SectionDetailDrawer';
+import GlobalChatDrawer from '../ui/GlobalChatDrawer';
 
 const ProjectDetail = ({ setCurrentScreen }) => {
   const { 
@@ -60,6 +61,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
   const [selectedTask, setSelectedTask] = useState(null); // { task, phase }
   const [selectedPhase, setSelectedPhase] = useState(null); // the phase object for the SectionDetailDrawer
   const [activeNoteModal, setActiveNoteModal] = useState(null); // note to view/edit in full modal
+  const [isGlobalChatOpen, setIsGlobalChatOpen] = useState(false);
   
   // Modals state
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -733,12 +735,15 @@ const ProjectDetail = ({ setCurrentScreen }) => {
     return true;
   });
 
+  const detailDrawerOpen = !!selectedTask || !!selectedPhase;
+  const rightMarginClass = (detailDrawerOpen && isGlobalChatOpen) ? 'lg:mr-[840px]' : (detailDrawerOpen || isGlobalChatOpen) ? 'lg:mr-[420px]' : '';
+
   return (
     <div className="screen-transition">
       {projectData.isPaused && (
         <div className="fixed top-0 left-0 right-0 h-64 sm:h-80 bg-gradient-to-b from-blue-200/70 via-blue-100/25 to-transparent pointer-events-none z-0" />
       )}
-      <div className={`w-full mx-auto space-y-4 sm:space-y-6 relative z-10 transition-all duration-300 ${selectedTask || selectedPhase ? 'lg:mr-[420px]' : ''}`}>
+      <div className={`w-full mx-auto space-y-4 sm:space-y-6 relative z-10 transition-all duration-300 ${rightMarginClass}`}>
         <div>
           {/* Breadcrumb Navigation */}
           <nav className="flex items-center gap-1.5 text-xs font-mono text-on-surface-variant mb-4 flex-wrap bg-surface-low/60 p-2.5 rounded-xl border border-outline-variant/60">
@@ -1252,39 +1257,6 @@ const ProjectDetail = ({ setCurrentScreen }) => {
         </div>
       </div>
 
-      {/* Detail Drawers */}
-      <TaskDetailDrawer
-        task={selectedTask?.task}
-        phase={selectedTask?.phase}
-        allNotes={projectData.notes || []}
-        isOpen={!!selectedTask}
-        onClose={() => setSelectedTask(null)}
-        onUpdateTask={handleDrawerUpdateTask}
-        onDeleteTask={handleDeleteTask}
-        onToggleTask={toggleTaskCompletion}
-        onAddMaterial={(target) => {
-          setActiveTargetForMaterial(target);
-          setShowMaterialModal(true);
-        }}
-        onDeleteMaterial={handleDeleteMaterial}
-        onOpenNote={(note) => setActiveNoteModal(note)}
-      />
-      
-      <SectionDetailDrawer
-        phase={selectedPhase}
-        allNotes={projectData.notes || []}
-        isOpen={!!selectedPhase}
-        onClose={() => setSelectedPhase(null)}
-        onUpdatePhase={handleDrawerUpdatePhase}
-        onDeletePhase={handleDeletePhase}
-        onAddMaterial={(target) => {
-          setActiveTargetForMaterial(target);
-          setShowMaterialModal(true);
-        }}
-        onDeleteMaterial={handleDeleteMaterial}
-        onOpenNote={(note) => setActiveNoteModal(note)}
-      />
-
       {/* --- MODALS --- */}
 
       {/* 1. PROJECT HISTORY MODAL */}
@@ -1573,9 +1545,55 @@ const ProjectDetail = ({ setCurrentScreen }) => {
           </div>
         </div>
       )}
-      
       {/* End of Read-Only Wrapper */}
       </div>
+
+      {/* Detail Drawers */}
+      <TaskDetailDrawer
+        projectData={projectData}
+        task={selectedTask?.task}
+        phase={selectedTask?.phase}
+        allNotes={projectData.notes || []}
+        isOpen={!!selectedTask}
+        isGlobalChatOpen={isGlobalChatOpen}
+        onClose={() => setSelectedTask(null)}
+        onOpenGlobalChat={() => setIsGlobalChatOpen(true)}
+        onUpdateTask={handleDrawerUpdateTask}
+        onDeleteTask={handleDeleteTask}
+        onToggleTask={toggleTaskCompletion}
+        onAddMaterial={(target) => {
+          setActiveTargetForMaterial(target);
+          setShowMaterialModal(true);
+        }}
+        onDeleteMaterial={handleDeleteMaterial}
+        onOpenNote={(note) => setActiveNoteModal(note)}
+      />
+      
+      <SectionDetailDrawer
+        projectData={projectData}
+        phase={selectedPhase}
+        allNotes={projectData.notes || []}
+        isOpen={!!selectedPhase}
+        isGlobalChatOpen={isGlobalChatOpen}
+        onClose={() => setSelectedPhase(null)}
+        onOpenGlobalChat={() => setIsGlobalChatOpen(true)}
+        onUpdatePhase={handleDrawerUpdatePhase}
+        onDeletePhase={handleDeletePhase}
+        onAddMaterial={(target) => {
+          setActiveTargetForMaterial(target);
+          setShowMaterialModal(true);
+        }}
+        onDeleteMaterial={handleDeleteMaterial}
+        onOpenNote={(note) => setActiveNoteModal(note)}
+      />
+
+      {/* Global AI Chat Drawer */}
+      <GlobalChatDrawer
+        isOpen={isGlobalChatOpen}
+        onClose={() => setIsGlobalChatOpen(false)}
+        projectData={projectData}
+        isSecondaryPanel={detailDrawerOpen}
+      />
     </div>
   );
 };
