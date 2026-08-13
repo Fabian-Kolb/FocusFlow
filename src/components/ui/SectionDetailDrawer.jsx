@@ -207,34 +207,16 @@ const SectionDetailDrawer = ({
           <div className="flex items-center justify-between gap-2 w-full">
             <div className="flex items-center gap-1.5 shrink-0">
               {!isGlobalChatOpen && (
-                <>
-                  <button
-                    onClick={() => setActiveTab(activeTab === 'details' ? 'chat' : 'details')}
-                    className={`flex items-center gap-1.5 px-2.5 h-7 sm:h-8 rounded-full text-[10px] sm:text-[11px] font-mono font-bold transition-all ${
-                      activeTab === 'chat' 
-                        ? 'bg-primary text-white shadow-md' 
-                        : 'bg-primary/10 text-primary hover:bg-primary/20'
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-[14px] sm:text-[16px]">
-                      {activeTab === 'chat' ? 'info' : 'smart_toy'}
-                    </span>
-                    <span className="hidden sm:inline">{activeTab === 'chat' ? 'DETAILS' : 'KI-COACH'}</span>
-                  </button>
-
-                  {activeTab === 'chat' && (
-                    <button
-                      onClick={() => {
-                        if (onOpenGlobalChat) onOpenGlobalChat();
-                        setActiveTab('details');
-                      }}
-                      title="Im Split-Panel öffnen"
-                      className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-full bg-surface-low text-on-surface-variant hover:bg-neutral-200 transition-colors"
-                    >
-                      <span className="material-symbols-outlined text-[16px] sm:text-[18px]">splitscreen</span>
-                    </button>
-                  )}
-                </>
+                <button
+                  onClick={() => {
+                    if (onOpenGlobalChat) onOpenGlobalChat();
+                  }}
+                  title="Fio (KI-Coach) öffnen"
+                  className="flex items-center gap-1.5 px-2.5 h-7 sm:h-8 rounded-full text-[10px] sm:text-[11px] font-mono font-bold transition-all bg-primary/10 text-primary hover:bg-primary/20 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[14px] sm:text-[16px]">smart_toy</span>
+                  <span className="hidden sm:inline">FIO (KI-COACH)</span>
+                </button>
               )}
             </div>
 
@@ -262,27 +244,9 @@ const SectionDetailDrawer = ({
             />
           </div>
 
-          {/* Tab Switcher */}
-          <div className="flex bg-surface-low border border-outline-variant p-1 rounded-xl w-full mt-0.5">
-            <button 
-              onClick={() => setActiveTab('details')}
-              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${activeTab === 'details' ? 'bg-white shadow-sm text-primary border border-outline-variant/60' : 'text-on-surface-variant hover:text-primary hover:bg-black/5'}`}
-            >
-              <span className="material-symbols-outlined text-[15px]">article</span>
-              Details
-            </button>
-            <button 
-              onClick={() => setActiveTab('chat')}
-              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${activeTab === 'chat' ? 'bg-white shadow-sm text-primary border border-outline-variant/60' : 'text-on-surface-variant hover:text-primary hover:bg-black/5'}`}
-            >
-              <span className="material-symbols-outlined text-[15px]">smart_toy</span>
-              KI-Coach
-            </button>
-          </div>
         </div>
 
         {/* Scrollable Content */}
-        {activeTab === 'details' ? (
         <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 sm:p-5 flex flex-col gap-4 sm:gap-5">
           
           {/* Fälligkeitsdatum */}
@@ -462,15 +426,6 @@ const SectionDetailDrawer = ({
           </div>
 
         </div>
-        ) : (
-          <div className="flex-1 flex flex-col h-full overflow-hidden">
-            <ProjectAiChat 
-              projectData={projectData} 
-              contextScope="section" 
-              contextData={currentPhase} 
-            />
-          </div>
-        )}
       </div>
     </>
   );
