@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useModalContext } from '../../context/ModalContext';
 import { generateProjectStructure, ensureBulletPoints } from '../../lib/gemini';
 import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 
 const ProjectModal = ({ setCurrentScreen }) => {
   const { activeModal, modalPayload, closeModal, addProject } = useModalContext();
@@ -69,7 +70,7 @@ const ProjectModal = ({ setCurrentScreen }) => {
     if (isConversion) {
       // 1. KI-Zusammenfassung Note
       if (includeSummaryNote && modalPayload.summaryText) {
-        const htmlContent = marked.parse(ensureBulletPoints(modalPayload.summaryText));
+        const htmlContent = DOMPurify.sanitize(marked.parse(ensureBulletPoints(modalPayload.summaryText)));
         notes.push({
           id: `note_sum_${now}`,
           title: 'KI-Zusammenfassung',
@@ -82,7 +83,8 @@ const ProjectModal = ({ setCurrentScreen }) => {
 
       // 2. Zusammenfassung des Textes (Bereinigter Fließtext) Note
       if (includeCleanNote && (modalPayload.cleanText || modalPayload.summaryText)) {
-        const textContent = modalPayload.cleanText || modalPayload.summaryText;
+        const rawClean = modalPayload.cleanText || modalPayload.summaryText;
+        const textContent = DOMPurify.sanitize(rawClean.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'));
         notes.push({
           id: `note_clean_${now + 1}`,
           title: 'Zusammenfassung des Textes',
@@ -95,10 +97,12 @@ const ProjectModal = ({ setCurrentScreen }) => {
 
       // 3. Roh-Transkription Note
       if (includeRawNote && modalPayload.originalText) {
+        const rawOrig = modalPayload.originalText;
+        const origContent = DOMPurify.sanitize(rawOrig.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'));
         notes.push({
           id: `note_raw_${now + 2}`,
           title: 'Roh-Transkription',
-          content: `<p>${modalPayload.originalText.replace(/\n/g, '<br/>')}</p>`,
+          content: `<p>${origContent.replace(/\n/g, '<br/>')}</p>`,
           source: 'inbox',
           createdAt: now + 2,
           updatedAt: now + 2

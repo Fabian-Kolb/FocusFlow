@@ -10,17 +10,6 @@ const ReminderDetail = ({ setCurrentScreen }) => {
   const isTrashed = !!reminder?.deletedAt;
   const categoryObj = (reminderCategories || []).find(c => c.id === (reminder?.categoryId || 'allgemein')) || { id: 'allgemein', name: 'Allgemein' };
 
-  if (!reminder) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full p-12 text-center text-on-surface-variant">
-        <span className="material-symbols-outlined text-6xl mb-4 opacity-50">notifications_off</span>
-        <h2 className="text-xl font-bold mb-2">Erinnerung nicht gefunden</h2>
-        <p className="mb-6">Die Erinnerung wurde möglicherweise gelöscht.</p>
-        <button onClick={() => setCurrentScreen('reminders')} className="px-4 py-2 bg-primary text-on-primary rounded-xl font-bold">Zurück zur Übersicht</button>
-      </div>
-    );
-  }
-
   // States for Editing Dates
   const [isEditingDates, setIsEditingDates] = useState(false);
   const [editDate, setEditDate] = useState(reminder?.date || '');

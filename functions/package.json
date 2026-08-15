@@ -1,0 +1,21 @@
+{
+  "name": "focusflow-functions",
+  "description": "Cloud Functions for FocusFlow Gemini AI backend proxy",
+  "scripts": {
+    "serve": "firebase emulators:start --only functions",
+    "shell": "firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions"
+  },
+  "engines": {
+    "node": "20"
+  },
+  "main": "index.js",
+  "type": "module",
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "firebase-admin": "^13.1.0",
+    "firebase-functions": "^6.3.2"
+  },
+  "private": true
+}

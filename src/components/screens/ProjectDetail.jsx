@@ -26,17 +26,6 @@ const ProjectDetail = ({ setCurrentScreen }) => {
 
   const categoryObj = (projectCategories || []).find(c => c.id === (projectData.categoryId || 'allgemein')) || { id: 'allgemein', name: 'Allgemein' };
 
-  if (!projectData.id) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full p-12 text-center text-on-surface-variant">
-        <span className="material-symbols-outlined text-6xl mb-4 opacity-50">folder_off</span>
-        <h2 className="text-xl font-bold mb-2">Projekt nicht gefunden</h2>
-        <p className="mb-6">Das Projekt wurde möglicherweise gelöscht.</p>
-        <button onClick={() => setCurrentScreen('projects')} className="px-4 py-2 bg-primary text-on-primary rounded-xl font-bold">Zurück zur Übersicht</button>
-      </div>
-    );
-  }
-
   const setProjectData = (mutateFn) => {
     if (typeof mutateFn === 'function') {
       mutateProject(selectedProjectId, mutateFn);
@@ -728,8 +717,19 @@ const ProjectDetail = ({ setCurrentScreen }) => {
     setSelectedTask(null);
   };
 
+  if (!projectData.id) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-12 text-center text-on-surface-variant">
+        <span className="material-symbols-outlined text-6xl mb-4 opacity-50">folder_off</span>
+        <h2 className="text-xl font-bold mb-2">Projekt nicht gefunden</h2>
+        <p className="mb-6">Das Projekt wurde möglicherweise gelöscht.</p>
+        <button onClick={() => setCurrentScreen && setCurrentScreen('projects')} className="px-4 py-2 bg-primary text-on-primary rounded-xl font-bold">Zurück zur Übersicht</button>
+      </div>
+    );
+  }
+
   // Filter phases logic
-  const filteredPhases = projectData.phases.filter((phase) => {
+  const filteredPhases = (projectData.phases || []).filter((phase) => {
     if (filterType === 'open') return !phase.completed;
     if (filterType === 'completed') return phase.completed;
     return true;

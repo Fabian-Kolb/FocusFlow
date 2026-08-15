@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
+import DOMPurify from 'dompurify';
 
 const NotesSection = ({ 
   notes = [], 
@@ -686,7 +687,7 @@ const NotesSection = ({
                     {selectedNote.title}
                   </h1>
                   <div 
-                    dangerouslySetInnerHTML={{ __html: selectedNote.content }}
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(selectedNote.content || '') }}
                     className="quill-content-renderer"
                   />
                 </div>

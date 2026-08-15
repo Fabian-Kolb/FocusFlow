@@ -7,6 +7,7 @@ const MaterialModal = () => {
 
   const [materialName, setMaterialName] = useState('');
   const [isDragging, setIsDragging] = useState(false);
+  const [activeTab, setActiveTab] = useState('file'); // 'file' | 'link'
   const fileInputRef = useRef(null);
   const nameInputRef = useRef(null);
 
@@ -103,8 +104,6 @@ const MaterialModal = () => {
 
     closeModal();
   };
-
-  const [activeTab, setActiveTab] = useState('file'); // 'file' | 'link'
 
   return (
     <div

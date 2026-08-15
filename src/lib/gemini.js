@@ -1,67 +1,9 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+// src/lib/gemini.js
+// Client-side Gemini API client calling the secure backend proxy (/api/gemini/*)
+// Authenticates every request with Firebase Auth ID-Token.
+// NEVER exposes API keys in the client bundle or Network tab.
 
-const getApiKey = () => import.meta.env.VITE_GEMINI_API_KEY || '';
-
-const FALLBACK_MODELS = {
-  flash: ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'],
-  'flash-lite': ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.6-flash'],
-  'eco': ['gemini-3.1-flash-lite', 'gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-3.6-flash']
-};
-
-function getFallbackChain(modelName) {
-  if (FALLBACK_MODELS[modelName]) return FALLBACK_MODELS[modelName];
-
-  for (const models of Object.values(FALLBACK_MODELS)) {
-    const index = models.indexOf(modelName);
-    if (index !== -1) {
-      return models.slice(index);
-    }
-  }
-  return [modelName];
-}
-
-async function executeWithFallback(apiKey, modelType, systemInstruction, executeFn) {
-  const models = getFallbackChain(modelType);
-  const genAI = new GoogleGenerativeAI(apiKey);
-
-  let lastError;
-  for (const modelName of models) {
-    try {
-      const model = genAI.getGenerativeModel({
-        model: modelName,
-        systemInstruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined
-      });
-      // console.log(`Versuche Modell: ${modelName}`); // Optional debug
-      return await executeFn(model, modelName);
-    } catch (error) {
-      console.warn(`Modell ${modelName} fehlgeschlagen, versuche nächstes... Fehler:`, error?.message || error);
-      lastError = error;
-      // Continue to the next model in the fallback array
-    }
-  }
-  throw lastError || new Error("Alle Fallback-Modelle sind fehlgeschlagen.");
-}
-
-export async function askGeminiCoach({ prompt, systemInstruction, onChunk, aiModel = 'flash' }) {
-  const apiKey = getApiKey();
-
-  if (!apiKey || apiKey === 'dein_gemini_api_key_hier') {
-    throw new Error('VITE_GEMINI_API_KEY fehlt in der .env.local Datei.');
-  }
-
-  return executeWithFallback(apiKey, aiModel, systemInstruction, async (model) => {
-    const resultStream = await model.generateContentStream(prompt);
-    let fullText = '';
-    for await (const chunk of resultStream.stream) {
-      const chunkText = chunk.text();
-      if (chunkText) {
-        fullText += chunkText;
-        if (onChunk) onChunk(fullText);
-      }
-    }
-    return fullText;
-  });
-}
+import { auth } from './firebase';
 
 export function ensureBulletPoints(rawText) {
   if (!rawText || typeof rawText !== 'string') return rawText || '';
@@ -125,201 +67,166 @@ export function ensureBulletPoints(rawText) {
   return processedLines.join('\n');
 }
 
-export async function summarizeVoiceNote(text, aiModel = 'eco', lengthMode = 'normal') {
-  const apiKey = getApiKey();
-  if (!apiKey) return null;
-
-  const today = new Date();
-  const dateStr = today.toISOString().split('T')[0];
-  const daysOfWeek = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
-  const dayName = daysOfWeek[today.getDay()];
-
-  let maxBullets = "1 bis 2 dichte Stichpunkte";
-  let emojiInstruction = "";
-  if (lengthMode === 'compact') {
-    maxBullets = "maximal 1 bis 2 sehr kurze, extrem verdichtete Stichpunkte";
-    emojiInstruction = "VERWENDE KEINERLEI EMOJIS! Halte den Text schlicht, sauber und frei von Emojis.";
-  } else if (lengthMode === 'detailed') {
-    maxBullets = "3 bis 4 Stichpunkte";
-    emojiInstruction = "NUTZE PASSENDE EMOJIS an den Hauptstichpunkten (z. B. 🛠, 📋, 💡, 📱, ⚙️, 🚀), um die Notiz visuell ansprechend zu gliedern.";
-  } else {
-    maxBullets = "max. 2 bis 3 komprimierte Stichpunkte";
-    emojiInstruction = "NUTZE PASSENDE EMOJIS an den Hauptstichpunkten (z. B. 🛠, 📋, 💡, 📱, ⚙️, 🚀), um die Notiz visuell ansprechend zu gliedern.";
-  }
-
-  const systemInstruction = `Du bist ein präziser Zusammenfassungs-Assistent für FocusFlow.
-HEUTE IST: ${dateStr} (${dayName}).
-
-STRIKTES VERBOT VON ERFINDUNGEN & HALLUZINATIONEN (SEHR WICHTIG!):
-- Fasse AUSSCHLIESSLICH die Fakten zusammen, die der User tatsächlich im Text genannt hat!
-- ERFINDE KEINE NEUEN FEATURES, technische Anforderungen, Sicherheits-Layer, Sprachübersetzungen oder Termine/Deadlines, die der User NICHT im Text gesagt hat.
-
-BEREINIGTER FLIESSTEXT (cleanText):
-- Erstelle eine überarbeitete, perfekt lesbare Fließtext-Version des eingegebenen/gesprochenen Originaltextes.
-- ENTFERNE ALLE FÜLLWÖRTER (wie "ähm", "hm", "halt", "sozusagen", "wie gesagt", "äh", etc.), Versprecher, Stotterer und unnötige Satzwiederholungen.
-- Halte den Fließtext so nah wie möglich am gesprochenen Inhalt und Wortlaut des Users, aber mache ihn grammatikalisch sauber und flüssig zu lesen.
-
-FORMAT- & STRUKTURREGELN:
-1. ZEILE 1 (Haupttitel): "### **Prägnanter Titel**". KEIN Listenpunkt "-"!
-2. ZEILE 2 (Optionaler Untertitel): Falls sinnvoll, ein kleiner kursiver Untertitel direkt darunter: "*Kernziel oder Zusammenfassung in einem Satz*". KEIN Listenpunkt "-"!
-3. STICHPUNKTE:
-   - Maximal ${maxBullets}.
-   - Verdichte zusammengehörige Punkte in Klammern oder Kommas (z. B. "- 🛠 **Funktionen**: KI-Zusammenfassung von Texten (Inhaltsanalyse, Extraktion, Stilanpassung)").
-   - ${emojiInstruction}
-4. KEINE DATUMS- & UHRZEIT-REDUNDANZ IM TEXT:
-   - Da extrahierte Daten und Uhrzeiten automatisch oben als Badge über der Notiz gerendert werden, WIEDERHOLE DAS DATUM ODER DIE UHRZEIT NICHT MEHR EXPLIZIT IM TEXT DER STICHPUNKTE ODER IM TITEL! Halte den Zusammenfassungstext rein auf die inhaltlichen Aufgaben/Gedanken fokussiert.
-
-METADATEN-EXTRAKTION (STRIKT NUR WENN IM TEXT ERWÄHNT, SONST NULL):
-- extractedDateType: Bestimme die Art der Zeitangabe:
-  - "timeframe": Wenn ein Zeitraum/Spanne genannt wurde (z.B. "vom 10. bis 15. August", "nächste Woche Montag bis Mittwoch", "über das Wochenende").
-  - "appointment": Wenn ein konkreter Termin/Uhrzeit genannt wurde (z.B. "am 15.08. um 14 Uhr", "Termin morgen um 10:30").
-  - "deadline": Wenn eine Frist/Fälligkeit genannt wurde (z.B. "bis Freitag fertigstellen", "spätestens 15. August").
-  - null: Falls KEINE Zeitangabe im Text steht.
-- extractedDate: "YYYY-MM-DD" (Konkretes Datum oder Startdatum des Zeitraums relativ zu HEUTE ${dateStr}).
-- extractedEndDate: "YYYY-MM-DD" (NUR bei "timeframe", wenn ein Enddatum genannt wurde, sonst null).
-- extractedTime: "HH:MM" (Uhrzeit 24h, NUR falls konkret genannt, sonst null).
-
-GIB AUSSCHLIESSLICH SAUBERES JSON ZURÜCK:
-{
-  "title": "Titel ohne Markdown",
-  "cleanText": "Überarbeiteter Fließtext ohne Füllwörter und Stotterer...",
-  "extractedDateType": "deadline" | "appointment" | "timeframe" | null,
-  "extractedDate": "YYYY-MM-DD" | null,
-  "extractedEndDate": "YYYY-MM-DD" | null,
-  "extractedTime": "HH:MM" | null,
-  "summary": "### **Titel**\\n*Kursiver Untertitel*\\n- 🛠 **Kategorie**: Hauptpunkt (Detail 1, Detail 2)"
-}`;
-
-  try {
-    return await executeWithFallback(apiKey, aiModel, systemInstruction, async (model) => {
-      const result = await model.generateContent(text);
-      const rawOutput = result.response.text().trim();
-      
-      let cleaned = rawOutput;
-      if (cleaned.startsWith('```json')) cleaned = cleaned.replace(/^```json/, '');
-      if (cleaned.startsWith('```')) cleaned = cleaned.replace(/^```/, '');
-      if (cleaned.endsWith('```')) cleaned = cleaned.replace(/```$/, '');
-      cleaned = cleaned.trim();
-
-      try {
-        const parsed = JSON.parse(cleaned);
-        return {
-          title: parsed.title || '',
-          cleanText: parsed.cleanText || null,
-          extractedDateType: parsed.extractedDateType || null,
-          extractedDate: parsed.extractedDate || null,
-          extractedEndDate: parsed.extractedEndDate || null,
-          extractedTime: parsed.extractedTime || null,
-          summary: ensureBulletPoints(parsed.summary || '')
-        };
-      } catch (e) {
-        // Fallback if JSON parsing fails
-        const formattedSummary = ensureBulletPoints(rawOutput);
-        const firstLine = formattedSummary.split('\n')[0].replace(/^#{1,6}\s*/, '').replace(/\*/g, '').trim();
-        return {
-          title: firstLine || 'Gedanke',
-          cleanText: null,
-          extractedDateType: null,
-          extractedDate: null,
-          extractedEndDate: null,
-          extractedTime: null,
-          summary: formattedSummary
-        };
-      }
-    });
-  } catch (error) {
-    console.error("Fehler bei der Zusammenfassung (nach allen Fallbacks):", error);
-    return null;
-  }
-}
-
-export async function generateProjectStructure(text, options = {}, aiModel = 'eco') {
-  const apiKey = getApiKey();
-  if (!apiKey) return null;
-
-  const {
-    granularity = 'balanced',
-    startDate = '',
-    endDate = '',
-    estimateDates = true
-  } = typeof options === 'object' && options ? options : {};
-
-  let structureRules = 'Erstelle eine ausgewogene Struktur mit ca. 3-4 Phasen und je 2-4 Aufgaben.';
-  if (granularity === 'few_phases') {
-    structureRules = 'Erstelle WENIGE Phasen (z.B. 2 Phasen), aber dafür MEHR Aufgaben pro Phase (z.B. 5-7 Aufgaben pro Phase).';
-  } else if (granularity === 'many_phases') {
-    structureRules = 'Erstelle MEHRERE Phasen (z.B. 5-6 Phasen), aber dafür WENIGER Aufgaben pro Phase (z.B. 1-2 Aufgaben pro Phase).';
-  }
-
-  let dateRules = '';
-  if (estimateDates && (startDate || endDate)) {
-    dateRules = `Das Projekt besitzt den Zeitraum vom ${startDate || 'heute'} bis ${endDate || 'in der Zukunft'}. Trage für jede Phase (Feld "date", YYYY-MM-DD) und jede Aufgabe (Feld "date", YYYY-MM-DD) logische, gleichmäßig verteilte geschätzte Daten innerhalb dieses Zeitraums ein.`;
-  } else {
-    dateRules = 'Lass das Feld "date" bei Phasen und Aufgaben leer ("").';
-  }
-
-  const systemInstruction = `Du bist ein erfahrener Projekt-Management Assistent.
-Analysiere den folgenden Text und erstelle eine hochprofessionelle Phasen- und Aufgabenstruktur für ein Projekt.
-
-STRENG EINZUHALTENDE VORGABEN:
-- ${structureRules}
-- ${dateRules}
-
-Das JSON muss exakt dieses Format haben:
-{
-  "phases": [
-    {
-      "title": "Name der Phase",
-      "date": "YYYY-MM-DD",
-      "tasks": [
-        { "title": "Aufgabe 1", "date": "YYYY-MM-DD" },
-        { "title": "Aufgabe 2", "date": "YYYY-MM-DD" }
-      ]
+/**
+ * Helper to get authorization headers with Firebase ID token
+ */
+async function getAuthHeaders() {
+  const headers = { 'Content-Type': 'application/json' };
+  if (auth && auth.currentUser) {
+    try {
+      const token = await auth.currentUser.getIdToken();
+      headers['Authorization'] = `Bearer ${token}`;
+    } catch (e) {
+      console.warn('[Auth] Konnte ID-Token nicht abrufen:', e);
     }
-  ]
+  }
+  return headers;
 }
 
-Gib NUR das valide JSON zurück, ohne Markdown-Blöcke oder zusätzlichen Text.`;
+/**
+ * Streams AI Coach responses from backend proxy
+ */
+export async function askGeminiCoach({ prompt, systemInstruction, onChunk, aiModel = 'flash' }) {
+  const headers = await getAuthHeaders();
+
+  const response = await fetch('/api/gemini/coach', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ prompt, systemInstruction, aiModel })
+  });
+
+  if (!response.ok) {
+    let errorMsg = 'Fehler bei der Kommunikation mit dem KI-Coach.';
+    try {
+      const errJson = await response.json();
+      if (errJson?.error) errorMsg = errJson.error;
+    } catch {
+      // ignore
+    }
+    throw new Error(errorMsg);
+  }
+
+  if (!response.body) {
+    throw new Error('Kein Streaming-Response-Body vom Server empfangen.');
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let fullText = '';
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split('\n\n');
+    buffer = parts.pop() || '';
+
+    for (const part of parts) {
+      const trimmed = part.trim();
+      if (trimmed.startsWith('data: ')) {
+        const dataStr = trimmed.slice(6).trim();
+        if (dataStr === '[DONE]') break;
+        try {
+          const parsed = JSON.parse(dataStr);
+          if (parsed.chunk) {
+            fullText += parsed.chunk;
+            if (onChunk) onChunk(fullText);
+          }
+        } catch {
+          // ignore non-json chunks
+        }
+      }
+    }
+  }
+
+  return fullText;
+}
+
+/**
+ * Summarizes voice note via backend proxy
+ */
+export async function summarizeVoiceNote(text, aiModel = 'eco', lengthMode = 'normal') {
+  if (!text || !text.trim()) return null;
 
   try {
-    return await executeWithFallback(apiKey, aiModel, systemInstruction, async (model) => {
-      const result = await model.generateContent(text);
-      const rawOutput = result.response.text().trim();
-      let cleaned = rawOutput;
-      if (cleaned.startsWith('```json')) cleaned = cleaned.replace(/^```json/, '');
-      if (cleaned.endsWith('```')) cleaned = cleaned.replace(/```$/, '');
-      return JSON.parse(cleaned.trim());
+    const headers = await getAuthHeaders();
+    const response = await fetch('/api/gemini/summarize', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ text, aiModel, lengthMode })
     });
+
+    if (!response.ok) {
+      console.error('Server returned error on summarize:', response.status, response.statusText);
+      return null;
+    }
+
+    const data = await response.json();
+    return {
+      title: data.title || '',
+      cleanText: data.cleanText || null,
+      extractedDateType: data.extractedDateType || null,
+      extractedDate: data.extractedDate || null,
+      extractedEndDate: data.extractedEndDate || null,
+      extractedTime: data.extractedTime || null,
+      summary: ensureBulletPoints(data.summary || '')
+    };
   } catch (error) {
-    console.error("Fehler bei generateProjectStructure:", error);
+    console.error('Fehler bei der Zusammenfassung über Server-Proxy:', error);
     return null;
   }
 }
 
-export async function generateReminderStructure(text, aiModel = 'eco') {
-  const apiKey = getApiKey();
-  if (!apiKey) return null;
-
-  const systemInstruction = `Du bist ein Produktivitäts-Assistent.
-Analysiere den folgenden Text und erstelle eine JSON-Struktur für eine Erinnerung.
-Das JSON muss exakt dieses Format haben:
-{
-  "title": "Kurzer, prägnanter Titel für die Erinnerung",
-  "description": "Der ursprüngliche Text sinnvoll aufbereitet als Notiz/Beschreibung"
-}
-Gib NUR das JSON zurück, ohne Markdown-Blöcke oder zusätzlichen Text.`;
+/**
+ * Generates project structure (phases & tasks) via backend proxy
+ */
+export async function generateProjectStructure(text, options = {}, aiModel = 'eco') {
+  if (!text || !text.trim()) return null;
 
   try {
-    return await executeWithFallback(apiKey, aiModel, systemInstruction, async (model) => {
-      const result = await model.generateContent(text);
-      const rawOutput = result.response.text().trim();
-      let cleaned = rawOutput;
-      if (cleaned.startsWith('```json')) cleaned = cleaned.replace(/^```json/, '');
-      if (cleaned.endsWith('```')) cleaned = cleaned.replace(/```$/, '');
-      return JSON.parse(cleaned.trim());
+    const headers = await getAuthHeaders();
+    const response = await fetch('/api/gemini/generate-project', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ text, options, aiModel })
     });
+
+    if (!response.ok) {
+      console.error('Server returned error on generate-project:', response.status);
+      return null;
+    }
+
+    return await response.json();
   } catch (error) {
-    console.error("Fehler bei generateReminderStructure:", error);
+    console.error('Fehler bei generateProjectStructure über Server-Proxy:', error);
+    return null;
+  }
+}
+
+/**
+ * Generates reminder structure via backend proxy
+ */
+export async function generateReminderStructure(text, aiModel = 'eco') {
+  if (!text || !text.trim()) return null;
+
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch('/api/gemini/generate-reminder', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ text, aiModel })
+    });
+
+    if (!response.ok) {
+      console.error('Server returned error on generate-reminder:', response.status);
+      return null;
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Fehler bei generateReminderStructure über Server-Proxy:', error);
     return null;
   }
 }

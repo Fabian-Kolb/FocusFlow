@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useModalContext } from '../../context/ModalContext';
 import { summarizeVoiceNote, ensureBulletPoints } from '../../lib/gemini';
 import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import Card from '../ui/Card';
@@ -273,7 +274,7 @@ const Inbox = ({ setCurrentScreen }) => {
 
   const appendDirectly = (targetId, type) => {
     const rawText = triageText || '';
-    let htmlContent = marked.parse(ensureBulletPoints(rawText));
+    let htmlContent = DOMPurify.sanitize(marked.parse(ensureBulletPoints(rawText)));
     
     const newNote = {
       id: `note_${Date.now()}`,
@@ -348,9 +349,16 @@ const Inbox = ({ setCurrentScreen }) => {
 
     let htmlContent = marked.parse(item.summary || item.title || '');
     if (item.originalText && item.originalText !== (item.summary || item.title)) {
+      const escapedText = item.originalText
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
       htmlContent += '<hr/>';
-      htmlContent += `<h4>Original-Transkript</h4><p>${item.originalText.replace(/\n/g, '<br/>')}</p>`;
+      htmlContent += `<h4>Original-Transkript</h4><p>${escapedText.replace(/\n/g, '<br/>')}</p>`;
     }
+    htmlContent = DOMPurify.sanitize(htmlContent);
     
     // Extract a nice title from the summary (first line)
     const firstLine = (item.title || item.summary || '').split('\n')[0].replace(/[*#]/g, '').trim();
