@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { fetchCalendarEvents, deleteCalendarEvent, createCalendarEvent, updateCalendarEvent, TokenExpiredError } from '../../lib/calendarAPI';
+import { fetchCalendarEvents, deleteCalendarEvent, createCalendarEvent, updateCalendarEvent } from '../../lib/calendarAPI';
 import Card from '../ui/Card';
 import Badge from '../ui/Badge';
 import EventEditForm from './EventEditForm';
@@ -45,7 +45,7 @@ const SkeletonCalendarGrid = () => (
 );
 
 const Calendar = () => {
-  const { user, googleCalendarToken, linkGoogleCalendar, refreshGoogleToken, setGoogleCalendarToken } = useAuth();
+  const { user, isCalendarConnected, linkGoogleCalendar, disconnectGoogleCalendar } = useAuth();
   
   const today = new Date();
   const [currentMonthIndex, setCurrentMonthIndex] = useState(today.getMonth());
@@ -149,10 +149,10 @@ const Calendar = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Hole Events, wenn ein Token vorhanden ist ODER sich der Monat ändert
+  // Hole Events, wenn verbunden ODER sich der Monat ändert
   useEffect(() => {
     async function loadEvents() {
-      if (!googleCalendarToken) return;
+      if (!isCalendarConnected) return;
       
       const cacheKey = `${currentYear}-${currentMonthIndex}`;
       
@@ -166,44 +166,26 @@ const Calendar = () => {
       setIsLoading(true);
       setError(null);
       try {
-        const fetchedEvents = await fetchCalendarEvents(googleCalendarToken, currentYear, currentMonthIndex);
+        const fetchedEvents = await fetchCalendarEvents(currentYear, currentMonthIndex);
         setEventsCache(prev => ({ ...prev, [cacheKey]: fetchedEvents }));
         setEvents(fetchedEvents);
       } catch (err) {
-        // Token abgelaufen → automatisch erneuern und erneut versuchen
-        if (err instanceof TokenExpiredError) {
-          console.info('Google Token abgelaufen – versuche automatische Erneuerung...');
-          const newToken = await refreshGoogleToken();
-          if (newToken) {
-            try {
-              const fetchedEvents = await fetchCalendarEvents(newToken, currentYear, currentMonthIndex);
-              setEventsCache(prev => ({ ...prev, [cacheKey]: fetchedEvents }));
-              setEvents(fetchedEvents);
-              return; // Erfolgreich nach Refresh
-            } catch (retryErr) {
-              console.error('Fehler nach Token-Refresh', retryErr);
-            }
-          }
-          // Refresh fehlgeschlagen → Token-Verbindung unterbrochen
-          setError('Deine Google-Kalender-Verbindung ist abgelaufen. Bitte klicke auf "Neu verbinden".');
-        } else {
-          console.error("Fehler beim Laden der Kalenderdaten", err);
-          setError("Die Kalenderdaten konnten nicht geladen werden.");
-        }
+        console.error("Fehler beim Laden der Kalenderdaten", err);
+        setError("Die Kalenderdaten konnten nicht geladen werden.");
       } finally {
         setIsLoading(false);
       }
     }
     
     loadEvents();
-  }, [googleCalendarToken, currentMonthIndex, currentYear]);
+  }, [isCalendarConnected, currentMonthIndex, currentYear]);
 
   const handleConnectCalendar = async () => {
     try {
       await linkGoogleCalendar();
     } catch (err) {
       console.error("Verbindung fehlgeschlagen", err);
-      alert("Fehler bei der Verbindung mit Google Kalender.");
+      alert("Fehler bei der Verbindung mit Google Kalender: " + (err.message || err));
     }
   };
 
@@ -255,60 +237,34 @@ const Calendar = () => {
 
   const handleSaveEvent = async (eventData, eventId) => {
     try {
-      let token = googleCalendarToken;
-      const runSave = async (t) => {
-        if (eventId) {
-          await updateCalendarEvent(t, eventId, eventData);
-        } else {
-          await createCalendarEvent(t, eventData);
-        }
-        const cacheKey = `${currentYear}-${currentMonthIndex}`;
-        const fetchedEvents = await fetchCalendarEvents(t, currentYear, currentMonthIndex);
-        setEventsCache(prev => ({ ...prev, [cacheKey]: fetchedEvents }));
-        setEvents(fetchedEvents);
-        setEditingEvent(null);
-      };
-      
-      try {
-        await runSave(token);
-      } catch (err) {
-        if (err instanceof TokenExpiredError) {
-          const newToken = await refreshGoogleToken();
-          if (newToken) await runSave(newToken);
-          else throw new Error('Token-Refresh fehlgeschlagen');
-        } else throw err;
+      if (eventId) {
+        await updateCalendarEvent(eventId, eventData);
+      } else {
+        await createCalendarEvent(eventData);
       }
+      const cacheKey = `${currentYear}-${currentMonthIndex}`;
+      const fetchedEvents = await fetchCalendarEvents(currentYear, currentMonthIndex);
+      setEventsCache(prev => ({ ...prev, [cacheKey]: fetchedEvents }));
+      setEvents(fetchedEvents);
+      setEditingEvent(null);
     } catch (err) {
       console.error("Fehler beim Speichern", err);
-      alert("Fehler beim Speichern des Termins.");
+      alert("Fehler beim Speichern des Termins: " + (err.message || err));
     }
   };
 
   const handleDeleteEvent = async (eventId) => {
     if (!window.confirm("Diesen Termin wirklich löschen?")) return;
     try {
-      let token = googleCalendarToken;
-      const runDelete = async (t) => {
-        await deleteCalendarEvent(t, eventId);
-        const cacheKey = `${currentYear}-${currentMonthIndex}`;
-        const fetchedEvents = await fetchCalendarEvents(t, currentYear, currentMonthIndex);
-        setEventsCache(prev => ({ ...prev, [cacheKey]: fetchedEvents }));
-        setEvents(fetchedEvents);
-        setSelectedEvent(null);
-      };
-      
-      try {
-        await runDelete(token);
-      } catch (err) {
-        if (err instanceof TokenExpiredError) {
-          const newToken = await refreshGoogleToken();
-          if (newToken) await runDelete(newToken);
-          else throw new Error('Token-Refresh fehlgeschlagen');
-        } else throw err;
-      }
+      await deleteCalendarEvent(eventId);
+      const cacheKey = `${currentYear}-${currentMonthIndex}`;
+      const fetchedEvents = await fetchCalendarEvents(currentYear, currentMonthIndex);
+      setEventsCache(prev => ({ ...prev, [cacheKey]: fetchedEvents }));
+      setEvents(fetchedEvents);
+      setSelectedEvent(null);
     } catch (err) {
       console.error("Fehler beim Löschen", err);
-      alert("Fehler beim Löschen des Termins.");
+      alert("Fehler beim Löschen des Termins: " + (err.message || err));
     }
   };
 
@@ -357,12 +313,11 @@ const Calendar = () => {
   const handleAddEventOnDay = (e, dayNum) => {
     e.stopPropagation();
     setSelectedDay(dayNum);
-    const d = new Date(currentYear, currentMonthIndex, dayNum);
-    setEditingEvent({}); // Öffnet Maske (useEffect in EventEditForm nutzt selectedDateObj, was wir gerade indirekt setzen, aber wir können auch initialEvent={} nehmen)
+    setEditingEvent({});
   };
 
   // Render State 1: Nicht verbunden
-  if (!googleCalendarToken) {
+  if (!isCalendarConnected) {
     return (
       <div className="screen-transition flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
         <div className="w-24 h-24 bg-surface-low rounded-full flex items-center justify-center mb-6 text-primary">
@@ -370,7 +325,7 @@ const Calendar = () => {
         </div>
         <h2 className="text-2xl font-bold mb-3">Kalender verbinden</h2>
         <p className="text-on-surface-variant max-w-md mb-8">
-          Verbinde deinen Google Kalender, um deine Projekte, Deadlines und Fokus-Zeiten direkt hier zu sehen und zu verwalten.
+          Verbinde deinen Google Kalender einmalig, um deine Projekte, Deadlines und Fokus-Zeiten dauerhaft zu synchronisieren.
         </p>
         <button 
           onClick={handleConnectCalendar}

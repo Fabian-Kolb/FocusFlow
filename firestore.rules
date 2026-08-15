@@ -18,8 +18,16 @@ service cloud.firestore {
                      (request.auth.token.email == email || request.auth.token.email.lower() == email);
     }
 
-    match /users/{userId}/{document=**} {
-      allow read, write: if isWhitelisted() && request.auth.uid == userId;
+    match /users/{userId} {
+      // Strikt gesperrt für alle Clients (nur Firebase Admin SDK / Backend darf zugreifen):
+      match /tokens/{document=**} {
+        allow read, write: if false;
+      }
+
+      // Alle anderen Benutzerdaten (Projekte, Notizen, Aufgaben, etc.):
+      match /{document=**} {
+        allow read, write: if isWhitelisted() && request.auth.uid == userId;
+      }
     }
   }
 }

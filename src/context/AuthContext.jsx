@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { 
   onAuthStateChanged, 
   signInWithEmailAndPassword,
@@ -7,12 +7,15 @@ import {
   signOut,
   updateProfile,
   updatePassword,
-  sendPasswordResetEmail,
-  linkWithPopup,
-  getAuth
+  sendPasswordResetEmail
 } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { doc, getDoc, getFirestore } from 'firebase/firestore';
+import { 
+  getCalendarConnectionStatus, 
+  getCalendarAuthUrl, 
+  disconnectGoogleCalendar as disconnectCalendarApi 
+} from '../lib/calendarAPI';
 
 const AuthContext = createContext();
 
@@ -23,9 +26,20 @@ export function useAuth() {
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [googleCalendarToken, setGoogleCalendarToken] = useState(() => {
-    return localStorage.getItem('googleCalendarToken') || null;
-  });
+  const [isCalendarConnected, setIsCalendarConnected] = useState(false);
+
+  // Synchronisiere Verbindungsstatus, wenn sich der Nutzer ändert
+  useEffect(() => {
+    const checkStatus = async () => {
+      if (user) {
+        const connected = await getCalendarConnectionStatus();
+        setIsCalendarConnected(connected);
+      } else {
+        setIsCalendarConnected(false);
+      }
+    };
+    checkStatus();
+  }, [user]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -41,16 +55,14 @@ export function AuthProvider({ children }) {
           console.error("Access Denied: User is not in the whitelist.", error);
           await signOut(auth);
           setUser(null);
-          localStorage.removeItem('googleCalendarToken');
-          setGoogleCalendarToken(null);
+          setIsCalendarConnected(false);
           window.dispatchEvent(new CustomEvent('auth-error', { 
             detail: 'Dein Account ist für diese App nicht freigeschaltet. Bitte kontaktiere den Administrator.' 
           }));
         }
       } else {
         setUser(null);
-        localStorage.removeItem('googleCalendarToken');
-        setGoogleCalendarToken(null);
+        setIsCalendarConnected(false);
       }
       setLoading(false);
     });
@@ -65,101 +77,72 @@ export function AuthProvider({ children }) {
 
   const loginWithGoogle = async () => {
     const provider = new GoogleAuthProvider();
-    provider.addScope('https://www.googleapis.com/auth/calendar.events');
     const result = await signInWithPopup(auth, provider);
-    
-    // Extrahiere das Access Token für die Kalender API
-    const credential = GoogleAuthProvider.credentialFromResult(result);
-    if (credential && credential.accessToken) {
-      setGoogleCalendarToken(credential.accessToken);
-      localStorage.setItem('googleCalendarToken', credential.accessToken);
-    }
-    
     return result;
   };
 
+  /**
+   * Startet den OAuth 2.0 Offline-Access-Flow für Google Kalender
+   */
   const linkGoogleCalendar = async () => {
     if (!auth.currentUser) return;
+
     try {
-      const provider = new GoogleAuthProvider();
-      provider.addScope('https://www.googleapis.com/auth/calendar.events');
-      
-      // Prüfen, ob der Nutzer ohnehin schon mit Google eingeloggt ist
-      const isGoogleUser = auth.currentUser.providerData.some(
-        (profile) => profile.providerId === 'google.com'
+      const authUrl = await getCalendarAuthUrl();
+      const width = 500;
+      const height = 650;
+      const left = window.screenX + (window.outerWidth - width) / 2;
+      const top = window.screenY + (window.outerHeight - height) / 2;
+
+      const popup = window.open(
+        authUrl,
+        'focusflow_google_oauth',
+        `width=${width},height=${height},left=${left},top=${top},status=no,resizable=yes`
       );
 
-      let result;
-      if (isGoogleUser) {
-        // Wenn es schon ein Google-Nutzer ist, machen wir einfach einen Re-Login
-        // um die neuen Scopes zu bekommen. Das verhindert den "popup-blocked" Fehler!
-        result = await signInWithPopup(auth, provider);
-      } else {
-        // Nur wenn es ein reiner E-Mail Nutzer ist, versuchen wir den Account zu verknüpfen
-        result = await linkWithPopup(auth.currentUser, provider);
+      if (!popup) {
+        throw new Error('Popup wurde vom Browser blockiert. Bitte erlaube Popups für diese Website.');
       }
 
-      const credential = GoogleAuthProvider.credentialFromResult(result);
-      if (credential && credential.accessToken) {
-        setGoogleCalendarToken(credential.accessToken);
-        localStorage.setItem('googleCalendarToken', credential.accessToken);
-      }
-      return result;
+      return new Promise((resolve) => {
+        const handleMessage = (event) => {
+          if (event.data?.type === 'FOCUSFLOW_CALENDAR_CONNECTED') {
+            window.removeEventListener('message', handleMessage);
+            setIsCalendarConnected(true);
+            resolve(true);
+          }
+        };
+
+        window.addEventListener('message', handleMessage);
+
+        // Fallback-Timer zum Prüfen, ob das Fenster geschlossen wurde
+        const checkClosed = setInterval(async () => {
+          if (popup.closed) {
+            clearInterval(checkClosed);
+            window.removeEventListener('message', handleMessage);
+            const connected = await getCalendarConnectionStatus();
+            setIsCalendarConnected(connected);
+            resolve(connected);
+          }
+        }, 1000);
+      });
     } catch (error) {
       console.error("Error linking Google Calendar:", error);
-      
-      // Falls wir trotzdem in einen Fehler laufen (z.B. User ist E-Mail, aber die Google-Mail gehört schon wem anders)
-      if (error.code === 'auth/popup-blocked') {
-        throw new Error('Dein Browser hat das Popup blockiert. Bitte erlaube Popups für diese Seite und klicke erneut.');
-      } else if (error.code === 'auth/credential-already-in-use') {
-        throw new Error('Dieser Google-Account wird bereits von einem anderen Profil verwendet. Bitte logge dich komplett aus und melde dich direkt mit Google an.');
-      }
-      
       throw error;
     }
   };
 
-  // Holt einen neuen Access Token ohne Nutzer-Interaktion (Token-Refresh)
-  const refreshGoogleToken = async () => {
-    if (!auth.currentUser) return null;
-    
-    const isGoogleUser = auth.currentUser.providerData.some(
-      (profile) => profile.providerId === 'google.com'
-    );
-    
-    if (!isGoogleUser) return null;
-    
+  const disconnectGoogleCalendar = async () => {
     try {
-      const provider = new GoogleAuthProvider();
-      provider.addScope('https://www.googleapis.com/auth/calendar.events');
-      // prompt: 'none' versucht stumm zu authentifizieren
-      provider.setCustomParameters({ prompt: 'none' });
-      
-      const result = await signInWithPopup(auth, provider);
-      const credential = GoogleAuthProvider.credentialFromResult(result);
-      
-      if (credential && credential.accessToken) {
-        setGoogleCalendarToken(credential.accessToken);
-        localStorage.setItem('googleCalendarToken', credential.accessToken);
-        return credential.accessToken;
-      }
-    } catch (error) {
-      // Bei 'none'-Fehler (z.B. popup_failed_to_open) den Token löschen
-      console.warn('Token-Refresh fehlgeschlagen, bitte neu einloggen:', error.code);
-      localStorage.removeItem('googleCalendarToken');
-      setGoogleCalendarToken(null);
+      await disconnectCalendarApi();
+      setIsCalendarConnected(false);
+    } catch (err) {
+      console.error('Fehler beim Trennen von Google Calendar:', err);
     }
-    return null;
-  };
-
-  const disconnectGoogleCalendar = () => {
-    localStorage.removeItem('googleCalendarToken');
-    setGoogleCalendarToken(null);
   };
 
   const logout = async () => {
-    localStorage.removeItem('googleCalendarToken');
-    setGoogleCalendarToken(null);
+    setIsCalendarConnected(false);
     return signOut(auth);
   };
 
@@ -181,12 +164,12 @@ export function AuthProvider({ children }) {
   const value = {
     user,
     loading,
-    googleCalendarToken,
-    setGoogleCalendarToken,
+    isCalendarConnected,
+    googleCalendarToken: isCalendarConnected ? 'connected' : null, // Abwärtskompatibilität
+    setIsCalendarConnected,
     loginWithEmail,
     loginWithGoogle,
     linkGoogleCalendar,
-    refreshGoogleToken,
     disconnectGoogleCalendar,
     logout,
     updateUserProfile,
