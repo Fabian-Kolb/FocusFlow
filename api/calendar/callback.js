@@ -13,9 +13,10 @@ export default async function handler(req, res) {
   const googleClientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID;
   const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
+  const clientRedirectUri = req.query.redirectUri;
   const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3000';
   const proto = req.headers['x-forwarded-proto'] || 'https';
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${proto}://${host}/api/calendar/callback`;
+  const redirectUri = clientRedirectUri || process.env.GOOGLE_REDIRECT_URI || `${proto}://${host}/api/calendar/callback`;
 
   try {
     const { uid } = verifyOAuthState(state, googleClientSecret);
@@ -26,7 +27,9 @@ export default async function handler(req, res) {
       redirectUri
     });
 
-    // In a stateless/serverless environment, we provide the response token to close popup
+    const accessToken = tokens.accessToken || '';
+    const refreshToken = tokens.refreshToken || '';
+
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     return res.status(200).send(`
       <!DOCTYPE html>
@@ -41,9 +44,14 @@ export default async function handler(req, res) {
           </div>
           <script>
             if (window.opener) {
-              window.opener.postMessage({ type: 'FOCUSFLOW_CALENDAR_CONNECTED', uid: '${uid}' }, '*');
+              window.opener.postMessage({
+                type: 'FOCUSFLOW_CALENDAR_CONNECTED',
+                uid: '${uid}',
+                accessToken: '${accessToken}',
+                refreshToken: '${refreshToken}'
+              }, '*');
             }
-            setTimeout(() => window.close(), 1200);
+            setTimeout(() => window.close(), 1000);
           </script>
         </body>
       </html>

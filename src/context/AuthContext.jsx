@@ -14,6 +14,8 @@ import { doc, getDoc, getFirestore } from 'firebase/firestore';
 import { 
   getCalendarConnectionStatus, 
   getCalendarAuthUrl, 
+  saveCalendarTokens,
+  clearCalendarTokens,
   disconnectGoogleCalendar as disconnectCalendarApi 
 } from '../lib/calendarAPI';
 
@@ -56,6 +58,7 @@ export function AuthProvider({ children }) {
           await signOut(auth);
           setUser(null);
           setIsCalendarConnected(false);
+          clearCalendarTokens();
           window.dispatchEvent(new CustomEvent('auth-error', { 
             detail: 'Dein Account ist für diese App nicht freigeschaltet. Bitte kontaktiere den Administrator.' 
           }));
@@ -63,6 +66,7 @@ export function AuthProvider({ children }) {
       } else {
         setUser(null);
         setIsCalendarConnected(false);
+        clearCalendarTokens();
       }
       setLoading(false);
     });
@@ -105,11 +109,14 @@ export function AuthProvider({ children }) {
       }
 
       return new Promise((resolve) => {
-        const handleMessage = (event) => {
+        const handleMessage = async (event) => {
           if (event.data?.type === 'FOCUSFLOW_CALENDAR_CONNECTED') {
             window.removeEventListener('message', handleMessage);
-            if (auth.currentUser) {
-              localStorage.setItem('ff_cal_connected_' + auth.currentUser.uid, 'true');
+            if (event.data.accessToken || event.data.refreshToken) {
+              saveCalendarTokens({
+                accessToken: event.data.accessToken,
+                refreshToken: event.data.refreshToken
+              });
             }
             setIsCalendarConnected(true);
             resolve(true);
@@ -123,7 +130,7 @@ export function AuthProvider({ children }) {
           if (popup.closed) {
             clearInterval(checkClosed);
             window.removeEventListener('message', handleMessage);
-            const connected = auth.currentUser ? (localStorage.getItem('ff_cal_connected_' + auth.currentUser.uid) === 'true') : false;
+            const connected = await getCalendarConnectionStatus();
             setIsCalendarConnected(connected);
             resolve(connected);
           }
@@ -136,9 +143,7 @@ export function AuthProvider({ children }) {
   };
 
   const disconnectGoogleCalendar = async () => {
-    if (auth.currentUser) {
-      localStorage.removeItem('ff_cal_connected_' + auth.currentUser.uid);
-    }
+    clearCalendarTokens();
     setIsCalendarConnected(false);
     try {
       await disconnectCalendarApi();
@@ -148,9 +153,7 @@ export function AuthProvider({ children }) {
   };
 
   const logout = async () => {
-    if (auth.currentUser) {
-      localStorage.removeItem('ff_cal_connected_' + auth.currentUser.uid);
-    }
+    clearCalendarTokens();
     setIsCalendarConnected(false);
     return signOut(auth);
   };
