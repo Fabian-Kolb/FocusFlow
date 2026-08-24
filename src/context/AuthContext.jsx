@@ -85,6 +85,15 @@ export function AuthProvider({ children }) {
     return result;
   };
 
+  const loginAsGuest = () => {
+    setUser({
+      uid: 'guest_preview_user',
+      email: 'gast@focusflow.app',
+      displayName: 'Gast-Benutzer',
+      isGuest: true
+    });
+  };
+
   /**
    * Startet den OAuth 2.0 Offline-Access-Flow für Google Kalender
    */
@@ -181,6 +190,7 @@ export function AuthProvider({ children }) {
     setIsCalendarConnected,
     loginWithEmail,
     loginWithGoogle,
+    loginAsGuest,
     linkGoogleCalendar,
     disconnectGoogleCalendar,
     logout,

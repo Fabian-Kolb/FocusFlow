@@ -5,6 +5,104 @@ import { useAuth } from './AuthContext';
 
 const ModalContext = createContext(null);
 
+const DEMO_PROJECTS = [
+  {
+    id: 'demo_proj_1',
+    title: 'Workflow & Produkt-Optimierung',
+    description: 'Strukturierte Aufgabenplanung, Deep Work Phasen und Kanban-Steuerung.',
+    status: 'IN ARBEIT',
+    isPaused: false,
+    inKanban: true,
+    nextStep: 'Nächste Etappe: E2E-Tests & Performance Audit',
+    startDate: '2026-08-01',
+    endDate: '2026-09-30',
+    categoryId: 'allgemein',
+    dateRange: '01.08.26 – 30.09.26',
+    daysRemaining: '37 TAGE',
+    progress: 65,
+    timeElapsed: 25,
+    phasesCompleted: 1,
+    phasesTotal: 3,
+    tasksCompleted: 4,
+    tasksTotal: 6,
+    warning: null,
+    phases: [
+      {
+        id: 'ph_demo_1',
+        title: 'PHASE 01: ARCHITEKTUR & SETUP',
+        dateInfo: 'Abgeschlossen',
+        completed: true,
+        description: 'Aufbau der Serverless-Architektur und Schnittstellen',
+        tasks: [
+          { id: 't_demo_1', title: 'Serverless-Endpunkte auf Vercel konfigurieren', date: '05.08.26', completed: true, note: 'Vercel Functions & CORS' },
+          { id: 't_demo_2', title: 'Google OAuth 2.0 Flow einrichten', date: '10.08.26', completed: true, note: 'Sichere Token-Verwaltung' }
+        ],
+        materials: []
+      },
+      {
+        id: 'ph_demo_2',
+        title: 'PHASE 02: ENTWICKLUNG & KI-INTEGRATION',
+        dateInfo: 'Aktuell',
+        completed: false,
+        description: 'Anbindung von Gemini 3.6 Flash & Streaming Response',
+        tasks: [
+          { id: 't_demo_3', title: 'Gemini 3.6 Flash Streaming Co-Pilot integrieren', date: '18.08.26', completed: true, note: 'SSE Response' },
+          { id: 't_demo_4', title: 'E2E-Tests für alle Screens verifizieren', date: '25.08.26', completed: true, note: '118/118 Tests grün' },
+          { id: 't_demo_5', title: 'Performance & Ladezeiten optimieren', date: '30.08.26', completed: false, note: 'Code-Splitting' }
+        ],
+        materials: []
+      },
+      {
+        id: 'ph_demo_3',
+        title: 'PHASE 03: GO-LIVE & ROLLOUT',
+        dateInfo: 'Geplant',
+        completed: false,
+        description: 'Öffentlicher Rollout und Monitoring',
+        tasks: [
+          { id: 't_demo_6', title: 'Live-Monitoring & Error Tracking prüfen', date: '15.09.26', completed: false, note: '' }
+        ],
+        materials: []
+      }
+    ],
+    notes: [
+      { id: 'n_demo_1', title: 'Architektur-Notiz', content: 'Vercel Serverless Functions kapseln alle sensiblen API-Schlüssel sicher vor dem Client ab.', date: '12.08.2026' }
+    ],
+    history: [
+      {
+        id: 'h_demo_1',
+        date: '24. AUG 2026 • 12:00 Uhr',
+        title: 'Projekt initialisiert',
+        category: 'Demo-Projekt',
+        icon: 'rocket_launch',
+        badgeBg: 'bg-primary text-white'
+      }
+    ]
+  }
+];
+
+const DEMO_REMINDERS = [
+  {
+    id: 'demo_rem_1',
+    title: 'Wöchentliches Review der Projekt-Ziele',
+    description: 'Fortschritt der offenen Phasen und nächste Meilensteine abgleichen.',
+    priority: 'hoch',
+    categoryId: 'allgemein',
+    date: '2026-08-28',
+    time: '10:00',
+    completed: false
+  },
+  {
+    id: 'demo_rem_2',
+    title: 'Code-Qualität & Audit prüfen',
+    description: 'Linter-Checks und Unit-Tests ausführen.',
+    priority: 'mittel',
+    categoryId: 'allgemein',
+    date: '2026-08-30',
+    time: '14:30',
+    completed: false
+  }
+];
+
 export const ModalProvider = ({ children }) => {
   const { user } = useAuth();
   
@@ -55,6 +153,18 @@ export const ModalProvider = ({ children }) => {
       setProjects([]);
       setReminders([]);
       setInboxItems({ today: [], yesterday: [] });
+      setTrashedProjects([]);
+      setTrashedReminders([]);
+      setTrashedInboxItems([]);
+      return;
+    }
+
+    if (user.isGuest) {
+      setProjects(DEMO_PROJECTS);
+      setReminders(DEMO_REMINDERS);
+      setInboxItems({ today: [], yesterday: [] });
+      setProjectCategories([{ id: 'allgemein', name: 'Allgemein', isExpanded: true, createdAt: 0 }]);
+      setReminderCategories([{ id: 'allgemein', name: 'Allgemein', isExpanded: true, createdAt: 0 }]);
       setTrashedProjects([]);
       setTrashedReminders([]);
       setTrashedInboxItems([]);
@@ -209,6 +319,16 @@ export const ModalProvider = ({ children }) => {
   // Helper to save a project directly to Firestore
   const saveProject = async (project) => {
     if (!user) return;
+    if (user.isGuest) {
+      setProjects(prev => {
+        const exists = prev.some(p => p.id === project.id);
+        if (exists) {
+          return prev.map(p => p.id === project.id ? project : p);
+        }
+        return [project, ...prev];
+      });
+      return;
+    }
     await setDoc(doc(db, 'users', user.uid, 'projects', project.id), project);
   };
 
@@ -746,6 +866,16 @@ export const ModalProvider = ({ children }) => {
   // Reminders Helpers
   const saveReminder = async (rem) => {
     if (!user) return;
+    if (user.isGuest) {
+      setReminders(prev => {
+        const exists = prev.some(r => r.id === rem.id);
+        if (exists) {
+          return prev.map(r => r.id === rem.id ? rem : r);
+        }
+        return [rem, ...prev];
+      });
+      return;
+    }
     await setDoc(doc(db, 'users', user.uid, 'reminders', rem.id), rem);
   };
 

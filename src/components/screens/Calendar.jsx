@@ -181,6 +181,10 @@ const Calendar = () => {
   }, [isCalendarConnected, currentMonthIndex, currentYear]);
 
   const handleConnectCalendar = async () => {
+    if (user?.isGuest) {
+      alert("Hinweis: Die Google Kalender-Synchronisation ist in dieser Vorschauversion nur für freigeschaltete Benutzerkonten verfügbar.");
+      return;
+    }
     try {
       await linkGoogleCalendar();
     } catch (err) {
