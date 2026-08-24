@@ -14,6 +14,7 @@ import ProfileModal from './components/modals/ProfileModal';
 import ReminderModal from './components/modals/ReminderModal';
 import MoveCategoryModal from './components/modals/MoveCategoryModal';
 import MoveStatusModal from './components/modals/MoveStatusModal';
+import GuestWelcomeModal from './components/modals/GuestWelcomeModal';
 
 // Screens
 import Dashboard from './components/screens/Dashboard';
@@ -91,6 +92,7 @@ function AppContent() {
       <ReminderModal setCurrentScreen={setCurrentScreen} />
       <MoveCategoryModal />
       <MoveStatusModal />
+      <GuestWelcomeModal />
     </div>
   );
 }
