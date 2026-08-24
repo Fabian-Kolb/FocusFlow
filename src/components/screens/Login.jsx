@@ -214,16 +214,16 @@ function Login() {
 
             <div className="space-y-3 text-xs text-on-surface-variant leading-relaxed">
               <p>
-                <strong>1. Art der Anwendung:</strong> FocusFlow ist eine moderne Web-Anwendung zur Aufgaben-, Projekt- und Workflow-Organisation mit integrierter KI-Unterstützung.
+                <strong>1. Bereitstellung („Wie besehen“):</strong> FocusFlow wird als webbasierte Anwendung zur Workflow- und Aufgabenorganisation zur Verfügung gestellt. Die Nutzung aller Funktionen erfolgt stets auf eigenes Risiko und in eigener Verantwortung.
               </p>
               <p>
-                <strong>2. Gast- und Testzugänge:</strong> Im Gast-Modus werden Daten lokal in deiner aktuellen Browser-Sitzung verarbeitet. Es erfolgt keine dauerhafte Speicherung auf Servern. Für Gast- und Testkonten wird keine Gewährleistung oder Haftung für Datensicherheit oder den Erhalt von Daten übernommen.
+                <strong>2. Haftungsausschluss für Daten & Verfügbarkeit:</strong> Es wird ausdrücklich keine Haftung oder Gewährleistung für die Richtigkeit, Vollständigkeit, dauerhafte Speicherung oder Wiederherstellung von erstellten Projekten, Aufgaben, Notizen oder Terminen übernommen. Ein Anspruch auf eine unterbrechungsfreie oder fehlerfreie Verfügbarkeit des Dienstes besteht nicht.
               </p>
               <p>
-                <strong>3. Google Kalender & Schnittstellen:</strong> Der optionale Zugriff auf Google Kalender erfolgt ausschließlich zur Synchronisation von Terminen. Die Kalender-Schnittstelle befindet sich in einer geschlossenen Preview-Phase für autorisierte Konten. Es werden keine Kalenderdaten an unbefugte Dritte weitergegeben.
+                <strong>3. KI-generierte Inhalte:</strong> Alle vom KI-Coach oder automatisierten Assistenten erzeugten Antworten, Vorschläge und Zusammenfassungen dienen reinen Informationszwecken. Für etwaige Entscheidungen, Handlungen oder Folgeschäden, die aus der Nutzung der KI-Ausgaben resultieren, wird jegliche Haftung ausgeschlossen.
               </p>
               <p>
-                <strong>4. KI-Verarbeitung:</strong> Anfragen an den KI-Coach werden über gesicherte Server-Schnittstellen direkt zur Erstellung von Vorschlägen und Zusammenfassungen verarbeitet.
+                <strong>4. Schnittstellen & Drittanbieter:</strong> Für die ständige Erreichbarkeit und fehlerfreie Funktion von angebundenen Drittanbieter-Diensten (z. B. Google Kalender oder externe Cloud-Dienste) sowie für etwaige Datenübertragungsfehler wird keine Haftung übernommen.
               </p>
             </div>
 
