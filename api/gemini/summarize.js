@@ -2,10 +2,11 @@
 import { handleSummarize } from '../../server/geminiService.js';
 
 export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
   if (req.method === 'OPTIONS') {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     return res.status(204).end();
   }
 
@@ -15,17 +16,23 @@ export default async function handler(req, res) {
 
   const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: 'Kein GEMINI_API_KEY im Server hinterlegt.' });
+    return res.status(500).json({ error: 'Server: Kein GEMINI_API_KEY in Vercel Environment Variables hinterlegt.' });
   }
 
-  const body = req.body || {};
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  let body = req.body || {};
+  if (typeof body === 'string') {
+    try {
+      body = JSON.parse(body);
+    } catch {
+      // ignore
+    }
+  }
 
   try {
     const result = await handleSummarize({
       apiKey,
       text: body.text,
-      aiModel: body.aiModel,
+      aiModel: body.aiModel || 'flash',
       lengthMode: body.lengthMode
     });
     return res.status(200).json(result);

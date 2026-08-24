@@ -8,6 +8,11 @@ export default async function handler(req, res) {
     return res.status(204).end();
   }
 
-  // Graceful status response
-  return res.status(200).json({ connected: true });
+  const uid = req.query.uid;
+  // If no UID is provided, default to disconnected
+  if (!uid) {
+    return res.status(200).json({ connected: false });
+  }
+
+  return res.status(200).json({ connected: false });
 }

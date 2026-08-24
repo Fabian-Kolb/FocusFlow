@@ -108,6 +108,9 @@ export function AuthProvider({ children }) {
         const handleMessage = (event) => {
           if (event.data?.type === 'FOCUSFLOW_CALENDAR_CONNECTED') {
             window.removeEventListener('message', handleMessage);
+            if (auth.currentUser) {
+              localStorage.setItem('ff_cal_connected_' + auth.currentUser.uid, 'true');
+            }
             setIsCalendarConnected(true);
             resolve(true);
           }
@@ -120,7 +123,7 @@ export function AuthProvider({ children }) {
           if (popup.closed) {
             clearInterval(checkClosed);
             window.removeEventListener('message', handleMessage);
-            const connected = await getCalendarConnectionStatus();
+            const connected = auth.currentUser ? (localStorage.getItem('ff_cal_connected_' + auth.currentUser.uid) === 'true') : false;
             setIsCalendarConnected(connected);
             resolve(connected);
           }
@@ -133,15 +136,21 @@ export function AuthProvider({ children }) {
   };
 
   const disconnectGoogleCalendar = async () => {
+    if (auth.currentUser) {
+      localStorage.removeItem('ff_cal_connected_' + auth.currentUser.uid);
+    }
+    setIsCalendarConnected(false);
     try {
       await disconnectCalendarApi();
-      setIsCalendarConnected(false);
     } catch (err) {
       console.error('Fehler beim Trennen von Google Calendar:', err);
     }
   };
 
   const logout = async () => {
+    if (auth.currentUser) {
+      localStorage.removeItem('ff_cal_connected_' + auth.currentUser.uid);
+    }
     setIsCalendarConnected(false);
     return signOut(auth);
   };

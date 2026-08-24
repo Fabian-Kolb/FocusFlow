@@ -2,10 +2,11 @@
 import { handleCoachStream } from '../../server/geminiService.js';
 
 export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
   if (req.method === 'OPTIONS') {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     return res.status(204).end();
   }
 
@@ -15,26 +16,37 @@ export default async function handler(req, res) {
 
   const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: 'Kein GEMINI_API_KEY im Server hinterlegt.' });
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.write(`data: ${JSON.stringify({ error: 'Server: Kein GEMINI_API_KEY in Vercel Environment Variables hinterlegt.' })}\n\n`);
+    res.write('data: [DONE]\n\n');
+    return res.end();
   }
 
-  const body = req.body || {};
+  let body = req.body || {};
+  if (typeof body === 'string') {
+    try {
+      body = JSON.parse(body);
+    } catch {
+      // ignore
+    }
+  }
 
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('X-Accel-Buffering', 'no');
 
   try {
     await handleCoachStream(
       {
         apiKey,
-        prompt: body.prompt,
+        prompt: body.prompt || 'Hallo Coach!',
         systemInstruction: body.systemInstruction,
-        aiModel: body.aiModel
+        aiModel: body.aiModel || 'flash'
       },
       (chunkText, fullText) => {
         res.write(`data: ${JSON.stringify({ chunk: chunkText, fullText })}\n\n`);
+        if (typeof res.flush === 'function') res.flush();
       }
     );
 
@@ -42,7 +54,7 @@ export default async function handler(req, res) {
     return res.end();
   } catch (err) {
     console.error('Gemini Coach Error:', err);
-    res.write(`data: ${JSON.stringify({ error: err?.message || 'Fehler beim KI-Aufruf' })}\n\n`);
+    res.write(`data: ${JSON.stringify({ error: err?.message || 'Fehler beim KI-Coach Aufruf.' })}\n\n`);
     res.write('data: [DONE]\n\n');
     return res.end();
   }

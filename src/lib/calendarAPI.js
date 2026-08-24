@@ -25,8 +25,15 @@ async function getAuthHeaders() {
  */
 export async function getCalendarConnectionStatus() {
   try {
-    const headers = await getAuthHeaders();
     const uid = auth?.currentUser?.uid || '';
+    if (!uid) return false;
+
+    const localFlag = localStorage.getItem('ff_cal_connected_' + uid);
+    if (localFlag !== null) {
+      return localFlag === 'true';
+    }
+
+    const headers = await getAuthHeaders();
     const response = await fetch(`/api/calendar/status?uid=${encodeURIComponent(uid)}`, {
       headers
     });
@@ -137,16 +144,20 @@ export async function deleteCalendarEvent(eventId) {
  * Disconnects Google Calendar for current user
  */
 export async function disconnectGoogleCalendar() {
-  const headers = await getAuthHeaders();
   const uid = auth?.currentUser?.uid || '';
-  const response = await fetch('/api/calendar/disconnect', {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ uid })
-  });
+  if (uid) {
+    localStorage.removeItem('ff_cal_connected_' + uid);
+  }
 
-  if (!response.ok) {
-    throw new Error('Verbindung konnte nicht getrennt werden.');
+  try {
+    const headers = await getAuthHeaders();
+    await fetch('/api/calendar/disconnect', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ uid })
+    });
+  } catch {
+    // ignore
   }
 
   return true;
