@@ -72,7 +72,7 @@ export function ensureBulletPoints(rawText) {
  */
 async function getAuthHeaders() {
   const headers = { 'Content-Type': 'application/json' };
-  if (auth && auth.currentUser) {
+  if (auth && auth.currentUser && !auth.currentUser.isGuest) {
     try {
       const token = await auth.currentUser.getIdToken();
       headers['Authorization'] = `Bearer ${token}`;
@@ -130,6 +130,11 @@ export async function askGeminiCoach({ prompt, systemInstruction, onChunk, aiMod
         if (dataStr === '[DONE]') break;
         try {
           const parsed = JSON.parse(dataStr);
+          if (parsed.error) {
+            fullText = `⚠️ ${parsed.error}`;
+            if (onChunk) onChunk(fullText);
+            break;
+          }
           if (parsed.chunk) {
             fullText += parsed.chunk;
             if (onChunk) onChunk(fullText);
@@ -157,6 +162,12 @@ export async function summarizeVoiceNote(text, aiModel = 'eco', lengthMode = 'no
       headers,
       body: JSON.stringify({ text, aiModel, lengthMode })
     });
+
+    if (response.status === 429) {
+      const err = await response.json();
+      alert(err.error || 'Anfrage-Limit erreicht: Aus Sicherheitsgründen sind maximal 15 KI-Anfragen pro 10 Minuten erlaubt.');
+      return null;
+    }
 
     if (!response.ok) {
       console.error('Server returned error on summarize:', response.status, response.statusText);
@@ -193,6 +204,12 @@ export async function generateProjectStructure(text, options = {}, aiModel = 'ec
       body: JSON.stringify({ text, options, aiModel })
     });
 
+    if (response.status === 429) {
+      const err = await response.json();
+      alert(err.error || 'Anfrage-Limit erreicht: Aus Sicherheitsgründen sind maximal 15 KI-Anfragen pro 10 Minuten erlaubt.');
+      return null;
+    }
+
     if (!response.ok) {
       console.error('Server returned error on generate-project:', response.status);
       return null;
@@ -218,6 +235,12 @@ export async function generateReminderStructure(text, aiModel = 'eco') {
       headers,
       body: JSON.stringify({ text, aiModel })
     });
+
+    if (response.status === 429) {
+      const err = await response.json();
+      alert(err.error || 'Anfrage-Limit erreicht: Aus Sicherheitsgründen sind maximal 15 KI-Anfragen pro 10 Minuten erlaubt.');
+      return null;
+    }
 
     if (!response.ok) {
       console.error('Server returned error on generate-reminder:', response.status);

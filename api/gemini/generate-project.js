@@ -1,5 +1,6 @@
 // api/gemini/generate-project.js - Vercel Serverless Function for AI Project Structure Generation
 import { handleGenerateProject } from '../../server/geminiService.js';
+import { checkRateLimit } from '../../server/rateLimiter.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -12,6 +13,15 @@ export default async function handler(req, res) {
 
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Rate-Limit Prüfung
+  const rateLimit = checkRateLimit(req);
+  if (!rateLimit.allowed) {
+    return res.status(429).json({
+      error: `Anfrage-Limit erreicht: Aus Sicherheitsgründen sind maximal ${rateLimit.limit} KI-Anfragen pro 10 Minuten erlaubt. Bitte warte ca. ${rateLimit.minutesLeft} Minute(n).`,
+      rateLimited: true
+    });
   }
 
   const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
