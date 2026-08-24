@@ -15,9 +15,9 @@
 
 Die Web-Anwendung kann **direkt ohne Registrierung im 1-Klick Gast-Modus** getestet werden:
 
-👉 **Klicke rechts oben im GitHub-Repository unter `About` auf den Live-Link** (oder direkt: **[https://focusflow-me.vercel.app](https://focusflow-me.vercel.app)**).
+👉 **Klicke rechts in diesem GitHub-Repository unter `About` auf den hinterlegten Website-Link.**
 
-Auf dem Login-Bildschirm einfach auf **„Als Gast ausprobieren (Demo)“** klicken, um sofort das interaktive Dashboard mit vorbefüllten Projekten, Phasen, Aufgaben, Kanban-Boards und dem KI-Coach auszuprobieren.
+Wähle auf dem Startbildschirm einfach **„Als Gast ausprobieren (Demo)“**, um sofort das interaktive Dashboard mit Beispielprojekten, Phasen, Kanban-Board und dem KI-Coach unverbindlich auszuprobieren.
 
 ---
 
