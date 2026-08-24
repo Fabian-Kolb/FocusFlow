@@ -52,7 +52,8 @@ export async function getCalendarConnectionStatus() {
 export async function getCalendarAuthUrl() {
   const headers = await getAuthHeaders();
   const uid = auth?.currentUser?.uid || '';
-  const response = await fetch(`/api/calendar/auth-url?uid=${encodeURIComponent(uid)}`, {
+  const redirectUri = window.location.origin + '/api/calendar/callback';
+  const response = await fetch(`/api/calendar/auth-url?uid=${encodeURIComponent(uid)}&redirectUri=${encodeURIComponent(redirectUri)}`, {
     headers
   });
   if (!response.ok) {
