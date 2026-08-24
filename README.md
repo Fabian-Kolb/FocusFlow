@@ -5,14 +5,19 @@
 ![KI-gestützte Entwicklung](https://img.shields.io/badge/Entwicklung-KI--gest%C3%BCtzt-7c3aed?style=for-the-badge&logo=sparkles)
 ![React](https://img.shields.io/badge/React-19-61dafb?style=for-the-badge&logo=react)
 ![Vite](https://img.shields.io/badge/Vite-6.0-646cff?style=for-the-badge&logo=vite)
+![Vercel](https://img.shields.io/badge/Vercel-Serverless%20Backend-000000?style=for-the-badge&logo=vercel)
 ![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%26%20Auth-ffca28?style=for-the-badge&logo=firebase)
-![Google Gemini](https://img.shields.io/badge/AI-Google%20Gemini-4285F4?style=for-the-badge&logo=google)
+![Google Gemini](https://img.shields.io/badge/AI-Google%20Gemini%203.6-4285F4?style=for-the-badge&logo=google)
 
 ---
 
-## 🔒 Zugang & Live-Demo
-Diese Web-App befindet sich in der aktiven Entwicklung. Um automatisierte Zugriffe (Spam) zu verhindern und die regulären API-Nutzungslimits zu schonen, liegt die Live-Version hinter einem geschlossenen Login.
-Falls Sie dieses Projekt im Rahmen einer Bewerbung oder eines Portfolio-Reviews sichten, kontaktieren Sie mich gerne über die in meinen Unterlagen hinterlegten Kontaktdaten, um einen temporären Demo-Zugang anzufordern.
+## 🌐 Live-Demo & Gast-Zugang
+
+Die Web-Anwendung kann **direkt ohne Registrierung im 1-Klick Gast-Modus** getestet werden:
+
+👉 **Klicke rechts oben im GitHub-Repository unter `About` auf den Live-Link** (oder direkt: **[https://focusflow-me.vercel.app](https://focusflow-me.vercel.app)**).
+
+Auf dem Login-Bildschirm einfach auf **„Als Gast ausprobieren (Demo)“** klicken, um sofort das interaktive Dashboard mit vorbefüllten Projekten, Phasen, Aufgaben, Kanban-Boards und dem KI-Coach auszuprobieren.
 
 ---
 
@@ -21,7 +26,7 @@ Falls Sie dieses Projekt im Rahmen einer Bewerbung oder eines Portfolio-Reviews 
 **FocusFlow** wurde unter gezieltem Einsatz moderner **KI-gestützter Entwicklungsmethoden** umgesetzt.
 
 * **Effizienter Workflow**: Schnelle Iterationen bei der Strukturierung und Erstellung der Anwendung.
-* **Integrierte KI-Features**: Neben dem Entwicklungs-Workflow nutzt FocusFlow auch direkt in der App intelligente Funktionen wie den **KI-Coach** über die **Google Gemini API**.
+* **Integrierte KI-Features**: Neben dem Entwicklungs-Workflow nutzt FocusFlow auch direkt in der App intelligente Funktionen wie den **KI-Coach** über die **Google Gemini API** (Streaming per Server-Sent Events).
 
 ---
 
@@ -38,6 +43,7 @@ FocusFlow ist eine moderne Web-App für intelligentes Aufgaben- und Projektmanag
 * 🤖 **Integrierter KI-Coach**: KI-gestützte Empfehlungen, Zusammenfassungen und Produktivitäts-Tipps direkt in der App.
 * 📊 **Wochenrückblick (Weekly Review)**: Ein dediziertes Dashboard zur Analyse erledigter Tasks, System-Health-Warnungen und Vorbereitung der nächsten Schritte.
 * 📅 **Kalender & Reminder Integration**: Integrierter Kalender mit Fristenmanagement und Erinnerungen.
+* 🎮 **1-Klick Gast-Modus**: Sofortiges Erkunden und Testen aller Funktionen ohne Registrierungshürde.
 * 🗑️ **Papierkorb & Wiederherstellung**: Zuverlässige Verwaltung und Wiederherstellung gelöschter Elemente.
 
 ---
@@ -51,17 +57,17 @@ FocusFlow ist eine moderne Web-App für intelligentes Aufgaben- und Projektmanag
 * **React Markdown & Quill** – Formatierte Notizen und Markdown-Unterstützung
 
 ### Backend & Cloud Services
+* **Vercel Serverless Functions** – Gesicherte API-Proxies mit IP-Rate-Limiting & SSE-Streaming
 * **Firebase Auth** – Authentifizierung und geschützter Nutzer-Zugang
 * **Firebase Firestore** – Echtzeit-Datenbank für Aufgaben, Projekte und Einstellungen
-* **Firebase Hosting** – Schnelles & sicheres SSL-Deployment
 
 ### KI & Schnittstellen
-* **Google Gemini API** (`@google/genai` / `@google/generative-ai`) – Intelligente Sprachmodelle für den KI-Coach
-* **Google Calendar API** (`@googleapis/calendar`) – Kalender-Synchronisation
+* **Google Gemini API** (`gemini-3.6-flash` / `@google/generative-ai`) – Intelligente Sprachmodelle für den KI-Coach
+* **Google Calendar API** (`@googleapis/calendar`) – OAuth 2.0 Schnittstelle mit Auto-Token-Refresh
 
 ### Code Quality & Testing
 * **Oxlint** – High-Performance Linter
-* **Node.js Test-Runner & JSDOM** – Ende-zu-Ende- & Komponenten-Tests
+* **Node.js Test-Runner & JSDOM** – Ende-zu-Ende- & Komponenten-Tests (118 E2E Tests)
 
 ---
 
@@ -73,7 +79,7 @@ FocusFlow ist eine moderne Web-App für intelligentes Aufgaben- und Projektmanag
 
 ### 1. Repository klonen & Abhängigkeiten installieren
 ```bash
-git clone <repository-url>
+git clone https://github.com/Fabian-Kolb/FocusFlow.git
 cd focusflow
 npm install
 ```
@@ -85,11 +91,13 @@ Erstelle eine `.env.local` Datei im Stammverzeichnis und trage deine API-Schlüs
 VITE_FIREBASE_API_KEY=dein_firebase_api_key
 VITE_FIREBASE_AUTH_DOMAIN=dein_projekt.firebaseapp.com
 VITE_FIREBASE_PROJECT_ID=dein_projekt_id
-VITE_FIREBASE_STORAGE_BUCKET=dein_projekt.appspot.com
+VITE_FIREBASE_STORAGE_BUCKET=dein_projekt.firebasestorage.app
 VITE_FIREBASE_MESSAGING_SENDER_ID=deine_sender_id
 VITE_FIREBASE_APP_ID=deine_app_id
+VITE_FIREBASE_MEASUREMENT_ID=deine_measurement_id
 
-VITE_GEMINI_API_KEY=dein_gemini_api_key
+GEMINI_API_KEY=dein_gemini_api_key
+GOOGLE_CLIENT_SECRET=dein_google_client_secret
 VITE_GOOGLE_CLIENT_ID=deine_google_client_id
 ```
 
@@ -104,5 +112,3 @@ Die Anwendung ist anschließend unter `http://localhost:5173` erreichbar.
 * **Vorschau des Builds**: `npm run preview`
 * **Linter ausführen**: `npm run lint`
 * **Tests ausführen**: `npm run test`
-
----

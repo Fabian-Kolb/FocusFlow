@@ -226,7 +226,7 @@ function Login() {
                 <strong>4. Schnittstellen & Drittanbieter:</strong> Für die ständige Erreichbarkeit und fehlerfreie Funktion von angebundenen Drittanbieter-Diensten (z. B. Google Kalender oder externe Cloud-Dienste) sowie für etwaige Datenübertragungsfehler wird keine Haftung übernommen.
               </p>
               <p className="pt-1 font-semibold text-primary">
-                <strong>5. Eigenverantwortung:</strong> Mit dem Betreten und der Nutzung dieser Anwendung bestätigst du diese Bedingungen und handelst ab diesem Zeitpunkt in voller Eigenverantwortung.
+                <strong>5. Eigenverantwortung:</strong> Das Betreten und Ausprobieren dieser App geschieht vollkommen auf eigene Gefahr und in reiner Selbstverantwortung – es gibt hier weder Sicherheiten noch Garantien.
               </p>
             </div>
 

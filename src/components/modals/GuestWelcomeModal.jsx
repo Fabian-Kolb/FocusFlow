@@ -25,73 +25,113 @@ function GuestWelcomeModal() {
   if (!isOpen || !user?.isGuest) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
-      <div className="bg-surface border border-outline-variant rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-start justify-between border-b border-outline-variant pb-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold text-lg">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 sm:p-6 animate-fadeIn">
+      <div className="bg-surface border border-outline-variant rounded-2xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="flex items-start justify-between border-b border-outline-variant pb-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/25 flex items-center justify-center text-primary text-2xl shadow-sm">
               🎮
             </div>
             <div>
-              <h3 className="text-base font-bold text-primary">Gast-Modus aktiviert</h3>
-              <p className="text-xs text-on-surface-variant">Übersicht der Funktionen & Einschränkungen</p>
+              <h3 className="text-xl font-bold text-primary tracking-tight">Gast-Modus aktiviert</h3>
+              <p className="text-xs sm:text-sm text-on-surface-variant">
+                Funktionsübersicht & Einschränkungen der Vorschauversion
+              </p>
             </div>
           </div>
           <button
             type="button"
             onClick={handleClose}
-            className="text-on-surface-variant hover:text-primary p-1 rounded-lg"
+            className="text-on-surface-variant hover:text-primary p-1.5 rounded-lg hover:bg-surface-low transition-colors"
           >
-            <span className="material-symbols-outlined text-[20px]">close</span>
+            <span className="material-symbols-outlined text-[22px]">close</span>
           </button>
         </div>
 
-        <p className="text-xs text-on-surface-variant leading-relaxed">
-          Du nutzt FocusFlow aktuell als <strong>Gast</strong>. Folgende Funktionen stehen dir zum Testen zur Verfügung bzw. weisen Besonderheiten auf:
+        <p className="text-xs sm:text-sm text-on-surface-variant leading-relaxed">
+          Du erkundest FocusFlow aktuell im <strong>Gast-Modus</strong>. Alle Kernfunktionen der Benutzeroberfläche sind interaktiv freigeschaltet. Bitte beachte die folgenden Details zu den aktiven und eingeschränkten Funktionen:
         </p>
 
-        <div className="space-y-2.5">
-          <div className="flex items-start gap-3 p-3 rounded-xl bg-surface-low border border-outline-variant/60">
-            <span className="material-symbols-outlined text-primary text-[20px] mt-0.5">save</span>
-            <div className="text-xs leading-relaxed">
-              <strong className="text-primary block">Lokale Sitzung (Keine Cloud-Speicherung)</strong>
-              <span className="text-on-surface-variant">Neu angelegte Projekte, Phasen und Notizen werden nur in diesem Browserfenster gehalten und nicht auf Servern gespeichert.</span>
+        {/* 2 Spalten bzw. 2 Sektionen: Eingeschränkt vs. Verfügbar */}
+        <div className="space-y-4">
+          {/* Sektion 1: Eingeschränkte Funktionen */}
+          <div className="space-y-2.5">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-500">
+              <span className="material-symbols-outlined text-[16px]">info</span>
+              Was im Gast-Modus eingeschränkt ist:
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="p-3.5 rounded-xl bg-amber-500/5 border border-amber-500/20 space-y-1.5">
+                <div className="flex items-center gap-2 text-primary font-semibold text-xs">
+                  <span className="material-symbols-outlined text-amber-500 text-[18px]">cloud_off</span>
+                  Keine Cloud-Speicherung
+                </div>
+                <p className="text-[11px] text-on-surface-variant leading-relaxed">
+                  Deine erstellten Projekte, Phasen und Notizen existieren rein temporär in deinem Browser. Beim Schließen des Fensters oder Neuladen wird der Stand zurückgesetzt.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-amber-500/5 border border-amber-500/20 space-y-1.5">
+                <div className="flex items-center gap-2 text-primary font-semibold text-xs">
+                  <span className="material-symbols-outlined text-amber-500 text-[18px]">event_busy</span>
+                  Google Kalender Live-Sync
+                </div>
+                <p className="text-[11px] text-on-surface-variant leading-relaxed">
+                  Die Live-Synchronisation mit echten Google-Konten ist in der Vorschau deaktiviert und erfordert ein registriertes, freigeschaltetes Benutzerkonto.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-amber-500/5 border border-amber-500/20 space-y-1.5 sm:col-span-2">
+                <div className="flex items-center gap-2 text-primary font-semibold text-xs">
+                  <span className="material-symbols-outlined text-amber-500 text-[18px]">timer</span>
+                  KI-Coach Rate-Limiting & Profil
+                </div>
+                <p className="text-[11px] text-on-surface-variant leading-relaxed">
+                  Aus Sicherheitsgründen ist die Nutzung des KI-Assistenten für Gäste auf 15 Anfragen pro 10 Minuten limitiert. Eigene Profilbilder und Passwortänderungen sind deaktiviert.
+                </p>
+              </div>
             </div>
           </div>
 
-          <div className="flex items-start gap-3 p-3 rounded-xl bg-surface-low border border-outline-variant/60">
-            <span className="material-symbols-outlined text-amber-500 text-[20px] mt-0.5">calendar_month</span>
-            <div className="text-xs leading-relaxed">
-              <strong className="text-primary block">Google Kalender Synchronisation</strong>
-              <span className="text-on-surface-variant">Die Live-Anbindung an Google Kalender ist in der Gast-Vorschau deaktiviert und nur für freigeschaltete Benutzerkonten verfügbar.</span>
+          {/* Sektion 2: Was du ausprobieren kannst */}
+          <div className="space-y-2.5 pt-1">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-500">
+              <span className="material-symbols-outlined text-[16px]">check_circle</span>
+              Was du uneingeschränkt testen kannst:
             </div>
-          </div>
 
-          <div className="flex items-start gap-3 p-3 rounded-xl bg-surface-low border border-outline-variant/60">
-            <span className="material-symbols-outlined text-indigo-500 text-[20px] mt-0.5">smart_toy</span>
-            <div className="text-xs leading-relaxed">
-              <strong className="text-primary block">KI-Coach Rate-Limiting</strong>
-              <span className="text-on-surface-variant">Aus Sicherheitsgründen ist der KI-Coach für Gäste auf 15 Anfragen pro 10 Minuten begrenzt.</span>
-            </div>
-          </div>
-
-          <div className="flex items-start gap-3 p-3 rounded-xl bg-surface-low border border-outline-variant/60">
-            <span className="material-symbols-outlined text-emerald-500 text-[20px] mt-0.5">check_circle</span>
-            <div className="text-xs leading-relaxed">
-              <strong className="text-primary block">Vollständig testbare UI</strong>
-              <span className="text-on-surface-variant">Kanban-Board, Aufgabenverwaltung, Filter, Notizen und Projekt-Phasen können uneingeschränkt ausprobiert werden.</span>
+            <div className="p-3.5 rounded-xl bg-emerald-500/5 border border-emerald-500/20 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-on-surface-variant">
+              <div className="flex items-center gap-2">
+                <span className="text-emerald-500 font-bold">✓</span>
+                <span>Interaktives Kanban-Board</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-emerald-500 font-bold">✓</span>
+                <span>Phasen- & Aufgabenverwaltung</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-emerald-500 font-bold">✓</span>
+                <span>Notizen-, Inbox- & Review-System</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-emerald-500 font-bold">✓</span>
+                <span>Live KI-Coach Streaming (mit Limit)</span>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="pt-2 border-t border-outline-variant flex justify-end">
+        {/* Footer Actions */}
+        <div className="pt-3 border-t border-outline-variant flex justify-end">
           <Button
             variant="primary"
             fullWidth
             onClick={handleClose}
-            className="font-semibold shadow-md"
+            className="font-semibold py-3 text-sm shadow-md"
           >
-            Verstanden & Vorschau starten
+            Verstanden & FocusFlow ausprobieren
           </Button>
         </div>
       </div>
