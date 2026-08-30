@@ -118,12 +118,16 @@ export function AuthProvider({ children }) {
       }
 
       return new Promise((resolve) => {
+        let isResolved = false;
+
         const handleMessage = async (event) => {
           // Sicherheitsprüfung: Nur Nachrichten vom identischen Origin erlauben
           if (event.origin !== window.location.origin) return;
 
           if (event.data?.type === 'FOCUSFLOW_CALENDAR_CONNECTED') {
+            isResolved = true;
             window.removeEventListener('message', handleMessage);
+            clearInterval(checkClosed);
             if (event.data.accessToken || event.data.refreshToken) {
               saveCalendarTokens({
                 accessToken: event.data.accessToken,
@@ -142,9 +146,11 @@ export function AuthProvider({ children }) {
           if (popup.closed) {
             clearInterval(checkClosed);
             window.removeEventListener('message', handleMessage);
-            const connected = await getCalendarConnectionStatus();
-            setIsCalendarConnected(connected);
-            resolve(connected);
+            if (!isResolved) {
+              const connected = await getCalendarConnectionStatus();
+              setIsCalendarConnected(connected);
+              resolve(connected);
+            }
           }
         }, 1000);
       });

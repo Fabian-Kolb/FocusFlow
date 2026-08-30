@@ -86,13 +86,14 @@ async function getAuthHeaders() {
 /**
  * Streams AI Coach responses from backend proxy
  */
-export async function askGeminiCoach({ prompt, systemInstruction, onChunk, aiModel = 'flash' }) {
+export async function askGeminiCoach({ prompt, systemInstruction, onChunk, aiModel = 'flash', signal }) {
   const headers = await getAuthHeaders();
 
   const response = await fetch('/api/gemini/coach', {
     method: 'POST',
     headers,
-    body: JSON.stringify({ prompt, systemInstruction, aiModel })
+    body: JSON.stringify({ prompt, systemInstruction, aiModel }),
+    signal
   });
 
   if (!response.ok) {
@@ -115,35 +116,47 @@ export async function askGeminiCoach({ prompt, systemInstruction, onChunk, aiMod
   let fullText = '';
   let buffer = '';
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  try {
+    while (true) {
+      if (signal?.aborted) {
+        break;
+      }
 
-    buffer += decoder.decode(value, { stream: true });
-    const parts = buffer.split('\n\n');
-    buffer = parts.pop() || '';
+      const { done, value } = await reader.read();
+      if (done) break;
 
-    for (const part of parts) {
-      const trimmed = part.trim();
-      if (trimmed.startsWith('data: ')) {
-        const dataStr = trimmed.slice(6).trim();
-        if (dataStr === '[DONE]') break;
-        try {
-          const parsed = JSON.parse(dataStr);
-          if (parsed.error) {
-            fullText = `⚠️ ${parsed.error}`;
-            if (onChunk) onChunk(fullText);
-            break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop() || '';
+
+      for (const part of parts) {
+        const trimmed = part.trim();
+        if (trimmed.startsWith('data: ')) {
+          const dataStr = trimmed.slice(6).trim();
+          if (dataStr === '[DONE]') break;
+          try {
+            const parsed = JSON.parse(dataStr);
+            if (parsed.error) {
+              fullText = `⚠️ ${parsed.error}`;
+              if (onChunk) onChunk(fullText);
+              break;
+            }
+            if (parsed.chunk) {
+              fullText += parsed.chunk;
+              if (onChunk) onChunk(fullText);
+            }
+          } catch {
+            // ignore non-json chunks
           }
-          if (parsed.chunk) {
-            fullText += parsed.chunk;
-            if (onChunk) onChunk(fullText);
-          }
-        } catch {
-          // ignore non-json chunks
         }
       }
     }
+  } catch (err) {
+    if (err.name === 'AbortError' || signal?.aborted) {
+      // Streaming was aborted by user - return current partial text
+      return fullText;
+    }
+    throw err;
   }
 
   return fullText;

@@ -3,6 +3,7 @@ import Sidebar from './components/layout/Sidebar';
 import BottomNav from './components/layout/BottomNav';
 import { ModalProvider } from './context/ModalContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ChatProvider } from './context/ChatContext';
 
 // Modals
 import ProjectModal from './components/modals/ProjectModal';
@@ -101,7 +102,9 @@ function App() {
   return (
     <AuthProvider>
       <ModalProvider>
-        <AppContent />
+        <ChatProvider>
+          <AppContent />
+        </ChatProvider>
       </ModalProvider>
     </AuthProvider>
   );

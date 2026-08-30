@@ -40,28 +40,52 @@ export async function getCalendarConnectionStatus() {
   const uid = auth?.currentUser?.uid || 'user';
   const isConnected = localStorage.getItem(`ff_cal_connected_${uid}`) === 'true';
   const hasToken = Boolean(getStoredAccessToken() || getStoredRefreshToken());
-  return isConnected && hasToken;
+  
+  if (isConnected && hasToken) {
+    return true;
+  }
+
+  // Fallback: Prüfe, ob der Server ein Refresh-Token für diesen Nutzer gespeichert hat
+  try {
+    const response = await fetch(`/api/calendar/status?uid=${encodeURIComponent(uid)}`);
+    if (response.ok) {
+      const data = await response.json();
+      if (data.connected) {
+        const freshToken = await refreshActiveToken();
+        if (freshToken) {
+          return true;
+        }
+      }
+    }
+  } catch {
+    // Ignoriere Netzwerkfehler beim Fallback-Check
+  }
+
+  return false;
 }
 
 /**
  * Requests fresh access token using refresh token via backend proxy
  */
 async function refreshActiveToken() {
+  const uid = auth?.currentUser?.uid || 'user';
   const refreshToken = getStoredRefreshToken();
-  if (!refreshToken) return null;
 
   try {
     const response = await fetch('/api/calendar/refresh', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken })
+      body: JSON.stringify({ refreshToken, uid })
     });
 
     if (!response.ok) return null;
 
     const data = await response.json();
     if (data.accessToken) {
-      saveCalendarTokens({ accessToken: data.accessToken });
+      saveCalendarTokens({
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken || refreshToken
+      });
       return data.accessToken;
     }
   } catch (err) {

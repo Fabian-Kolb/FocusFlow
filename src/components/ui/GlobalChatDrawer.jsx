@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSwipeToClose } from '../../hooks/useSwipeToClose';
+import { useChat } from '../../context/ChatContext';
 import ProjectAiChat from './ProjectAiChat';
 import FioIcon from './FioIcon';
 
@@ -11,14 +12,14 @@ const GlobalChatDrawer = ({
   contextScope = 'project',
   contextData = null
 }) => {
+  const { activeModel, setActiveModel } = useChat();
   const [shouldRender, setShouldRender] = useState(isOpen);
   const [isClosing, setIsClosing] = useState(false);
   const [slideInTrigger, setSlideInTrigger] = useState(true);
   const drawerPanelRef = useRef(null);
   const scrollContainerRef = useRef(null);
 
-  // Model & History States
-  const [activeModel, setActiveModel] = useState('gemini-3.6-flash');
+  // History & New Chat States
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [newChatCounter, setNewChatCounter] = useState(0);
 

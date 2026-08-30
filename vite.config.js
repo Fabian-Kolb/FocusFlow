@@ -53,21 +53,26 @@ function apiProxyPlugin(envConfig) {
 
           try {
             if (endpoint === 'coach') {
-              res.setHeader('Content-Type', 'text/event-stream');
-              res.setHeader('Cache-Control', 'no-cache');
+              res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+              res.setHeader('Cache-Control', 'no-cache, no-transform');
               res.setHeader('Connection', 'keep-alive');
 
-              await handleCoachStream(
-                {
-                  apiKey: key,
-                  prompt: body.prompt,
-                  systemInstruction: body.systemInstruction,
-                  aiModel: body.aiModel
-                },
-                (chunkText, fullText) => {
-                  res.write(`data: ${JSON.stringify({ chunk: chunkText, fullText })}\n\n`);
-                }
-              );
+              try {
+                await handleCoachStream(
+                  {
+                    apiKey: key,
+                    prompt: body.prompt,
+                    systemInstruction: body.systemInstruction,
+                    aiModel: body.aiModel
+                  },
+                  (chunkText, fullText) => {
+                    res.write(`data: ${JSON.stringify({ chunk: chunkText, fullText })}\n\n`);
+                  }
+                );
+              } catch (coachErr) {
+                console.error('[Gemini Coach Error]:', coachErr);
+                res.write(`data: ${JSON.stringify({ error: coachErr?.message || 'Fehler beim KI-Aufruf.' })}\n\n`);
+              }
 
               res.write(`data: [DONE]\n\n`);
               return res.end();
@@ -178,6 +183,9 @@ function apiProxyPlugin(envConfig) {
                 saveDevRefreshToken(verifiedUid, tokens.refreshToken);
               }
 
+              const accessToken = tokens.accessToken || '';
+              const refreshToken = tokens.refreshToken || '';
+
               res.setHeader('Content-Type', 'text/html; charset=utf-8');
               return res.end(`
                 <!DOCTYPE html>
@@ -192,7 +200,12 @@ function apiProxyPlugin(envConfig) {
                     </div>
                     <script>
                       if (window.opener) {
-                        window.opener.postMessage({ type: 'FOCUSFLOW_CALENDAR_CONNECTED' }, window.location.origin);
+                        window.opener.postMessage({
+                          type: 'FOCUSFLOW_CALENDAR_CONNECTED',
+                          uid: '${verifiedUid}',
+                          accessToken: '${accessToken}',
+                          refreshToken: '${refreshToken}'
+                        }, window.location.origin);
                       }
                       setTimeout(() => window.close(), 1200);
                     </script>
@@ -206,6 +219,24 @@ function apiProxyPlugin(envConfig) {
               const refreshToken = getDevRefreshToken(uid);
               res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify({ connected: Boolean(refreshToken) }));
+            }
+
+            // C.2) Token Refresh
+            if (endpoint === 'refresh') {
+              const refreshToken = body.refreshToken || getDevRefreshToken(uid);
+              if (!refreshToken) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify({ error: 'Kein Refresh-Token angegeben.' }));
+              }
+
+              const refreshed = await refreshAccessToken({
+                refreshToken,
+                clientId: googleClientId,
+                clientSecret: googleClientSecret
+              });
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify(refreshed));
             }
 
             // D) Events abrufen (GET) oder erstellen (POST)

@@ -1,18 +1,29 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useModalContext } from '../../context/ModalContext';
 import { useAuth } from '../../context/AuthContext';
+import { useChat } from '../../context/ChatContext';
 import { askGeminiCoach } from '../../lib/gemini';
-import {
-  chatSessions as initialSessions,
-  chatHistory as initialHistory
-} from '../../data/mockData';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import FioIcon from '../ui/FioIcon';
 
 const Coach = () => {
-  const { projects, inboxItems, activeCoachScope, setActiveCoachScope } = useModalContext();
+  const { projects, reminders = [] } = useModalContext();
   const { user } = useAuth();
+  const {
+    sessions,
+    activeSession,
+    activeSessionId,
+    activeModel,
+    setActiveModel,
+    createNewSession,
+    selectSession,
+    deleteSession,
+    addMessageToSession,
+    removeSessionAttachment,
+    updateStreamingMessage
+  } = useChat();
+
   const [isHistoryOpen, setIsHistoryOpen] = useState(() => {
     const saved = localStorage.getItem('focusflow_coach_history');
     if (saved !== null) return JSON.parse(saved);
@@ -23,16 +34,32 @@ const Coach = () => {
     localStorage.setItem('focusflow_coach_history', JSON.stringify(isHistoryOpen));
   }, [isHistoryOpen]);
 
-  const [sessions, setSessions] = useState(initialSessions);
-  const [activeSessionId, setActiveSessionId] = useState('cs1');
-  const [messages, setMessages] = useState(initialHistory);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
-  const [activeModel, setActiveModel] = useState('gemini-3.6-flash');
+  const [sessionSearchText, setSessionSearchText] = useState('');
+  
+  // 1. SIDEBAR FILTER & SEARCH (Filtert die Chatverlauf-Liste auf der linken Seite)
+  const [isSidebarFilterModalOpen, setIsSidebarFilterModalOpen] = useState(false);
+  const [sidebarSearchQuery, setSidebarSearchQuery] = useState('');
+  const [sidebarScopeFilter, setSidebarScopeFilter] = useState('all'); // 'all' | 'general' | projectId | reminderId
+  const [showAllSidebarProjects, setShowAllSidebarProjects] = useState(false);
+  const [showAllSidebarReminders, setShowAllSidebarReminders] = useState(false);
+
+  // 2. KI-KONTEXT & ANHÄNGE (Wählt aus, welche Daten der KI als Kontext übergeben werden)
+  const [isContextModalOpen, setIsContextModalOpen] = useState(false);
+  const [contextModalSearch, setContextModalSearch] = useState('');
+  const [isAllContextSelected, setIsAllContextSelected] = useState(true);
+  const [isGeneralOnlySelected, setIsGeneralOnlySelected] = useState(false);
+  const [selectedProjectIds, setSelectedProjectIds] = useState([]);
+  const [selectedReminderIds, setSelectedReminderIds] = useState([]);
+  const [showAllContextProjects, setShowAllContextProjects] = useState(false);
+  const [showAllContextReminders, setShowAllContextReminders] = useState(false);
+
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef(null);
   const isListeningRef = useRef(false);
   const textareaRef = useRef(null);
+  const messagesEndRef = useRef(null);
 
   useEffect(() => {
     isListeningRef.current = isListening;
@@ -107,9 +134,23 @@ const Coach = () => {
     }
   };
 
-  const selectedProject = projects.find(p => p.id === activeCoachScope);
+  // Selected context attachments list for the current prompt (queued in input bar)
+  const activeAttachments = useMemo(() => {
+    if (isGeneralOnlySelected || isAllContextSelected) return [];
+    const list = [];
+    selectedProjectIds.forEach((pid) => {
+      const p = projects.find((item) => item.id === pid);
+      if (p) list.push({ type: 'project', id: p.id, title: p.title });
+    });
+    selectedReminderIds.forEach((rid) => {
+      const r = reminders.find((item) => item.id === rid);
+      if (r) list.push({ type: 'reminder', id: r.id, title: r.title });
+    });
+    return list;
+  }, [isGeneralOnlySelected, isAllContextSelected, selectedProjectIds, selectedReminderIds, projects, reminders]);
 
-  const buildSystemInstruction = () => {
+  // Build Multi-Context Grounded System Instruction for Gemini
+  const buildSystemInstruction = (specificAttachments) => {
     const now = new Date();
     const dateStr = now.toLocaleDateString('de-DE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
     const timeStr = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
@@ -118,99 +159,164 @@ const Coach = () => {
       heutigesDatum: `${dateStr}, ${timeStr} Uhr`
     };
 
-    if (activeCoachScope === 'reminders') {
+    const sessionContexts = activeSession?.contextAttachments || [];
+    const msgContexts = specificAttachments || activeAttachments || [];
+    const allContexts = [...sessionContexts];
+    msgContexts.forEach(c => {
+      if (!allContexts.some(item => item.id === c.id && item.type === c.type)) {
+        allContexts.push(c);
+      }
+    });
+
+    let contextMetaGuidance = '';
+
+    if (allContexts.length > 0) {
+      const projIds = allContexts.filter(a => a.type === 'project').map(a => a.id);
+      const remIds = allContexts.filter(a => a.type === 'reminder').map(a => a.id);
+
+      const chosenProjects = projects.filter((p) => projIds.includes(p.id));
+      const chosenReminders = reminders.filter((r) => remIds.includes(r.id));
+      const focusTitles = [...chosenProjects.map(p => p.title), ...chosenReminders.map(r => r.title)].join(', ');
+
+      contextMetaGuidance = `
+HINTERGRUNDWISSEN ZUM AKTIVEN KONTEXT:
+Der Nutzer hat für dieses Gespräch gezielt einen spezifischen Fokus auf folgende Elemente gelegt: [${focusTitles}].
+Er möchte sich in dieser Konversation fokussiert genau auf diese Projekte bzw. Erinnerungen konzentrieren.
+
+WICHTIGE ANWEISUNG FÜR DEINE TONALITÄT & FORMULIERUNGEN:
+- Sprich diese Einschränkung NICHT mechanisch oder belehrend an (sage z. B. NIE: "Ich sehe, du hast das Projekt X ausgewählt" oder "Da du nur Projekt Y übergeben hast...").
+- Nutze dieses Hintergrundwissen ganz natürlich im Kopf, um deine Formulierungen, Ratschläge, Priorisierungen und Teilschritte direkt auf diese Themen zuzuschneiden.
+- Antworte sofort präzise auf den Punkt, ohne überflüssiges Vorgeplänkel, und beziehe dich ganz selbstverständlich auf die Aufgaben, Phasen und Termine dieser Elemente.
+`;
+
       contextData = {
         ...contextData,
-        kategorie: 'Nur Erinnerungen & Inbox',
-        inboxItems: inboxItems
+        fokus: 'Spezifisch an diese Konversation angehängte Projekte und Erinnerungen',
+        projekte: chosenProjects.map((p) => ({
+          id: p.id,
+          titel: p.title,
+          fortschritt: `${p.progress || 0}%`,
+          abschnitte: (p.phases || []).map((ph) => ({
+            titel: ph.title,
+            aufgaben: (ph.tasks || []).map((t) => ({
+              titel: t.title,
+              erledigt: !!t.completed,
+              termin: t.date || 'Kein Termin'
+            }))
+          }))
+        })),
+        erinnerungen: chosenReminders.map((r) => ({
+          titel: r.title,
+          datum: r.date || 'Kein Termin',
+          uhrzeit: r.time || '',
+          status: r.status || 'AKTIV',
+          notizen: r.notes || []
+        }))
       };
-    } else if (selectedProject) {
+    } else if (isGeneralOnlySelected) {
+      contextMetaGuidance = `
+HINTERGRUNDWISSEN ZUM AKTIVEN KONTEXT:
+Der Nutzer hat den allgemeinen Coach-Modus gewählt (ohne spezifische Projektdaten).
+Antworte als erfahrener Produktivitätsberater, Zeitmanagement-Experte und Motivator mit bewährten Methoden (z. B. Eisenhower, Pomodoro, Time-Blocking).
+`;
       contextData = {
         ...contextData,
-        kategorie: 'Spezifisches Projekt',
-        projekt: selectedProject
+        fokus: 'Allgemeiner Coach (Keine spezifischen Projektdaten aktiv)'
       };
     } else {
+      contextMetaGuidance = `
+HINTERGRUNDWISSEN ZUM AKTIVEN KONTEXT:
+Der Nutzer hat dir den vollen Überblick über alle seine Projekte und Erinnerungen zur Verfügung gestellt.
+Du kannst projektübergreifend planen, Prioritäten abwägen, Engpässe identifizieren und den gesamten Arbeitsbereich berücksichtigen.
+`;
+      // Default: All Projects & All Reminders
       contextData = {
         ...contextData,
-        kategorie: 'Alle Projekte & Erinnerungen',
-        projekte: projects,
-        inboxItems: inboxItems
+        fokus: 'Alle Projekte & Erinnerungen',
+        projekte: projects.map((p) => ({
+          id: p.id,
+          titel: p.title,
+          fortschritt: `${p.progress || 0}%`,
+          abschnitte: (p.phases || []).map((ph) => ({
+            titel: ph.title,
+            aufgaben: (ph.tasks || []).map((t) => ({
+              titel: t.title,
+              erledigt: !!t.completed,
+              termin: t.date || 'Kein Termin'
+            }))
+          }))
+        })),
+        erinnerungen: reminders.map((r) => ({
+          titel: r.title,
+          datum: r.date || 'Kein Termin',
+          uhrzeit: r.time || '',
+          status: r.status || 'AKTIV',
+          notizen: r.notes || []
+        }))
       };
     }
 
     return `
-Du bist der FocusFlow AI Coach, ein präziser, motivierender und hochstrukturierter Produktivitäts-Assistent.
-Deine Aufgabe ist es, dem Nutzer zu helfen, seine Aufgaben und Projekte fokussiert abzuarbeiten.
+Du bist der FocusFlow AI Coach (Fio), ein hochkompetenter, motivierender und pragmatischer Produktivitäts-Assistent.
+Deine Aufgabe ist es, dem Nutzer zu helfen, seine Aufgaben, Projekte und Erinnerungen fokussiert, strukturiert und erfolgreich abzuarbeiten.
 
-Hier ist der AKTUELLE STATUS und KONTEXT der App des Nutzers:
+${contextMetaGuidance}
+
+Hier sind die aktuellen Daten und Details der FocusFlow App:
 ${JSON.stringify(contextData, null, 2)}
 
-Regeln:
-1. Beziehe dich bei Fragen direkt auf die obigen Daten (Projekte, Phasen, Tasks, Inbox).
-2. Antworte in klaren, gut strukturierten deutschen Sätzen mit Markdown-Formatierung.
-3. Sei lösungsorientiert und halte Antworten prägnant.
+Regeln für deine Antworten:
+1. Reagiere direkt, empathisch und professionell auf die Anfrage des Nutzers.
+2. Beziehe dich bei konkreten Fragen auf die relevanten Daten (Aufgaben, Phasen, Termine, Notizen).
+3. Verwende saubere Markdown-Formatierung (Listen, Fettdruck, Absätze), um Antworten leicht scannbar zu machen.
+4. Halte deine Antworten fokussiert, umsetzungsstark und ohne überflüssige Floskeln.
 `;
   };
 
-  // Dynamic quick prompts based on scope
+  // Dynamic quick prompts
   const getQuickPrompts = () => {
-    if (activeCoachScope === 'reminders') {
-      return [
-        { id: 'qp_r1', label: '🧹 Inbox & Erinnerungen aufräumen', promptText: 'Hilf mir, meine Inbox und Notizen zu strukturieren.' },
-        { id: 'qp_r2', label: '➡️ In Tasks umwandeln', promptText: 'Welche Erinnerungen sollte ich in konkrete Projektaufgaben umwandeln?' },
-        { id: 'qp_r3', label: '💡 Notizen zusammenfassen', promptText: 'Fasse meine aktuellen Notizen kurz zusammen.' }
-      ];
-    }
-    if (selectedProject) {
-      return [
-        { id: 'qp_p1', label: '📋 Nächste Phase aufschlüsseln', promptText: `Wie erreiche ich die nächste Phase im Projekt "${selectedProject.title}" am schnellsten?` },
-        { id: 'qp_p2', label: '📝 Aufgaben priorisieren', promptText: `Welche Aufgaben im Projekt "${selectedProject.title}" sind am wichtigsten?` },
-        { id: 'qp_p3', label: '⏱️ Zeitplan prüfen', promptText: `Sind wir beim Projekt "${selectedProject.title}" gut im Zeitplan?` }
-      ];
-    }
     return [
-      { id: 'qp_1', label: '⚡ Tagesplan erstellen', promptText: 'Erstelle einen Fokus-Tagesplan aus allen meinen Projekten.' },
-      { id: 'qp_2', label: '⚠️ Engpässe finden', promptText: 'Welche Projekte oder Aufgaben benötigen meine Aufmerksamkeit?' },
-      { id: 'qp_3', label: '🎯 Ziele priorisieren', promptText: 'Was ist das wichtigste Ziel für diese Woche?' }
+      { id: 'qp_1', label: 'Tagesplan erstellen', promptText: 'Erstelle einen Fokus-Tagesplan aus allen meinen Projekten und Erinnerungen.' },
+      { id: 'qp_2', label: 'Engpässe finden', promptText: 'Welche Aufgaben oder Erinnerungen benötigen meine Aufmerksamkeit?' },
+      { id: 'qp_3', label: 'Ziele priorisieren', promptText: 'Was ist das wichtigste Ziel für diese Woche?' }
     ];
   };
 
   const dynamicPrompts = getQuickPrompts();
-  const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const messages = activeSession?.messages || [];
+
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
-
-  const activeSession = sessions.find((s) => s.id === activeSessionId) || sessions[0];
-
-  const handleSelectSession = (sessionId) => {
-    setActiveSessionId(sessionId);
-    setSessions((prev) =>
-      prev.map((s) => ({ ...s, active: s.id === sessionId }))
-    );
-  };
+  }, [messages, loading]);
 
   const handleNewChat = () => {
-    const newSessionId = `cs_${Date.now()}`;
-    const newSession = {
-      id: newSessionId,
-      title: 'Neues Gespräch',
-      dateText: 'Heute • 0 Nachrichten',
-      active: true
-    };
+    createNewSession({
+      contextScope: 'general',
+      contextId: null,
+      contextTitle: 'Allgemein',
+      contextAttachments: [],
+      model: activeModel,
+      initialTitle: 'Neues Gespräch'
+    });
+  };
 
-    setSessions((prev) => [
-      newSession,
-      ...prev.map((s) => ({ ...s, active: false }))
-    ]);
-    setActiveSessionId(newSessionId);
-    setMessages([]);
+  const abortControllerRef = useRef(null);
+  const currentBotMsgIdRef = useRef(null);
+
+  const handleStopGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setLoading(false);
+    if (currentBotMsgIdRef.current) {
+      updateStreamingMessage(activeSession.id, currentBotMsgIdRef.current, undefined, false);
+    }
   };
 
   const handleSendMessage = async (textToSend) => {
@@ -225,16 +331,28 @@ Regeln:
       }
     }
 
+    const trimmed = text.trim();
     const userMsgId = `msg_${Date.now()}_u`;
     const botMsgId = `msg_${Date.now()}_b`;
+    currentBotMsgIdRef.current = botMsgId;
+    const currentAttachments = [...activeAttachments];
 
-    const userMessage = {
+    // 1. Add User Message with active attachments
+    addMessageToSession(activeSession.id, {
       id: userMsgId,
-      sender: 'user',
-      text: text.trim()
-    };
+      role: 'user',
+      content: trimmed,
+      attachments: currentAttachments
+    });
 
-    setMessages((prev) => [...prev, userMessage]);
+    // Clear active attachments in the input bar for the next message
+    if (currentAttachments.length > 0) {
+      setSelectedProjectIds([]);
+      setSelectedReminderIds([]);
+      setIsAllContextSelected(true);
+      setIsGeneralOnlySelected(false);
+    }
+
     if (!textToSend) {
       setInputText('');
       if (textareaRef.current) {
@@ -243,39 +361,238 @@ Regeln:
     }
     setLoading(true);
 
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: botMsgId,
-        sender: 'bot',
-        text: 'Denke nach...'
-      }
-    ]);
+    // 2. Add Placeholder Bot Message
+    addMessageToSession(activeSession.id, {
+      id: botMsgId,
+      role: 'assistant',
+      content: '',
+      isStreaming: true
+    });
+
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
 
     try {
-      const systemInstruction = buildSystemInstruction();
+      const systemInstruction = buildSystemInstruction(currentAttachments);
       await askGeminiCoach({
-        prompt: text.trim(),
+        prompt: trimmed,
         systemInstruction,
         aiModel: activeModel,
+        signal: abortController.signal,
         onChunk: (currentFullText) => {
-          setMessages((prev) =>
-            prev.map((msg) => (msg.id === botMsgId ? { ...msg, text: currentFullText } : msg))
-          );
+          updateStreamingMessage(activeSession.id, botMsgId, currentFullText, true);
         }
       });
+      updateStreamingMessage(activeSession.id, botMsgId, undefined, false);
     } catch (err) {
-      console.error("Gemini Error:", err);
+      if (err.name === 'AbortError' || abortController.signal.aborted) {
+        return;
+      }
+      console.error('Gemini Error:', err);
       const errMsg = err?.message || 'Fehler beim Aufruf der Gemini API.';
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === botMsgId
-            ? { ...msg, text: `⚠️ KI-Fehler: ${errMsg}` }
-            : msg
-        )
+      updateStreamingMessage(activeSession.id, botMsgId, `⚠️ **KI-Fehler:** ${errMsg}`, false);
+    } finally {
+      abortControllerRef.current = null;
+      setLoading(false);
+    }
+  };
+
+  // Group and filter sessions chronologically for the SIDEBAR
+  const groupedSessions = useMemo(() => {
+    let filtered = sessions;
+
+    // Filter by sidebarScopeFilter
+    if (sidebarScopeFilter === 'general') {
+      filtered = filtered.filter((s) => s.contextScope === 'general' || s.contextScope === 'global');
+    } else if (sidebarScopeFilter !== 'all') {
+      filtered = filtered.filter((s) => 
+        s.contextId === sidebarScopeFilter || 
+        (s.contextAttachments && s.contextAttachments.some(a => a.id === sidebarScopeFilter))
       );
     }
-    setLoading(false);
+
+    // Filter by search text in sidebar
+    if (sessionSearchText.trim()) {
+      const query = sessionSearchText.toLowerCase();
+      filtered = filtered.filter((s) =>
+        (s.title && s.title.toLowerCase().includes(query)) ||
+        (s.contextTitle && s.contextTitle.toLowerCase().includes(query))
+      );
+    }
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const yesterday = today - 86400000;
+    const sevenDaysAgo = today - (7 * 86400000);
+
+    const groups = {
+      today: [],
+      yesterday: [],
+      lastWeek: [],
+      older: []
+    };
+
+    filtered.forEach((sess) => {
+      const sessionDate = new Date(sess.updatedAt || sess.createdAt || Date.now()).getTime();
+      if (sessionDate >= today) {
+        groups.today.push(sess);
+      } else if (sessionDate >= yesterday) {
+        groups.yesterday.push(sess);
+      } else if (sessionDate >= sevenDaysAgo) {
+        groups.lastWeek.push(sess);
+      } else {
+        groups.older.push(sess);
+      }
+    });
+
+    return groups;
+  }, [sessions, sidebarScopeFilter, sessionSearchText]);
+
+  // Label for Sidebar Filter Button
+  const sidebarScopeLabel = useMemo(() => {
+    if (sidebarScopeFilter === 'all') return 'Alle Chats';
+    if (sidebarScopeFilter === 'general') return 'Allgemeiner Coach';
+
+    const p = projects.find(pr => pr.id === sidebarScopeFilter);
+    if (p) return `Projekt: ${p.title}`;
+
+    const r = reminders.find(rem => rem.id === sidebarScopeFilter);
+    if (r) return `Erinnerung: ${r.title}`;
+
+    return 'Alle Chats';
+  }, [sidebarScopeFilter, projects, reminders]);
+
+  // Filtered lists for Sidebar Filter Modal
+  const sidebarModalFilteredItems = useMemo(() => {
+    const q = sidebarSearchQuery.trim().toLowerCase();
+    let filteredProjects = projects;
+    let filteredReminders = reminders;
+    if (q) {
+      filteredProjects = projects.filter((p) => p.title.toLowerCase().includes(q));
+      filteredReminders = reminders.filter((r) => r.title.toLowerCase().includes(q));
+    }
+    return { projects: filteredProjects, reminders: filteredReminders };
+  }, [projects, reminders, sidebarSearchQuery]);
+
+  // Filtered lists for Context Attachments Modal
+  const contextModalFilteredItems = useMemo(() => {
+    const q = contextModalSearch.trim().toLowerCase();
+    let filteredProjects = projects;
+    let filteredReminders = reminders;
+    if (q) {
+      filteredProjects = projects.filter((p) => p.title.toLowerCase().includes(q));
+      filteredReminders = reminders.filter((r) => r.title.toLowerCase().includes(q));
+    }
+    return { projects: filteredProjects, reminders: filteredReminders };
+  }, [projects, reminders, contextModalSearch]);
+
+  // Toggle Context Attachment helpers
+  const toggleProjectContext = (pId) => {
+    setIsAllContextSelected(false);
+    setIsGeneralOnlySelected(false);
+    const isInSession = (activeSession?.contextAttachments || []).some(a => a.id === pId && a.type === 'project');
+    if (isInSession) {
+      removeSessionAttachment(activeSession.id, pId, 'project');
+    }
+    setSelectedProjectIds((prev) => 
+      prev.includes(pId) ? prev.filter(id => id !== pId) : (isInSession ? prev : [...prev, pId])
+    );
+  };
+
+  const toggleReminderContext = (rId) => {
+    setIsAllContextSelected(false);
+    setIsGeneralOnlySelected(false);
+    const isInSession = (activeSession?.contextAttachments || []).some(a => a.id === rId && a.type === 'reminder');
+    if (isInSession) {
+      removeSessionAttachment(activeSession.id, rId, 'reminder');
+    }
+    setSelectedReminderIds((prev) => 
+      prev.includes(rId) ? prev.filter(id => id !== rId) : (isInSession ? prev : [...prev, rId])
+    );
+  };
+
+  const selectAllContext = () => {
+    setIsAllContextSelected(true);
+    setIsGeneralOnlySelected(false);
+    setSelectedProjectIds([]);
+    setSelectedReminderIds([]);
+    setIsContextModalOpen(false);
+  };
+
+  const selectGeneralOnlyContext = () => {
+    setIsGeneralOnlySelected(true);
+    setIsAllContextSelected(false);
+    setSelectedProjectIds([]);
+    setSelectedReminderIds([]);
+    setIsContextModalOpen(false);
+  };
+
+  const formatSessionTime = (isoStr) => {
+    if (!isoStr) return '';
+    try {
+      const d = new Date(isoStr);
+      return d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return '';
+    }
+  };
+
+  const renderSessionCard = (sess) => {
+    const isActive = sess.id === activeSessionId;
+    const isProject = sess.contextScope === 'project' || sess.contextScope === 'task' || sess.contextScope === 'section';
+    const isReminder = sess.contextScope === 'reminder' || sess.contextScope === 'reminders';
+
+    return (
+      <div
+        key={sess.id}
+        onClick={() => selectSession(sess.id)}
+        className={`p-2.5 sm:p-3 cursor-pointer transition-all flex items-center justify-between gap-2.5 rounded-xl border group relative ${
+          isActive
+            ? 'bg-primary/5 border-primary shadow-xs'
+            : 'bg-white border-outline-variant hover:border-primary/30 hover:bg-surface-low/50'
+        }`}
+      >
+        {/* Left / Main: Title on Top, Badge below */}
+        <div className="min-w-0 flex-1 flex flex-col gap-1">
+          <span className={`text-xs block truncate ${isActive ? 'font-bold text-on-surface' : 'font-medium text-on-surface'}`}>
+            {sess.title || 'Gespräch'}
+          </span>
+          <div className="flex items-center gap-1.5">
+            <span className={`text-[9px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-md shrink-0 truncate max-w-[150px] ${
+              isReminder
+                ? 'text-amber-800 bg-amber-50 border border-amber-200'
+                : isProject
+                ? 'text-primary bg-primary/10 border border-primary/20'
+                : 'text-on-surface-variant bg-surface-low border border-outline-variant'
+            }`}>
+              {sess.contextTitle || (isReminder ? 'Erinnerung' : isProject ? 'Projekt' : 'Allgemein')}
+            </span>
+          </div>
+        </div>
+
+        {/* Right: Time on Top, Message Count below */}
+        <div className="flex flex-col items-end shrink-0 text-right gap-0.5">
+          <span className="text-[10px] font-mono text-on-surface-variant font-medium">
+            {formatSessionTime(sess.updatedAt || sess.createdAt)}
+          </span>
+          <span className="text-[10px] font-mono text-on-surface-variant/70">
+            {sess.messages?.length || 0} Nachr.
+          </span>
+        </div>
+
+        {/* Delete Button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            deleteSession(sess.id);
+          }}
+          className="w-7 h-7 flex items-center justify-center rounded-lg text-on-surface-variant/40 hover:text-red-600 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer shrink-0"
+          title="Gespräch löschen"
+        >
+          <span className="material-symbols-outlined text-[16px]">delete</span>
+        </button>
+      </div>
+    );
   };
 
   return (
@@ -289,85 +606,146 @@ Regeln:
           />
         )}
         
-        {/* Left Sidebar: Chat Session History Drawer */}
+        {/* Left Sidebar: Structured Chat Session History Drawer */}
         <div
           className={`absolute md:relative z-30 bg-surface-low md:border-r border-outline-variant flex flex-col h-full transition-all duration-300 ease-in-out flex-shrink-0 rounded-r-2xl md:rounded-none shadow-2xl md:shadow-none ${
-            isHistoryOpen ? 'w-[85%] sm:w-72' : 'w-0 p-0 border-0 overflow-hidden'
+            isHistoryOpen ? 'w-[85%] sm:w-80' : 'w-0 p-0 border-0 overflow-hidden'
           }`}
         >
+          {/* Header */}
           <div className="p-3 border-b border-outline-variant flex items-center justify-between bg-surface-low">
-            <span className="text-[10px] font-mono font-bold text-on-surface-variant">VERLAUF</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-mono font-bold text-primary tracking-wider uppercase">Verlauf</span>
+              <span className="text-[10px] font-mono text-on-surface-variant font-bold bg-white px-2 py-0.5 rounded-md border border-outline-variant">
+                {sessions.length}
+              </span>
+            </div>
             <div className="flex items-center gap-1.5">
               <button
-                className="w-10 h-10 bg-primary text-on-primary rounded-xl hover:bg-neutral-800 transition-colors flex items-center justify-center cursor-pointer shadow-sm"
-                title="Neuer Chat"
+                className="w-8 h-8 bg-neutral-900 text-white rounded-xl hover:bg-black transition-colors flex items-center justify-center cursor-pointer shadow-xs"
+                title="Neues Gespräch beginnen"
                 onClick={handleNewChat}
               >
-                <span className="material-symbols-outlined text-[20px]">edit_square</span>
+                <span className="material-symbols-outlined text-[18px]">edit_square</span>
               </button>
               <button
-                className="w-10 h-10 border border-outline-variant bg-white hover:border-primary text-primary transition-colors flex items-center justify-center rounded-xl cursor-pointer shadow-sm"
+                className="w-8 h-8 border border-outline-variant bg-white hover:border-primary text-primary transition-colors flex items-center justify-center rounded-xl cursor-pointer shadow-xs"
                 title="Verlauf einklappen"
                 onClick={() => setIsHistoryOpen(false)}
               >
-                <span className="material-symbols-outlined text-[20px]">left_panel_close</span>
+                <span className="material-symbols-outlined text-[18px]">left_panel_close</span>
               </button>
             </div>
           </div>
 
-          <div className="space-y-1 p-2 overflow-y-auto flex-grow">
-            {sessions.map((sess) => {
-              const isActive = sess.id === activeSessionId;
-              return (
-                <div
-                  key={sess.id}
-                  className={`p-3 cursor-pointer transition-colors flex flex-col gap-0.5 rounded-xl border ${isActive
-                    ? 'bg-primary/5 border-primary shadow-sm'
-                    : 'bg-white border-outline-variant hover:bg-surface-low'
-                    }`}
-                  onClick={() => handleSelectSession(sess.id)}
+          {/* Search Bar for Sessions */}
+          <div className="p-2.5 border-b border-outline-variant/60">
+            <div className="flex items-center gap-1.5 bg-white border border-outline-variant rounded-xl px-2.5 py-1.5 focus-within:border-primary transition-colors">
+              <span className="material-symbols-outlined text-[16px] text-on-surface-variant">search</span>
+              <input
+                type="text"
+                value={sessionSearchText}
+                onChange={(e) => setSessionSearchText(e.target.value)}
+                placeholder="Gespräche durchsuchen..."
+                className="w-full text-xs bg-transparent border-none outline-none focus:ring-0 p-0 text-on-surface placeholder:text-on-surface-variant/50"
+              />
+              {sessionSearchText && (
+                <button
+                  onClick={() => setSessionSearchText('')}
+                  className="text-on-surface-variant hover:text-primary cursor-pointer"
                 >
-                  <span
-                    className={`text-xs truncate ${isActive ? 'font-bold text-primary' : 'font-medium text-primary'
-                      }`}
-                  >
-                    {sess.title}
-                  </span>
-                  <span className="text-[10px] mono text-on-surface-variant">{sess.dateText}</span>
-                </div>
-              );
-            })}
+                  <span className="material-symbols-outlined text-[14px]">close</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Sidebar Scope / Filter Button */}
+          <div className="px-2.5 py-2 border-b border-outline-variant/60">
+            <button
+              onClick={() => setIsSidebarFilterModalOpen(true)}
+              className="w-full flex items-center gap-2 px-3 py-2 bg-white border border-outline-variant rounded-xl text-xs font-mono font-medium hover:border-primary/40 hover:bg-surface-low transition-all cursor-pointer shadow-xs text-on-surface text-left"
+              title="Chat-Verlauf filtern / Suche"
+            >
+              <span className="material-symbols-outlined text-[16px] text-primary shrink-0">filter_list</span>
+              <span className="truncate">{sidebarScopeLabel}</span>
+            </button>
+          </div>
+
+          {/* Chronological Session Groups */}
+          <div className="space-y-4 p-2.5 overflow-y-auto flex-grow">
+            {groupedSessions.today.length > 0 && (
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-mono font-bold text-on-surface-variant/70 uppercase px-1 tracking-wider">
+                  Heute
+                </span>
+                {groupedSessions.today.map(renderSessionCard)}
+              </div>
+            )}
+
+            {groupedSessions.yesterday.length > 0 && (
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-mono font-bold text-on-surface-variant/70 uppercase px-1 tracking-wider">
+                  Gestern
+                </span>
+                {groupedSessions.yesterday.map(renderSessionCard)}
+              </div>
+            )}
+
+            {groupedSessions.lastWeek.length > 0 && (
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-mono font-bold text-on-surface-variant/70 uppercase px-1 tracking-wider">
+                  Letzte 7 Tage
+                </span>
+                {groupedSessions.lastWeek.map(renderSessionCard)}
+              </div>
+            )}
+
+            {groupedSessions.older.length > 0 && (
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-mono font-bold text-on-surface-variant/70 uppercase px-1 tracking-wider">
+                  Älter
+                </span>
+                {groupedSessions.older.map(renderSessionCard)}
+              </div>
+            )}
+
+            {sessions.length === 0 && (
+              <div className="p-6 text-center text-xs text-on-surface-variant italic">
+                Keine gespeicherten Gespräche vorhanden.
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Right Main Chat Panel */}
+        {/* Right Main Chat Panel (Header bar removed - Unboxed Floating Controls) */}
         <div className="flex-grow flex flex-col h-full relative overflow-hidden bg-surface">
           {/* Floating Action Buttons when Sidebar is closed */}
           {!isHistoryOpen && (
-            <div className="absolute top-4 left-4 z-20 flex flex-row gap-2">
+            <div className="absolute top-3.5 left-3.5 z-20 flex flex-row gap-2">
               <button
-                className="w-10 h-10 border border-outline-variant bg-white hover:border-primary text-primary transition-colors flex items-center justify-center rounded-xl cursor-pointer shadow-sm"
-                title="Verlauf ausklappen"
+                className="w-10 h-10 border border-outline-variant bg-white hover:border-primary text-primary transition-colors flex items-center justify-center rounded-xl cursor-pointer shadow-xs"
+                title="Verlauf öffnen"
                 onClick={() => setIsHistoryOpen(true)}
               >
-                <span className="material-symbols-outlined text-[20px]">left_panel_open</span>
+                <span className="material-symbols-outlined text-[19px]">left_panel_open</span>
               </button>
               <button
-                className="w-10 h-10 bg-primary text-on-primary rounded-xl hover:bg-neutral-800 transition-colors flex items-center justify-center cursor-pointer shadow-sm"
+                className="w-10 h-10 bg-neutral-900 text-white rounded-xl hover:bg-black transition-colors flex items-center justify-center cursor-pointer shadow-xs"
                 title="Neuer Chat"
                 onClick={handleNewChat}
               >
-                <span className="material-symbols-outlined text-[20px]">edit_square</span>
+                <span className="material-symbols-outlined text-[19px]">edit_square</span>
               </button>
             </div>
           )}
 
-          {/* Floating Mobile Model Dropdown */}
-          <div className="absolute top-4 right-4 z-20 block sm:hidden">
+          {/* Floating Model Dropdown (Desktop & Mobile) */}
+          <div className="absolute top-3.5 right-3.5 z-20 flex items-center">
             <select
               value={activeModel}
               onChange={(e) => setActiveModel(e.target.value)}
-              className="bg-white border border-outline-variant text-[10px] font-mono font-bold text-primary rounded-xl px-2.5 py-2 shadow-sm focus:outline-none cursor-pointer"
+              className="bg-white border border-outline-variant text-[11px] font-mono font-bold text-primary rounded-xl px-3 py-2 shadow-xs focus:outline-none focus:border-primary cursor-pointer hover:border-primary/40 transition-colors"
               title="KI-Modell auswählen"
             >
               <optgroup label="Flash">
@@ -382,162 +760,684 @@ Regeln:
           </div>
 
           {/* Message Stream */}
-          <div className="flex-grow overflow-y-auto px-4 pb-6 pt-16 lg:pt-6">
+          <div className="flex-grow overflow-y-auto px-4 pb-6 pt-16 sm:pt-14">
             <div className="max-w-2xl mx-auto space-y-6">
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full min-h-[40vh] text-center px-4 fade-in">
-                  <div className="w-16 h-16 bg-primary text-white rounded-2xl flex items-center justify-center mb-4 shadow-md p-3.5">
+                  <div className="w-16 h-16 bg-neutral-900 text-white rounded-2xl flex items-center justify-center mb-4 shadow-md p-3.5">
                     <FioIcon className="w-full h-full text-white" color="currentColor" />
                   </div>
                   <h2 className="text-2xl font-bold text-on-surface mb-1.5 tracking-tight">
                     Hallo{user?.displayName ? ` ${user.displayName.split(' ')[0]}` : ''}, ich bin Fio 👋
                   </h2>
                   <p className="text-sm text-on-surface-variant max-w-md leading-relaxed">
-                    Dein persönlicher KI-Coach. Wie kann ich dich heute bei deinen Aufgaben und Projekten unterstützen?
+                    Dein persönlicher KI-Coach. Wie kann ich dich heute bei deinen Projekten, Aufgaben und Erinnerungen unterstützen?
                   </p>
                 </div>
               ) : (
                 messages.map((msg) => {
-                if (msg.sender === 'bot') {
-                  return (
-                    <div key={msg.id} className="flex gap-3 group">
-                      <div className="w-8 h-8 flex-shrink-0 bg-primary text-white rounded-xl flex items-center justify-center p-1.5 shadow-sm">
-                        <FioIcon className="w-full h-full text-white" color="currentColor" />
-                      </div>
-                      <div className="flex flex-col gap-1 items-start max-w-[85%]">
-                        <div className="p-4 bg-white border border-outline-variant rounded-xl text-sm shadow-sm markdown-body w-full">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
+                  const isBot = msg.role === 'assistant' || msg.sender === 'bot';
+                  if (isBot) {
+                    return (
+                      <div key={msg.id} className="flex gap-3 group">
+                        <div className="w-8 h-8 flex-shrink-0 bg-neutral-900 text-white rounded-xl flex items-center justify-center p-1.5 shadow-sm">
+                          <FioIcon className="w-full h-full text-white" color="currentColor" />
                         </div>
-                        <button 
-                          className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-mono font-bold text-primary flex items-center gap-1 bg-surface-low px-2 py-1 border border-outline-variant rounded-lg hover:bg-white"
-                          onClick={() => alert('Dokument gespeichert! (Mockup)')}
-                        >
-                          <span className="material-symbols-outlined text-[14px]">post_add</span>
-                          ALS DOKUMENT SPEICHERN
-                        </button>
+                        <div className="flex flex-col gap-1 items-start max-w-[85%]">
+                          <div className="p-4 bg-white border border-outline-variant rounded-xl text-sm shadow-sm markdown-body w-full">
+                            {msg.content || msg.text ? (
+                              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                {msg.content || msg.text}
+                              </ReactMarkdown>
+                            ) : (
+                              <div className="flex items-center gap-1.5 py-1 text-on-surface-variant text-xs">
+                                <span className="w-2 h-2 rounded-full bg-primary animate-ping" />
+                                <span>Fio denkt nach...</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div key={msg.id} className="flex flex-col items-end gap-1.5">
+                      {/* Attached Context Chips in User Bubble (Gemini Style) */}
+                      {msg.attachments && msg.attachments.length > 0 && (
+                        <div className="flex flex-wrap items-center justify-end gap-1.5 max-w-[85%] pr-1">
+                          {msg.attachments.map((att) => (
+                            <div
+                              key={`${att.type}_${att.id}`}
+                              className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-outline-variant rounded-lg text-[11px] font-mono text-on-surface shadow-2xs"
+                            >
+                              <span className={`material-symbols-outlined text-[14px] ${att.type === 'project' ? 'text-primary' : 'text-amber-700'}`}>
+                                {att.type === 'project' ? 'folder' : 'notifications'}
+                              </span>
+                              <span className="truncate max-w-[150px] font-medium">{att.title}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div className="flex gap-3 flex-row-reverse">
+                        <div className="w-8 h-8 flex-shrink-0 bg-surface-low border border-outline-variant rounded-lg flex items-center justify-center text-xs font-mono font-bold">
+                          FF
+                        </div>
+                        <div className="p-4 bg-neutral-900 text-white rounded-xl text-sm max-w-[85%] shadow-sm markdown-body">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {msg.content || msg.text}
+                          </ReactMarkdown>
+                        </div>
                       </div>
                     </div>
                   );
-                }
-                return (
-                  <div key={msg.id} className="flex gap-3 flex-row-reverse">
-                    <div className="w-8 h-8 flex-shrink-0 bg-surface-low border border-outline-variant rounded-lg flex items-center justify-center text-xs font-mono font-bold">
-                      FF
-                    </div>
-                    <div className="p-4 bg-white border border-primary rounded-xl text-sm max-w-[85%] shadow-sm markdown-body">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
-                    </div>
-                  </div>
-                );
-              }))}
+                })
+              )}
               <div ref={messagesEndRef} />
             </div>
           </div>
 
           {/* Bottom Input Control Suite */}
           <div className="p-3 sm:p-4 bg-transparent space-y-3 pb-4 sm:pb-6 relative z-10">
-            {/* Quick Prompts */}
-            <div className="max-w-2xl mx-auto flex items-center gap-2 no-wrap-scroll text-[11px] font-mono pb-1 overflow-x-auto">
-              <span className="text-on-surface-variant font-bold flex-shrink-0">PROMPTS:</span>
-              {dynamicPrompts.map((qp) => (
+            {/* Quick Prompts or Floating Stop Indicator */}
+            {loading ? (
+              <div className="max-w-2xl mx-auto flex items-center justify-center pb-1 animate-fadeIn">
                 <button
-                  key={qp.id}
-                  className="px-2.5 py-1 bg-white border border-outline-variant rounded-lg hover:border-primary text-primary transition-all font-medium whitespace-nowrap flex-shrink-0 cursor-pointer shadow-sm"
-                  onClick={() => handleSendMessage(qp.promptText)}
+                  type="button"
+                  onClick={handleStopGeneration}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 rounded-full text-xs font-mono font-bold transition-all shadow-xs cursor-pointer hover:scale-105 active:scale-95"
                 >
-                  {qp.label}
+                  <span className="w-2.5 h-2.5 bg-red-600 rounded-xs animate-pulse" />
+                  <span>Antwort stoppen</span>
                 </button>
-              ))}
-            </div>
-
-            {/* Input Bar */}
-            <div className="max-w-2xl mx-auto flex items-center bg-white border border-outline-variant rounded-2xl shadow-sm p-1.5 focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-all">
-              {/* Filter Icon (Scope Dropdown) */}
-              <div className="relative flex items-center justify-center pl-2 pr-1 cursor-pointer group">
-                <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors text-[22px]">filter_alt</span>
-                <select
-                  value={activeCoachScope}
-                  onChange={(e) => setActiveCoachScope(e.target.value)}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  title="Fokus ändern"
-                >
-                  <option value="all">🌐 Alle Projekte & Erinnerungen</option>
-                  <option value="reminders">🔔 Nur Erinnerungen & Inbox</option>
-                  <optgroup label="Projekte">
-                    {projects.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        📁 Projekt: {p.title}
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
               </div>
+            ) : (
+              <div className="max-w-2xl mx-auto flex items-center gap-2 no-wrap-scroll text-[11px] font-mono pb-1 overflow-x-auto">
+                <span className="text-on-surface-variant font-bold flex-shrink-0">PROMPTS:</span>
+                {dynamicPrompts.map((qp) => (
+                  <button
+                    key={qp.id}
+                    className="px-2.5 py-1 bg-white border border-outline-variant rounded-lg hover:border-primary text-primary transition-all font-medium whitespace-nowrap flex-shrink-0 cursor-pointer shadow-xs"
+                    onClick={() => handleSendMessage(qp.promptText)}
+                  >
+                    {qp.label}
+                  </button>
+                ))}
+              </div>
+            )}
 
-              <textarea
-                ref={textareaRef}
-                className="flex-grow border-none focus:ring-0 text-sm px-2 sm:px-3 py-2.5 sm:py-3 outline-none resize-none overflow-y-auto min-h-[44px]"
-                placeholder="Frage deinen Coach..."
-                value={inputText}
-                rows={1}
-                style={{ height: 'auto' }}
-                onChange={(e) => {
-                  setInputText(e.target.value);
-                  e.target.style.height = 'auto';
-                  e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSendMessage();
-                  }
-                }}
-              />
-              <button
-                className={`px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg transition-colors flex items-center justify-center cursor-pointer flex-shrink-0 ${
-                  isListening
-                    ? 'bg-red-600 text-white shadow-sm'
-                    : inputText.trim().length === 0 
-                      ? 'bg-primary text-on-primary hover:bg-neutral-800 shadow-sm' 
-                      : 'text-on-surface-variant hover:text-primary bg-surface-low border border-outline-variant sm:border-none sm:bg-transparent'
-                }`}
-                onClick={handleToggleListening}
-                title={isListening ? 'Spracheingabe stoppen' : 'Spracheingabe'}
-              >
-                <span className="material-symbols-outlined text-[20px]">mic</span>
-              </button>
-
-              {inputText.trim().length > 0 && (
-                <button
-                  className="px-3 sm:px-4 py-2.5 sm:py-3 bg-primary text-on-primary rounded-lg hover:bg-neutral-800 transition-colors flex items-center justify-center cursor-pointer shadow-sm ml-1 flex-shrink-0"
-                  onClick={() => handleSendMessage()}
-                  title="Senden"
-                >
-                  <span className="material-symbols-outlined text-[20px]">send</span>
-                </button>
+            {/* Input Bar with Gemini-Style Context Attachment Chips */}
+            <div className="max-w-2xl mx-auto bg-white border border-outline-variant rounded-2xl shadow-sm p-1.5 focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-all flex flex-col">
+              {/* Attached Context Chips Bar (Gemini Style) */}
+              {activeAttachments.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5 px-2 pt-1.5 pb-2 border-b border-outline-variant/40">
+                  {activeAttachments.map((att) => (
+                    <div
+                      key={`${att.type}_${att.id}`}
+                      className="flex items-center gap-1.5 px-2.5 py-1 bg-surface-low border border-outline-variant rounded-lg text-xs font-mono font-medium shadow-2xs group hover:bg-white transition-colors"
+                    >
+                      <span className={`material-symbols-outlined text-[15px] ${att.type === 'project' ? 'text-primary' : 'text-amber-700'}`}>
+                        {att.type === 'project' ? 'folder' : 'notifications'}
+                      </span>
+                      <span className="truncate max-w-[160px] text-on-surface">{att.title}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (att.type === 'project') toggleProjectContext(att.id);
+                          else toggleReminderContext(att.id);
+                        }}
+                        className="text-on-surface-variant hover:text-red-600 transition-colors ml-0.5 cursor-pointer flex items-center justify-center"
+                        title={`${att.title} entfernen`}
+                      >
+                        <span className="material-symbols-outlined text-[14px]">close</span>
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setIsContextModalOpen(true)}
+                    className="text-[11px] font-mono font-medium text-primary hover:underline px-1 cursor-pointer flex items-center gap-0.5"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">add</span>
+                    <span>Weiteren Kontext hinzufügen</span>
+                  </button>
+                </div>
               )}
 
-              {/* Model Dropdown right next to Send (Desktop Only) */}
-              <div className="hidden sm:flex items-center pl-1 sm:pl-2 ml-1 sm:ml-2 border-l border-outline-variant pr-1">
-                <select
-                  value={activeModel}
-                  onChange={(e) => setActiveModel(e.target.value)}
-                  className="bg-transparent border-none text-[10px] sm:text-[11px] font-mono font-bold text-on-surface-variant focus:outline-none cursor-pointer hover:text-primary transition-colors max-w-[65px] sm:max-w-[80px]"
-                  title="KI-Modell auswählen"
+              {/* Main Input Controls Row */}
+              <div className="flex items-center w-full">
+                {/* Context Selector Button (Standard Constant Icon) */}
+                <button
+                  type="button"
+                  onClick={() => setIsContextModalOpen(true)}
+                  className="flex items-center justify-center p-2 text-on-surface-variant hover:text-primary transition-colors cursor-pointer rounded-xl hover:bg-surface-low"
+                  title="Kontext & Daten für Fio wählen"
                 >
-                  <optgroup label="Flash">
-                    <option value="gemini-3.6-flash">3.6 Flash</option>
-                    <option value="gemini-3.5-flash">3.5 Flash</option>
-                  </optgroup>
-                  <optgroup label="Lite">
-                    <option value="gemini-3.5-flash-lite">3.5 Lite</option>
-                    <option value="gemini-3.1-flash-lite">3.1 Lite</option>
-                  </optgroup>
-                </select>
+                  <span className="material-symbols-outlined text-[20px]">tune</span>
+                </button>
+
+                <textarea
+                  ref={textareaRef}
+                  className="flex-grow border-none focus:ring-0 text-sm px-2 sm:px-3 py-2.5 sm:py-3 outline-none resize-none overflow-y-auto min-h-[44px]"
+                  placeholder={
+                    loading
+                      ? 'Fio generiert gerade eine Antwort...'
+                      : 'Frage deinen Coach...'
+                  }
+                  value={inputText}
+                  rows={1}
+                  disabled={loading}
+                  style={{ height: 'auto' }}
+                  onChange={(e) => {
+                    setInputText(e.target.value);
+                    e.target.style.height = 'auto';
+                    e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }
+                  }}
+                />
+
+                {/* Voice Input Button */}
+                {!loading && (
+                  <button
+                    type="button"
+                    className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all cursor-pointer mr-1 ${
+                      isListening
+                        ? 'bg-red-500 text-white animate-pulse shadow-md'
+                        : 'text-on-surface-variant hover:text-primary hover:bg-surface-low'
+                    }`}
+                    title={isListening ? 'Zuhören beenden' : 'Spracheingabe starten'}
+                    onClick={handleToggleListening}
+                  >
+                    <span className="material-symbols-outlined text-[20px]">
+                      {isListening ? 'mic' : 'mic_none'}
+                    </span>
+                  </button>
+                )}
+
+                {/* Send or Stop Button */}
+                {loading ? (
+                  <button
+                    type="button"
+                    className="w-10 h-10 bg-red-600 hover:bg-red-700 text-white rounded-xl transition-all flex items-center justify-center cursor-pointer shadow-md animate-scaleIn hover:scale-105 active:scale-95"
+                    title="Antwort unterbrechen"
+                    onClick={handleStopGeneration}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">stop</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="w-10 h-10 bg-neutral-900 text-white rounded-xl hover:bg-black transition-colors flex items-center justify-center cursor-pointer shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                    title="Nachricht senden"
+                    disabled={!inputText.trim() || loading}
+                    onClick={() => handleSendMessage()}
+                  >
+                    <span className="material-symbols-outlined text-[20px]">send</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* 1. SIDEBAR FILTER MODAL: Suche & Filter für den Chatverlauf */}
+      {isSidebarFilterModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-2xl border border-outline-variant shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[85vh]">
+            {/* Header */}
+            <div className="p-4 border-b border-outline-variant flex items-center justify-between bg-surface-low/60">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[20px] text-primary">filter_list</span>
+                <span className="font-bold text-sm text-on-surface">Chat-Verlauf durchsuchen & filtern</span>
+              </div>
+              <button
+                onClick={() => setIsSidebarFilterModalOpen(false)}
+                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-surface-low text-on-surface-variant transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            {/* Search Bar */}
+            <div className="p-3 border-b border-outline-variant/60 bg-white">
+              <div className="flex items-center gap-2 bg-surface-low border border-outline-variant rounded-xl px-3 py-2 focus-within:border-primary focus-within:bg-white transition-colors">
+                <span className="material-symbols-outlined text-[18px] text-on-surface-variant">search</span>
+                <input
+                  type="text"
+                  autoFocus
+                  value={sidebarSearchQuery}
+                  onChange={(e) => setSidebarSearchQuery(e.target.value)}
+                  placeholder="Projekte oder Erinnerungen filtern..."
+                  className="w-full text-xs bg-transparent border-none outline-none focus:ring-0 p-0 text-on-surface"
+                />
+                {sidebarSearchQuery && (
+                  <button onClick={() => setSidebarSearchQuery('')} className="text-on-surface-variant hover:text-primary">
+                    <span className="material-symbols-outlined text-[16px]">close</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Items List */}
+            <div className="flex-1 overflow-y-auto p-3 space-y-4">
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-mono font-bold text-on-surface-variant/70 uppercase tracking-wider px-1">
+                  Allgemein
+                </span>
+                <div
+                  onClick={() => {
+                    setSidebarScopeFilter('all');
+                    setIsSidebarFilterModalOpen(false);
+                  }}
+                  className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                    sidebarScopeFilter === 'all'
+                      ? 'bg-primary/5 border-primary shadow-xs'
+                      : 'bg-white border-outline-variant hover:bg-surface-low/50 hover:border-primary/30'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="material-symbols-outlined text-[18px] text-primary">forum</span>
+                    <div>
+                      <div className="font-bold text-xs text-on-surface">Alle Chats anzeigen</div>
+                      <div className="text-[10px] font-mono text-on-surface-variant">Gesamten Verlauf anzeigen</div>
+                    </div>
+                  </div>
+                  {sidebarScopeFilter === 'all' && (
+                    <span className="material-symbols-outlined text-[18px] text-primary">check</span>
+                  )}
+                </div>
+
+                <div
+                  onClick={() => {
+                    setSidebarScopeFilter('general');
+                    setIsSidebarFilterModalOpen(false);
+                  }}
+                  className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                    sidebarScopeFilter === 'general'
+                      ? 'bg-primary/5 border-primary shadow-xs'
+                      : 'bg-white border-outline-variant hover:bg-surface-low/50 hover:border-primary/30'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="material-symbols-outlined text-[18px] text-primary">psychology</span>
+                    <div>
+                      <div className="font-bold text-xs text-on-surface">Allgemeiner Coach</div>
+                      <div className="text-[10px] font-mono text-on-surface-variant">Chats ohne Projekt-/Erinnerungsbindung</div>
+                    </div>
+                  </div>
+                  {sidebarScopeFilter === 'general' && (
+                    <span className="material-symbols-outlined text-[18px] text-primary">check</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Projects */}
+              {sidebarModalFilteredItems.projects.length > 0 && (() => {
+                const isSearching = !!sidebarSearchQuery.trim();
+                const visible = isSearching || showAllSidebarProjects
+                  ? sidebarModalFilteredItems.projects
+                  : sidebarModalFilteredItems.projects.slice(0, 3);
+                const hasMore = !isSearching && sidebarModalFilteredItems.projects.length > 3;
+
+                return (
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] font-mono font-bold text-on-surface-variant/70 uppercase tracking-wider px-1">
+                      Projekte ({sidebarModalFilteredItems.projects.length})
+                    </span>
+                    {visible.map((p) => {
+                      const isSelected = sidebarScopeFilter === p.id;
+                      return (
+                        <div
+                          key={p.id}
+                          onClick={() => {
+                            setSidebarScopeFilter(p.id);
+                            setIsSidebarFilterModalOpen(false);
+                          }}
+                          className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                            isSelected
+                              ? 'bg-primary/5 border-primary shadow-xs'
+                              : 'bg-white border-outline-variant hover:bg-surface-low/50 hover:border-primary/30'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="material-symbols-outlined text-[18px] text-primary shrink-0">folder</span>
+                            <div className="min-w-0">
+                              <div className="font-bold text-xs text-on-surface truncate">{p.title}</div>
+                              <div className="text-[10px] font-mono text-on-surface-variant">
+                                {p.progress || 0}% abgeschlossen • {p.phases?.length || 0} Abschnitte
+                              </div>
+                            </div>
+                          </div>
+                          {isSelected && (
+                            <span className="material-symbols-outlined text-[18px] text-primary shrink-0">check</span>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {hasMore && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAllSidebarProjects(!showAllSidebarProjects)}
+                        className="w-full py-2 px-3 text-[11px] font-mono font-bold text-primary bg-surface-low hover:bg-white border border-outline-variant/60 hover:border-primary/40 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 mt-1"
+                      >
+                        <span>{showAllSidebarProjects ? 'Weniger anzeigen' : `Mehr anzeigen (${sidebarModalFilteredItems.projects.length - 3} weitere)`}</span>
+                        <span className="material-symbols-outlined text-[15px]">
+                          {showAllSidebarProjects ? 'expand_less' : 'expand_more'}
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Reminders */}
+              {sidebarModalFilteredItems.reminders.length > 0 && (() => {
+                const isSearching = !!sidebarSearchQuery.trim();
+                const visible = isSearching || showAllSidebarReminders
+                  ? sidebarModalFilteredItems.reminders
+                  : sidebarModalFilteredItems.reminders.slice(0, 3);
+                const hasMore = !isSearching && sidebarModalFilteredItems.reminders.length > 3;
+
+                return (
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] font-mono font-bold text-on-surface-variant/70 uppercase tracking-wider px-1">
+                      Erinnerungen ({sidebarModalFilteredItems.reminders.length})
+                    </span>
+                    {visible.map((r) => {
+                      const isSelected = sidebarScopeFilter === r.id;
+                      return (
+                        <div
+                          key={r.id}
+                          onClick={() => {
+                            setSidebarScopeFilter(r.id);
+                            setIsSidebarFilterModalOpen(false);
+                          }}
+                          className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                            isSelected
+                              ? 'bg-primary/5 border-primary shadow-xs'
+                              : 'bg-white border-outline-variant hover:bg-surface-low/50 hover:border-primary/30'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="material-symbols-outlined text-[18px] text-amber-700 shrink-0">notifications</span>
+                            <div className="min-w-0">
+                              <div className="font-bold text-xs text-on-surface truncate">{r.title}</div>
+                              <div className="text-[10px] font-mono text-on-surface-variant">
+                                {r.date || 'Kein Termin'} {r.time ? `• ${r.time} Uhr` : ''} • {r.status || 'AKTIV'}
+                              </div>
+                            </div>
+                          </div>
+                          {isSelected && (
+                            <span className="material-symbols-outlined text-[18px] text-primary shrink-0">check</span>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {hasMore && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAllSidebarReminders(!showAllSidebarReminders)}
+                        className="w-full py-2 px-3 text-[11px] font-mono font-bold text-primary bg-surface-low hover:bg-white border border-outline-variant/60 hover:border-primary/40 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 mt-1"
+                      >
+                        <span>{showAllSidebarReminders ? 'Weniger anzeigen' : `Mehr anzeigen (${sidebarModalFilteredItems.reminders.length - 3} weitere)`}</span>
+                        <span className="material-symbols-outlined text-[15px]">
+                          {showAllSidebarReminders ? 'expand_less' : 'expand_more'}
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2. KI-KONTEXT & ANHÄNGE MODAL (Wählt aus, welche Daten der KI als Kontext übergeben werden) */}
+      {isContextModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-2xl border border-outline-variant shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[85vh]">
+            
+            {/* Modal Header */}
+            <div className="p-4 border-b border-outline-variant flex items-center justify-between bg-surface-low/60">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[20px] text-primary">tune</span>
+                <span className="font-bold text-sm text-on-surface">Kontext & Anhänge für Fio auswählen</span>
+              </div>
+              <button
+                onClick={() => setIsContextModalOpen(false)}
+                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-surface-low text-on-surface-variant transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            {/* Instant Search Bar */}
+            <div className="p-3 border-b border-outline-variant/60 bg-white">
+              <div className="flex items-center gap-2 bg-surface-low border border-outline-variant rounded-xl px-3 py-2 focus-within:border-primary focus-within:bg-white transition-colors">
+                <span className="material-symbols-outlined text-[18px] text-on-surface-variant">search</span>
+                <input
+                  type="text"
+                  autoFocus
+                  value={contextModalSearch}
+                  onChange={(e) => setContextModalSearch(e.target.value)}
+                  placeholder="Projekte oder Erinnerungen für Fio suchen..."
+                  className="w-full text-xs bg-transparent border-none outline-none focus:ring-0 p-0 text-on-surface"
+                />
+                {contextModalSearch && (
+                  <button onClick={() => setContextModalSearch('')} className="text-on-surface-variant hover:text-primary">
+                    <span className="material-symbols-outlined text-[16px]">close</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Scrollable Items List with Multi-Select Checkboxes */}
+            <div className="flex-1 overflow-y-auto p-3 space-y-4">
+              {/* Preset Scopes */}
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-mono font-bold text-on-surface-variant/70 uppercase tracking-wider px-1">
+                  Voreinstellungen
+                </span>
+                
+                {/* All Context Option */}
+                <div
+                  onClick={selectAllContext}
+                  className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                    isAllContextSelected && (activeSession?.contextAttachments || []).length === 0
+                      ? 'bg-primary/5 border-primary shadow-xs'
+                      : 'bg-white border-outline-variant hover:bg-surface-low/50 hover:border-primary/30'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="material-symbols-outlined text-[18px] text-primary">forum</span>
+                    <div>
+                      <div className="font-bold text-xs text-on-surface">Alle Projektdaten & Erinnerungen übergeben</div>
+                      <div className="text-[10px] font-mono text-on-surface-variant">Voller Zugriff auf den gesamten Arbeitsbereich</div>
+                    </div>
+                  </div>
+                  <div className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all ${
+                    isAllContextSelected && (activeSession?.contextAttachments || []).length === 0 ? 'bg-primary border-primary text-white' : 'border-outline-variant bg-white'
+                  }`}>
+                    {isAllContextSelected && (activeSession?.contextAttachments || []).length === 0 && <span className="material-symbols-outlined text-[14px]">check</span>}
+                  </div>
+                </div>
+
+                {/* General Coach Only */}
+                <div
+                  onClick={selectGeneralOnlyContext}
+                  className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                    isGeneralOnlySelected
+                      ? 'bg-primary/5 border-primary shadow-xs'
+                      : 'bg-white border-outline-variant hover:bg-surface-low/50 hover:border-primary/30'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="material-symbols-outlined text-[18px] text-primary">psychology</span>
+                    <div>
+                      <div className="font-bold text-xs text-on-surface">Allgemeiner Coach (Ohne Projektdaten)</div>
+                      <div className="text-[10px] font-mono text-on-surface-variant">Freies Gespräch ohne aktiven Aufgaben-Kontext</div>
+                    </div>
+                  </div>
+                  <div className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all ${
+                    isGeneralOnlySelected ? 'bg-primary border-primary text-white' : 'border-outline-variant bg-white'
+                  }`}>
+                    {isGeneralOnlySelected && <span className="material-symbols-outlined text-[14px]">check</span>}
+                  </div>
+                </div>
+              </div>
+
+              {/* Projects Multi-Select Section */}
+              {contextModalFilteredItems.projects.length > 0 && (() => {
+                const isSearching = !!contextModalSearch.trim();
+                const visibleProjects = isSearching || showAllContextProjects
+                  ? contextModalFilteredItems.projects
+                  : contextModalFilteredItems.projects.slice(0, 3);
+                const hasMoreProjects = !isSearching && contextModalFilteredItems.projects.length > 3;
+
+                return (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-[10px] font-mono font-bold text-on-surface-variant/70 uppercase tracking-wider">
+                        Projekte ({contextModalFilteredItems.projects.length})
+                      </span>
+                    </div>
+
+                    {visibleProjects.map((p) => {
+                      const isChecked = selectedProjectIds.includes(p.id) || (activeSession?.contextAttachments || []).some(a => a.id === p.id && a.type === 'project');
+                      return (
+                        <div
+                          key={p.id}
+                          onClick={() => toggleProjectContext(p.id)}
+                          className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                            isChecked
+                              ? 'bg-primary/5 border-primary/40 shadow-xs'
+                              : 'bg-white border-outline-variant hover:bg-surface-low/50 hover:border-primary/30'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="material-symbols-outlined text-[18px] text-primary shrink-0">folder</span>
+                            <div className="min-w-0">
+                              <div className="font-bold text-xs text-on-surface truncate">{p.title}</div>
+                              <div className="text-[10px] font-mono text-on-surface-variant">
+                                {p.progress || 0}% abgeschlossen • {p.phases?.length || 0} Abschnitte
+                              </div>
+                            </div>
+                          </div>
+                          <div className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all shrink-0 ml-2 ${
+                            isChecked ? 'bg-primary border-primary text-white' : 'border-outline-variant bg-white'
+                          }`}>
+                            {isChecked && <span className="material-symbols-outlined text-[14px]">check</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {hasMoreProjects && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAllContextProjects(!showAllContextProjects)}
+                        className="w-full py-2 px-3 text-[11px] font-mono font-bold text-primary bg-surface-low hover:bg-white border border-outline-variant/60 hover:border-primary/40 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs hover:shadow-xs mt-1"
+                      >
+                        <span>{showAllContextProjects ? 'Weniger anzeigen' : `Mehr anzeigen (${contextModalFilteredItems.projects.length - 3} weitere)`}</span>
+                        <span className="material-symbols-outlined text-[15px]">
+                          {showAllContextProjects ? 'expand_less' : 'expand_more'}
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Reminders Multi-Select Section */}
+              {contextModalFilteredItems.reminders.length > 0 && (() => {
+                const isSearching = !!contextModalSearch.trim();
+                const visibleReminders = isSearching || showAllContextReminders
+                  ? contextModalFilteredItems.reminders
+                  : contextModalFilteredItems.reminders.slice(0, 3);
+                const hasMoreReminders = !isSearching && contextModalFilteredItems.reminders.length > 3;
+
+                return (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-[10px] font-mono font-bold text-on-surface-variant/70 uppercase tracking-wider">
+                        Erinnerungen ({contextModalFilteredItems.reminders.length})
+                      </span>
+                    </div>
+
+                    {visibleReminders.map((r) => {
+                      const isChecked = selectedReminderIds.includes(r.id) || (activeSession?.contextAttachments || []).some(a => a.id === r.id && a.type === 'reminder');
+                      return (
+                        <div
+                          key={r.id}
+                          onClick={() => toggleReminderContext(r.id)}
+                          className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                            isChecked
+                              ? 'bg-primary/5 border-primary/40 shadow-xs'
+                              : 'bg-white border-outline-variant hover:bg-surface-low/50 hover:border-primary/30'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="material-symbols-outlined text-[18px] text-amber-700 shrink-0">notifications</span>
+                            <div className="min-w-0">
+                              <div className="font-bold text-xs text-on-surface truncate">{r.title}</div>
+                              <div className="text-[10px] font-mono text-on-surface-variant">
+                                {r.date || 'Kein Termin'} {r.time ? `• ${r.time} Uhr` : ''} • {r.status || 'AKTIV'}
+                              </div>
+                            </div>
+                          </div>
+                          <div className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all shrink-0 ml-2 ${
+                            isChecked ? 'bg-primary border-primary text-white' : 'border-outline-variant bg-white'
+                          }`}>
+                            {isChecked && <span className="material-symbols-outlined text-[14px]">check</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {hasMoreReminders && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAllContextReminders(!showAllContextReminders)}
+                        className="w-full py-2 px-3 text-[11px] font-mono font-bold text-primary bg-surface-low hover:bg-white border border-outline-variant/60 hover:border-primary/40 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs hover:shadow-xs mt-1"
+                      >
+                        <span>{showAllContextReminders ? 'Weniger anzeigen' : `Mehr anzeigen (${contextModalFilteredItems.reminders.length - 3} weitere)`}</span>
+                        <span className="material-symbols-outlined text-[15px]">
+                          {showAllContextReminders ? 'expand_less' : 'expand_more'}
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {contextModalFilteredItems.projects.length === 0 && contextModalFilteredItems.reminders.length === 0 && (
+                <div className="p-8 text-center text-xs text-on-surface-variant italic">
+                  Keine Projekte oder Erinnerungen für „{contextModalSearch}“ gefunden.
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer with Action Button */}
+            <div className="p-3 border-t border-outline-variant flex items-center justify-end bg-surface-low/50">
+              <button
+                onClick={() => setIsContextModalOpen(false)}
+                className="px-4 py-2 bg-neutral-900 text-white rounded-xl text-xs font-mono font-bold hover:bg-black transition-all cursor-pointer shadow-xs"
+              >
+                Auswahl anwenden
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 };

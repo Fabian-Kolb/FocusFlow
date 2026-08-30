@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useModalContext } from '../../context/ModalContext';
 import NotesSection from '../ui/NotesSection';
+import GlobalChatDrawer from '../ui/GlobalChatDrawer';
 import FioIcon from '../ui/FioIcon';
 
 const ReminderDetail = ({ setCurrentScreen }) => {
   const { reminders, trashItems, selectedReminderId, openModal, toggleReminderStatus, setReminderStatus, setActiveCoachScope, toggleReminderPause, toggleReminderKanban, mutateReminder, reminderCategories } = useModalContext();
   const [isStructuring, setIsStructuring] = useState(false);
+  const [isGlobalChatOpen, setIsGlobalChatOpen] = useState(false);
 
   const reminder = reminders.find(r => r.id === selectedReminderId) || (trashItems && trashItems.find(r => r.id === selectedReminderId));
   const isTrashed = !!reminder?.deletedAt;
@@ -345,17 +347,25 @@ const ReminderDetail = ({ setCurrentScreen }) => {
         </div>
       </div>
 
+      {/* Global Fio AI Chat Drawer for Reminder */}
+      <GlobalChatDrawer 
+        isOpen={isGlobalChatOpen}
+        onClose={() => setIsGlobalChatOpen(false)}
+        projectData={null}
+        contextScope="reminder"
+        contextData={reminder}
+      />
+
       {/* Floating Action Speech Bubble (FAB) for Fio */}
-      <button
-        onClick={() => {
-          setActiveCoachScope(reminder.id);
-          if (setCurrentScreen) setCurrentScreen('coach');
-        }}
-        title="Fio (KI-Coach) für diese Erinnerung befragen"
-        className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-30 w-12 h-12 sm:w-13 sm:h-13 flex items-center justify-center bg-neutral-900 text-white rounded-2xl rounded-br-[3px] shadow-2xl hover:shadow-primary/30 border border-neutral-700/60 hover:bg-black hover:scale-105 active:scale-95 transition-all duration-300 group cursor-pointer p-3"
-      >
-        <FioIcon className="w-full h-full text-white group-hover:scale-110 transition-transform" color="currentColor" />
-      </button>
+      {!isGlobalChatOpen && (
+        <button
+          onClick={() => setIsGlobalChatOpen(true)}
+          title="Fio (KI-Coach) für diese Erinnerung öffnen"
+          className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-50 w-12 h-12 sm:w-13 sm:h-13 flex items-center justify-center bg-neutral-900 text-white rounded-2xl rounded-br-[3px] shadow-2xl hover:shadow-primary/30 border border-neutral-700/60 hover:bg-black hover:scale-105 active:scale-95 transition-all duration-300 group cursor-pointer p-3"
+        >
+          <FioIcon className="w-full h-full text-white group-hover:scale-110 transition-transform" color="currentColor" />
+        </button>
+      )}
     </div>
   );
 };
