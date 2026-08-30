@@ -138,8 +138,8 @@ const GlobalChatDrawer = ({
         {/* Chat Component */}
         <ProjectAiChat 
           projectData={projectData}
-          contextScope="project"
-          contextData={null}
+          contextScope={contextScope}
+          contextData={contextData}
           scrollContainerRef={scrollContainerRef}
         />
       </div>
