@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSwipeToClose } from '../../hooks/useSwipeToClose';
-import ProjectAiChat from './ProjectAiChat';
 import FioIcon from './FioIcon';
 
 const SectionDetailDrawer = ({
@@ -25,7 +24,6 @@ const SectionDetailDrawer = ({
   const [localDesc, setLocalDesc] = useState('');
   const [localDate, setLocalDate] = useState('');
   const titleTextareaRef = useRef(null);
-  const [activeTab, setActiveTab] = useState('details'); // 'details' | 'chat'
 
   const [shouldRender, setShouldRender] = useState(isOpen);
   const [isClosing, setIsClosing] = useState(false);
@@ -64,7 +62,6 @@ const SectionDetailDrawer = ({
         setIsSwitching(true);
         const timer = setTimeout(() => {
           setActivePhase(phase);
-          setActiveTab('details');
           setIsSwitching(false);
           setSlideInTrigger(true);
         }, 190);
@@ -282,14 +279,6 @@ const SectionDetailDrawer = ({
                 rows={3}
               />
             </div>
-            
-            <button 
-              onClick={() => setActiveTab('chat')}
-              className="mt-1 w-full py-2.5 flex items-center justify-center gap-2 rounded-xl border border-primary/20 bg-primary/5 text-primary hover:bg-primary/10 transition-all font-mono text-xs uppercase font-bold cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[16px]">auto_spark</span>
-              KI Abschnitt analysieren
-            </button>
           </div>
 
           {/* Linked Notes Section */}
@@ -423,19 +412,6 @@ const SectionDetailDrawer = ({
           </div>
 
         </div>
-
-        {/* Floating Action Speech Bubble (FAB) for Fio */}
-        {!isGlobalChatOpen && (
-          <button
-            onClick={() => {
-              if (onOpenGlobalChat) onOpenGlobalChat();
-            }}
-            title="Fio (KI-Coach) öffnen"
-            className="absolute bottom-5 right-4 z-20 w-12 h-12 flex items-center justify-center bg-neutral-900 text-white rounded-2xl rounded-br-[3px] shadow-2xl hover:shadow-primary/30 border border-neutral-700/60 hover:bg-black hover:scale-105 active:scale-95 transition-all duration-300 group cursor-pointer p-3"
-          >
-            <FioIcon className="w-full h-full text-white group-hover:scale-110 transition-transform" color="currentColor" />
-          </button>
-        )}
       </div>
     </>
   );

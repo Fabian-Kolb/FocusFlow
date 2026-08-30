@@ -135,10 +135,10 @@ export const useSwipeToClose = ({
     isDragging,
     entryAnimActive,
     wasSwipedClosed,
-    // Add inline styles for the drawer panel
+    // Add inline styles for the drawer panel only when actively swiping
     drawerStyle: {
       transform: translateY > 0 ? `translateY(${translateY}px)` : undefined,
-      transition: isDragging ? 'none' : 'transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1)',
+      transition: isDragging ? 'none' : translateY > 0 ? 'transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1)' : undefined,
     }
   };
 };

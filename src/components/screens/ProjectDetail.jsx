@@ -1611,12 +1611,13 @@ const ProjectDetail = ({ setCurrentScreen }) => {
         contextData={selectedTask ? selectedTask : selectedPhase ? selectedPhase : null}
       />
 
-      {/* Floating Action Speech Bubble (FAB) for Project Level (when no detail drawer is open) */}
-      {!detailDrawerOpen && !isGlobalChatOpen && (
+      {/* Floating Action Speech Bubble (FAB) for Fio */}
+      {!isGlobalChatOpen && (
         <button
           onClick={() => setIsGlobalChatOpen(true)}
           title="Fio (KI-Coach) öffnen"
-          className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-30 w-12 h-12 sm:w-13 sm:h-13 flex items-center justify-center bg-neutral-900 text-white rounded-2xl rounded-br-[3px] shadow-2xl hover:shadow-primary/30 border border-neutral-700/60 hover:bg-black hover:scale-105 active:scale-95 transition-all duration-300 group cursor-pointer p-3"
+          style={{ '--fab-offset': detailDrawerOpen ? '444px' : '24px' }}
+          className="fixed z-50 bottom-20 right-4 sm:bottom-6 sm:right-auto sm:[right:var(--fab-offset)] w-12 h-12 sm:w-13 sm:h-13 flex items-center justify-center bg-neutral-900 text-white rounded-2xl rounded-br-[3px] shadow-2xl hover:shadow-primary/30 border border-neutral-700/60 hover:bg-black hover:scale-105 active:scale-95 transition-[right,transform] duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] group cursor-pointer p-3"
         >
           <FioIcon className="w-full h-full text-white group-hover:scale-110 transition-transform" color="currentColor" />
         </button>

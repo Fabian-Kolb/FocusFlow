@@ -13,8 +13,14 @@ const GlobalChatDrawer = ({
 }) => {
   const [shouldRender, setShouldRender] = useState(isOpen);
   const [isClosing, setIsClosing] = useState(false);
+  const [slideInTrigger, setSlideInTrigger] = useState(true);
   const drawerPanelRef = useRef(null);
   const scrollContainerRef = useRef(null);
+
+  // Model & History States
+  const [activeModel, setActiveModel] = useState('gemini-3.6-flash');
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [newChatCounter, setNewChatCounter] = useState(0);
 
   // Prevent body scroll on mobile when open
   useEffect(() => {
@@ -27,18 +33,31 @@ const GlobalChatDrawer = ({
   }, [isOpen]);
 
   useEffect(() => {
-    if (isOpen) {
-      setShouldRender(true);
-      setIsClosing(false);
-    } else if (shouldRender && !isClosing) {
+    if (!isOpen) {
       setIsClosing(true);
       const timer = setTimeout(() => {
         setShouldRender(false);
         setIsClosing(false);
+        setIsHistoryOpen(false);
       }, 220);
       return () => clearTimeout(timer);
     }
+
+    // When isOpen is true
+    setShouldRender(true);
+    setIsClosing(false);
+    setSlideInTrigger(true);
   }, [isOpen]);
+
+  // Reset slide-in class after animation finishes
+  useEffect(() => {
+    if (slideInTrigger) {
+      const timer = setTimeout(() => {
+        setSlideInTrigger(false);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [slideInTrigger]);
 
   const handleCloseAnimated = () => {
     onClose();
@@ -60,7 +79,7 @@ const GlobalChatDrawer = ({
     const handlePointerDownOutside = (e) => {
       // If click is on desktop outside the drawer panel
       if (drawerPanelRef.current && !drawerPanelRef.current.contains(e.target)) {
-        // Ignore clicks inside note modals, rich-text toolbars, or any other drawer triggers (tasks/sections)
+        // Ignore clicks inside note modals, rich-text toolbars, or drawer triggers
         if (
           e.target.closest && (
             e.target.closest('[role="dialog"]') ||
@@ -113,7 +132,7 @@ const GlobalChatDrawer = ({
           bottom-0 inset-x-0 h-[85vh] rounded-t-3xl w-full
           sm:bottom-auto sm:inset-x-auto sm:inset-y-0 sm:h-[calc(100vh-24px)] sm:w-[420px] sm:max-w-[420px] sm:my-3 sm:rounded-2xl
           sm:right-0 sm:[margin-right:var(--chat-offset)]
-          ${isClosing ? (wasSwipedClosed ? '' : 'drawer-slide-out') : (entryAnimActive ? 'drawer-slide-in' : '')}
+          ${isClosing ? (wasSwipedClosed ? '' : 'drawer-slide-out') : ((entryAnimActive || slideInTrigger) ? 'drawer-slide-in' : '')}
         `}
       >
         {/* Notch / Drag Handle for Mobile */}
@@ -121,18 +140,70 @@ const GlobalChatDrawer = ({
           <div className="w-12 h-1.5 bg-outline-variant/60 rounded-full" />
         </div>
 
-        {/* Header */}
-        <div className="shrink-0 h-12 bg-white border-b border-outline-variant flex items-center justify-between px-4">
-          <div className="flex items-center">
-            <FioIcon className="w-5 h-5 text-primary" color="currentColor" />
+        {/* Top Header Toolbar */}
+        <div className="shrink-0 h-13 bg-white border-b border-outline-variant flex items-center justify-between px-3 sm:px-4 gap-2">
+          {/* Left: Logo & Model Selector */}
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-7 h-7 shrink-0 flex items-center justify-center bg-primary/10 rounded-lg p-1 text-primary">
+              <FioIcon className="w-full h-full text-primary" color="currentColor" />
+            </div>
+
+            {/* Model Selector Dropdown */}
+            <div className="relative flex items-center shrink-0">
+              <select
+                value={activeModel}
+                onChange={(e) => setActiveModel(e.target.value)}
+                className="bg-surface-low border border-outline-variant text-[11px] font-mono font-bold text-primary rounded-lg pl-2 pr-5 py-1 shadow-xs focus:outline-none focus:border-primary cursor-pointer appearance-none hover:bg-white transition-colors"
+                title="KI-Modell auswählen"
+              >
+                <optgroup label="Flash">
+                  <option value="gemini-3.6-flash">3.6 Flash</option>
+                  <option value="gemini-3.5-flash">3.5 Flash</option>
+                </optgroup>
+                <optgroup label="Lite">
+                  <option value="gemini-3.5-flash-lite">3.5 Lite</option>
+                  <option value="gemini-3.1-flash-lite">3.1 Lite</option>
+                </optgroup>
+              </select>
+              <span className="material-symbols-outlined text-[14px] text-on-surface-variant pointer-events-none absolute right-1">
+                expand_more
+              </span>
+            </div>
           </div>
-          <button 
-            onClick={handleCloseAnimated}
-            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-low text-on-surface-variant transition-colors cursor-pointer"
-            title="Schließen"
-          >
-            <span className="material-symbols-outlined text-[20px]">close</span>
-          </button>
+
+          {/* Right: Actions (New Chat, History, Close) */}
+          <div className="flex items-center gap-1 shrink-0">
+            {/* New Chat Button */}
+            <button
+              onClick={() => setNewChatCounter((c) => c + 1)}
+              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-low text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
+              title="Neues Gespräch beginnen"
+            >
+              <span className="material-symbols-outlined text-[19px]">edit_square</span>
+            </button>
+
+            {/* History Toggle Button */}
+            <button
+              onClick={() => setIsHistoryOpen((prev) => !prev)}
+              className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer ${
+                isHistoryOpen
+                  ? 'bg-primary text-white shadow-xs'
+                  : 'hover:bg-surface-low text-on-surface-variant hover:text-primary'
+              }`}
+              title={isHistoryOpen ? 'Chat anzeigen' : 'Chatverlauf anzeigen'}
+            >
+              <span className="material-symbols-outlined text-[19px]">history</span>
+            </button>
+
+            {/* Close Button */}
+            <button 
+              onClick={handleCloseAnimated}
+              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-low text-on-surface-variant transition-colors cursor-pointer ml-0.5"
+              title="Schließen"
+            >
+              <span className="material-symbols-outlined text-[20px]">close</span>
+            </button>
+          </div>
         </div>
 
         {/* Chat Component */}
@@ -141,6 +212,10 @@ const GlobalChatDrawer = ({
           contextScope={contextScope}
           contextData={contextData}
           scrollContainerRef={scrollContainerRef}
+          activeModel={activeModel}
+          isHistoryOpen={isHistoryOpen}
+          setIsHistoryOpen={setIsHistoryOpen}
+          newChatTrigger={newChatCounter}
         />
       </div>
     </>
