@@ -184,7 +184,7 @@ export const api = onRequest({ region: 'europe-west3', cors: true, maxInstances:
               </div>
               <script>
                 if (window.opener) {
-                  window.opener.postMessage({ type: 'FOCUSFLOW_CALENDAR_CONNECTED' }, '*');
+                  window.opener.postMessage({ type: 'FOCUSFLOW_CALENDAR_CONNECTED' }, window.location.origin);
                 }
                 setTimeout(() => window.close(), 1200);
               </script>

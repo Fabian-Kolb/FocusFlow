@@ -1,14 +1,10 @@
-// api/gemini/generate-project.js - Vercel Serverless Function for AI Project Structure Generation
 import { handleGenerateProject } from '../../server/geminiService.js';
 import { checkRateLimit } from '../../server/rateLimiter.js';
+import { applyCorsAndSecurityHeaders } from '../../server/corsHelper.js';
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(204).end();
+  if (applyCorsAndSecurityHeaders(req, res, 'POST, OPTIONS')) {
+    return;
   }
 
   if (req.method !== 'POST') {

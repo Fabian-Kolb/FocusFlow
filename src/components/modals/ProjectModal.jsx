@@ -3,6 +3,7 @@ import { useModalContext } from '../../context/ModalContext';
 import { generateProjectStructure, ensureBulletPoints } from '../../lib/gemini';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
+import FioIcon from '../ui/FioIcon';
 
 const ProjectModal = ({ setCurrentScreen }) => {
   const { activeModal, modalPayload, closeModal, addProject } = useModalContext();
@@ -254,7 +255,7 @@ const ProjectModal = ({ setCurrentScreen }) => {
                     }}
                     className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:bg-neutral-800 transition-colors shadow-sm cursor-pointer"
                   >
-                    <span className="material-symbols-outlined text-[18px]">auto_awesome</span>
+                    <FioIcon className="w-4 h-4 text-white" color="currentColor" />
                     Phasen & Aufgaben generieren...
                   </button>
                 </div>
@@ -496,9 +497,9 @@ const ProjectModal = ({ setCurrentScreen }) => {
           <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl p-5 sm:p-6 space-y-5 border-2 border-primary relative max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-outline-variant pb-3">
               <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary text-[22px]">auto_awesome</span>
+                <FioIcon className="w-5 h-5 text-primary" color="currentColor" />
                 <h3 className="text-sm font-bold font-mono uppercase text-primary">
-                  KI-Phasengenerierung anpassen
+                  Fio KI-Phasengenerierung anpassen
                 </h3>
               </div>
               <button
@@ -518,83 +519,64 @@ const ProjectModal = ({ setCurrentScreen }) => {
                 {/* 1. Granularitätsauswahl */}
                 <div>
                   <label className="block text-xs font-mono font-bold text-primary mb-2 uppercase">
-                    1. Phasen & Aufgaben Aufteilung
+                    Phasen-Granularität
                   </label>
-                  <div className="space-y-2">
-                    <label className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
-                      aiGranularity === 'few_phases' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-outline-variant bg-white hover:border-primary/50'
-                    }`}>
-                      <input
-                        type="radio"
-                        name="granularity"
-                        value="few_phases"
-                        checked={aiGranularity === 'few_phases'}
-                        onChange={(e) => setAiGranularity(e.target.value)}
-                        className="text-primary focus:ring-primary h-4 w-4 cursor-pointer"
-                      />
-                      <div>
-                        <span className="text-xs font-bold text-primary block">Wenige Phasen, mehr Aufgaben</span>
-                        <span className="text-[11px] text-on-surface-variant block">Große Meilensteine mit mehreren Unteraufgaben (z. B. 2 Phasen, 5-7 Tasks)</span>
-                      </div>
-                    </label>
-
-                    <label className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
-                      aiGranularity === 'balanced' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-outline-variant bg-white hover:border-primary/50'
-                    }`}>
-                      <input
-                        type="radio"
-                        name="granularity"
-                        value="balanced"
-                        checked={aiGranularity === 'balanced'}
-                        onChange={(e) => setAiGranularity(e.target.value)}
-                        className="text-primary focus:ring-primary h-4 w-4 cursor-pointer"
-                      />
-                      <div>
-                        <span className="text-xs font-bold text-primary block">Ausgewogen (Empfohlen)</span>
-                        <span className="text-[11px] text-on-surface-variant block">Ausgewogene Phasenaufteilung (z. B. 3-4 Phasen, 2-4 Tasks)</span>
-                      </div>
-                    </label>
-
-                    <label className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
-                      aiGranularity === 'many_phases' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-outline-variant bg-white hover:border-primary/50'
-                    }`}>
-                      <input
-                        type="radio"
-                        name="granularity"
-                        value="many_phases"
-                        checked={aiGranularity === 'many_phases'}
-                        onChange={(e) => setAiGranularity(e.target.value)}
-                        className="text-primary focus:ring-primary h-4 w-4 cursor-pointer"
-                      />
-                      <div>
-                        <span className="text-xs font-bold text-primary block">Mehrere Phasen, wenige Aufgaben</span>
-                        <span className="text-[11px] text-on-surface-variant block">Viele kleine Einzelschritte (z. B. 5-6 Phasen, 1-2 Tasks)</span>
-                      </div>
-                    </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setAiGranularity('few')}
+                      className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                        aiGranularity === 'few'
+                          ? 'border-primary bg-primary/10 font-bold'
+                          : 'border-outline-variant hover:bg-surface-low text-on-surface-variant'
+                      }`}
+                    >
+                      <div className="text-xs text-primary font-bold">Kompakt</div>
+                      <div className="text-[10px] text-on-surface-variant">2-3 Phasen</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAiGranularity('balanced')}
+                      className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                        aiGranularity === 'balanced'
+                          ? 'border-primary bg-primary/10 font-bold'
+                          : 'border-outline-variant hover:bg-surface-low text-on-surface-variant'
+                      }`}
+                    >
+                      <div className="text-xs text-primary font-bold">Ausgewogen</div>
+                      <div className="text-[10px] text-on-surface-variant">3-5 Phasen</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAiGranularity('detailed')}
+                      className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                        aiGranularity === 'detailed'
+                          ? 'border-primary bg-primary/10 font-bold'
+                          : 'border-outline-variant hover:bg-surface-low text-on-surface-variant'
+                      }`}
+                    >
+                      <div className="text-xs text-primary font-bold">Detailliert</div>
+                      <div className="text-[10px] text-on-surface-variant">5-8 Phasen</div>
+                    </button>
                   </div>
                 </div>
 
-                {/* 2. Zeitangaben / Deadlines Schätzung */}
-                <div className="pt-3 border-t border-outline-variant">
-                  <label className="block text-xs font-mono font-bold text-primary mb-2 uppercase">
-                    2. Zeitplanung & Termine
-                  </label>
-                  <label className="flex items-start gap-3 p-3 bg-surface-low border border-outline-variant rounded-xl cursor-pointer hover:border-primary transition-colors">
+                {/* 2. Zeitliche Schätzung / Datumsverteilung */}
+                <div className="bg-surface-low border border-outline-variant rounded-xl p-3.5 space-y-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={aiEstimateDates}
                       onChange={(e) => setAiEstimateDates(e.target.checked)}
-                      className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4 mt-0.5 cursor-pointer"
+                      className="w-4 h-4 text-primary rounded border-outline-variant focus:ring-primary"
                     />
-                    <div>
-                      <span className="text-xs font-bold text-primary block">KI soll Zeitpunkte automatisch verteilen</span>
-                      <span className="text-[11px] text-on-surface-variant block leading-relaxed mt-0.5">
-                        {(startDate || endDate)
-                          ? `Phasen & Aufgaben werden zeitlich logisch zwischen ${startDate || 'Startdatum'} und ${endDate || 'Deadline'} aufgeteilt.`
-                          : 'Verteilt geschätzte Daten ab heute.'}
-                      </span>
-                    </div>
+                    <span className="text-xs font-bold text-primary">
+                      Termine & Fristen automatisch schätzen
+                    </span>
                   </label>
+                  <p className="text-[11px] text-on-surface-variant leading-relaxed pl-6">
+                    Die KI verteilt die Fälligkeiten der Aufgaben gleichmäßig über den angegebenen Projektzeitraum ({startDate || 'Heute'} bis {endDate || 'Offen'}).
+                  </p>
                 </div>
 
                 <div className="flex items-center justify-end gap-3 pt-3 border-t border-outline-variant">
@@ -608,7 +590,7 @@ const ProjectModal = ({ setCurrentScreen }) => {
                   <button
                     type="button"
                     onClick={async () => {
-                      const textToStructure = modalPayload.cleanText || modalPayload.originalText || modalPayload.summaryText || description || name;
+                      const textToStructure = description || name;
                       if (!textToStructure.trim()) return;
                       setIsGenerating(true);
                       const result = await generateProjectStructure(textToStructure, {
@@ -625,7 +607,11 @@ const ProjectModal = ({ setCurrentScreen }) => {
                     disabled={isGenerating}
                     className="px-5 py-2.5 bg-primary text-white text-xs font-bold rounded-xl hover:bg-neutral-800 transition-colors disabled:opacity-50 flex items-center gap-2 shadow-sm cursor-pointer"
                   >
-                    <span className="material-symbols-outlined text-[16px]">{isGenerating ? 'sync' : 'auto_awesome'}</span>
+                    {isGenerating ? (
+                      <span className="material-symbols-outlined text-[16px] animate-spin">sync</span>
+                    ) : (
+                      <FioIcon className="w-4 h-4 text-white" color="currentColor" />
+                    )}
                     {isGenerating ? 'Phasen werden generiert...' : 'Phasen jetzt generieren'}
                   </button>
                 </div>

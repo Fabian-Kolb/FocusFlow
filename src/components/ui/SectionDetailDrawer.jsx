@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSwipeToClose } from '../../hooks/useSwipeToClose';
 import ProjectAiChat from './ProjectAiChat';
+import FioIcon from './FioIcon';
 
 const SectionDetailDrawer = ({
   projectData,
@@ -16,52 +17,75 @@ const SectionDetailDrawer = ({
   onDeleteMaterial,
   onOpenNote
 }) => {
+  const [activePhase, setActivePhase] = useState(phase);
+  const [isSwitching, setIsSwitching] = useState(false);
+  const [slideInTrigger, setSlideInTrigger] = useState(true);
+
   const [localTitle, setLocalTitle] = useState('');
   const [localDesc, setLocalDesc] = useState('');
   const [localDate, setLocalDate] = useState('');
   const titleTextareaRef = useRef(null);
-
-  const [displayedPhaseId, setDisplayedPhaseId] = useState(null);
-  const [isSwitching, setIsSwitching] = useState(false);
   const [activeTab, setActiveTab] = useState('details'); // 'details' | 'chat'
-
-  useEffect(() => {
-    if (!isOpen) {
-      setDisplayedPhaseId(null);
-      setIsSwitching(false);
-      setActiveTab('details');
-      return;
-    }
-
-    if (phase) {
-      if (displayedPhaseId && phase.id !== displayedPhaseId) {
-        setIsSwitching(true);
-        const timer = setTimeout(() => {
-          setDisplayedPhaseId(phase.id);
-          setIsSwitching(false);
-        }, 150);
-        return () => clearTimeout(timer);
-      } else {
-        if (phase.id !== displayedPhaseId) {
-          setActiveTab('details');
-        }
-        setDisplayedPhaseId(phase.id);
-      }
-    }
-  }, [phase?.id, isOpen]);
-
-  useEffect(() => {
-    if (phase) {
-      setLocalTitle(phase.title || '');
-      setLocalDesc(phase.description || '');
-      setLocalDate(phase.dateInfo || '');
-    }
-  }, [phase]);
 
   const [shouldRender, setShouldRender] = useState(isOpen);
   const [isClosing, setIsClosing] = useState(false);
   const drawerPanelRef = useRef(null);
   const scrollContainerRef = useRef(null);
+
+  // Sync inputs with activePhase
+  useEffect(() => {
+    if (activePhase) {
+      setLocalTitle(activePhase.title || '');
+      setLocalDesc(activePhase.description || '');
+      setLocalDate(activePhase.dateInfo || '');
+    }
+  }, [activePhase?.id, activePhase?.title, activePhase?.description, activePhase?.dateInfo]);
+
+  // Handle phase change or open/close
+  useEffect(() => {
+    if (!isOpen) {
+      setIsClosing(true);
+      const timer = setTimeout(() => {
+        setShouldRender(false);
+        setIsClosing(false);
+        setActivePhase(null);
+        setIsSwitching(false);
+      }, 220);
+      return () => clearTimeout(timer);
+    }
+
+    // When isOpen is true
+    setShouldRender(true);
+    setIsClosing(false);
+
+    if (phase) {
+      if (activePhase && activePhase.id !== phase.id) {
+        // User clicked another phase: slide out old phase, then slide in new phase with slight delay!
+        setIsSwitching(true);
+        const timer = setTimeout(() => {
+          setActivePhase(phase);
+          setActiveTab('details');
+          setIsSwitching(false);
+          setSlideInTrigger(true);
+        }, 190);
+        return () => clearTimeout(timer);
+      } else {
+        // Initial open
+        setActivePhase(phase);
+        setSlideInTrigger(true);
+      }
+    }
+  }, [phase?.id, isOpen]);
+
+  // Reset slide-in class after animation finishes
+  useEffect(() => {
+    if (slideInTrigger) {
+      const timer = setTimeout(() => {
+        setSlideInTrigger(false);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [slideInTrigger]);
 
   useEffect(() => {
     if (titleTextareaRef.current) {
@@ -69,20 +93,6 @@ const SectionDetailDrawer = ({
       titleTextareaRef.current.style.height = `${titleTextareaRef.current.scrollHeight}px`;
     }
   }, [localTitle, isOpen, shouldRender]);
-
-  useEffect(() => {
-    if (isOpen) {
-      setShouldRender(true);
-      setIsClosing(false);
-    } else if (shouldRender && !isClosing) {
-      setIsClosing(true);
-      const timer = setTimeout(() => {
-        setShouldRender(false);
-        setIsClosing(false);
-      }, 200);
-      return () => clearTimeout(timer);
-    }
-  }, [isOpen]);
 
   const handleCloseAnimated = () => {
     onClose();
@@ -133,7 +143,7 @@ const SectionDetailDrawer = ({
 
   if (phase) lastPhaseRef.current = phase;
 
-  const currentPhase = phase || lastPhaseRef.current;
+  const currentPhase = activePhase || phase || lastPhaseRef.current;
 
   if (!shouldRender || !currentPhase) return null;
 
@@ -184,6 +194,8 @@ const SectionDetailDrawer = ({
     }
   };
 
+  if (!shouldRender && !isOpen) return null;
+
   return (
     <>
       {/* Drawer Panel - Non-blocking Side Slide-In */}
@@ -193,7 +205,7 @@ const SectionDetailDrawer = ({
         className={`fixed z-50 flex flex-col bg-white border border-outline-variant shadow-2xl overflow-hidden
           bottom-0 inset-x-0 h-[85vh] rounded-t-3xl w-full
           sm:bottom-auto sm:inset-x-auto sm:inset-y-0 sm:right-0 sm:h-[calc(100vh-24px)] sm:w-[420px] sm:max-w-[420px] sm:my-3 sm:mr-3 sm:rounded-2xl
-          ${(isClosing || isSwitching) ? (wasSwipedClosed ? '' : 'drawer-slide-out') : (entryAnimActive ? 'drawer-slide-in' : '')}
+          ${(isClosing || isSwitching) ? (wasSwipedClosed ? '' : 'drawer-slide-out') : ((entryAnimActive || slideInTrigger) ? 'drawer-slide-in' : '')}
         `}
       >
         {/* Notch / Drag Handle for Mobile */}
@@ -204,22 +216,7 @@ const SectionDetailDrawer = ({
         {/* Header (Sticky) */}
         <div className="sticky top-0 bg-white/95 backdrop-blur-md z-10 px-4 py-2.5 sm:px-5 sm:py-3.5 border-b border-outline-variant flex flex-col gap-2 sm:gap-2.5 lg:pt-4">
           {/* Top Bar: Meta Info + Actions */}
-          <div className="flex items-center justify-between gap-2 w-full">
-            <div className="flex items-center gap-1.5 shrink-0">
-              {!isGlobalChatOpen && (
-                <button
-                  onClick={() => {
-                    if (onOpenGlobalChat) onOpenGlobalChat();
-                  }}
-                  title="Fio (KI-Coach) öffnen"
-                  className="flex items-center gap-1.5 px-2.5 h-7 sm:h-8 rounded-full text-[10px] sm:text-[11px] font-mono font-bold transition-all bg-primary/10 text-primary hover:bg-primary/20 cursor-pointer"
-                >
-                  <span className="material-symbols-outlined text-[14px] sm:text-[16px]">smart_toy</span>
-                  <span className="hidden sm:inline">FIO (KI-COACH)</span>
-                </button>
-              )}
-            </div>
-
+          <div className="flex items-center justify-end gap-2 w-full">
             <div className="flex items-center gap-1.5 shrink-0">
               <button 
                 onClick={handleCloseAnimated}
@@ -426,6 +423,19 @@ const SectionDetailDrawer = ({
           </div>
 
         </div>
+
+        {/* Floating Action Speech Bubble (FAB) for Fio */}
+        {!isGlobalChatOpen && (
+          <button
+            onClick={() => {
+              if (onOpenGlobalChat) onOpenGlobalChat();
+            }}
+            title="Fio (KI-Coach) öffnen"
+            className="absolute bottom-5 right-4 z-20 w-12 h-12 flex items-center justify-center bg-neutral-900 text-white rounded-2xl rounded-br-[3px] shadow-2xl hover:shadow-primary/30 border border-neutral-700/60 hover:bg-black hover:scale-105 active:scale-95 transition-all duration-300 group cursor-pointer p-3"
+          >
+            <FioIcon className="w-full h-full text-white group-hover:scale-110 transition-transform" color="currentColor" />
+          </button>
+        )}
       </div>
     </>
   );

@@ -1,6 +1,7 @@
 import React from 'react';
 import Card from '../ui/Card';
 import Badge from '../ui/Badge';
+import FioIcon from '../ui/FioIcon';
 
 const Dashboard = ({ setCurrentScreen }) => {
   return (
@@ -11,27 +12,14 @@ const Dashboard = ({ setCurrentScreen }) => {
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold leading-tight">Guten Morgen, Fabian</h1>
         </div>
 
-        {/* KI-Coach Trigger */}
-        <Card
-          interactive
-          padding="small"
-          className="flex items-center gap-3 w-full md:w-auto"
+        {/* Fio Trigger */}
+        <button
           onClick={() => setCurrentScreen('coach')}
+          title="Fio öffnen"
+          className="w-11 h-11 bg-primary text-white rounded-2xl hover:bg-neutral-800 flex items-center justify-center transition-all shadow-sm p-2.5 cursor-pointer shrink-0"
         >
-          <div className="w-9 h-9 bg-primary text-on-primary flex items-center justify-center flex-shrink-0 rounded-lg">
-            <span className="material-symbols-outlined text-[18px]">auto_awesome</span>
-          </div>
-          <div className="min-w-0 flex-1">
-            <span className="text-[11px] font-mono font-bold block text-primary uppercase whitespace-nowrap">
-              ANFANGSHILFE (KI COACH)
-            </span>
-            <div className="marquee-wrapper">
-              <p className="text-xs text-on-surface-variant group-hover:text-primary transition-colors marquee-content">
-                Blockade beim Start? Coach nach dem ersten Schritt fragen →
-              </p>
-            </div>
-          </div>
-        </Card>
+          <FioIcon className="w-full h-full text-white" color="currentColor" />
+        </button>
       </div>
 
       {/* Haupt-Ergebnis heute (The Main Outcome) */}

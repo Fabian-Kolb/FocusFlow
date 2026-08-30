@@ -1,11 +1,8 @@
-// api/calendar/disconnect.js - Vercel Serverless Function to Disconnect Google Calendar
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+import { applyCorsAndSecurityHeaders } from '../../server/corsHelper.js';
 
-  if (req.method === 'OPTIONS') {
-    return res.status(204).end();
+export default async function handler(req, res) {
+  if (applyCorsAndSecurityHeaders(req, res, 'POST, OPTIONS')) {
+    return;
   }
 
   return res.status(200).json({ success: true, connected: false });

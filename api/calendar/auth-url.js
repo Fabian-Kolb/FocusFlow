@@ -1,13 +1,9 @@
-// api/calendar/auth-url.js - Vercel Serverless Function for Google Calendar OAuth URL
 import { getGoogleOAuthUrl } from '../../server/calendarService.js';
+import { applyCorsAndSecurityHeaders } from '../../server/corsHelper.js';
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(204).end();
+  if (applyCorsAndSecurityHeaders(req, res, 'GET, OPTIONS')) {
+    return;
   }
 
   const googleClientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID;

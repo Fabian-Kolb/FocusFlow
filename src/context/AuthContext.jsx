@@ -119,6 +119,9 @@ export function AuthProvider({ children }) {
 
       return new Promise((resolve) => {
         const handleMessage = async (event) => {
+          // Sicherheitsprüfung: Nur Nachrichten vom identischen Origin erlauben
+          if (event.origin !== window.location.origin) return;
+
           if (event.data?.type === 'FOCUSFLOW_CALENDAR_CONNECTED') {
             window.removeEventListener('message', handleMessage);
             if (event.data.accessToken || event.data.refreshToken) {

@@ -1,4 +1,5 @@
 import React from 'react';
+import FioIcon from '../ui/FioIcon';
 
 const BottomNav = ({ currentScreen, setCurrentScreen }) => {
   const navItems = [
@@ -8,7 +9,7 @@ const BottomNav = ({ currentScreen, setCurrentScreen }) => {
     { id: 'projects', label: 'Projekte', icon: 'folder' },
     { id: 'board', label: 'Board', icon: 'view_kanban' },
     { id: 'calendar', label: 'Kalender', icon: 'calendar_today' },
-    { id: 'coach', label: 'Coach', icon: 'smart_toy' },
+    { id: 'coach', label: 'Fio', icon: 'fio' },
     { id: 'review', label: 'Review', icon: 'analytics' },
   ];
 
@@ -29,7 +30,11 @@ const BottomNav = ({ currentScreen, setCurrentScreen }) => {
               isActive ? 'text-primary' : 'text-on-surface-variant hover:text-primary'
             } transition-colors`}
           >
-            <span className="material-symbols-outlined text-[24px]">{item.icon}</span>
+            {item.id === 'coach' ? (
+              <FioIcon className="w-[20px] h-[20px] mb-1" color="currentColor" />
+            ) : (
+              <span className="material-symbols-outlined text-[24px]">{item.icon}</span>
+            )}
             {isActive && <div className="absolute bottom-2 w-1 h-1 bg-primary rounded-full"></div>}
             
             {/* Tooltip */}

@@ -4,6 +4,7 @@ import NotesSection from '../ui/NotesSection';
 import TaskDetailDrawer from '../ui/TaskDetailDrawer';
 import SectionDetailDrawer from '../ui/SectionDetailDrawer';
 import GlobalChatDrawer from '../ui/GlobalChatDrawer';
+import FioIcon from '../ui/FioIcon';
 
 const ProjectDetail = ({ setCurrentScreen }) => {
   const { 
@@ -735,8 +736,54 @@ const ProjectDetail = ({ setCurrentScreen }) => {
     return true;
   });
 
-  const detailDrawerOpen = !!selectedTask || !!selectedPhase;
+  const [isTransitioningDrawer, setIsTransitioningDrawer] = useState(false);
+  const detailDrawerOpen = !!selectedTask || !!selectedPhase || isTransitioningDrawer;
   const rightMarginClass = (detailDrawerOpen && isGlobalChatOpen) ? 'lg:mr-[840px]' : (detailDrawerOpen || isGlobalChatOpen) ? 'lg:mr-[420px]' : '';
+
+  const handleCloseDetailDrawer = () => {
+    if (isGlobalChatOpen) {
+      // 1. First slide out the Fio KI-Coach drawer (behind)
+      setIsGlobalChatOpen(false);
+      // 2. Snappy cascading delay (100ms): Then slide out the detail drawer (in front)
+      setTimeout(() => {
+        setSelectedTask(null);
+        setSelectedPhase(null);
+      }, 100);
+    } else {
+      setSelectedTask(null);
+      setSelectedPhase(null);
+    }
+  };
+
+  const handleSelectPhase = (phase) => {
+    if (selectedPhase?.id === phase.id && !selectedTask) {
+      handleCloseDetailDrawer();
+    } else if (selectedTask) {
+      setIsTransitioningDrawer(true);
+      setSelectedTask(null);
+      setTimeout(() => {
+        setSelectedPhase(phase);
+        setIsTransitioningDrawer(false);
+      }, 190);
+    } else {
+      setSelectedPhase(phase);
+    }
+  };
+
+  const handleSelectTask = (task, phase) => {
+    if (selectedTask?.task.id === task.id) {
+      handleCloseDetailDrawer();
+    } else if (selectedPhase) {
+      setIsTransitioningDrawer(true);
+      setSelectedPhase(null);
+      setTimeout(() => {
+        setSelectedTask({ task, phase });
+        setIsTransitioningDrawer(false);
+      }, 190);
+    } else {
+      setSelectedTask({ task, phase });
+    }
+  };
 
   return (
     <div className="screen-transition">
@@ -840,18 +887,6 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                     </span>
                   )}
                 </div>
-              </button>
-              
-              <button
-                className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-primary/10 border border-primary/30 rounded-xl hover:bg-primary/20 text-primary font-mono text-xs font-bold transition-all shadow-sm cursor-pointer whitespace-nowrap"
-                onClick={() => {
-                  setActiveCoachScope(projectData.id);
-                  if (setCurrentScreen) setCurrentScreen('coach');
-                }}
-                title="AI Coach für dieses Projekt befragen"
-              >
-                <span className="material-symbols-outlined text-[16px]">smart_toy</span>
-                <span>AI COACH</span>
               </button>
             </div>
           </div>
@@ -1123,14 +1158,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                     <div 
                       className="min-w-0 cursor-pointer group section-header"
                       data-drawer-trigger="true"
-                      onClick={() => {
-                        if (selectedPhase?.id === phase.id && !selectedTask) {
-                          setSelectedPhase(null);
-                        } else {
-                          setSelectedTask(null);
-                          setSelectedPhase(phase);
-                        }
-                      }}
+                      onClick={() => handleSelectPhase(phase)}
                     >
                       <div className="flex items-center gap-2 flex-wrap">
                         {phase.dateInfo && (
@@ -1151,14 +1179,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                       {phase.badgeText || '0/0 ERLEDIGT'}
                     </span>
                     <button
-                      onClick={() => {
-                        if (selectedPhase?.id === phase.id && !selectedTask) {
-                          setSelectedPhase(null);
-                        } else {
-                          setSelectedTask(null);
-                          setSelectedPhase(phase);
-                        }
-                      }}
+                      onClick={() => handleSelectPhase(phase)}
                       className="p-1 rounded-lg hover:bg-surface-low text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
                       title="Abschnitt bearbeiten"
                     >
@@ -1182,14 +1203,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                               ? 'bg-primary/5 border border-primary/20'
                               : 'hover:bg-surface-low border border-transparent'
                           }`}
-                          onClick={() => {
-                            if (selectedTask?.task.id === task.id) {
-                              setSelectedTask(null);
-                            } else {
-                              setSelectedPhase(null);
-                              setSelectedTask({ task, phase });
-                            }
-                          }}
+                          onClick={() => handleSelectTask(task, phase)}
                         >
                           <input
                             type="checkbox"
@@ -1556,7 +1570,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
         allNotes={projectData.notes || []}
         isOpen={!!selectedTask}
         isGlobalChatOpen={isGlobalChatOpen}
-        onClose={() => setSelectedTask(null)}
+        onClose={handleCloseDetailDrawer}
         onOpenGlobalChat={() => setIsGlobalChatOpen(true)}
         onUpdateTask={handleDrawerUpdateTask}
         onDeleteTask={handleDeleteTask}
@@ -1575,7 +1589,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
         allNotes={projectData.notes || []}
         isOpen={!!selectedPhase}
         isGlobalChatOpen={isGlobalChatOpen}
-        onClose={() => setSelectedPhase(null)}
+        onClose={handleCloseDetailDrawer}
         onOpenGlobalChat={() => setIsGlobalChatOpen(true)}
         onUpdatePhase={handleDrawerUpdatePhase}
         onDeletePhase={handleDeletePhase}
@@ -1594,6 +1608,18 @@ const ProjectDetail = ({ setCurrentScreen }) => {
         projectData={projectData}
         isSecondaryPanel={detailDrawerOpen}
       />
+
+      {/* Floating Action Speech Bubble (FAB) for Fio */}
+      {!isGlobalChatOpen && (
+        <button
+          onClick={() => setIsGlobalChatOpen(true)}
+          title="Fio (KI-Coach) öffnen"
+          style={{ '--fab-offset': detailDrawerOpen ? '444px' : '24px' }}
+          className="fixed bottom-20 right-4 sm:bottom-6 sm:right-auto sm:[right:var(--fab-offset)] z-30 w-12 h-12 sm:w-13 sm:h-13 flex items-center justify-center bg-neutral-900 text-white rounded-2xl rounded-br-[3px] shadow-2xl hover:shadow-primary/30 border border-neutral-700/60 hover:bg-black hover:scale-105 active:scale-95 transition-all duration-300 group cursor-pointer p-3"
+        >
+          <FioIcon className="w-full h-full text-white group-hover:scale-110 transition-transform" color="currentColor" />
+        </button>
+      )}
     </div>
   );
 };

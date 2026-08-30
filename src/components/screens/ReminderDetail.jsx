@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useModalContext } from '../../context/ModalContext';
 import NotesSection from '../ui/NotesSection';
+import FioIcon from '../ui/FioIcon';
 
 const ReminderDetail = ({ setCurrentScreen }) => {
   const { reminders, trashItems, selectedReminderId, openModal, toggleReminderStatus, setReminderStatus, setActiveCoachScope, toggleReminderPause, toggleReminderKanban, mutateReminder, reminderCategories } = useModalContext();
@@ -245,18 +246,6 @@ const ReminderDetail = ({ setCurrentScreen }) => {
                   )}
                 </div>
               </button>
-              
-              <button
-                className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-primary/10 border border-primary/30 rounded-xl hover:bg-primary/20 text-primary font-mono text-xs font-bold transition-all shadow-sm cursor-pointer whitespace-nowrap"
-                onClick={() => {
-                  setActiveCoachScope(reminder.id);
-                  if (setCurrentScreen) setCurrentScreen('coach');
-                }}
-                title="AI Coach für diese Erinnerung befragen"
-              >
-                <span className="material-symbols-outlined text-[16px]">smart_toy</span>
-                <span>AI COACH</span>
-              </button>
             </div>
           </div>
 
@@ -355,6 +344,18 @@ const ReminderDetail = ({ setCurrentScreen }) => {
         {/* End of Read-Only Wrapper */}
         </div>
       </div>
+
+      {/* Floating Action Speech Bubble (FAB) for Fio */}
+      <button
+        onClick={() => {
+          setActiveCoachScope(reminder.id);
+          if (setCurrentScreen) setCurrentScreen('coach');
+        }}
+        title="Fio (KI-Coach) für diese Erinnerung befragen"
+        className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-30 w-12 h-12 sm:w-13 sm:h-13 flex items-center justify-center bg-neutral-900 text-white rounded-2xl rounded-br-[3px] shadow-2xl hover:shadow-primary/30 border border-neutral-700/60 hover:bg-black hover:scale-105 active:scale-95 transition-all duration-300 group cursor-pointer p-3"
+      >
+        <FioIcon className="w-full h-full text-white group-hover:scale-110 transition-transform" color="currentColor" />
+      </button>
     </div>
   );
 };

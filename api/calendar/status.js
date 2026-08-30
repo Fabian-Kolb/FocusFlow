@@ -1,11 +1,8 @@
-// api/calendar/status.js - Vercel Serverless Function for Calendar Connection Status
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+import { applyCorsAndSecurityHeaders } from '../../server/corsHelper.js';
 
-  if (req.method === 'OPTIONS') {
-    return res.status(204).end();
+export default async function handler(req, res) {
+  if (applyCorsAndSecurityHeaders(req, res, 'GET, OPTIONS')) {
+    return;
   }
 
   const uid = req.query.uid;

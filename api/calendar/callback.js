@@ -49,7 +49,7 @@ export default async function handler(req, res) {
                 uid: '${uid}',
                 accessToken: '${accessToken}',
                 refreshToken: '${refreshToken}'
-              }, '*');
+              }, window.location.origin);
             }
             setTimeout(() => window.close(), 1000);
           </script>

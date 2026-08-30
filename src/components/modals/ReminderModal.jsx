@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useModalContext } from '../../context/ModalContext';
 import { generateReminderStructure } from '../../lib/gemini';
+import FioIcon from '../ui/FioIcon';
 
 const ReminderModal = ({ setCurrentScreen }) => {
   const { activeModal, modalPayload, closeModal, addReminder } = useModalContext();
@@ -123,10 +124,14 @@ const ReminderModal = ({ setCurrentScreen }) => {
                     setIsGenerating(false);
                   }}
                   disabled={isGenerating}
-                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:bg-neutral-800 transition-colors disabled:opacity-50 shadow-sm"
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:bg-neutral-800 transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
                 >
-                  <span className="material-symbols-outlined text-[18px]">{isGenerating ? 'sync' : 'auto_awesome'}</span>
-                  {isGenerating ? 'Strukturiere...' : 'KI: Erinnerung strukturieren'}
+                  {isGenerating ? (
+                    <span className="material-symbols-outlined text-[18px] animate-spin">sync</span>
+                  ) : (
+                    <FioIcon className="w-4 h-4 text-white" color="currentColor" />
+                  )}
+                  {isGenerating ? 'Strukturiere...' : 'Fio: Erinnerung strukturieren'}
                 </button>
               </div>
             )}

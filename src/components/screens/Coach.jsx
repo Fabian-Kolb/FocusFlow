@@ -8,6 +8,7 @@ import {
 } from '../../data/mockData';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import FioIcon from '../ui/FioIcon';
 
 const Coach = () => {
   const { projects, inboxItems, activeCoachScope, setActiveCoachScope } = useModalContext();
@@ -385,21 +386,23 @@ Regeln:
             <div className="max-w-2xl mx-auto space-y-6">
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full min-h-[40vh] text-center px-4 fade-in">
-                  <div className="w-16 h-16 bg-primary text-on-primary rounded-2xl flex items-center justify-center mb-6 shadow-sm">
-                    <span className="material-symbols-outlined text-[32px]">smart_toy</span>
+                  <div className="w-16 h-16 bg-primary text-white rounded-2xl flex items-center justify-center mb-4 shadow-md p-3.5">
+                    <FioIcon className="w-full h-full text-white" color="currentColor" />
                   </div>
-                  <h2 className="text-2xl font-semibold text-on-surface mb-2">
-                    Hallo{user?.displayName ? ` ${user.displayName.split(' ')[0]}` : ''}
+                  <h2 className="text-2xl font-bold text-on-surface mb-1.5 tracking-tight">
+                    Hallo{user?.displayName ? ` ${user.displayName.split(' ')[0]}` : ''}, ich bin Fio 👋
                   </h2>
-                  <p className="text-on-surface-variant max-w-md">Wie kann ich dich heute bei deinen Projekten unterstützen?</p>
+                  <p className="text-sm text-on-surface-variant max-w-md leading-relaxed">
+                    Dein persönlicher KI-Coach. Wie kann ich dich heute bei deinen Aufgaben und Projekten unterstützen?
+                  </p>
                 </div>
               ) : (
                 messages.map((msg) => {
                 if (msg.sender === 'bot') {
                   return (
                     <div key={msg.id} className="flex gap-3 group">
-                      <div className="w-8 h-8 flex-shrink-0 bg-primary text-on-primary rounded-lg flex items-center justify-center text-xs">
-                        <span className="material-symbols-outlined text-[16px]">smart_toy</span>
+                      <div className="w-8 h-8 flex-shrink-0 bg-primary text-white rounded-xl flex items-center justify-center p-1.5 shadow-sm">
+                        <FioIcon className="w-full h-full text-white" color="currentColor" />
                       </div>
                       <div className="flex flex-col gap-1 items-start max-w-[85%]">
                         <div className="p-4 bg-white border border-outline-variant rounded-xl text-sm shadow-sm markdown-body w-full">

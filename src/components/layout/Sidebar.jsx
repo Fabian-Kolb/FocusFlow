@@ -1,6 +1,7 @@
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useModalContext } from '../../context/ModalContext';
+import FioIcon from '../ui/FioIcon';
 
 const Sidebar = ({ currentScreen, setCurrentScreen, collapsed, setCollapsed }) => {
   const { user } = useAuth();
@@ -15,7 +16,7 @@ const Sidebar = ({ currentScreen, setCurrentScreen, collapsed, setCollapsed }) =
     { id: 'projects', label: 'Projekte', icon: 'folder' },
     { id: 'board', label: 'Kanban Board', icon: 'view_kanban' },
     { id: 'calendar', label: 'Kalender', icon: 'calendar_today' },
-    { id: 'coach', label: 'AI Coach', icon: 'smart_toy' },
+    { id: 'coach', label: 'Fio', icon: 'fio' },
     { id: 'review', label: 'Wochenrückblick', icon: 'analytics' },
     { id: 'trash', label: 'Papierkorb', icon: 'delete' },
   ];
@@ -54,8 +55,12 @@ const Sidebar = ({ currentScreen, setCurrentScreen, collapsed, setCollapsed }) =
                   : 'text-on-surface-variant'
               }`}
             >
-              <div className="flex items-center justify-center flex-shrink-0 w-[20px]">
-                <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
+              <div className="flex items-center justify-center flex-shrink-0 w-[20px] h-[20px]">
+                {item.id === 'coach' ? (
+                  <FioIcon className="w-[18px] h-[18px]" color="currentColor" />
+                ) : (
+                  <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
+                )}
               </div>
               <span className={`whitespace-nowrap transition-all duration-300 overflow-hidden ${
                 collapsed ? 'w-0 opacity-0 ml-0' : 'w-auto opacity-100 ml-3'

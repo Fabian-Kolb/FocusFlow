@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
+import FioIcon from './FioIcon';
 
-const ProjectAiChat = ({ projectData, contextScope = 'project', contextData = null, onClearContext }) => {
+const ProjectAiChat = ({ projectData, contextScope = 'project', contextData = null, onClearContext, scrollContainerRef }) => {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [isBreadcrumbExpanded, setIsBreadcrumbExpanded] = useState(false);
@@ -44,17 +45,29 @@ const ProjectAiChat = ({ projectData, contextScope = 'project', contextData = nu
   return (
     <div className="flex-1 flex flex-col h-full bg-surface-low/30 overflow-hidden relative">
 
+      {/* Context Scope Indicator */}
+      {contextScope !== 'project' && (
+        <div className="shrink-0 bg-white border-b border-outline-variant/60 px-4 py-2 flex items-center justify-between text-xs font-mono text-on-surface-variant">
+          <div className="flex items-center gap-1.5 truncate">
+            <span className="material-symbols-outlined text-[15px] text-primary">
+              {contextScope === 'task' ? 'check_circle' : 'folder'}
+            </span>
+            <span className="font-bold text-on-surface truncate">
+              {contextScope === 'task' 
+                ? `Aufgabe: ${contextData?.task?.title || 'Aktive Aufgabe'}` 
+                : `Abschnitt: ${contextData?.title || 'Aktiver Abschnitt'}`}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Chat Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 relative">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 relative">
         {messages.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-on-surface-variant max-w-sm mx-auto opacity-70">
-            <div className="w-16 h-16 rounded-2xl bg-white border border-outline-variant/60 flex items-center justify-center mb-4 shadow-sm">
-              <span className="material-symbols-outlined text-3xl text-primary">forum</span>
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-6 max-w-sm mx-auto">
+            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-white border border-outline-variant/60 flex items-center justify-center shadow-md p-4 sm:p-5">
+              <FioIcon className="w-full h-full text-primary" color="currentColor" />
             </div>
-            <h3 className="font-bold text-primary mb-2">KI-Coach bereit</h3>
-            <p className="text-sm leading-relaxed">
-              Frag mich etwas zum Thema <span className="font-bold text-primary">"{contextData?.title || projectData?.title}"</span> oder nutze einen der Vorschläge unten.
-            </p>
           </div>
         ) : (
           messages.map((msg, idx) => (
