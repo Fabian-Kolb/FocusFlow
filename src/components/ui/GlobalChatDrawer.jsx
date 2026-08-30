@@ -3,6 +3,7 @@ import { useSwipeToClose } from '../../hooks/useSwipeToClose';
 import { useChat } from '../../context/ChatContext';
 import ProjectAiChat from './ProjectAiChat';
 import FioIcon from './FioIcon';
+import ModelSelectorDropdown from './ModelSelectorDropdown';
 
 const GlobalChatDrawer = ({
   isOpen,
@@ -150,26 +151,10 @@ const GlobalChatDrawer = ({
             </div>
 
             {/* Model Selector Dropdown */}
-            <div className="relative flex items-center shrink-0">
-              <select
-                value={activeModel}
-                onChange={(e) => setActiveModel(e.target.value)}
-                className="bg-surface-low border border-outline-variant text-[11px] font-mono font-bold text-primary rounded-lg pl-2 pr-5 py-1 shadow-xs focus:outline-none focus:border-primary cursor-pointer appearance-none hover:bg-white transition-colors"
-                title="KI-Modell auswählen"
-              >
-                <optgroup label="Flash">
-                  <option value="gemini-3.6-flash">3.6 Flash</option>
-                  <option value="gemini-3.5-flash">3.5 Flash</option>
-                </optgroup>
-                <optgroup label="Lite">
-                  <option value="gemini-3.5-flash-lite">3.5 Lite</option>
-                  <option value="gemini-3.1-flash-lite">3.1 Lite</option>
-                </optgroup>
-              </select>
-              <span className="material-symbols-outlined text-[14px] text-on-surface-variant pointer-events-none absolute right-1">
-                expand_more
-              </span>
-            </div>
+            <ModelSelectorDropdown
+              activeModel={activeModel}
+              onSelectModel={setActiveModel}
+            />
           </div>
 
           {/* Right: Actions (New Chat, History, Close) */}

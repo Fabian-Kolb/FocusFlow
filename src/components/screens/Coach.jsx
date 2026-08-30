@@ -3,12 +3,15 @@ import { useModalContext } from '../../context/ModalContext';
 import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
 import { askGeminiCoach } from '../../lib/gemini';
+import { ACTION_ENGINE_SYSTEM_PROMPT, parseAiActions, executeAiActions } from '../../lib/aiActionEngine';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import FioIcon from '../ui/FioIcon';
+import ModelSelectorDropdown from '../ui/ModelSelectorDropdown';
 
-const Coach = () => {
-  const { projects, reminders = [] } = useModalContext();
+const Coach = ({ setCurrentScreen }) => {
+  const modalContext = useModalContext();
+  const { projects, reminders = [], setSelectedProjectId, setSelectedReminderId } = modalContext;
   const { user } = useAuth();
   const {
     sessions,
@@ -149,6 +152,15 @@ const Coach = () => {
     return list;
   }, [isGeneralOnlySelected, isAllContextSelected, selectedProjectIds, selectedReminderIds, projects, reminders]);
 
+  const hasCustomContext = useMemo(() => {
+    return isGeneralOnlySelected || (!isAllContextSelected && (selectedProjectIds.length > 0 || selectedReminderIds.length > 0));
+  }, [isGeneralOnlySelected, isAllContextSelected, selectedProjectIds, selectedReminderIds]);
+
+  const totalActiveCustomCount = useMemo(() => {
+    if (isGeneralOnlySelected) return 1;
+    return selectedProjectIds.length + selectedReminderIds.length;
+  }, [isGeneralOnlySelected, selectedProjectIds, selectedReminderIds]);
+
   // Build Multi-Context Grounded System Instruction for Gemini
   const buildSystemInstruction = (specificAttachments) => {
     const now = new Date();
@@ -195,22 +207,35 @@ WICHTIGE ANWEISUNG FÜR DEINE TONALITÄT & FORMULIERUNGEN:
         projekte: chosenProjects.map((p) => ({
           id: p.id,
           titel: p.title,
+          beschreibung: p.description || '',
+          zeitraum: `${p.startDate || 'Start offen'} bis ${p.endDate || 'Ende offen'}`,
+          startDate: p.startDate || '',
+          endDate: p.endDate || '',
           fortschritt: `${p.progress || 0}%`,
+          notizen: (p.notes || []).map(n => ({ id: n.id, titel: n.title, inhalt: n.content })),
           abschnitte: (p.phases || []).map((ph) => ({
+            id: ph.id,
             titel: ph.title,
+            zeitraum: ph.dateInfo || '',
+            materialien: (ph.materials || []).map(m => ({ id: m.id, name: m.name, typ: m.type, url: m.url })),
             aufgaben: (ph.tasks || []).map((t) => ({
+              id: t.id,
               titel: t.title,
               erledigt: !!t.completed,
-              termin: t.date || 'Kein Termin'
+              termin: t.date || 'Kein Termin',
+              notiz: t.note || ''
             }))
           }))
         })),
         erinnerungen: chosenReminders.map((r) => ({
+          id: r.id,
           titel: r.title,
+          beschreibung: r.description || '',
           datum: r.date || 'Kein Termin',
           uhrzeit: r.time || '',
+          prioritaet: r.priority || 'mittel',
           status: r.status || 'AKTIV',
-          notizen: r.notes || []
+          notizen: (r.notes || []).map(n => ({ id: n.id, titel: n.title, inhalt: n.content }))
         }))
       };
     } else if (isGeneralOnlySelected) {
@@ -236,22 +261,35 @@ Du kannst projektübergreifend planen, Prioritäten abwägen, Engpässe identifi
         projekte: projects.map((p) => ({
           id: p.id,
           titel: p.title,
+          beschreibung: p.description || '',
+          zeitraum: `${p.startDate || 'Start offen'} bis ${p.endDate || 'Ende offen'}`,
+          startDate: p.startDate || '',
+          endDate: p.endDate || '',
           fortschritt: `${p.progress || 0}%`,
+          notizen: (p.notes || []).map(n => ({ id: n.id, titel: n.title, inhalt: n.content })),
           abschnitte: (p.phases || []).map((ph) => ({
+            id: ph.id,
             titel: ph.title,
+            zeitraum: ph.dateInfo || '',
+            materialien: (ph.materials || []).map(m => ({ id: m.id, name: m.name, typ: m.type, url: m.url })),
             aufgaben: (ph.tasks || []).map((t) => ({
+              id: t.id,
               titel: t.title,
               erledigt: !!t.completed,
-              termin: t.date || 'Kein Termin'
+              termin: t.date || 'Kein Termin',
+              notiz: t.note || ''
             }))
           }))
         })),
         erinnerungen: reminders.map((r) => ({
+          id: r.id,
           titel: r.title,
+          beschreibung: r.description || '',
           datum: r.date || 'Kein Termin',
           uhrzeit: r.time || '',
+          prioritaet: r.priority || 'mittel',
           status: r.status || 'AKTIV',
-          notizen: r.notes || []
+          notizen: (r.notes || []).map(n => ({ id: n.id, titel: n.title, inhalt: n.content }))
         }))
       };
     }
@@ -261,6 +299,8 @@ Du bist der FocusFlow AI Coach (Fio), ein hochkompetenter, motivierender und pra
 Deine Aufgabe ist es, dem Nutzer zu helfen, seine Aufgaben, Projekte und Erinnerungen fokussiert, strukturiert und erfolgreich abzuarbeiten.
 
 ${contextMetaGuidance}
+
+${ACTION_ENGINE_SYSTEM_PROMPT}
 
 Hier sind die aktuellen Daten und Details der FocusFlow App:
 ${JSON.stringify(contextData, null, 2)}
@@ -372,18 +412,34 @@ Regeln für deine Antworten:
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
 
+    let fullGeneratedText = '';
+
     try {
       const systemInstruction = buildSystemInstruction(currentAttachments);
+      const previousMessages = (activeSession?.messages || []).filter(m => m.id !== botMsgId && m.id !== userMsgId);
+      const conversationHistory = [...previousMessages, { role: 'user', content: trimmed }];
+
       await askGeminiCoach({
         prompt: trimmed,
+        messages: conversationHistory,
         systemInstruction,
         aiModel: activeModel,
         signal: abortController.signal,
         onChunk: (currentFullText) => {
-          updateStreamingMessage(activeSession.id, botMsgId, currentFullText, true);
+          fullGeneratedText = currentFullText;
+          const { cleanText } = parseAiActions(currentFullText);
+          updateStreamingMessage(activeSession.id, botMsgId, cleanText, true);
         }
       });
-      updateStreamingMessage(activeSession.id, botMsgId, undefined, false);
+
+      // Parse and execute any generated actions
+      const { cleanText, actions } = parseAiActions(fullGeneratedText);
+      let executedActionResults = [];
+      if (actions && actions.length > 0) {
+        executedActionResults = await executeAiActions(actions, modalContext, projects, reminders);
+      }
+
+      updateStreamingMessage(activeSession.id, botMsgId, cleanText || undefined, false, executedActionResults);
     } catch (err) {
       if (err.name === 'AbortError' || abortController.signal.aborted) {
         return;
@@ -552,22 +608,23 @@ Regeln für deine Antworten:
             : 'bg-white border-outline-variant hover:border-primary/30 hover:bg-surface-low/50'
         }`}
       >
-        {/* Left / Main: Title on Top, Badge below */}
-        <div className="min-w-0 flex-1 flex flex-col gap-1">
+        {/* Left / Main: Icon + Title */}
+        <div className="min-w-0 flex-1 flex items-center gap-2.5">
+          <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+            isReminder
+              ? 'bg-amber-500/10 text-amber-700 border border-amber-500/20'
+              : isProject
+              ? 'bg-primary/10 text-primary border border-primary/20'
+              : 'bg-surface-low text-on-surface-variant border border-outline-variant'
+          }`}>
+            <span className="material-symbols-outlined text-[16px]">
+              {isReminder ? 'notifications' : isProject ? 'folder' : 'psychology'}
+            </span>
+          </div>
+
           <span className={`text-xs block truncate ${isActive ? 'font-bold text-on-surface' : 'font-medium text-on-surface'}`}>
             {sess.title || 'Gespräch'}
           </span>
-          <div className="flex items-center gap-1.5">
-            <span className={`text-[9px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-md shrink-0 truncate max-w-[150px] ${
-              isReminder
-                ? 'text-amber-800 bg-amber-50 border border-amber-200'
-                : isProject
-                ? 'text-primary bg-primary/10 border border-primary/20'
-                : 'text-on-surface-variant bg-surface-low border border-outline-variant'
-            }`}>
-              {sess.contextTitle || (isReminder ? 'Erinnerung' : isProject ? 'Projekt' : 'Allgemein')}
-            </span>
-          </div>
         </div>
 
         {/* Right: Time on Top, Message Count below */}
@@ -596,171 +653,174 @@ Regeln für deine Antworten:
   };
 
   return (
-    <div className="screen-transition flex flex-col h-full w-full">
-      <div className="flex h-full bg-surface relative overflow-hidden">
-        {/* Mobile Overlay */}
+    <div className="screen-transition flex flex-col h-full w-full relative overflow-hidden bg-surface">
+      <div className="flex h-full w-full relative overflow-hidden">
+        {/* Mobile-Only Overlay (Tap to close on small screens) */}
         {isHistoryOpen && (
           <div 
-            className="absolute inset-0 bg-black/20 z-20 md:hidden backdrop-blur-sm transition-opacity"
+            className="absolute inset-0 bg-black/20 z-30 md:hidden backdrop-blur-xs transition-opacity duration-300"
             onClick={() => setIsHistoryOpen(false)}
           />
         )}
         
-        {/* Left Sidebar: Structured Chat Session History Drawer */}
+        {/* Left Floating History Pill Panel (Slides out from behind sidebar, adapts chat width on desktop) */}
         <div
-          className={`absolute md:relative z-30 bg-surface-low md:border-r border-outline-variant flex flex-col h-full transition-all duration-300 ease-in-out flex-shrink-0 rounded-r-2xl md:rounded-none shadow-2xl md:shadow-none ${
-            isHistoryOpen ? 'w-[85%] sm:w-80' : 'w-0 p-0 border-0 overflow-hidden'
+          className={`z-40 md:z-20 flex-shrink-0 transition-all duration-300 ease-out flex flex-col ${
+            isHistoryOpen
+              ? 'absolute md:relative inset-y-0 left-0 w-[85%] sm:w-80 max-w-[340px] p-2.5 sm:p-3 opacity-100 translate-x-0'
+              : 'w-0 -translate-x-full opacity-0 p-0 m-0 overflow-hidden pointer-events-none'
           }`}
         >
-          {/* Header */}
-          <div className="p-3 border-b border-outline-variant flex items-center justify-between bg-surface-low">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-mono font-bold text-primary tracking-wider uppercase">Verlauf</span>
-              <span className="text-[10px] font-mono text-on-surface-variant font-bold bg-white px-2 py-0.5 rounded-md border border-outline-variant">
-                {sessions.length}
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <button
-                className="w-8 h-8 bg-neutral-900 text-white rounded-xl hover:bg-black transition-colors flex items-center justify-center cursor-pointer shadow-xs"
-                title="Neues Gespräch beginnen"
-                onClick={handleNewChat}
-              >
-                <span className="material-symbols-outlined text-[18px]">edit_square</span>
-              </button>
-              <button
-                className="w-8 h-8 border border-outline-variant bg-white hover:border-primary text-primary transition-colors flex items-center justify-center rounded-xl cursor-pointer shadow-xs"
-                title="Verlauf einklappen"
-                onClick={() => setIsHistoryOpen(false)}
-              >
-                <span className="material-symbols-outlined text-[18px]">left_panel_close</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Search Bar for Sessions */}
-          <div className="p-2.5 border-b border-outline-variant/60">
-            <div className="flex items-center gap-1.5 bg-white border border-outline-variant rounded-xl px-2.5 py-1.5 focus-within:border-primary transition-colors">
-              <span className="material-symbols-outlined text-[16px] text-on-surface-variant">search</span>
-              <input
-                type="text"
-                value={sessionSearchText}
-                onChange={(e) => setSessionSearchText(e.target.value)}
-                placeholder="Gespräche durchsuchen..."
-                className="w-full text-xs bg-transparent border-none outline-none focus:ring-0 p-0 text-on-surface placeholder:text-on-surface-variant/50"
-              />
-              {sessionSearchText && (
+          {/* Inner Rounded Floating Pill Card */}
+          <div className="w-full h-full flex flex-col bg-white/95 dark:bg-surface-low/95 backdrop-blur-xl border border-outline-variant/80 rounded-2xl sm:rounded-3xl shadow-xl overflow-hidden">
+            {/* Header */}
+            <div className="p-3.5 border-b border-outline-variant/60 flex items-center justify-between bg-surface-low/50">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[18px]">history</span>
+                </div>
+                <span className="text-xs font-mono font-bold text-on-surface tracking-wider uppercase">Verlauf</span>
+                <span className="text-[10px] font-mono text-on-surface-variant font-bold bg-white px-2 py-0.5 rounded-md border border-outline-variant">
+                  {sessions.length}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
                 <button
-                  onClick={() => setSessionSearchText('')}
-                  className="text-on-surface-variant hover:text-primary cursor-pointer"
+                  className="w-8 h-8 bg-neutral-900 text-white rounded-xl hover:bg-black transition-all flex items-center justify-center cursor-pointer shadow-xs hover:shadow-sm"
+                  title="Neues Gespräch beginnen"
+                  onClick={handleNewChat}
                 >
-                  <span className="material-symbols-outlined text-[14px]">close</span>
+                  <span className="material-symbols-outlined text-[17px]">edit_square</span>
                 </button>
+                <button
+                  className="w-8 h-8 border border-outline-variant bg-white hover:border-primary text-primary transition-all flex items-center justify-center rounded-xl cursor-pointer shadow-xs hover:shadow-sm"
+                  title="Verlauf einklappen"
+                  onClick={() => setIsHistoryOpen(false)}
+                >
+                  <span className="material-symbols-outlined text-[17px]">left_panel_close</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Search Bar for Sessions */}
+            <div className="p-2.5 border-b border-outline-variant/60">
+              <div className="flex items-center gap-1.5 bg-white border border-outline-variant rounded-xl px-2.5 py-1.5 focus-within:border-primary transition-colors shadow-2xs">
+                <span className="material-symbols-outlined text-[16px] text-on-surface-variant">search</span>
+                <input
+                  type="text"
+                  value={sessionSearchText}
+                  onChange={(e) => setSessionSearchText(e.target.value)}
+                  placeholder="Gespräche durchsuchen..."
+                  className="w-full text-xs bg-transparent border-none outline-none focus:ring-0 p-0 text-on-surface placeholder:text-on-surface-variant/50"
+                />
+                {sessionSearchText && (
+                  <button
+                    onClick={() => setSessionSearchText('')}
+                    className="text-on-surface-variant hover:text-primary cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">close</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Sidebar Scope / Filter Button */}
+            <div className="px-2.5 py-2 border-b border-outline-variant/60">
+              <button
+                onClick={() => setIsSidebarFilterModalOpen(true)}
+                className="w-full flex items-center gap-2 px-3 py-2 bg-white border border-outline-variant rounded-xl text-xs font-mono font-medium hover:border-primary/40 hover:bg-surface-low transition-all cursor-pointer shadow-2xs text-on-surface text-left"
+                title="Chat-Verlauf filtern / Suche"
+              >
+                <span className="material-symbols-outlined text-[16px] text-primary shrink-0">filter_list</span>
+                <span className="truncate">{sidebarScopeLabel}</span>
+              </button>
+            </div>
+
+            {/* Chronological Session Groups */}
+            <div className="space-y-4 p-2.5 overflow-y-auto flex-grow">
+              {groupedSessions.today.length > 0 && (
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-mono font-bold text-on-surface-variant/70 uppercase px-1 tracking-wider">
+                    Heute
+                  </span>
+                  {groupedSessions.today.map(renderSessionCard)}
+                </div>
+              )}
+
+              {groupedSessions.yesterday.length > 0 && (
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-mono font-bold text-on-surface-variant/70 uppercase px-1 tracking-wider">
+                    Gestern
+                  </span>
+                  {groupedSessions.yesterday.map(renderSessionCard)}
+                </div>
+              )}
+
+              {groupedSessions.lastWeek.length > 0 && (
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-mono font-bold text-on-surface-variant/70 uppercase px-1 tracking-wider">
+                    Letzte 7 Tage
+                  </span>
+                  {groupedSessions.lastWeek.map(renderSessionCard)}
+                </div>
+              )}
+
+              {groupedSessions.older.length > 0 && (
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-mono font-bold text-on-surface-variant/70 uppercase px-1 tracking-wider">
+                    Älter
+                  </span>
+                  {groupedSessions.older.map(renderSessionCard)}
+                </div>
+              )}
+
+              {sessions.length === 0 && (
+                <div className="p-6 text-center text-xs text-on-surface-variant italic">
+                  Keine gespeicherten Gespräche vorhanden.
+                </div>
               )}
             </div>
           </div>
-
-          {/* Sidebar Scope / Filter Button */}
-          <div className="px-2.5 py-2 border-b border-outline-variant/60">
-            <button
-              onClick={() => setIsSidebarFilterModalOpen(true)}
-              className="w-full flex items-center gap-2 px-3 py-2 bg-white border border-outline-variant rounded-xl text-xs font-mono font-medium hover:border-primary/40 hover:bg-surface-low transition-all cursor-pointer shadow-xs text-on-surface text-left"
-              title="Chat-Verlauf filtern / Suche"
-            >
-              <span className="material-symbols-outlined text-[16px] text-primary shrink-0">filter_list</span>
-              <span className="truncate">{sidebarScopeLabel}</span>
-            </button>
-          </div>
-
-          {/* Chronological Session Groups */}
-          <div className="space-y-4 p-2.5 overflow-y-auto flex-grow">
-            {groupedSessions.today.length > 0 && (
-              <div className="space-y-1.5">
-                <span className="text-[10px] font-mono font-bold text-on-surface-variant/70 uppercase px-1 tracking-wider">
-                  Heute
-                </span>
-                {groupedSessions.today.map(renderSessionCard)}
-              </div>
-            )}
-
-            {groupedSessions.yesterday.length > 0 && (
-              <div className="space-y-1.5">
-                <span className="text-[10px] font-mono font-bold text-on-surface-variant/70 uppercase px-1 tracking-wider">
-                  Gestern
-                </span>
-                {groupedSessions.yesterday.map(renderSessionCard)}
-              </div>
-            )}
-
-            {groupedSessions.lastWeek.length > 0 && (
-              <div className="space-y-1.5">
-                <span className="text-[10px] font-mono font-bold text-on-surface-variant/70 uppercase px-1 tracking-wider">
-                  Letzte 7 Tage
-                </span>
-                {groupedSessions.lastWeek.map(renderSessionCard)}
-              </div>
-            )}
-
-            {groupedSessions.older.length > 0 && (
-              <div className="space-y-1.5">
-                <span className="text-[10px] font-mono font-bold text-on-surface-variant/70 uppercase px-1 tracking-wider">
-                  Älter
-                </span>
-                {groupedSessions.older.map(renderSessionCard)}
-              </div>
-            )}
-
-            {sessions.length === 0 && (
-              <div className="p-6 text-center text-xs text-on-surface-variant italic">
-                Keine gespeicherten Gespräche vorhanden.
-              </div>
-            )}
-          </div>
         </div>
 
-        {/* Right Main Chat Panel (Header bar removed - Unboxed Floating Controls) */}
-        <div className="flex-grow flex flex-col h-full relative overflow-hidden bg-surface">
-          {/* Floating Action Buttons when Sidebar is closed */}
-          {!isHistoryOpen && (
-            <div className="absolute top-3.5 left-3.5 z-20 flex flex-row gap-2">
-              <button
-                className="w-10 h-10 border border-outline-variant bg-white hover:border-primary text-primary transition-colors flex items-center justify-center rounded-xl cursor-pointer shadow-xs"
-                title="Verlauf öffnen"
-                onClick={() => setIsHistoryOpen(true)}
-              >
-                <span className="material-symbols-outlined text-[19px]">left_panel_open</span>
-              </button>
-              <button
-                className="w-10 h-10 bg-neutral-900 text-white rounded-xl hover:bg-black transition-colors flex items-center justify-center cursor-pointer shadow-xs"
-                title="Neuer Chat"
-                onClick={handleNewChat}
-              >
-                <span className="material-symbols-outlined text-[19px]">edit_square</span>
-              </button>
+        {/* Right Main Chat Panel (Adapts Width Dynamically, Keeps Centered Input & Messages) */}
+        <div className="flex-grow min-w-0 flex flex-col h-full relative overflow-hidden bg-surface">
+          {/* Fixed Top Controls Bar with Soft Gradient */}
+          <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-between p-3 sm:p-3.5 pointer-events-none bg-gradient-to-b from-surface via-surface/90 to-transparent pb-6">
+            {/* Left Action Buttons when History is closed */}
+            <div className="flex items-center gap-2 pointer-events-auto">
+              {!isHistoryOpen && (
+                <>
+                  <button
+                    className="flex items-center gap-1.5 px-3 py-2 border border-outline-variant bg-white/95 backdrop-blur-md hover:border-primary text-primary transition-all rounded-xl cursor-pointer shadow-xs hover:shadow-sm"
+                    title="Verlauf öffnen"
+                    onClick={() => setIsHistoryOpen(true)}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">history</span>
+                    <span className="text-xs font-mono font-bold hidden sm:inline">Verlauf</span>
+                  </button>
+                  <button
+                    className="w-10 h-10 bg-neutral-900 text-white rounded-xl hover:bg-black transition-all flex items-center justify-center cursor-pointer shadow-xs hover:shadow-sm"
+                    title="Neuer Chat"
+                    onClick={handleNewChat}
+                  >
+                    <span className="material-symbols-outlined text-[19px]">edit_square</span>
+                  </button>
+                </>
+              )}
             </div>
-          )}
 
-          {/* Floating Model Dropdown (Desktop & Mobile) */}
-          <div className="absolute top-3.5 right-3.5 z-20 flex items-center">
-            <select
-              value={activeModel}
-              onChange={(e) => setActiveModel(e.target.value)}
-              className="bg-white border border-outline-variant text-[11px] font-mono font-bold text-primary rounded-xl px-3 py-2 shadow-xs focus:outline-none focus:border-primary cursor-pointer hover:border-primary/40 transition-colors"
-              title="KI-Modell auswählen"
-            >
-              <optgroup label="Flash">
-                <option value="gemini-3.6-flash">3.6 Flash</option>
-                <option value="gemini-3.5-flash">3.5 Flash</option>
-              </optgroup>
-              <optgroup label="Lite">
-                <option value="gemini-3.5-flash-lite">3.5 Lite</option>
-                <option value="gemini-3.1-flash-lite">3.1 Lite</option>
-              </optgroup>
-            </select>
+            {/* Right Model Dropdown (Custom Glass Popover Menu) */}
+            <div className="flex items-center gap-2 pointer-events-auto ml-auto">
+              <ModelSelectorDropdown
+                activeModel={activeModel}
+                onSelectModel={setActiveModel}
+              />
+            </div>
           </div>
 
           {/* Message Stream */}
-          <div className="flex-grow overflow-y-auto px-4 pb-6 pt-16 sm:pt-14">
+          <div className="flex-grow overflow-y-auto px-4 pb-4 pt-16 sm:pt-16 min-h-0">
             <div className="max-w-2xl mx-auto space-y-6">
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full min-h-[40vh] text-center px-4 fade-in">
@@ -768,7 +828,7 @@ Regeln für deine Antworten:
                     <FioIcon className="w-full h-full text-white" color="currentColor" />
                   </div>
                   <h2 className="text-2xl font-bold text-on-surface mb-1.5 tracking-tight">
-                    Hallo{user?.displayName ? ` ${user.displayName.split(' ')[0]}` : ''}, ich bin Fio 👋
+                    Hallo{user?.displayName ? ` ${user.displayName.split(' ')[0]}` : ''}, ich bin Fio
                   </h2>
                   <p className="text-sm text-on-surface-variant max-w-md leading-relaxed">
                     Dein persönlicher KI-Coach. Wie kann ich dich heute bei deinen Projekten, Aufgaben und Erinnerungen unterstützen?
@@ -795,6 +855,72 @@ Regeln für deine Antworten:
                                 <span>Fio denkt nach...</span>
                               </div>
                             )}
+
+                            {/* Render Interactive Action Results Cards */}
+                            {msg.actionResults && msg.actionResults.length > 0 && (
+                              <div className="space-y-2 mt-3 pt-3 border-t border-outline-variant/60 w-full not-prose">
+                                {msg.actionResults.map((res, idx) => {
+                                  const isProjAction = res.targetType === 'project' || res.type === 'ADD_PHASE' || res.type === 'ADD_TASK' || res.type === 'CREATE_PROJECT' || res.type === 'UPDATE_PROJECT';
+                                  const isRemAction = res.targetType === 'reminder' || res.type === 'CREATE_REMINDER' || res.type === 'UPDATE_REMINDER';
+                                  const isNoteAction = res.type === 'CREATE_NOTE';
+                                  const isMatAction = res.type === 'ADD_MATERIAL';
+
+                                  const iconName = isNoteAction ? 'note_alt' : isMatAction ? 'attach_file' : isRemAction ? 'notifications' : isProjAction ? 'folder' : 'check_circle';
+                                  const iconStyle = isNoteAction
+                                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                                    : isMatAction
+                                    ? 'bg-sky-50 text-sky-700 border-sky-200'
+                                    : isRemAction
+                                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                    : isProjAction
+                                    ? 'bg-primary/10 text-primary border-primary/20'
+                                    : 'bg-emerald-50 text-emerald-700 border-emerald-200';
+
+                                  return (
+                                    <div
+                                      key={idx}
+                                      className="flex items-center justify-between gap-3 p-2.5 bg-surface-low border border-outline-variant rounded-xl text-xs shadow-2xs group hover:border-primary/40 transition-all"
+                                    >
+                                      <div className="flex items-center gap-2.5 min-w-0">
+                                        <div className={`w-7 h-7 rounded-lg border flex items-center justify-center shrink-0 ${iconStyle}`}>
+                                          <span className="material-symbols-outlined text-[16px]">{iconName}</span>
+                                        </div>
+                                        <div className="min-w-0">
+                                          <div className="font-bold text-on-surface truncate">{res.title}</div>
+                                          <div className="text-[10px] font-mono text-on-surface-variant truncate">{res.subtitle}</div>
+                                        </div>
+                                      </div>
+                                      {res.targetType === 'project' && res.targetId && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setSelectedProjectId(res.targetId);
+                                            if (setCurrentScreen) setCurrentScreen('project-detail');
+                                          }}
+                                          className="px-2.5 py-1 bg-white border border-outline-variant hover:border-primary text-primary font-mono text-[11px] font-bold rounded-lg transition-all flex items-center gap-1 shrink-0 cursor-pointer shadow-2xs hover:shadow-xs"
+                                        >
+                                          <span>Projekt öffnen</span>
+                                          <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                                        </button>
+                                      )}
+                                      {res.targetType === 'reminder' && res.targetId && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setSelectedReminderId(res.targetId);
+                                            if (setCurrentScreen) setCurrentScreen('reminder-detail');
+                                          }}
+                                          className="px-2.5 py-1 bg-white border border-outline-variant hover:border-primary text-primary font-mono text-[11px] font-bold rounded-lg transition-all flex items-center gap-1 shrink-0 cursor-pointer shadow-2xs hover:shadow-xs"
+                                        >
+                                          <span>Erinnerung öffnen</span>
+                                          <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                                        </button>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -802,7 +928,7 @@ Regeln für deine Antworten:
                   }
                   return (
                     <div key={msg.id} className="flex flex-col items-end gap-1.5">
-                      {/* Attached Context Chips in User Bubble (Gemini Style) */}
+                      {/* Attached Context Chips in User Bubble */}
                       {msg.attachments && msg.attachments.length > 0 && (
                         <div className="flex flex-wrap items-center justify-end gap-1.5 max-w-[85%] pr-1">
                           {msg.attachments.map((att) => (
@@ -819,8 +945,12 @@ Regeln für deine Antworten:
                         </div>
                       )}
                       <div className="flex gap-3 flex-row-reverse">
-                        <div className="w-8 h-8 flex-shrink-0 bg-surface-low border border-outline-variant rounded-lg flex items-center justify-center text-xs font-mono font-bold">
-                          FF
+                        <div className="w-8 h-8 flex-shrink-0 bg-neutral-900 text-white border border-neutral-700 rounded-xl flex items-center justify-center text-xs font-mono font-bold shadow-xs">
+                          {user?.photoURL ? (
+                            <img src={user.photoURL} alt="User" className="w-full h-full rounded-xl object-cover" />
+                          ) : (
+                            <span className="material-symbols-outlined text-[18px]">person</span>
+                          )}
                         </div>
                         <div className="p-4 bg-neutral-900 text-white rounded-xl text-sm max-w-[85%] shadow-sm markdown-body">
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -832,153 +962,176 @@ Regeln für deine Antworten:
                   );
                 })
               )}
+              {/* Bottom Spacer so the latest message always sits comfortably above the floating pill dock */}
+              <div className="h-44 sm:h-52 shrink-0 pointer-events-none" />
               <div ref={messagesEndRef} />
             </div>
           </div>
 
-          {/* Bottom Input Control Suite */}
-          <div className="p-3 sm:p-4 bg-transparent space-y-3 pb-4 sm:pb-6 relative z-10">
-            {/* Quick Prompts or Floating Stop Indicator */}
-            {loading ? (
-              <div className="max-w-2xl mx-auto flex items-center justify-center pb-1 animate-fadeIn">
-                <button
-                  type="button"
-                  onClick={handleStopGeneration}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 rounded-full text-xs font-mono font-bold transition-all shadow-xs cursor-pointer hover:scale-105 active:scale-95"
-                >
-                  <span className="w-2.5 h-2.5 bg-red-600 rounded-xs animate-pulse" />
-                  <span>Antwort stoppen</span>
-                </button>
-              </div>
-            ) : (
-              <div className="max-w-2xl mx-auto flex items-center gap-2 no-wrap-scroll text-[11px] font-mono pb-1 overflow-x-auto">
-                <span className="text-on-surface-variant font-bold flex-shrink-0">PROMPTS:</span>
-                {dynamicPrompts.map((qp) => (
-                  <button
-                    key={qp.id}
-                    className="px-2.5 py-1 bg-white border border-outline-variant rounded-lg hover:border-primary text-primary transition-all font-medium whitespace-nowrap flex-shrink-0 cursor-pointer shadow-xs"
-                    onClick={() => handleSendMessage(qp.promptText)}
-                  >
-                    {qp.label}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Input Bar with Gemini-Style Context Attachment Chips */}
-            <div className="max-w-2xl mx-auto bg-white border border-outline-variant rounded-2xl shadow-sm p-1.5 focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-all flex flex-col">
-              {/* Attached Context Chips Bar (Gemini Style) */}
-              {activeAttachments.length > 0 && (
-                <div className="flex flex-wrap items-center gap-1.5 px-2 pt-1.5 pb-2 border-b border-outline-variant/40">
-                  {activeAttachments.map((att) => (
-                    <div
-                      key={`${att.type}_${att.id}`}
-                      className="flex items-center gap-1.5 px-2.5 py-1 bg-surface-low border border-outline-variant rounded-lg text-xs font-mono font-medium shadow-2xs group hover:bg-white transition-colors"
-                    >
-                      <span className={`material-symbols-outlined text-[15px] ${att.type === 'project' ? 'text-primary' : 'text-amber-700'}`}>
-                        {att.type === 'project' ? 'folder' : 'notifications'}
-                      </span>
-                      <span className="truncate max-w-[160px] text-on-surface">{att.title}</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (att.type === 'project') toggleProjectContext(att.id);
-                          else toggleReminderContext(att.id);
-                        }}
-                        className="text-on-surface-variant hover:text-red-600 transition-colors ml-0.5 cursor-pointer flex items-center justify-center"
-                        title={`${att.title} entfernen`}
-                      >
-                        <span className="material-symbols-outlined text-[14px]">close</span>
-                      </button>
-                    </div>
-                  ))}
+          {/* Floating Bottom Input Dock Island */}
+          <div className="absolute bottom-0 inset-x-0 p-3 sm:p-5 pb-4 sm:pb-6 z-20 pointer-events-none bg-gradient-to-t from-surface via-surface/85 to-transparent pt-8 flex flex-col items-center">
+            <div className="w-full max-w-2xl pointer-events-auto space-y-2">
+              {/* Quick Prompts or Floating Stop Indicator */}
+              {loading ? (
+                <div className="flex items-center justify-center pb-0.5 animate-fadeIn">
                   <button
                     type="button"
-                    onClick={() => setIsContextModalOpen(true)}
-                    className="text-[11px] font-mono font-medium text-primary hover:underline px-1 cursor-pointer flex items-center gap-0.5"
+                    onClick={handleStopGeneration}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 bg-red-500/10 border border-red-500/30 text-red-700 hover:bg-red-500/20 backdrop-blur-md rounded-full text-xs font-mono font-bold transition-all shadow-md cursor-pointer hover:scale-105 active:scale-95"
                   >
-                    <span className="material-symbols-outlined text-[14px]">add</span>
-                    <span>Weiteren Kontext hinzufügen</span>
+                    <span className="w-2 h-2 bg-red-600 rounded-full animate-pulse" />
+                    <span>Antwort stoppen</span>
                   </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 no-wrap-scroll text-[11px] font-mono pb-0.5 overflow-x-auto">
+                  <span className="text-on-surface-variant font-bold flex-shrink-0">PROMPTS:</span>
+                  {dynamicPrompts.map((qp) => (
+                    <button
+                      key={qp.id}
+                      className="px-2.5 py-1 bg-white/95 backdrop-blur-md border border-outline-variant/80 rounded-lg hover:border-primary text-primary transition-all font-medium whitespace-nowrap flex-shrink-0 cursor-pointer shadow-xs hover:shadow-sm"
+                      onClick={() => handleSendMessage(qp.promptText)}
+                    >
+                      {qp.label}
+                    </button>
+                  ))}
                 </div>
               )}
 
-              {/* Main Input Controls Row */}
-              <div className="flex items-center w-full">
-                {/* Context Selector Button (Standard Constant Icon) */}
-                <button
-                  type="button"
-                  onClick={() => setIsContextModalOpen(true)}
-                  className="flex items-center justify-center p-2 text-on-surface-variant hover:text-primary transition-colors cursor-pointer rounded-xl hover:bg-surface-low"
-                  title="Kontext & Daten für Fio wählen"
-                >
-                  <span className="material-symbols-outlined text-[20px]">tune</span>
-                </button>
+              {/* Floating Glass Input Bar */}
+              <div className="bg-white/95 backdrop-blur-xl border border-outline-variant/80 rounded-2xl shadow-xl hover:shadow-2xl focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20 transition-all flex flex-col p-1.5">
+                {/* Attached Context Chips Bar */}
+                {activeAttachments.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5 px-2 pt-1 pb-2 border-b border-outline-variant/40">
+                    {activeAttachments.map((att) => (
+                      <div
+                        key={`${att.type}_${att.id}`}
+                        className="flex items-center gap-1.5 px-2.5 py-1 bg-surface-low border border-outline-variant rounded-lg text-xs font-mono font-medium shadow-2xs group hover:bg-white transition-colors"
+                      >
+                        <span className={`material-symbols-outlined text-[15px] ${att.type === 'project' ? 'text-primary' : 'text-amber-700'}`}>
+                          {att.type === 'project' ? 'folder' : 'notifications'}
+                        </span>
+                        <span className="truncate max-w-[160px] text-on-surface">{att.title}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (att.type === 'project') toggleProjectContext(att.id);
+                            else toggleReminderContext(att.id);
+                          }}
+                          className="text-on-surface-variant hover:text-red-600 transition-colors ml-0.5 cursor-pointer flex items-center justify-center"
+                          title={`${att.title} entfernen`}
+                        >
+                          <span className="material-symbols-outlined text-[14px]">close</span>
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setIsContextModalOpen(true)}
+                      className="text-[11px] font-mono font-medium text-primary hover:underline px-1 cursor-pointer flex items-center gap-0.5"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">add</span>
+                      <span>Weiteren Kontext hinzufügen</span>
+                    </button>
+                  </div>
+                )}
 
-                <textarea
-                  ref={textareaRef}
-                  className="flex-grow border-none focus:ring-0 text-sm px-2 sm:px-3 py-2.5 sm:py-3 outline-none resize-none overflow-y-auto min-h-[44px]"
-                  placeholder={
-                    loading
-                      ? 'Fio generiert gerade eine Antwort...'
-                      : 'Frage deinen Coach...'
-                  }
-                  value={inputText}
-                  rows={1}
-                  disabled={loading}
-                  style={{ height: 'auto' }}
-                  onChange={(e) => {
-                    setInputText(e.target.value);
-                    e.target.style.height = 'auto';
-                    e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage();
-                    }
-                  }}
-                />
-
-                {/* Voice Input Button */}
-                {!loading && (
+                {/* Main Input Controls Row */}
+                <div className="flex items-center w-full">
+                  {/* Context Selector Button with Active Status */}
                   <button
                     type="button"
-                    className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all cursor-pointer mr-1 ${
-                      isListening
-                        ? 'bg-red-500 text-white animate-pulse shadow-md'
-                        : 'text-on-surface-variant hover:text-primary hover:bg-surface-low'
+                    onClick={() => setIsContextModalOpen(true)}
+                    className={`relative flex items-center justify-center p-2 rounded-xl transition-all cursor-pointer shrink-0 ${
+                      hasCustomContext
+                        ? 'bg-primary/10 text-primary border border-primary/30 shadow-2xs hover:bg-primary/15'
+                        : 'text-on-surface-variant hover:text-primary hover:bg-surface-low border border-transparent'
                     }`}
-                    title={isListening ? 'Zuhören beenden' : 'Spracheingabe starten'}
-                    onClick={handleToggleListening}
+                    title={
+                      hasCustomContext
+                        ? isGeneralOnlySelected
+                          ? 'KI-Kontext: Allgemeiner Coach (aktiv)'
+                          : `KI-Kontext: ${totalActiveCustomCount} Element(e) ausgewählt (aktiv)`
+                        : 'Kontext & Daten für Fio wählen (Alle Projekte & Erinnerungen)'
+                    }
                   >
-                    <span className="material-symbols-outlined text-[20px]">
-                      {isListening ? 'mic' : 'mic_none'}
-                    </span>
+                    <span className={`material-symbols-outlined text-[20px] ${hasCustomContext ? 'font-bold text-primary' : ''}`}>tune</span>
+                    {hasCustomContext && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-white text-[9px] font-mono font-bold rounded-full flex items-center justify-center shadow-xs">
+                        {isGeneralOnlySelected ? (
+                          <span className="material-symbols-outlined text-[10px]">psychology</span>
+                        ) : (
+                          totalActiveCustomCount
+                        )}
+                      </span>
+                    )}
                   </button>
-                )}
 
-                {/* Send or Stop Button */}
-                {loading ? (
-                  <button
-                    type="button"
-                    className="w-10 h-10 bg-red-600 hover:bg-red-700 text-white rounded-xl transition-all flex items-center justify-center cursor-pointer shadow-md animate-scaleIn hover:scale-105 active:scale-95"
-                    title="Antwort unterbrechen"
-                    onClick={handleStopGeneration}
-                  >
-                    <span className="material-symbols-outlined text-[18px]">stop</span>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="w-10 h-10 bg-neutral-900 text-white rounded-xl hover:bg-black transition-colors flex items-center justify-center cursor-pointer shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
-                    title="Nachricht senden"
-                    disabled={!inputText.trim() || loading}
-                    onClick={() => handleSendMessage()}
-                  >
-                    <span className="material-symbols-outlined text-[20px]">send</span>
-                  </button>
-                )}
+                  <textarea
+                    ref={textareaRef}
+                    className="flex-grow border-none focus:ring-0 text-sm px-2 sm:px-3 py-2 sm:py-2.5 outline-none resize-none overflow-y-auto min-h-[44px] bg-transparent"
+                    placeholder={
+                      loading
+                        ? 'Fio generiert gerade eine Antwort...'
+                        : 'Frage deinen Coach...'
+                    }
+                    value={inputText}
+                    rows={1}
+                    disabled={loading}
+                    style={{ height: 'auto' }}
+                    onChange={(e) => {
+                      setInputText(e.target.value);
+                      e.target.style.height = 'auto';
+                      e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage();
+                      }
+                    }}
+                  />
+
+                  {/* Voice Input Button */}
+                  {!loading && (
+                    <button
+                      type="button"
+                      className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all cursor-pointer mr-1 ${
+                        isListening
+                          ? 'bg-red-500 text-white animate-pulse shadow-md'
+                          : 'text-on-surface-variant hover:text-primary hover:bg-surface-low'
+                      }`}
+                      title={isListening ? 'Zuhören beenden' : 'Spracheingabe starten'}
+                      onClick={handleToggleListening}
+                    >
+                      <span className="material-symbols-outlined text-[20px]">
+                        {isListening ? 'mic' : 'mic_none'}
+                      </span>
+                    </button>
+                  )}
+
+                  {/* Send or Stop Button */}
+                  {loading ? (
+                    <button
+                      type="button"
+                      className="w-10 h-10 bg-red-600 hover:bg-red-700 text-white rounded-xl transition-all flex items-center justify-center cursor-pointer shadow-md animate-scaleIn hover:scale-105 active:scale-95"
+                      title="Antwort unterbrechen"
+                      onClick={handleStopGeneration}
+                    >
+                      <span className="material-symbols-outlined text-[18px]">stop</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="w-10 h-10 bg-neutral-900 text-white rounded-xl hover:bg-black transition-colors flex items-center justify-center cursor-pointer shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                      title="Nachricht senden"
+                      disabled={!inputText.trim() || loading}
+                      onClick={() => handleSendMessage()}
+                    >
+                      <span className="material-symbols-outlined text-[20px]">send</span>
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>

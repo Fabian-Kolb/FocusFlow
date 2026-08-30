@@ -1,9 +1,29 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const FALLBACK_MODELS = {
-  flash: ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'],
-  'flash-lite': ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.6-flash'],
-  eco: ['gemini-3.1-flash-lite', 'gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-3.6-flash']
+  flash: [
+    'gemini-3.6-flash',
+    'gemini-3.5-flash',
+    'gemini-3-flash',
+    'gemini-2.5-flash',
+    'gemini-3.5-flash-lite',
+    'gemini-3.1-flash-lite',
+    'gemini-2.5-flash-lite'
+  ],
+  'flash-lite': [
+    'gemini-3.5-flash-lite',
+    'gemini-3.1-flash-lite',
+    'gemini-2.5-flash-lite',
+    'gemini-3.6-flash',
+    'gemini-3.5-flash'
+  ],
+  eco: [
+    'gemini-3.1-flash-lite',
+    'gemini-2.5-flash-lite',
+    'gemini-3.5-flash-lite',
+    'gemini-3.5-flash',
+    'gemini-3.6-flash'
+  ]
 };
 
 function getFallbackChain(modelName) {
@@ -96,14 +116,69 @@ export function ensureBulletPoints(rawText) {
 const MAX_PROMPT_LENGTH = 30000;
 const MAX_TEXT_LENGTH = 50000;
 
-export async function handleCoachStream({ apiKey, prompt, systemInstruction, aiModel = 'flash' }, onChunk) {
+export function formatGeminiContents(messages, prompt) {
+  let rawList = [];
+
+  if (Array.isArray(messages) && messages.length > 0) {
+    // Keep up to the last 30 messages to avoid token overflow while maintaining deep context
+    const recent = messages.slice(-30);
+    for (const m of recent) {
+      if (!m) continue;
+      const text = (m.content || m.text || '').trim();
+      if (!text) continue; // Skip empty / streaming placeholders
+      const role = (m.role === 'assistant' || m.role === 'model' || m.sender === 'bot') ? 'model' : 'user';
+      rawList.push({ role, text });
+    }
+  }
+
+  // Ensure current prompt is included as the last user turn if not already present
+  if (prompt && prompt.trim()) {
+    const pTrim = prompt.trim();
+    if (rawList.length === 0 || rawList[rawList.length - 1].role !== 'user' || rawList[rawList.length - 1].text !== pTrim) {
+      rawList.push({ role: 'user', text: pTrim });
+    }
+  }
+
+  // Fallback if empty
+  if (rawList.length === 0) {
+    return [{ role: 'user', parts: [{ text: 'Hallo' }] }];
+  }
+
+  // Gemini API requires the first turn to be 'user'
+  while (rawList.length > 0 && rawList[0].role !== 'user') {
+    rawList.shift();
+  }
+
+  if (rawList.length === 0) {
+    return [{ role: 'user', parts: [{ text: prompt || 'Hallo' }] }];
+  }
+
+  // Merge consecutive messages with the same role
+  const sanitized = [];
+  for (const item of rawList) {
+    if (sanitized.length > 0 && sanitized[sanitized.length - 1].role === item.role) {
+      sanitized[sanitized.length - 1].parts[0].text += `\n\n${item.text}`;
+    } else {
+      sanitized.push({
+        role: item.role,
+        parts: [{ text: item.text }]
+      });
+    }
+  }
+
+  return sanitized;
+}
+
+export async function handleCoachStream({ apiKey, prompt, messages, systemInstruction, aiModel = 'flash' }, onChunk) {
   if (!apiKey) throw new Error('Server API-Key fehlt.');
   if (prompt && prompt.length > MAX_PROMPT_LENGTH) {
     throw new Error(`Prompt überschreitet das Maximallimit von ${MAX_PROMPT_LENGTH} Zeichen.`);
   }
 
+  const contents = formatGeminiContents(messages, prompt);
+
   return executeWithFallback(apiKey, aiModel, systemInstruction, async (model) => {
-    const resultStream = await model.generateContentStream(prompt);
+    const resultStream = await model.generateContentStream({ contents });
     let fullText = '';
     for await (const chunk of resultStream.stream) {
       const chunkText = chunk.text();

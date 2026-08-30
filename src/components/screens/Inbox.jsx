@@ -8,6 +8,7 @@ import remarkGfm from 'remark-gfm';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
+import ModelSelectorDropdown from '../ui/ModelSelectorDropdown';
 
 const Inbox = ({ setCurrentScreen }) => {
   const { inboxItems, addInboxItem, updateInboxItem, deleteInboxItem, openModal, projects, mutateProject, reminders, mutateReminder } = useModalContext();
@@ -644,36 +645,24 @@ const Inbox = ({ setCurrentScreen }) => {
             </label>
 
             {isSummaryEnabled && (
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-on-surface-variant text-[14px]">psychology</span>
-                  <select
-                    value={activeModel}
-                    onChange={(e) => setActiveModel(e.target.value)}
-                    className="bg-surface-low border border-outline-variant rounded-lg px-2 py-1 text-[11px] font-medium text-on-surface-variant focus:outline-none focus:border-primary transition-colors cursor-pointer"
-                  >
-                    <option value="eco">Eco (Älteste zuerst)</option>
-                    <optgroup label="Flash">
-                      <option value="gemini-3.6-flash">Gemini 3.6 Flash</option>
-                      <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
-                    </optgroup>
-                    <optgroup label="Flash Lite">
-                      <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash Lite</option>
-                      <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite</option>
-                    </optgroup>
-                  </select>
-                </div>
+              <div className="flex flex-wrap items-center gap-2.5">
+                <ModelSelectorDropdown
+                  activeModel={activeModel}
+                  onSelectModel={setActiveModel}
+                  showEco={true}
+                />
 
-                <div className="flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-on-surface-variant text-[14px]">straighten</span>
+                <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white/95 dark:bg-surface-low/95 backdrop-blur-md border border-outline-variant hover:border-primary/40 rounded-xl shadow-2xs transition-all">
+                  <span className="material-symbols-outlined text-primary text-[15px]">straighten</span>
                   <select
                     value={summaryLength}
                     onChange={(e) => setSummaryLength(e.target.value)}
-                    className="bg-surface-low border border-outline-variant rounded-lg px-2 py-1 text-[11px] font-medium text-on-surface-variant focus:outline-none focus:border-primary transition-colors cursor-pointer"
+                    className="bg-transparent border-none outline-none text-xs font-mono font-bold text-primary focus:ring-0 p-0 cursor-pointer"
+                    title="Zusammenfassungs-Länge"
                   >
-                    <option value="compact">Kompakt (Maximal verdichtet)</option>
-                    <option value="normal">Präzise (Nur das Wichtigste)</option>
-                    <option value="detailed">Ausführlich (Detailliert)</option>
+                    <option value="compact">Kompakt</option>
+                    <option value="normal">Präzise</option>
+                    <option value="detailed">Ausführlich</option>
                   </select>
                 </div>
               </div>

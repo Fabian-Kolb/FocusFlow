@@ -50,6 +50,7 @@ export default async function handler(req, res) {
       {
         apiKey,
         prompt: body.prompt || 'Hallo Coach!',
+        messages: body.messages,
         systemInstruction: body.systemInstruction,
         aiModel: body.aiModel || 'flash'
       },

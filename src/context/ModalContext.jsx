@@ -437,14 +437,11 @@ export const ModalProvider = ({ children }) => {
 
   const addPhase = (projectId, phaseData) => {
     mutateProject(projectId, (proj) => {
-      const newPhaseCount = proj.phases.length + 1;
-      const formattedTitle = phaseData.title.trim().toUpperCase();
-      const phaseNumStr = newPhaseCount < 10 ? `0${newPhaseCount}` : `${newPhaseCount}`;
-      const fullTitle = formattedTitle.startsWith('PHASE') ? formattedTitle : `PHASE ${phaseNumStr}: ${formattedTitle}`;
+      const formattedTitle = phaseData.title ? phaseData.title.trim() : 'Neuer Abschnitt';
 
       const newPhase = {
         id: `ph_${Date.now()}`,
-        title: fullTitle,
+        title: formattedTitle,
         dateInfo: phaseData.dateInfo || 'Demnächst',
         completed: false,
         description: phaseData.description || '',
@@ -452,12 +449,12 @@ export const ModalProvider = ({ children }) => {
         materials: []
       };
 
-      const updatedPhases = [...proj.phases, newPhase];
+      const updatedPhases = [...(proj.phases || []), newPhase];
       const historyEntry = {
         id: `h_${Date.now()}`,
         date: `${new Date().toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()} • ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`,
-        title: `Phase gestartet: '${fullTitle}'`,
-        category: 'Neue Phase',
+        title: `Abschnitt angelegt: '${formattedTitle}'`,
+        category: 'Neuer Abschnitt',
         icon: 'flag',
         badgeBg: 'bg-surface-low border border-outline-variant text-primary'
       };

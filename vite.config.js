@@ -62,6 +62,7 @@ function apiProxyPlugin(envConfig) {
                   {
                     apiKey: key,
                     prompt: body.prompt,
+                    messages: body.messages,
                     systemInstruction: body.systemInstruction,
                     aiModel: body.aiModel
                   },

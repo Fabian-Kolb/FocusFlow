@@ -65,8 +65,8 @@ function AppContent() {
         setCollapsed={setSidebarCollapsed}
       />
 
-      <main className="flex-grow min-w-0 overflow-y-auto relative pb-20 md:pb-0 h-full flex flex-col">
-        <div className={`mx-auto w-full flex-grow flex flex-col ${currentScreen === 'coach' ? 'p-0 max-w-none' : 'max-w-none px-2 sm:px-4 md:px-8 py-4 sm:py-8'}`}>
+      <main className={`flex-grow min-w-0 relative h-full flex flex-col ${currentScreen === 'coach' ? 'overflow-hidden pb-16 md:pb-0' : 'overflow-y-auto pb-20 md:pb-0'}`}>
+        <div className={`mx-auto w-full flex-grow flex flex-col h-full min-h-0 ${currentScreen === 'coach' ? 'p-0 max-w-none overflow-hidden' : 'max-w-none px-2 sm:px-4 md:px-8 py-4 sm:py-8'}`}>
           {currentScreen === 'dashboard' && <Dashboard setCurrentScreen={setCurrentScreen} />}
           {currentScreen === 'inbox' && <Inbox setCurrentScreen={setCurrentScreen} />}
           {currentScreen === 'reminders' && <Reminders setCurrentScreen={setCurrentScreen} />}
@@ -75,7 +75,7 @@ function AppContent() {
           {currentScreen === 'board' && <ProjectsBoard setCurrentScreen={setCurrentScreen} />}
           {currentScreen === 'project-detail' && <ProjectDetail setCurrentScreen={setCurrentScreen} />}
           {currentScreen === 'calendar' && <Calendar />}
-          {currentScreen === 'coach' && <Coach />}
+          {currentScreen === 'coach' && <Coach setCurrentScreen={setCurrentScreen} />}
           {currentScreen === 'review' && <Review />}
           {currentScreen === 'trash' && <Trash setCurrentScreen={setCurrentScreen} />}
         </div>

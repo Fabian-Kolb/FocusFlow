@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { useModalContext } from '../../context/ModalContext';
 import { useChat } from '../../context/ChatContext';
 import { askGeminiCoach } from '../../lib/gemini';
+import { ACTION_ENGINE_SYSTEM_PROMPT, parseAiActions, executeAiActions } from '../../lib/aiActionEngine';
 import FioIcon from './FioIcon';
 
 const ProjectAiChat = ({
@@ -119,28 +121,36 @@ const ProjectAiChat = ({
     if (contextScope === 'reminder' && contextData) {
       contextSummary.aktiverFokus = {
         typ: 'Erinnerung',
+        id: contextData.id,
         titel: contextData.title,
+        beschreibung: contextData.description || '',
         status: contextData.status || 'AKTIV',
         datum: contextData.date || 'Kein Datum',
         uhrzeit: contextData.time || 'Keine Uhrzeit',
-        notizen: contextData.notes || []
+        notizen: (contextData.notes || []).map(n => ({ id: n.id, titel: n.title, inhalt: n.content }))
       };
     } else if (projectData) {
       contextSummary.projekt = {
+        id: projectData.id,
         titel: projectData.title || 'Unbenanntes Projekt',
         beschreibung: projectData.description || '',
+        zeitraum: `${projectData.startDate || 'Start offen'} bis ${projectData.endDate || 'Ende offen'}`,
+        startDate: projectData.startDate || '',
+        endDate: projectData.endDate || '',
         status: projectData.status || 'AKTIV',
         fortschritt: `${projectData.progress || 0}%`,
+        notizen: (projectData.notes || []).map(n => ({ id: n.id, titel: n.title, inhalt: n.content })),
         abschnitte: (projectData.phases || []).map((p) => ({
           id: p.id,
           titel: p.title,
           zeitraum: p.dateInfo,
+          materialien: (p.materials || []).map(m => ({ id: m.id, name: m.name, typ: m.type, url: m.url })),
           aufgaben: (p.tasks || []).map((t) => ({
             id: t.id,
             titel: t.title,
             erledigt: !!t.completed,
             termin: t.date,
-            notizen: t.notes || ''
+            notizen: t.notes || t.note || ''
           }))
         }))
       };
@@ -174,6 +184,8 @@ Deine Aufgabe ist es, dem Nutzer zu helfen, seine Projekte, Aufgaben und Erinner
 
 KONTEXT DES NUTZERS:
 ${JSON.stringify(contextSummary, null, 2)}
+
+${ACTION_ENGINE_SYSTEM_PROMPT}
 
 REGELN:
 1. Beziehe dich direkt auf den aktiven Kontext (Erinnerung, Aufgabe, Abschnitt oder Projekt).
@@ -231,6 +243,9 @@ REGELN:
     }
   };
 
+  const modalContext = useModalContext();
+  const { projects = [], reminders = [] } = modalContext;
+
   const handleSend = async (textToSend) => {
     const text = textToSend || inputText;
     if (!text || !text.trim() || isLoading) return;
@@ -271,18 +286,33 @@ REGELN:
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
 
+    let fullStreamedText = '';
+
     try {
       const systemInstruction = buildSystemInstruction();
-      const finalBotText = await askGeminiCoach({
+      const previousMessages = (activeSession?.messages || []).filter(m => m.id !== botMsgId && m.id !== userMsgId);
+      const conversationHistory = [...previousMessages, { role: 'user', content: trimmedText }];
+
+      await askGeminiCoach({
         prompt: trimmedText,
+        messages: conversationHistory,
         systemInstruction,
         aiModel: activeModel,
         signal: abortController.signal,
         onChunk: (streamedText) => {
-          updateStreamingMessage(targetSessionId, botMsgId, streamedText, true);
+          fullStreamedText = streamedText;
+          const { cleanText } = parseAiActions(streamedText);
+          updateStreamingMessage(targetSessionId, botMsgId, cleanText, true);
         }
       });
-      updateStreamingMessage(targetSessionId, botMsgId, finalBotText || undefined, false);
+
+      const { cleanText, actions } = parseAiActions(fullStreamedText);
+      let executedActionResults = [];
+      if (actions && actions.length > 0) {
+        executedActionResults = await executeAiActions(actions, modalContext, projects, reminders);
+      }
+
+      updateStreamingMessage(targetSessionId, botMsgId, cleanText || undefined, false, executedActionResults);
     } catch (err) {
       if (err.name === 'AbortError' || abortController.signal.aborted) {
         // Stopped by user
@@ -384,27 +414,23 @@ REGELN:
                       : 'bg-white border-outline-variant hover:border-primary/30 hover:bg-surface-low/40'
                   }`}
                 >
-                  {/* Left / Main: Title on Top, Badge below */}
-                  <div className="min-w-0 flex-1 flex flex-col gap-1">
+                  {/* Left / Main: Icon + Title */}
+                  <div className="min-w-0 flex-1 flex items-center gap-2.5">
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                      isReminder
+                        ? 'bg-amber-500/10 text-amber-700 border border-amber-500/20'
+                        : isProject
+                        ? 'bg-primary/10 text-primary border border-primary/20'
+                        : 'bg-surface-low text-on-surface-variant border border-outline-variant'
+                    }`}>
+                      <span className="material-symbols-outlined text-[16px]">
+                        {isReminder ? 'notifications' : isProject ? 'folder' : 'psychology'}
+                      </span>
+                    </div>
+
                     <span className={`font-bold text-xs text-on-surface block truncate ${isActive ? 'text-primary' : ''}`}>
                       {sess.title || 'Gespräch'}
                     </span>
-                    <div className="flex items-center gap-1.5">
-                      <span className={`text-[9px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-md shrink-0 truncate max-w-[140px] ${
-                        isReminder
-                          ? 'text-amber-800 bg-amber-50 border border-amber-200'
-                          : isProject
-                          ? 'text-primary bg-primary/10 border border-primary/20'
-                          : 'text-on-surface-variant bg-surface-low border border-outline-variant'
-                      }`}>
-                        {sess.contextTitle || (isReminder ? 'Erinnerung' : isProject ? 'Projekt' : 'Allgemein')}
-                      </span>
-                      {isActive && (
-                        <span className="text-[9px] font-mono font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded shrink-0">
-                          AKTIV
-                        </span>
-                      )}
-                    </div>
                   </div>
 
                   {/* Right: Time on Top, Message count below */}
@@ -505,6 +531,44 @@ REGELN:
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
                           {msg.content || msg.text}
                         </ReactMarkdown>
+
+                        {/* Render Interactive Action Results Cards */}
+                        {msg.actionResults && msg.actionResults.length > 0 && (
+                          <div className="space-y-1.5 mt-2.5 pt-2.5 border-t border-outline-variant/60 not-prose">
+                            {msg.actionResults.map((res, idx) => {
+                              const isProjAction = res.targetType === 'project' || res.type === 'ADD_PHASE' || res.type === 'ADD_TASK' || res.type === 'CREATE_PROJECT' || res.type === 'UPDATE_PROJECT';
+                              const isRemAction = res.targetType === 'reminder' || res.type === 'CREATE_REMINDER' || res.type === 'UPDATE_REMINDER';
+                              const isNoteAction = res.type === 'CREATE_NOTE';
+                              const isMatAction = res.type === 'ADD_MATERIAL';
+
+                              const iconName = isNoteAction ? 'note_alt' : isMatAction ? 'attach_file' : isRemAction ? 'notifications' : isProjAction ? 'folder' : 'check_circle';
+                              const iconStyle = isNoteAction
+                                ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                                : isMatAction
+                                ? 'bg-sky-50 text-sky-700 border-sky-200'
+                                : isRemAction
+                                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                : isProjAction
+                                ? 'bg-primary/10 text-primary border-primary/20'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-200';
+
+                              return (
+                                <div
+                                  key={idx}
+                                  className="flex items-center gap-2 p-2 bg-surface-low border border-outline-variant rounded-xl text-xs shadow-2xs"
+                                >
+                                  <div className={`w-6 h-6 rounded-lg border flex items-center justify-center shrink-0 ${iconStyle}`}>
+                                    <span className="material-symbols-outlined text-[14px]">{iconName}</span>
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="font-bold text-on-surface truncate text-[11px]">{res.title}</div>
+                                    <div className="text-[9px] font-mono text-on-surface-variant truncate">{res.subtitle}</div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     ) : msg.isStreaming ? (
                       <div className="flex items-center gap-1.5 py-1 text-on-surface-variant text-xs">

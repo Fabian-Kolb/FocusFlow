@@ -86,13 +86,13 @@ async function getAuthHeaders() {
 /**
  * Streams AI Coach responses from backend proxy
  */
-export async function askGeminiCoach({ prompt, systemInstruction, onChunk, aiModel = 'flash', signal }) {
+export async function askGeminiCoach({ prompt, messages, systemInstruction, onChunk, aiModel = 'flash', signal }) {
   const headers = await getAuthHeaders();
 
   const response = await fetch('/api/gemini/coach', {
     method: 'POST',
     headers,
-    body: JSON.stringify({ prompt, systemInstruction, aiModel }),
+    body: JSON.stringify({ prompt, messages, systemInstruction, aiModel }),
     signal
   });
 

@@ -182,3 +182,19 @@
     border-right-color: var(--border);
   }
 }
+
+/* Fio Speech Bubble Float Animation */
+@keyframes fioBubbleFloat {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+.fio-bubble-float-wrapper {
+  animation: fioBubbleFloat 3s ease-in-out infinite;
+}
+
+
