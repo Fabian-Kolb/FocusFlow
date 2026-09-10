@@ -160,8 +160,18 @@ export const ModalProvider = ({ children }) => {
     }
 
     if (user.isGuest) {
-      setProjects(DEMO_PROJECTS);
-      setReminders(DEMO_REMINDERS);
+      try {
+        const savedProjects = localStorage.getItem('focusflow_guest_projects');
+        setProjects(savedProjects ? JSON.parse(savedProjects) : DEMO_PROJECTS);
+      } catch (e) {
+        setProjects(DEMO_PROJECTS);
+      }
+      try {
+        const savedReminders = localStorage.getItem('focusflow_guest_reminders');
+        setReminders(savedReminders ? JSON.parse(savedReminders) : DEMO_REMINDERS);
+      } catch (e) {
+        setReminders(DEMO_REMINDERS);
+      }
       setInboxItems({ today: [], yesterday: [] });
       setProjectCategories([{ id: 'allgemein', name: 'Allgemein', isExpanded: true, createdAt: 0 }]);
       setReminderCategories([{ id: 'allgemein', name: 'Allgemein', isExpanded: true, createdAt: 0 }]);
@@ -187,6 +197,8 @@ export const ModalProvider = ({ children }) => {
       trashed.sort((a, b) => b.id.localeCompare(a.id));
       setProjects(projs);
       setTrashedProjects(trashed);
+    }, (err) => {
+      console.error('[ModalContext] Error fetching projects from Firestore:', err);
     });
 
     const unsubReminders = onSnapshot(collection(db, 'users', user.uid, 'reminders'), (snapshot) => {
@@ -205,6 +217,8 @@ export const ModalProvider = ({ children }) => {
       trashed.sort((a, b) => b.id.localeCompare(a.id));
       setReminders(rems);
       setTrashedReminders(trashed);
+    }, (err) => {
+      console.error('[ModalContext] Error fetching reminders from Firestore:', err);
     });
 
     const unsubInbox = onSnapshot(collection(db, 'users', user.uid, 'inboxItems'), (snapshot) => {
@@ -245,6 +259,8 @@ export const ModalProvider = ({ children }) => {
       });
       setInboxItems({ today, yesterday, thisWeek, older });
       setTrashedInboxItems(trashed);
+    }, (err) => {
+      console.error('[ModalContext] Error fetching inboxItems from Firestore:', err);
     });
 
     const unsubCategories = onSnapshot(collection(db, 'users', user.uid, 'categories'), (snapshot) => {
@@ -270,6 +286,8 @@ export const ModalProvider = ({ children }) => {
           isExpanded: prevExpandMap[c.id] !== undefined ? prevExpandMap[c.id] : (c.isExpanded ?? true)
         }));
       });
+    }, (err) => {
+      console.error('[ModalContext] Error fetching categories from Firestore:', err);
     });
 
     const unsubReminderCategories = onSnapshot(collection(db, 'users', user.uid, 'reminderCategories'), (snapshot) => {
@@ -295,6 +313,8 @@ export const ModalProvider = ({ children }) => {
           isExpanded: prevExpandMap[c.id] !== undefined ? prevExpandMap[c.id] : (c.isExpanded ?? true)
         }));
       });
+    }, (err) => {
+      console.error('[ModalContext] Error fetching reminderCategories from Firestore:', err);
     });
 
     return () => {
@@ -322,10 +342,11 @@ export const ModalProvider = ({ children }) => {
     if (user.isGuest) {
       setProjects(prev => {
         const exists = prev.some(p => p.id === project.id);
-        if (exists) {
-          return prev.map(p => p.id === project.id ? project : p);
-        }
-        return [project, ...prev];
+        const updated = exists ? prev.map(p => p.id === project.id ? project : p) : [project, ...prev];
+        try {
+          localStorage.setItem('focusflow_guest_projects', JSON.stringify(updated));
+        } catch (e) {}
+        return updated;
       });
       return;
     }
@@ -866,10 +887,11 @@ export const ModalProvider = ({ children }) => {
     if (user.isGuest) {
       setReminders(prev => {
         const exists = prev.some(r => r.id === rem.id);
-        if (exists) {
-          return prev.map(r => r.id === rem.id ? rem : r);
-        }
-        return [rem, ...prev];
+        const updated = exists ? prev.map(r => r.id === rem.id ? rem : r) : [rem, ...prev];
+        try {
+          localStorage.setItem('focusflow_guest_reminders', JSON.stringify(updated));
+        } catch (e) {}
+        return updated;
       });
       return;
     }
