@@ -296,6 +296,21 @@ const Dashboard = ({ setCurrentScreen }) => {
           >
             <FioIcon className="w-full h-full text-white group-hover:scale-105 transition-transform" color="currentColor" />
           </button>
+
+          {/* Mobile Profile & Logout Trigger */}
+          <button
+            onClick={() => openModal('profile')}
+            title={user?.isGuest ? 'Gast-Modus & Abmelden' : 'Mein Profil & Abmelden'}
+            className="md:hidden w-11 h-11 bg-surface-low border border-outline-variant hover:border-primary rounded-2xl flex items-center justify-center transition-all shadow-sm cursor-pointer shrink-0"
+          >
+            {user?.photoURL ? (
+              <img src={user.photoURL} alt="Avatar" className="w-full h-full rounded-2xl object-cover p-1" />
+            ) : user?.isGuest ? (
+              <span className="material-symbols-outlined text-amber-500 text-[22px]">person</span>
+            ) : (
+              <span className="text-xs font-bold font-mono text-primary">{(user?.displayName || user?.email || 'U').substring(0, 2).toUpperCase()}</span>
+            )}
+          </button>
         </div>
       </div>
 

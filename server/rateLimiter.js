@@ -6,14 +6,13 @@ const GUEST_MAX_REQUESTS = 15; // Maximal 15 Anfragen pro 10 Minuten für Gäste
 const AUTH_MAX_REQUESTS = 100; // 100 Anfragen für angemeldete Nutzer
 
 /**
- * Überprüft das Rate-Limit basierend auf der IP-Adresse des Anfragenden.
+ * Überprüft das Rate-Limit basierend auf UID (authentifiziert) oder IP-Adresse.
  * @param {object} req - HTTP Request Objekt
+ * @param {object|null} user - Verifizierter Nutzer { uid, email }
  * @returns {{ allowed: boolean, minutesLeft?: number, limit?: number }}
  */
-export function checkRateLimit(req) {
-  // Wenn ein echtes Firebase-Token übergeben wurde, gilt das höhere Limit
-  const authHeader = req.headers.authorization;
-  const isAuth = Boolean(authHeader && authHeader.startsWith('Bearer ') && authHeader.length > 50);
+export function checkRateLimit(req, user = null) {
+  const isAuth = Boolean(user && user.uid);
   const limit = isAuth ? AUTH_MAX_REQUESTS : GUEST_MAX_REQUESTS;
 
   const forwarded = req.headers['x-forwarded-for'];
@@ -22,8 +21,10 @@ export function checkRateLimit(req) {
              req.socket?.remoteAddress || 
              'anonymous_ip';
 
+  const rateKey = isAuth ? `user_${user.uid}` : `ip_${ip}`;
+
   const now = Date.now();
-  const record = rateLimitMap.get(ip) || { count: 0, resetAt: now + WINDOW_MS };
+  const record = rateLimitMap.get(rateKey) || { count: 0, resetAt: now + WINDOW_MS };
 
   // Zeitfenster abgelaufen -> Reset
   if (now > record.resetAt) {
@@ -32,7 +33,7 @@ export function checkRateLimit(req) {
   }
 
   record.count += 1;
-  rateLimitMap.set(ip, record);
+  rateLimitMap.set(rateKey, record);
 
   // Periodisches Aufräumen alter Einträge bei hohem Traffic
   if (rateLimitMap.size > 2000) {

@@ -7,27 +7,23 @@ const GOOGLE_CALENDAR_BASE = 'https://www.googleapis.com/calendar/v3';
 
 function getStoredAccessToken() {
   const uid = auth?.currentUser?.uid || 'user';
-  return localStorage.getItem(`ff_cal_token_${uid}`) || null;
+  return sessionStorage.getItem(`ff_cal_token_${uid}`) || localStorage.getItem(`ff_cal_token_${uid}`) || null;
 }
 
-function getStoredRefreshToken() {
-  const uid = auth?.currentUser?.uid || 'user';
-  return localStorage.getItem(`ff_cal_refresh_${uid}`) || null;
-}
-
-export function saveCalendarTokens({ accessToken, refreshToken }) {
+export function saveCalendarTokens({ accessToken }) {
   const uid = auth?.currentUser?.uid || 'user';
   if (accessToken) {
-    localStorage.setItem(`ff_cal_token_${uid}`, accessToken);
+    sessionStorage.setItem(`ff_cal_token_${uid}`, accessToken);
   }
-  if (refreshToken) {
-    localStorage.setItem(`ff_cal_refresh_${uid}`, refreshToken);
-  }
+  // Sicherheits-Bereinigung: Keine persistenten OAuth-Tokens mehr im localStorage
+  localStorage.removeItem(`ff_cal_refresh_${uid}`);
+  localStorage.removeItem(`ff_cal_token_${uid}`);
   localStorage.setItem(`ff_cal_connected_${uid}`, 'true');
 }
 
 export function clearCalendarTokens() {
   const uid = auth?.currentUser?.uid || 'user';
+  sessionStorage.removeItem(`ff_cal_token_${uid}`);
   localStorage.removeItem(`ff_cal_token_${uid}`);
   localStorage.removeItem(`ff_cal_refresh_${uid}`);
   localStorage.removeItem(`ff_cal_connected_${uid}`);
@@ -39,7 +35,7 @@ export function clearCalendarTokens() {
 export async function getCalendarConnectionStatus() {
   const uid = auth?.currentUser?.uid || 'user';
   const isConnected = localStorage.getItem(`ff_cal_connected_${uid}`) === 'true';
-  const hasToken = Boolean(getStoredAccessToken() || getStoredRefreshToken());
+  const hasToken = Boolean(getStoredAccessToken());
   
   if (isConnected && hasToken) {
     return true;
@@ -47,7 +43,17 @@ export async function getCalendarConnectionStatus() {
 
   // Fallback: Prüfe, ob der Server ein Refresh-Token für diesen Nutzer gespeichert hat
   try {
-    const response = await fetch(`/api/calendar/status?uid=${encodeURIComponent(uid)}`);
+    const headers = {};
+    if (auth?.currentUser && !auth.currentUser.isGuest) {
+      try {
+        const idToken = await auth.currentUser.getIdToken();
+        headers['Authorization'] = `Bearer ${idToken}`;
+      } catch {
+        // pass
+      }
+    }
+
+    const response = await fetch(`/api/calendar/status?uid=${encodeURIComponent(uid)}`, { headers });
     if (response.ok) {
       const data = await response.json();
       if (data.connected) {
@@ -65,17 +71,25 @@ export async function getCalendarConnectionStatus() {
 }
 
 /**
- * Requests fresh access token using refresh token via backend proxy
+ * Requests fresh access token via backend proxy
  */
 async function refreshActiveToken() {
   const uid = auth?.currentUser?.uid || 'user';
-  const refreshToken = getStoredRefreshToken();
+  const headers = { 'Content-Type': 'application/json' };
+  if (auth?.currentUser && !auth.currentUser.isGuest) {
+    try {
+      const idToken = await auth.currentUser.getIdToken();
+      headers['Authorization'] = `Bearer ${idToken}`;
+    } catch (e) {
+      console.warn('[Calendar Auth] ID-Token Fehler:', e);
+    }
+  }
 
   try {
     const response = await fetch('/api/calendar/refresh', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken, uid })
+      headers,
+      body: JSON.stringify({ uid })
     });
 
     if (!response.ok) return null;
@@ -83,8 +97,7 @@ async function refreshActiveToken() {
     const data = await response.json();
     if (data.accessToken) {
       saveCalendarTokens({
-        accessToken: data.accessToken,
-        refreshToken: data.refreshToken || refreshToken
+        accessToken: data.accessToken
       });
       return data.accessToken;
     }

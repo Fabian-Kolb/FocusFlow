@@ -95,6 +95,8 @@ function ProfileModal() {
             <div className="w-14 h-14 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center font-bold text-xl text-primary overflow-hidden flex-shrink-0">
               {user?.photoURL ? (
                 <img src={user.photoURL} alt="Avatar" className="w-full h-full object-cover" />
+              ) : user?.isGuest ? (
+                <span className="material-symbols-outlined text-2xl text-amber-500">person</span>
               ) : (
                 (user?.displayName || user?.email || 'U').substring(0, 2).toUpperCase()
               )}
@@ -102,104 +104,125 @@ function ProfileModal() {
             <div className="min-w-0 flex-1">
               <p className="font-semibold text-base truncate">{user?.displayName || 'Kein Name angegeben'}</p>
               <p className="text-sm text-on-surface-variant truncate">{user?.email}</p>
-              <span className="inline-block mt-1 text-xs px-2.5 py-0.5 rounded-full bg-surface border border-border text-on-surface-variant font-mono">
-                {isGoogleUser ? 'Google Konto' : 'E-Mail & Passwort'}
+              <span className={`inline-block mt-1 text-xs px-2.5 py-0.5 rounded-full border font-mono ${
+                user?.isGuest 
+                  ? 'bg-amber-500/10 text-amber-500 border-amber-500/30' 
+                  : 'bg-surface border-border text-on-surface-variant'
+              }`}>
+                {user?.isGuest ? 'Gast-Modus (Vorschau)' : (isGoogleUser ? 'Google Konto' : 'E-Mail & Passwort')}
               </span>
             </div>
           </div>
 
-          {/* Edit Profile Form */}
-          <form onSubmit={handleUpdateProfile} className="space-y-4">
-            <h3 className="text-sm font-semibold text-on-surface-variant uppercase tracking-wider">Profil-Informationen</h3>
-            <div>
-              <label className="block text-xs font-medium text-on-surface mb-1">Anzeigename</label>
-              <input
-                type="text"
-                className="w-full bg-surface-variant/30 border border-border rounded-lg px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                placeholder="Dein Name"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-on-surface mb-1">Profilbild URL</label>
-              <input
-                type="url"
-                className="w-full bg-surface-variant/30 border border-border rounded-lg px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                placeholder="https://beispiel.de/bild.jpg"
-                value={photoURL}
-                onChange={(e) => setPhotoURL(e.target.value)}
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-4 py-2 bg-primary text-bg-surface rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
-            >
-              Profil speichern
-            </button>
-          </form>
-
-          {/* Change Password Form */}
-          {!isGoogleUser && (
-            <form onSubmit={handleChangePassword} className="space-y-4 pt-4 border-t border-border">
-              <h3 className="text-sm font-semibold text-on-surface-variant uppercase tracking-wider">Passwort ändern</h3>
-              <div>
-                <label className="block text-xs font-medium text-on-surface mb-1">Neues Passwort</label>
-                <input
-                  type="password"
-                  required
-                  className="w-full bg-surface-variant/30 border border-border rounded-lg px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  placeholder="••••••••"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                />
+          {user?.isGuest ? (
+            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/25 space-y-2 text-on-surface">
+              <div className="flex items-center gap-2 text-amber-500 font-semibold text-sm">
+                <span className="material-symbols-outlined text-[20px]">info</span>
+                Gast-Sitzung aktiv
               </div>
-              <div>
-                <label className="block text-xs font-medium text-on-surface mb-1">Neues Passwort bestätigen</label>
-                <input
-                  type="password"
-                  required
-                  className="w-full bg-surface-variant/30 border border-border rounded-lg px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  placeholder="••••••••"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="px-4 py-2 bg-surface-variant hover:bg-surface-variant/80 border border-border text-primary rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-              >
-                Passwort ändern
-              </button>
-            </form>
-          )}
-          
-          {/* Calendar Connection */}
-          {googleCalendarToken && (
-            <div className="space-y-4 pt-4 border-t border-border">
-              <h3 className="text-sm font-semibold text-on-surface-variant uppercase tracking-wider">Verknüpfte Dienste</h3>
-              <div className="flex items-center justify-between p-3 rounded-lg bg-surface-variant/20 border border-border">
-                <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-primary">calendar_month</span>
-                  <div>
-                    <p className="text-sm font-medium">Google Kalender</p>
-                    <p className="text-xs text-on-surface-variant">Verbunden</p>
-                  </div>
+              <p className="text-xs text-on-surface-variant leading-relaxed">
+                Du erkundest FocusFlow im Gast-Modus. Deine erstellten Daten und Chats bleiben in diesem Browser auch beim Neuladen der Seite erhalten.
+              </p>
+              <p className="text-xs text-on-surface-variant leading-relaxed">
+                Klicke unten auf <strong>„Gast-Modus beenden“</strong>, um deine Sitzung sofort zu schließen und zum Anmeldebildschirm zurückzukehren.
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* Edit Profile Form */}
+              <form onSubmit={handleUpdateProfile} className="space-y-4">
+                <h3 className="text-sm font-semibold text-on-surface-variant uppercase tracking-wider">Profil-Informationen</h3>
+                <div>
+                  <label className="block text-xs font-medium text-on-surface mb-1">Anzeigename</label>
+                  <input
+                    type="text"
+                    className="w-full bg-surface-variant/30 border border-border rounded-lg px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    placeholder="Dein Name"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-on-surface mb-1">Profilbild URL</label>
+                  <input
+                    type="url"
+                    className="w-full bg-surface-variant/30 border border-border rounded-lg px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    placeholder="https://beispiel.de/bild.jpg"
+                    value={photoURL}
+                    onChange={(e) => setPhotoURL(e.target.value)}
+                  />
                 </div>
                 <button
-                  type="button"
-                  onClick={() => {
-                    disconnectGoogleCalendar();
-                    setMsg({ type: 'success', text: 'Kalender-Verbindung erfolgreich getrennt.' });
-                  }}
-                  className="px-3 py-1.5 border border-border rounded-lg text-xs font-medium hover:bg-surface-variant/50 transition-colors"
+                  type="submit"
+                  disabled={loading}
+                  className="px-4 py-2 bg-primary text-bg-surface rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
                 >
-                  Trennen
+                  Profil speichern
                 </button>
-              </div>
-            </div>
+              </form>
+
+              {/* Change Password Form */}
+              {!isGoogleUser && (
+                <form onSubmit={handleChangePassword} className="space-y-4 pt-4 border-t border-border">
+                  <h3 className="text-sm font-semibold text-on-surface-variant uppercase tracking-wider">Passwort ändern</h3>
+                  <div>
+                    <label className="block text-xs font-medium text-on-surface mb-1">Neues Passwort</label>
+                    <input
+                      type="password"
+                      required
+                      className="w-full bg-surface-variant/30 border border-border rounded-lg px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      placeholder="••••••••"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-on-surface mb-1">Neues Passwort bestätigen</label>
+                    <input
+                      type="password"
+                      required
+                      className="w-full bg-surface-variant/30 border border-border rounded-lg px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      placeholder="••••••••"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="px-4 py-2 bg-surface-variant hover:bg-surface-variant/80 border border-border text-primary rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                  >
+                    Passwort ändern
+                  </button>
+                </form>
+              )}
+              
+              {/* Calendar Connection */}
+              {googleCalendarToken && (
+                <div className="space-y-4 pt-4 border-t border-border">
+                  <h3 className="text-sm font-semibold text-on-surface-variant uppercase tracking-wider">Verknüpfte Dienste</h3>
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-surface-variant/20 border border-border">
+                    <div className="flex items-center gap-3">
+                      <span className="material-symbols-outlined text-primary">calendar_month</span>
+                      <div>
+                        <p className="text-sm font-medium">Google Kalender</p>
+                        <p className="text-xs text-on-surface-variant">Verbunden</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        disconnectGoogleCalendar();
+                        setMsg({ type: 'success', text: 'Kalender-Verbindung erfolgreich getrennt.' });
+                      }}
+                      className="px-3 py-1.5 border border-border rounded-lg text-xs font-medium hover:bg-surface-variant/50 transition-colors"
+                    >
+                      Trennen
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
         </div>
@@ -211,7 +234,7 @@ function ProfileModal() {
             className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg text-sm font-medium transition-colors"
           >
             <span className="material-symbols-outlined text-lg">logout</span>
-            Abmelden
+            {user?.isGuest ? 'Gast-Modus beenden' : 'Abmelden'}
           </button>
           <button
             onClick={closeModal}

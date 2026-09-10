@@ -1,6 +1,7 @@
 import { handleGenerateReminder } from '../../server/geminiService.js';
 import { checkRateLimit } from '../../server/rateLimiter.js';
 import { applyCorsAndSecurityHeaders } from '../../server/corsHelper.js';
+import { verifyAuthToken } from '../../server/authHelper.js';
 
 export default async function handler(req, res) {
   if (applyCorsAndSecurityHeaders(req, res, 'POST, OPTIONS')) {
@@ -11,8 +12,16 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Rate-Limit Prüfung
-  const rateLimit = checkRateLimit(req);
+  // 1. Authentifizierung prüfen
+  let user = null;
+  try {
+    user = await verifyAuthToken(req);
+  } catch (authErr) {
+    return res.status(authErr.statusCode || 401).json({ error: authErr.message || 'Nicht autorisiert' });
+  }
+
+  // 2. Rate-Limit Prüfung
+  const rateLimit = checkRateLimit(req, user);
   if (!rateLimit.allowed) {
     return res.status(429).json({
       error: `Anfrage-Limit erreicht: Aus Sicherheitsgründen sind maximal ${rateLimit.limit} KI-Anfragen pro 10 Minuten erlaubt. Bitte warte ca. ${rateLimit.minutesLeft} Minute(n).`,

@@ -115,6 +115,8 @@ export function ensureBulletPoints(rawText) {
 
 const MAX_PROMPT_LENGTH = 30000;
 const MAX_TEXT_LENGTH = 50000;
+const MAX_TOTAL_MESSAGES_LENGTH = 60000;
+const MAX_SINGLE_MESSAGE_LENGTH = 15000;
 
 export function formatGeminiContents(messages, prompt) {
   let rawList = [];
@@ -122,10 +124,18 @@ export function formatGeminiContents(messages, prompt) {
   if (Array.isArray(messages) && messages.length > 0) {
     // Keep up to the last 30 messages to avoid token overflow while maintaining deep context
     const recent = messages.slice(-30);
+    let totalMessagesLength = 0;
     for (const m of recent) {
       if (!m) continue;
-      const text = (m.content || m.text || '').trim();
+      let text = (m.content || m.text || '').trim();
       if (!text) continue; // Skip empty / streaming placeholders
+      if (text.length > MAX_SINGLE_MESSAGE_LENGTH) {
+        text = text.slice(0, MAX_SINGLE_MESSAGE_LENGTH) + '... [gekürzt]';
+      }
+      totalMessagesLength += text.length;
+      if (totalMessagesLength > MAX_TOTAL_MESSAGES_LENGTH) {
+        break;
+      }
       const role = (m.role === 'assistant' || m.role === 'model' || m.sender === 'bot') ? 'model' : 'user';
       rawList.push({ role, text });
     }

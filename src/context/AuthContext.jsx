@@ -25,15 +25,33 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
+const GUEST_STORAGE_FLAG = 'focusflow_is_guest';
+
+const GUEST_USER_OBJ = {
+  uid: 'guest_preview_user',
+  email: 'gast@focusflow.app',
+  displayName: 'Gast-Benutzer',
+  isGuest: true
+};
+
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    try {
+      if (localStorage.getItem(GUEST_STORAGE_FLAG) === 'true') {
+        return GUEST_USER_OBJ;
+      }
+    } catch (e) {
+      console.warn('LocalStorage error reading guest flag:', e);
+    }
+    return null;
+  });
   const [loading, setLoading] = useState(true);
   const [isCalendarConnected, setIsCalendarConnected] = useState(false);
 
   // Synchronisiere Verbindungsstatus, wenn sich der Nutzer ändert
   useEffect(() => {
     const checkStatus = async () => {
-      if (user) {
+      if (user && !user.isGuest) {
         const connected = await getCalendarConnectionStatus();
         setIsCalendarConnected(connected);
       } else {
@@ -47,10 +65,18 @@ export function AuthProvider({ children }) {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         try {
+          localStorage.removeItem(GUEST_STORAGE_FLAG);
+        } catch (e) {}
+
+        try {
           const db = getFirestore();
           const normalizedEmail = currentUser.email ? currentUser.email.trim().toLowerCase() : '';
           const whitelistRef = doc(db, 'whitelist', normalizedEmail);
-          await getDoc(whitelistRef);
+          const snap = await getDoc(whitelistRef);
+          
+          if (!snap.exists()) {
+            throw new Error('Account ist nicht auf der Whitelist.');
+          }
           
           setUser(currentUser);
         } catch (error) {
@@ -64,9 +90,19 @@ export function AuthProvider({ children }) {
           }));
         }
       } else {
-        setUser(null);
-        setIsCalendarConnected(false);
-        clearCalendarTokens();
+        // Kein Firebase-User: Prüfen ob Gast-Sitzung im localStorage aktiv ist
+        let isGuest = false;
+        try {
+          isGuest = localStorage.getItem(GUEST_STORAGE_FLAG) === 'true';
+        } catch (e) {}
+
+        if (isGuest) {
+          setUser(GUEST_USER_OBJ);
+        } else {
+          setUser(null);
+          setIsCalendarConnected(false);
+          clearCalendarTokens();
+        }
       }
       setLoading(false);
     });
@@ -75,23 +111,29 @@ export function AuthProvider({ children }) {
   }, []);
 
   const loginWithEmail = (email, password) => {
+    try {
+      localStorage.removeItem(GUEST_STORAGE_FLAG);
+    } catch (e) {}
     const cleanEmail = email ? email.trim().toLowerCase() : '';
     return signInWithEmailAndPassword(auth, cleanEmail, password);
   };
 
   const loginWithGoogle = async () => {
+    try {
+      localStorage.removeItem(GUEST_STORAGE_FLAG);
+    } catch (e) {}
     const provider = new GoogleAuthProvider();
     const result = await signInWithPopup(auth, provider);
     return result;
   };
 
   const loginAsGuest = () => {
-    setUser({
-      uid: 'guest_preview_user',
-      email: 'gast@focusflow.app',
-      displayName: 'Gast-Benutzer',
-      isGuest: true
-    });
+    try {
+      localStorage.setItem(GUEST_STORAGE_FLAG, 'true');
+    } catch (e) {
+      console.warn('LocalStorage error setting guest flag:', e);
+    }
+    setUser(GUEST_USER_OBJ);
   };
 
   /**
@@ -128,10 +170,11 @@ export function AuthProvider({ children }) {
             isResolved = true;
             window.removeEventListener('message', handleMessage);
             clearInterval(checkClosed);
-            if (event.data.accessToken || event.data.refreshToken) {
+            if (event.data.accessToken) {
+              const rawToken = event.data.accessToken;
+              const token = rawToken.includes('%') ? decodeURIComponent(rawToken) : rawToken;
               saveCalendarTokens({
-                accessToken: event.data.accessToken,
-                refreshToken: event.data.refreshToken
+                accessToken: token
               });
             }
             setIsCalendarConnected(true);
@@ -171,9 +214,19 @@ export function AuthProvider({ children }) {
   };
 
   const logout = async () => {
+    try {
+      localStorage.removeItem(GUEST_STORAGE_FLAG);
+    } catch (e) {
+      console.warn('Fehler beim Löschen des Gast-Flags:', e);
+    }
     clearCalendarTokens();
     setIsCalendarConnected(false);
-    return signOut(auth);
+    setUser(null);
+    try {
+      await signOut(auth);
+    } catch (err) {
+      console.warn('SignOut Fehler:', err);
+    }
   };
 
   const updateUserProfile = async (displayName, photoURL) => {

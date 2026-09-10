@@ -46,9 +46,8 @@ export default async function handler(req, res) {
             if (window.opener) {
               window.opener.postMessage({
                 type: 'FOCUSFLOW_CALENDAR_CONNECTED',
-                uid: '${uid}',
-                accessToken: '${accessToken}',
-                refreshToken: '${refreshToken}'
+                uid: '${encodeURIComponent(uid)}',
+                accessToken: '${encodeURIComponent(accessToken)}'
               }, window.location.origin);
             }
             setTimeout(() => window.close(), 1000);
@@ -59,6 +58,7 @@ export default async function handler(req, res) {
   } catch (err) {
     console.error('Calendar Callback Error:', err);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    return res.status(500).send(`<h3>Fehler bei der Kalender-Verknüpfung: ${err?.message || err}</h3>`);
+    const safeMsg = String(err?.message || err).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return res.status(500).send(`<h3>Fehler bei der Kalender-Verknüpfung</h3><p>${safeMsg}</p>`);
   }
 }

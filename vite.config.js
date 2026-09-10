@@ -203,9 +203,8 @@ function apiProxyPlugin(envConfig) {
                       if (window.opener) {
                         window.opener.postMessage({
                           type: 'FOCUSFLOW_CALENDAR_CONNECTED',
-                          uid: '${verifiedUid}',
-                          accessToken: '${accessToken}',
-                          refreshToken: '${refreshToken}'
+                          uid: '${encodeURIComponent(verifiedUid)}',
+                          accessToken: '${encodeURIComponent(accessToken)}'
                         }, window.location.origin);
                       }
                       setTimeout(() => window.close(), 1200);

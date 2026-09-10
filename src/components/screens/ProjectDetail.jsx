@@ -52,6 +52,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
   const [selectedPhase, setSelectedPhase] = useState(null); // the phase object for the SectionDetailDrawer
   const [activeNoteModal, setActiveNoteModal] = useState(null); // note to view/edit in full modal
   const [isGlobalChatOpen, setIsGlobalChatOpen] = useState(false);
+  const [isTransitioningDrawer, setIsTransitioningDrawer] = useState(false);
   
   // Modals state
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -736,7 +737,6 @@ const ProjectDetail = ({ setCurrentScreen }) => {
     return true;
   });
 
-  const [isTransitioningDrawer, setIsTransitioningDrawer] = useState(false);
   const detailDrawerOpen = !!selectedTask || !!selectedPhase || isTransitioningDrawer;
   const rightMarginClass = (detailDrawerOpen && isGlobalChatOpen) ? 'lg:mr-[840px]' : (detailDrawerOpen || isGlobalChatOpen) ? 'lg:mr-[420px]' : '';
 

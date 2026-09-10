@@ -69,7 +69,7 @@ function GuestWelcomeModal() {
                   Keine Cloud-Speicherung
                 </div>
                 <p className="text-[11px] text-on-surface-variant leading-relaxed">
-                  Deine erstellten Projekte, Phasen und Notizen existieren rein temporär in deinem Browser. Beim Schließen des Fensters oder Neuladen wird der Stand zurückgesetzt.
+                  Deine erstellten Projekte, Phasen und Notizen bleiben während deiner Gast-Sitzung in diesem Browser auch beim Neuladen erhalten (kein Cloud-Backup). Mit Klick auf „Gast-Modus beenden“ loggst du dich sofort aus.
                 </p>
               </div>
 

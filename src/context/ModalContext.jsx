@@ -1052,7 +1052,6 @@ export const ModalProvider = ({ children }) => {
       toggleProjectCategory,
       deleteProjectCategory,
       updateProjectCategory,
-      updateReminderCategory,
       moveProjectToCategory,
       reorderProjectCategories,
       moveProjectCategoryOrder,

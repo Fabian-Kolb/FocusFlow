@@ -13,7 +13,14 @@ export const useChat = () => {
   return context;
 };
 
-const STORAGE_KEY = 'focusflow_synced_chat_sessions_v1';
+const LEGACY_STORAGE_KEY = 'focusflow_synced_chat_sessions_v1';
+const GUEST_STORAGE_KEY = 'focusflow_chat_sessions_guest';
+
+const getStorageKey = (currentUser) => {
+  if (!currentUser) return null;
+  if (currentUser.isGuest) return GUEST_STORAGE_KEY;
+  return `focusflow_chat_sessions_${currentUser.uid}`;
+};
 
 const createDefaultSession = () => ({
   id: `sess_${Date.now()}`,
@@ -28,33 +35,80 @@ const createDefaultSession = () => ({
   messages: []
 });
 
+const loadSessionsFromLocal = (currentUser) => {
+  if (!currentUser) return [createDefaultSession()];
+
+  const key = getStorageKey(currentUser);
+  if (!key) return [createDefaultSession()];
+
+  try {
+    let saved = localStorage.getItem(key);
+
+    // Migration alter Daten für angemeldete Nutzer (nur einmalig ausführen):
+    // Verhindert Datenverlust und sorgt dafür, dass der alte globale Schlüssel danach gelöscht wird,
+    // damit keine privaten Sitzungen in den Gast-Modus oder an Dritte lecken.
+    if (!saved && !currentUser.isGuest) {
+      const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
+      if (legacy) {
+        saved = legacy;
+        try {
+          localStorage.setItem(key, legacy);
+          localStorage.removeItem(LEGACY_STORAGE_KEY);
+        } catch (e) {
+          console.warn('[ChatContext] Migration warning:', e);
+        }
+      }
+    }
+
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {
+    console.warn('[ChatContext] Fehler beim Laden aus LocalStorage:', e);
+  }
+  return [createDefaultSession()];
+};
+
 export const ChatProvider = ({ children }) => {
   const { user } = useAuth();
   const [activeModel, setActiveModel] = useState('gemini-3.6-flash');
 
-  // Load initial sessions from localStorage
-  const [sessions, setSessions] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch (e) {
-      console.warn('[ChatContext] Fehler beim Laden aus LocalStorage:', e);
-    }
-    return [createDefaultSession()];
-  });
+  // Load initial sessions from user-scoped storage
+  const [sessions, setSessions] = useState(() => loadSessionsFromLocal(user));
 
   const [activeSessionId, setActiveSessionId] = useState(() => {
     return sessions[0]?.id || `sess_${Date.now()}`;
   });
 
-  // Sync to Firestore for authenticated users
+  // Re-sync / reload sessions when auth status changes (Account login, Gastmodus oder Logout)
   useEffect(() => {
-    if (!user || user.isGuest || !db) return;
-
     let isMounted = true;
+
+    // 1. Wenn ausgeloggt (kein User): Sofortiger Reset des Zustands auf ein frisches Standard-Gespräch
+    if (!user) {
+      const fresh = [createDefaultSession()];
+      setSessions(fresh);
+      setActiveSessionId(fresh[0].id);
+      return;
+    }
+
+    // 2. Gast-Modus: Strikt isolierte Gast-Sitzungen laden (kein Zugriff auf Firestore, kein Zugriff auf Account-Sessions)
+    if (user.isGuest) {
+      const guestSessions = loadSessionsFromLocal(user);
+      setSessions(guestSessions);
+      setActiveSessionId(guestSessions[0]?.id || `sess_${Date.now()}`);
+      return;
+    }
+
+    // 3. Angemeldeter Account: Benutzerspezifischen Cache aus LocalStorage laden
+    const cached = loadSessionsFromLocal(user);
+    setSessions(cached);
+    setActiveSessionId(cached[0]?.id || `sess_${Date.now()}`);
+
+    // Anschließend mit Firestore abgleichen
+    if (!db) return;
+
     const loadFromFirestore = async () => {
       try {
         const docRef = doc(db, 'users', user.uid, 'chat_data', 'sessions');
@@ -66,6 +120,10 @@ export const ChatProvider = ({ children }) => {
             if (data.activeSessionId) {
               setActiveSessionId(data.activeSessionId);
             }
+            const key = getStorageKey(user);
+            if (key) {
+              localStorage.setItem(key, JSON.stringify(data.sessions));
+            }
           }
         }
       } catch (err) {
@@ -75,14 +133,17 @@ export const ChatProvider = ({ children }) => {
 
     loadFromFirestore();
     return () => { isMounted = false; };
-  }, [user]);
+  }, [user?.uid, user?.isGuest]);
 
-  // Persist to LocalStorage and Firestore
+  // Persist to user-scoped LocalStorage and Firestore
   const persistSessions = useCallback((updatedSessions, activeId) => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedSessions));
-    } catch (e) {
-      console.warn('[ChatContext] LocalStorage Speichern fehlgeschlagen:', e);
+    const storageKey = getStorageKey(user);
+    if (storageKey) {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(updatedSessions));
+      } catch (e) {
+        console.warn('[ChatContext] LocalStorage Speichern fehlgeschlagen:', e);
+      }
     }
 
     if (user && !user.isGuest && db) {

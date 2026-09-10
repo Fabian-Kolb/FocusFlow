@@ -85,18 +85,28 @@ const Sidebar = ({ currentScreen, setCurrentScreen, collapsed, setCollapsed }) =
           <button
             onClick={() => openModal('profile')}
             className={`flex items-center text-left w-full overflow-hidden ${collapsed ? 'justify-center' : ''}`}
-            title="Profil Einstellungen"
+            title={user?.isGuest ? 'Gast-Modus (Einstellungen & Abmelden)' : 'Profil Einstellungen'}
           >
-            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20 font-mono text-xs font-bold text-primary flex-shrink-0 overflow-hidden shadow-sm">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center border font-mono text-xs font-bold flex-shrink-0 overflow-hidden shadow-sm ${
+              user?.isGuest
+                ? 'bg-amber-500/10 border-amber-500/30 text-amber-500'
+                : 'bg-primary/10 border-primary/20 text-primary'
+            }`}>
               {user?.photoURL ? (
                 <img src={user.photoURL} alt="Avatar" className="w-full h-full object-cover" />
+              ) : user?.isGuest ? (
+                <span className="material-symbols-outlined text-[18px]">person</span>
               ) : (
                 userInitial
               )}
             </div>
             <div className={`transition-all duration-300 overflow-hidden whitespace-nowrap ${collapsed ? 'w-0 opacity-0 ml-0' : 'w-[150px] opacity-100 ml-3'}`}>
-              <p className="font-semibold text-sm truncate text-on-surface leading-tight">{user?.displayName || user?.email?.split('@')[0]}</p>
-              <p className="text-on-surface-variant text-xs truncate mt-0.5">{user?.email}</p>
+              <p className="font-semibold text-sm truncate text-on-surface leading-tight">
+                {user?.isGuest ? 'Gast-Benutzer' : (user?.displayName || user?.email?.split('@')[0])}
+              </p>
+              <p className="text-on-surface-variant text-xs truncate mt-0.5">
+                {user?.isGuest ? 'Vorschau-Modus' : user?.email}
+              </p>
             </div>
           </button>
         </div>

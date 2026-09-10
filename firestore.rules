@@ -3,9 +3,9 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Hilfsfunktion: Prüft, ob der Nutzer angemeldet ist und in der Whitelist steht
+    // Hilfsfunktion: Prüft, ob der Nutzer angemeldet ist, eine verifizierte E-Mail besitzt und in der Whitelist steht
     function isWhitelisted() {
-      // 1. Prüfen, ob der Nutzer überhaupt angemeldet ist (auth != null) und eine E-Mail besitzt
+      // 1. Prüfen, ob der Nutzer überhaupt angemeldet ist (auth != null) und eine verifizierte E-Mail besitzt
       // 2. Prüfen, ob ein Dokument mit seiner normalisierten E-Mail in der "whitelist" Kollektion existiert
       return request.auth != null && 
              request.auth.token.email != null &&
