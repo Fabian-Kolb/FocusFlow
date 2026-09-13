@@ -209,8 +209,8 @@ export function AuthProvider({ children }) {
           window.removeEventListener('message', handleMessage);
           clearInterval(statusPoll);
           clearTimeout(timeout);
-          // Popup schließen, falls noch offen (try/catch wegen COOP)
-          try { if (popup && !popup.closed) popup.close(); } catch {}
+          // Popup schließen, falls noch offen (direkter close() Aufruf ohne .closed Property-Access, um COOP-Warnung zu vermeiden)
+          try { popup?.close(); } catch {}
         }
       });
     } catch (error) {
