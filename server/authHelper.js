@@ -2,6 +2,10 @@
 // Central, unified Firebase Authentication & Whitelist verification for all backend endpoints.
 // Enforces cryptographically verified ID tokens, verified email status, and Firestore whitelist presence.
 
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
+import { getFirestore } from 'firebase-admin/firestore';
+
 const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'focusflow-d5a55';
 
 let app = null;
@@ -10,13 +14,6 @@ let db = null;
 let adminInitError = null;
 
 try {
-  const adminAppPkg = 'firebase-admin/app';
-  const adminAuthPkg = 'firebase-admin/auth';
-  const adminFirestorePkg = 'firebase-admin/firestore';
-
-  const { initializeApp, getApps, cert } = await import(adminAppPkg);
-  const { getAuth } = await import(adminAuthPkg);
-  const { getFirestore } = await import(adminFirestorePkg);
 
   let serviceAccount = null;
   const rawSa = process.env.FIREBASE_SERVICE_ACCOUNT;
