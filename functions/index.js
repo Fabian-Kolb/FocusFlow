@@ -1,3 +1,5 @@
+// DEPRECATION NOTICE: Active production API routing and rate-limiting are maintained on Vercel Serverless (api/ + server/).
+// This Cloud Function is preserved as an aligned legacy reference and must not diverge in security or token storage.
 import { onRequest } from 'firebase-functions/v2/https';
 import { initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
@@ -42,6 +44,14 @@ export const api = onRequest({ region: 'europe-west3', cors: true, maxInstances:
 
     if (!userEmail) {
       throw { status: 403, message: 'Zugriff verweigert: Keine verifizierte E-Mail-Adresse im Token.' };
+    }
+
+    const isEmailVerified = Boolean(
+      decodedToken.email_verified || 
+      decodedToken.firebase?.sign_in_provider === 'google.com'
+    );
+    if (!isEmailVerified) {
+      throw { status: 403, message: 'Zugriff verweigert: Die E-Mail-Adresse ist noch nicht verifiziert.' };
     }
 
     const whitelistDoc = await db.collection('whitelist').doc(userEmail).get();
@@ -169,10 +179,12 @@ export const api = onRequest({ region: 'europe-west3', cors: true, maxInstances:
         });
 
         if (tokens.refreshToken) {
-          await db.collection('users').doc(verifiedUid).collection('tokens').doc('google').set({
+          await db.collection('server_tokens').doc(verifiedUid).set({
             refreshToken: tokens.refreshToken,
             updatedAt: new Date().toISOString()
           }, { merge: true });
+          // Alte Tokens aus dem Benutzerpfad löschen
+          await db.collection('users').doc(verifiedUid).collection('tokens').doc('google').delete().catch(() => {});
         }
 
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -203,7 +215,7 @@ export const api = onRequest({ region: 'europe-west3', cors: true, maxInstances:
       // C) Status-Prüfung
       if (endpoint === 'status') {
         const { uid } = await verifyUser();
-        const tokenDoc = await db.collection('users').doc(uid).collection('tokens').doc('google').get();
+        const tokenDoc = await db.collection('server_tokens').doc(uid).get();
         const isConnected = tokenDoc.exists && Boolean(tokenDoc.data()?.refreshToken);
         return res.status(200).json({ connected: isConnected });
       }
@@ -211,7 +223,7 @@ export const api = onRequest({ region: 'europe-west3', cors: true, maxInstances:
       // C.2) Token Refresh (Schwachstelle #5 behoben: kein fremdes refreshToken vom Client)
       if (endpoint === 'refresh') {
         const { uid } = await verifyUser();
-        const tokenDoc = await db.collection('users').doc(uid).collection('tokens').doc('google').get();
+        const tokenDoc = await db.collection('server_tokens').doc(uid).get();
         if (!tokenDoc.exists || !tokenDoc.data()?.refreshToken) {
           return res.status(400).json({ error: 'Kein Kalender für diesen Account verknüpft.' });
         }
@@ -228,7 +240,7 @@ export const api = onRequest({ region: 'europe-west3', cors: true, maxInstances:
       // D) Events abrufen (GET) oder anlegen (POST)
       if (endpoint === 'events') {
         const { uid } = await verifyUser();
-        const tokenDoc = await db.collection('users').doc(uid).collection('tokens').doc('google').get();
+        const tokenDoc = await db.collection('server_tokens').doc(uid).get();
 
         if (!tokenDoc.exists || !tokenDoc.data()?.refreshToken) {
           return res.status(200).json({ connected: false, items: [] });
@@ -258,7 +270,7 @@ export const api = onRequest({ region: 'europe-west3', cors: true, maxInstances:
       if (endpoint.startsWith('events/')) {
         const eventId = endpoint.replace('events/', '').split('?')[0];
         const { uid } = await verifyUser();
-        const tokenDoc = await db.collection('users').doc(uid).collection('tokens').doc('google').get();
+        const tokenDoc = await db.collection('server_tokens').doc(uid).get();
 
         if (!tokenDoc.exists || !tokenDoc.data()?.refreshToken) {
           return res.status(401).json({ error: 'Nicht mit Google Kalender verbunden.' });
@@ -285,7 +297,10 @@ export const api = onRequest({ region: 'europe-west3', cors: true, maxInstances:
       // F) Verbindung trennen
       if (endpoint === 'disconnect') {
         const { uid } = await verifyUser();
-        await db.collection('users').doc(uid).collection('tokens').doc('google').delete();
+        await Promise.all([
+          db.collection('server_tokens').doc(uid).delete().catch(() => {}),
+          db.collection('users').doc(uid).collection('tokens').doc('google').delete().catch(() => {})
+        ]);
         return res.status(200).json({ success: true, connected: false });
       }
 

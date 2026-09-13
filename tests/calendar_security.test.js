@@ -11,6 +11,8 @@ import eventsHandler from '../api/calendar/events.js';
 import statusHandler from '../api/calendar/status.js';
 import disconnectHandler from '../api/calendar/disconnect.js';
 import refreshHandler from '../api/calendar/refresh.js';
+import { generateOAuthState, verifyOAuthState } from '../server/calendarService.js';
+import { authorizeUser, authorizeUid } from '../server/authHelper.js';
 
 function createMockRes() {
   return {
@@ -41,7 +43,7 @@ function createMockRes() {
 }
 
 async function runSecurityTests() {
-  console.log('\n🔒 Starting Google Calendar Security Verification Suite...\n');
+  console.log('\n🔒 Starting Google Calendar & Server Authorization Verification Suite...\n');
   let passed = 0;
   let failed = 0;
 
@@ -87,7 +89,7 @@ async function runSecurityTests() {
     const src = fs.readFileSync(path.resolve('api/calendar/auth-url.js'), 'utf-8');
     assert(!src.includes('req.query.uid'), 'auth-url.js must not accept req.query.uid');
     assert(!src.includes('clientRedirectUri = req.query.redirectUri'), 'auth-url.js must not accept arbitrary redirectUri');
-    assert(src.includes('verifyAuthToken(req)'), 'auth-url.js must invoke verifyAuthToken');
+    assert(src.includes('authorizeUser(req)') || src.includes('verifyAuthToken(req)'), 'auth-url.js must invoke authorizeUser');
   });
 
   // --- VULNERABILITY 2: Callback Script Injection & Safe PostMessage ---
@@ -96,6 +98,11 @@ async function runSecurityTests() {
     assert(!callbackSrc.includes('${encodeURIComponent(uid)}'), 'callback.js must not interpolate dynamic uid into script');
     assert(!callbackSrc.includes('${encodeURIComponent(accessToken)}'), 'callback.js must not interpolate accessToken into script');
     assert(!callbackSrc.includes('accessToken:'), 'callback.js script must not send accessToken in postMessage');
+  });
+
+  test('VULN-2: callback.js invokes authorizeUid to verify account/whitelist before code exchange', () => {
+    const callbackSrc = fs.readFileSync(path.resolve('api/calendar/callback.js'), 'utf-8');
+    assert(callbackSrc.includes('authorizeUid(uid)'), 'callback.js must invoke authorizeUid');
   });
 
   test('VULN-2: functions/index.js callback does not interpolate dynamic token variables into script', () => {
@@ -118,6 +125,31 @@ async function runSecurityTests() {
     assert(res.body.includes('Kein Autorisierungs-Code'), 'Expected missing code error');
   });
 
+  // --- OAUTH STATE & REPLAY ATTACK DEFENSE ---
+  test('OAUTH-REPLAY: state includes cryptographic nonce and prevents replay upon second verification', () => {
+    const testSecret = 'super_secret_test_key_12345';
+    const state = generateOAuthState('test_uid_999', testSecret);
+    
+    // First verification should pass
+    const verified = verifyOAuthState(state, testSecret);
+    assert.strictEqual(verified.uid, 'test_uid_999');
+
+    // Second verification with identical state MUST be rejected (Replay Prevention)
+    assert.throws(() => {
+      verifyOAuthState(state, testSecret);
+    }, /bereits eingelöst|Replay-Angriff/);
+  });
+
+  test('OAUTH-INTEGRITY: state with tampered signature is immediately rejected', () => {
+    const testSecret = 'super_secret_test_key_12345';
+    const state = generateOAuthState('test_uid_999', testSecret);
+    const tampered = state.slice(0, -4) + 'abcd';
+
+    assert.throws(() => {
+      verifyOAuthState(tampered, testSecret);
+    }, /Signatur ungültig/);
+  });
+
   // --- VULNERABILITY 3: Events Endpoint Authentication & Google Token Defense ---
   await testAsync('VULN-3: events endpoint rejects unauthenticated request', async () => {
     const req = { method: 'GET', headers: {}, query: {} };
@@ -129,7 +161,7 @@ async function runSecurityTests() {
   test('VULN-3: events.js does not accept raw Google bearer tokens from client', () => {
     const eventsSrc = fs.readFileSync(path.resolve('api/calendar/events.js'), 'utf-8');
     assert(!eventsSrc.includes('fetchEventsFromGoogle({ accessToken: token'), 'events.js must not pass client header token to Google');
-    assert(eventsSrc.includes('verifyAuthToken(req)'), 'events.js must verify Firebase ID token');
+    assert(eventsSrc.includes('authorizeUser(req)') || eventsSrc.includes('verifyAuthToken(req)'), 'events.js must verify Firebase ID token');
     assert(eventsSrc.includes('getStoredUserRefreshToken'), 'events.js must retrieve token server-side');
   });
 
@@ -170,6 +202,13 @@ async function runSecurityTests() {
     assert(!indexSrc.includes('body.refreshToken'), 'functions/index.js must not accept body.refreshToken');
     const viteSrc = fs.readFileSync(path.resolve('vite.config.js'), 'utf-8');
     assert(!viteSrc.includes('body.refreshToken'), 'vite.config.js must not accept body.refreshToken');
+  });
+
+  // --- TOKEN STORE ISOLATION & MIGRATION ---
+  test('TOKEN-STORE: tokenStore.js writes strictly to server_tokens and deletes legacy user tokens', () => {
+    const storeSrc = fs.readFileSync(path.resolve('server/tokenStore.js'), 'utf-8');
+    assert(storeSrc.includes('collection(\'server_tokens\')'), 'tokenStore must use server_tokens');
+    assert(storeSrc.includes('collection(\'users\').doc(uid).collection(\'tokens\').doc(\'google\').delete()'), 'tokenStore must delete legacy user tokens upon migration');
   });
 
   // --- CLIENT-SIDE ARCHITECTURE: No Google Tokens in Browser ---

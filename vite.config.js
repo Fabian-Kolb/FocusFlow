@@ -145,8 +145,9 @@ function apiProxyPlugin(envConfig) {
             }
           }
 
-          // User ID aus Header oder Query/Body ermitteln
-          const uid = body.uid || parsedUrl.searchParams.get('uid') || 'dev_user';
+          // Sicherheits-Fix: Niemals clientseitig übergebene UIDs (Query/Body) als Identität akzeptieren.
+          // Der Dev-Proxy läuft ausschließlich lokal im isolierten Entwickler-Modus.
+          const uid = 'local_dev_user';
 
           try {
             // A) Auth URL anfordern

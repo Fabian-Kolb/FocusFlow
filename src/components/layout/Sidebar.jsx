@@ -23,7 +23,7 @@ const Sidebar = ({ currentScreen, setCurrentScreen, collapsed, setCollapsed }) =
 
   return (
     <aside
-      className={`hidden md:flex flex-col h-full flex-shrink-0 border-r border-outline-variant bg-surface sticky top-0 z-30 transition-all duration-300 ease-in-out rounded-r-[24px] ${
+      className={`/* hidden md:flex */ hidden lg:flex flex-col h-full flex-shrink-0 border-r border-outline-variant bg-surface sticky top-0 z-30 transition-all duration-300 ease-in-out rounded-r-[24px] ${
         collapsed ? 'w-[72px]' : 'w-[256px]'
       }`}
     >

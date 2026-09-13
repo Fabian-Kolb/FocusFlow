@@ -33,25 +33,47 @@ function saveDevTokens(tokens) {
   }
 }
 
+// In-Memory Replay Cache für State-Nonces (TTL: 15 Minuten)
+const consumedNonces = new Map();
+
+function cleanConsumedNonces() {
+  const now = Date.now();
+  for (const [nonce, expiresAt] of consumedNonces.entries()) {
+    if (now > expiresAt) consumedNonces.delete(nonce);
+  }
+}
+
 /**
- * Generates an encrypted & signed state parameter to prevent CSRF attacks
+ * Generates an encrypted & signed state parameter to prevent CSRF and replay attacks
  */
 export function generateOAuthState(uid, clientSecret) {
   const timestamp = Date.now();
-  const rawData = `${uid}:${timestamp}`;
+  const nonce = crypto.randomBytes(16).toString('hex');
+  const purpose = 'calendar_oauth';
+  const rawData = `${uid}:${timestamp}:${nonce}:${purpose}`;
   const signature = crypto.createHmac('sha256', clientSecret || 'default_secret').update(rawData).digest('hex');
   return Buffer.from(`${rawData}:${signature}`).toString('base64url');
 }
 
 /**
- * Verifies the CSRF state parameter and extracts the userId
+ * Verifies the CSRF state parameter, prevents replay attacks, and extracts the userId
  */
 export function verifyOAuthState(stateStr, clientSecret) {
   if (!stateStr) throw new Error('State-Parameter fehlt.');
 
   try {
     const decoded = Buffer.from(stateStr, 'base64url').toString('utf-8');
-    const [uid, timestampStr, signature] = decoded.split(':');
+    const parts = decoded.split(':');
+
+    let uid, timestampStr, nonce, purpose, signature;
+    if (parts.length === 5) {
+      [uid, timestampStr, nonce, purpose, signature] = parts;
+    } else if (parts.length === 3) {
+      [uid, timestampStr, signature] = parts;
+      nonce = null;
+    } else {
+      throw new Error('Ungültige State-Struktur.');
+    }
 
     if (!uid || !timestampStr || !signature) {
       throw new Error('Ungültige State-Struktur.');
@@ -62,9 +84,22 @@ export function verifyOAuthState(stateStr, clientSecret) {
       throw new Error('State-Parameter abgelaufen (älter als 15 Minuten).');
     }
 
-    const expectedSignature = crypto.createHmac('sha256', clientSecret || 'default_secret').update(`${uid}:${timestamp}`).digest('hex');
+    const rawData = parts.length === 5 
+      ? `${uid}:${timestampStr}:${nonce}:${purpose}`
+      : `${uid}:${timestampStr}`;
+
+    const expectedSignature = crypto.createHmac('sha256', clientSecret || 'default_secret').update(rawData).digest('hex');
     if (signature !== expectedSignature) {
       throw new Error('State-Signatur ungültig (möglicher CSRF-Angriff).');
+    }
+
+    // Replay-Schutz: Jeder State darf nur ein einziges Mal eingelöst werden
+    if (nonce) {
+      cleanConsumedNonces();
+      if (consumedNonces.has(nonce)) {
+        throw new Error('State wurde bereits eingelöst (Replay-Angriff verhindert).');
+      }
+      consumedNonces.set(nonce, Date.now() + 15 * 60 * 1000);
     }
 
     return { uid };

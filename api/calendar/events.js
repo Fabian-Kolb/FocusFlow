@@ -6,20 +6,29 @@ import {
   deleteEventInGoogle
 } from '../../server/calendarService.js';
 import { applyCorsAndSecurityHeaders } from '../../server/corsHelper.js';
-import { verifyAuthToken } from '../../server/authHelper.js';
+import { authorizeUser } from '../../server/authHelper.js';
 import { getStoredUserRefreshToken } from '../../server/tokenStore.js';
+import { checkRateLimit } from '../../server/rateLimiter.js';
 
 export default async function handler(req, res) {
   if (applyCorsAndSecurityHeaders(req, res, 'GET, POST, PATCH, PUT, DELETE, OPTIONS')) {
     return;
   }
 
-  // 1. Zwingende Authentifizierung per Firebase ID-Token (Schwachstelle #3 behoben)
+  // 1. Zwingende Authentifizierung per Firebase ID-Token & Whitelist
   let user;
   try {
-    user = await verifyAuthToken(req);
+    user = await authorizeUser(req);
   } catch (authErr) {
     return res.status(authErr.statusCode || 401).json({ error: authErr.message || 'Nicht autorisiert' });
+  }
+
+  // 2. Rate-Limiting Prüfung
+  const rateLimit = checkRateLimit(req, user);
+  if (!rateLimit.allowed) {
+    return res.status(429).json({
+      error: `Anfrage-Limit erreicht: Bitte warte ca. ${rateLimit.minutesLeft} Minute(n).`
+    });
   }
 
   const uid = user.uid;

@@ -1,6 +1,7 @@
 // api/calendar/callback.js - Vercel Serverless Function for Google Calendar OAuth Callback
 import { verifyOAuthState, exchangeCodeForTokens } from '../../server/calendarService.js';
 import { saveStoredUserRefreshToken } from '../../server/tokenStore.js';
+import { authorizeUid } from '../../server/authHelper.js';
 
 export default async function handler(req, res) {
   const code = req.query.code;
@@ -19,7 +20,13 @@ export default async function handler(req, res) {
   const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${proto}://${host}/api/calendar/callback`;
 
   try {
+    // 1. Verifiziere State-Signatur, Ablaufzeit und Einmalverwendung (Replay-Schutz)
     const { uid } = verifyOAuthState(state, googleClientSecret);
+
+    // 2. Explizite Whitelist- und Account-Prüfung des im State gebundenen Nutzers
+    await authorizeUid(uid);
+
+    // 3. Tausche Code gegen Tokens ein
     const tokens = await exchangeCodeForTokens({
       code,
       clientId: googleClientId,
@@ -27,13 +34,12 @@ export default async function handler(req, res) {
       redirectUri
     });
 
-    // Tokens sicher serverseitig in Firestore/Store persistieren (Schwachstelle #2 & #3 behoben)
+    // 4. Tokens sicher serverseitig in 'server_tokens/{uid}' speichern
     if (tokens.refreshToken) {
       await saveStoredUserRefreshToken(uid, tokens.refreshToken);
     }
 
-    // Vollständig statisches HTML ohne dynamische String-Interpolation im Script (XSS-Schutz)
-    // Es werden keinerlei Google-Tokens oder UIDs an das Browserfenster übertragen.
+    // 5. Rein statisches HTML ohne dynamische Script-Werte (XSS- und Leak-Schutz)
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     return res.status(200).send(`<!DOCTYPE html>
@@ -58,7 +64,7 @@ export default async function handler(req, res) {
   </body>
 </html>`);
   } catch (err) {
-    console.error('Calendar Callback Error:', err);
+    console.error('Calendar Callback Error:', err.message);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     return res.status(500).send('<h3>Fehler bei der Kalender-Verknüpfung</h3><p>Die Autorisierung konnte nicht verifiziert werden. Bitte versuche es erneut.</p>');
   }

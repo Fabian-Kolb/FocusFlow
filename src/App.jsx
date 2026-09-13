@@ -66,7 +66,7 @@ function AppContent() {
         setCollapsed={setSidebarCollapsed}
       />
 
-      <main className={`flex-grow min-w-0 relative h-full flex flex-col ${currentScreen === 'coach' ? 'overflow-hidden pb-16 md:pb-0' : 'overflow-y-auto pb-20 md:pb-0'}`}>
+      <main className={`flex-grow min-w-0 relative h-full flex flex-col ${currentScreen === 'coach' ? 'overflow-hidden pb-16 lg:pb-0' : 'overflow-y-auto content-bottom-safe lg:pb-0'}`}>
         <div className={`mx-auto w-full flex-grow flex flex-col h-full min-h-0 ${currentScreen === 'coach' ? 'p-0 max-w-none overflow-hidden' : 'max-w-none px-2 sm:px-4 md:px-8 py-4 sm:py-8'}`}>
           {currentScreen === 'dashboard' && <Dashboard setCurrentScreen={setCurrentScreen} />}
           {currentScreen === 'inbox' && <Inbox setCurrentScreen={setCurrentScreen} />}

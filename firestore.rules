@@ -2,31 +2,207 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Hilfsfunktion: Prüft, ob der Nutzer angemeldet ist, eine verifizierte E-Mail besitzt und in der Whitelist steht
+
+    // -------------------------------------------------------------
+    // Helper-Funktionen für Authentifizierung & Whitelist
+    // -------------------------------------------------------------
+    function isAuthenticated() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
     function isWhitelisted() {
-      // 1. Prüfen, ob der Nutzer überhaupt angemeldet ist (auth != null) und eine verifizierte E-Mail besitzt
-      // 2. Prüfen, ob ein Dokument mit seiner normalisierten E-Mail in der "whitelist" Kollektion existiert
-      return request.auth != null && 
+      return isAuthenticated() &&
              request.auth.token.email != null &&
+             (request.auth.token.email_verified == true || request.auth.token.firebase.sign_in_provider == 'google.com') &&
              exists(/databases/$(database)/documents/whitelist/$(request.auth.token.email.lower()));
     }
 
-    match /whitelist/{email} {
-      allow read: if request.auth != null && 
-                     request.auth.token.email != null && 
-                     (request.auth.token.email == email || request.auth.token.email.lower() == email);
+    function isOwner(userId) {
+      return isWhitelisted() && request.auth.uid == userId;
     }
 
+    // -------------------------------------------------------------
+    // 1. Whitelist-Kollektion
+    // Nur Lesezugriff für den eigenen Whitelist-Eintrag; Schreibzugriff strikt verboten
+    // -------------------------------------------------------------
+    match /whitelist/{email} {
+      allow read: if isAuthenticated() &&
+                     request.auth.token.email != null &&
+                     request.auth.token.email.lower() == email.lower();
+      allow write: if false;
+    }
+
+    // -------------------------------------------------------------
+    // 2. Dedizierte Server-Tokens (OAuth Refresh-Tokens)
+    // Client-Zugriff zu 100% verboten - nur Firebase Admin SDK hat Zugriff!
+    // -------------------------------------------------------------
+    match /server_tokens/{userId} {
+      allow read, write: if false;
+    }
+
+    // -------------------------------------------------------------
+    // 3. Benutzer-Kollektionen (/users/{userId}/...)
+    // Explizite Subcollection-Regeln OHNE rekursive Wildcards!
+    // -------------------------------------------------------------
     match /users/{userId} {
-      // Strikt gesperrt für alle Clients (nur Firebase Admin SDK / Backend darf zugreifen):
+      // Kein Zugriff auf das Root-User-Dokument selbst:
+      allow read, write: if false;
+
+      // Legacy-Token-Pfad: Strikt gesperrt für alle Clients
       match /tokens/{document=**} {
         allow read, write: if false;
       }
 
-      // Alle anderen Benutzerdaten (Projekte, Notizen, Aufgaben, etc.):
-      match /{document=**} {
-        allow read, write: if isWhitelisted() && request.auth.uid == userId;
+      // A) Projekte
+      match /projects/{projectId} {
+        allow read: if isOwner(userId);
+        allow delete: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+          projectId == request.resource.data.id &&
+          request.resource.data.keys().hasAll(['id', 'title']) &&
+          request.resource.data.keys().hasOnly([
+            'id', 'title', 'category', 'phases', 'status', 'progress',
+            'startDate', 'endDate', 'notes', 'createdAt', 'updatedAt', 'deletedAt', '_type'
+          ]) &&
+          request.resource.data.title is string &&
+          request.resource.data.title.size() > 0 &&
+          request.resource.data.title.size() <= 200 &&
+          (!('progress' in request.resource.data) || (request.resource.data.progress is number && request.resource.data.progress >= 0 && request.resource.data.progress <= 100)) &&
+          (!('status' in request.resource.data) || (request.resource.data.status in ['GEPLANT', 'IN_ARBEIT', 'ABGESCHLOSSEN'])) &&
+          (!('phases' in request.resource.data) || (request.resource.data.phases is list && request.resource.data.phases.size() <= 50)) &&
+          (!('notes' in request.resource.data) || (request.resource.data.notes is list && request.resource.data.notes.size() <= 100)) &&
+          request.resource.data.keys().size() <= 20;
+
+        allow update: if isOwner(userId) &&
+          request.resource.data.id == resource.data.id &&
+          request.resource.data.keys().hasAll(['id', 'title']) &&
+          request.resource.data.keys().hasOnly([
+            'id', 'title', 'category', 'phases', 'status', 'progress',
+            'startDate', 'endDate', 'notes', 'createdAt', 'updatedAt', 'deletedAt', '_type'
+          ]) &&
+          request.resource.data.title is string &&
+          request.resource.data.title.size() > 0 &&
+          request.resource.data.title.size() <= 200 &&
+          (!('progress' in request.resource.data) || (request.resource.data.progress is number && request.resource.data.progress >= 0 && request.resource.data.progress <= 100)) &&
+          (!('status' in request.resource.data) || (request.resource.data.status in ['GEPLANT', 'IN_ARBEIT', 'ABGESCHLOSSEN'])) &&
+          (!('phases' in request.resource.data) || (request.resource.data.phases is list && request.resource.data.phases.size() <= 50)) &&
+          (!('notes' in request.resource.data) || (request.resource.data.notes is list && request.resource.data.notes.size() <= 100)) &&
+          request.resource.data.keys().size() <= 20;
+      }
+
+      // B) Erinnerungen / Tasks
+      match /reminders/{reminderId} {
+        allow read: if isOwner(userId);
+        allow delete: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+          reminderId == request.resource.data.id &&
+          request.resource.data.keys().hasAll(['id', 'title']) &&
+          request.resource.data.keys().hasOnly([
+            'id', 'title', 'date', 'time', 'category', 'priority',
+            'completed', 'notes', 'createdAt', 'updatedAt', 'deletedAt', '_type'
+          ]) &&
+          request.resource.data.title is string &&
+          request.resource.data.title.size() > 0 &&
+          request.resource.data.title.size() <= 300 &&
+          (!('completed' in request.resource.data) || request.resource.data.completed is bool) &&
+          (!('notes' in request.resource.data) || (request.resource.data.notes is list && request.resource.data.notes.size() <= 50)) &&
+          request.resource.data.keys().size() <= 20;
+
+        allow update: if isOwner(userId) &&
+          request.resource.data.id == resource.data.id &&
+          request.resource.data.keys().hasAll(['id', 'title']) &&
+          request.resource.data.keys().hasOnly([
+            'id', 'title', 'date', 'time', 'category', 'priority',
+            'completed', 'notes', 'createdAt', 'updatedAt', 'deletedAt', '_type'
+          ]) &&
+          request.resource.data.title is string &&
+          request.resource.data.title.size() > 0 &&
+          request.resource.data.title.size() <= 300 &&
+          (!('completed' in request.resource.data) || request.resource.data.completed is bool) &&
+          (!('notes' in request.resource.data) || (request.resource.data.notes is list && request.resource.data.notes.size() <= 50)) &&
+          request.resource.data.keys().size() <= 20;
+      }
+
+      // C) Inbox Items
+      match /inboxItems/{itemId} {
+        allow read: if isOwner(userId);
+        allow delete: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+          itemId == request.resource.data.id &&
+          request.resource.data.keys().hasAll(['id', 'title']) &&
+          request.resource.data.keys().hasOnly([
+            'id', 'title', 'summary', 'originalText', 'category',
+            'createdAt', 'updatedAt', 'deletedAt', '_type'
+          ]) &&
+          request.resource.data.title is string &&
+          request.resource.data.title.size() > 0 &&
+          request.resource.data.title.size() <= 500 &&
+          (!('summary' in request.resource.data) || (request.resource.data.summary is string && request.resource.data.summary.size() <= 10000)) &&
+          (!('originalText' in request.resource.data) || (request.resource.data.originalText is string && request.resource.data.originalText.size() <= 50000)) &&
+          request.resource.data.keys().size() <= 15;
+
+        allow update: if isOwner(userId) &&
+          request.resource.data.id == resource.data.id &&
+          request.resource.data.keys().hasAll(['id', 'title']) &&
+          request.resource.data.keys().hasOnly([
+            'id', 'title', 'summary', 'originalText', 'category',
+            'createdAt', 'updatedAt', 'deletedAt', '_type'
+          ]) &&
+          request.resource.data.title is string &&
+          request.resource.data.title.size() > 0 &&
+          request.resource.data.title.size() <= 500 &&
+          (!('summary' in request.resource.data) || (request.resource.data.summary is string && request.resource.data.summary.size() <= 10000)) &&
+          (!('originalText' in request.resource.data) || (request.resource.data.originalText is string && request.resource.data.originalText.size() <= 50000)) &&
+          request.resource.data.keys().size() <= 15;
+      }
+
+      // D) Projekt-Kategorien
+      match /categories/{categoryId} {
+        allow read: if isOwner(userId);
+        allow delete: if isOwner(userId);
+
+        allow create, update: if isOwner(userId) &&
+          categoryId == request.resource.data.id &&
+          request.resource.data.keys().hasAll(['id', 'name']) &&
+          request.resource.data.keys().hasOnly(['id', 'name', 'order', 'isExpanded', 'createdAt', 'updatedAt']) &&
+          request.resource.data.name is string &&
+          request.resource.data.name.size() > 0 &&
+          request.resource.data.name.size() <= 100 &&
+          (!('order' in request.resource.data) || request.resource.data.order is number) &&
+          (!('isExpanded' in request.resource.data) || request.resource.data.isExpanded is bool) &&
+          request.resource.data.keys().size() <= 10;
+      }
+
+      // E) Reminder-Kategorien
+      match /reminderCategories/{categoryId} {
+        allow read: if isOwner(userId);
+        allow delete: if isOwner(userId);
+
+        allow create, update: if isOwner(userId) &&
+          categoryId == request.resource.data.id &&
+          request.resource.data.keys().hasAll(['id', 'name']) &&
+          request.resource.data.keys().hasOnly(['id', 'name', 'order', 'isExpanded', 'createdAt', 'updatedAt']) &&
+          request.resource.data.name is string &&
+          request.resource.data.name.size() > 0 &&
+          request.resource.data.name.size() <= 100 &&
+          (!('order' in request.resource.data) || request.resource.data.order is number) &&
+          (!('isExpanded' in request.resource.data) || request.resource.data.isExpanded is bool) &&
+          request.resource.data.keys().size() <= 10;
+      }
+
+      // F) Chat Data
+      match /chat_data/{docId} {
+        allow read: if isOwner(userId);
+        allow delete: if isOwner(userId);
+
+        allow create, update: if isOwner(userId) &&
+          docId == 'sessions' &&
+          request.resource.data.keys().hasOnly(['sessions', 'activeSessionId', 'lastUpdated']) &&
+          (!('sessions' in request.resource.data) || (request.resource.data.sessions is list && request.resource.data.sessions.size() <= 100)) &&
+          request.resource.data.keys().size() <= 5;
       }
     }
   }

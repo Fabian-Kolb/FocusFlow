@@ -30,6 +30,22 @@
     display: none;
   }
 
+  /* Safe Area Inset Support with Fallbacks */
+  .pb-safe {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+  }
+  .bottom-nav-safe {
+    min-height: calc(4rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .content-bottom-safe {
+    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+  }
+  .touch-target {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
   /* LAUFBAND (MARQUEE) ANIMATION FÜR ÜBERSTEHENDE TEXTE */
   .marquee-wrapper {
     overflow: hidden;
@@ -43,11 +59,12 @@
     white-space: nowrap;
   }
 
-  /* Animation wird NUR aktiviert, wenn der Text tatsächlich breiter als die Karte/Box ist! */
-  .marquee-content.animate-marquee {
-    animation: marqueeScroll 5.5s ease-in-out infinite alternate;
+  /* Animation wird NUR ab sm (Desktop/Tablet) aktiviert, auf Mobile gilt natürliches Wrapping! */
+  @media (min-width: 640px) {
+    .marquee-content.animate-marquee {
+      animation: marqueeScroll 5.5s ease-in-out infinite alternate;
+    }
   }
-
 }
 
 /* Custom scrollbar */

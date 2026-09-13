@@ -3,11 +3,17 @@ import React from 'react';
 const Card = ({ 
   children, 
   className = '', 
+  variant = 'elevated',
   padding = 'normal',
   interactive = false,
   ...props 
 }) => {
-  const baseStyles = "bg-white border border-outline-variant rounded-xl shadow-sm relative";
+  const variantStyles = {
+    elevated: "bg-white border border-outline-variant rounded-xl lg:rounded-2xl shadow-sm relative",
+    flat: "bg-white border border-outline-variant rounded-2xl shadow-none relative"
+  };
+
+  const baseStyles = variantStyles[variant] || variantStyles.elevated;
   
   const paddings = {
     none: "",

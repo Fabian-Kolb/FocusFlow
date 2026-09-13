@@ -234,74 +234,25 @@ const Dashboard = ({ setCurrentScreen }) => {
 
   return (
     <div className="screen-transition">
-      {/* Header */}
-      <div className="mb-6 sm:mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-outline-variant pb-6">
-        <div>
-          <span className="text-xs text-on-surface-variant mb-1 block mono uppercase">
-            {formattedDate} • Fokus-Modus
-          </span>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold leading-tight">
-            {greeting}, {userName}
-          </h1>
-        </div>
-
-        {/* Fio AI Coach Trigger with Animated Floating Speech Bubble */}
-        <div className="flex items-center gap-3 shrink-0 self-start md:self-auto">
-          {/* Floating Outer Container */}
-          <div className="fio-bubble-float-wrapper">
-            {/* Animated Emerging/Collapsing Speech Bubble */}
-            <div
-              onClick={() => setCurrentScreen('coach')}
-              title="Fio KI-Coach öffnen"
-              className={`relative cursor-pointer transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] origin-right ${
-                isBubbleVisible
-                  ? 'opacity-100 scale-100 translate-x-0'
-                  : 'opacity-0 scale-75 translate-x-4 pointer-events-none'
-              }`}
-            >
-              {/* Bubble Body */}
-              <div className="bg-surface-low border border-outline-variant px-3.5 py-1.5 rounded-2xl shadow-sm hover:border-primary hover:shadow-md transition-all">
-                <p className="text-xs font-medium text-primary whitespace-nowrap select-none">
-                  {FIO_PROMPTS[promptIndex]}
-                </p>
-              </div>
-
-              {/* Seamless Speech Bubble Tail */}
-              <svg
-                className="absolute -right-2 top-1/2 -translate-y-1/2 w-2.5 h-3.5 overflow-visible pointer-events-none"
-                viewBox="0 0 10 14"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M0 1 C3 3.5 7.5 6 9.5 7 C7.5 8 3 10.5 0 13"
-                  stroke="currentColor"
-                  className="text-outline-variant"
-                  strokeWidth="1.2"
-                  fill="none"
-                />
-                <path
-                  d="M0 1.5 C3 4 7 6.2 9 7 C7 7.8 3 10 0 12.5 Z"
-                  className="fill-surface-low"
-                />
-              </svg>
-            </div>
+      {/* Header mit 2-Zeilen-Hierarchie */}
+      <header className="mb-6 sm:mb-8 border-b border-outline-variant pb-5 sm:pb-6">
+        {/* Zeile 1: Datum & Begrüßung links, Avatar/Profil rechts */}
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <span className="text-xs text-on-surface-variant mb-1 block mono uppercase">
+              {formattedDate} • Fokus-Modus
+            </span>
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold leading-tight">
+              {greeting}, {userName}
+            </h1>
           </div>
 
-          {/* Original Fio Button */}
-          <button
-            onClick={() => setCurrentScreen('coach')}
-            title="Fio öffnen"
-            className="w-11 h-11 bg-primary text-white rounded-2xl hover:bg-neutral-800 flex items-center justify-center transition-all shadow-sm p-2.5 cursor-pointer shrink-0 group relative"
-          >
-            <FioIcon className="w-full h-full text-white group-hover:scale-105 transition-transform" color="currentColor" />
-          </button>
-
-          {/* Mobile Profile & Logout Trigger */}
+          {/* Profile & Logout Trigger */}
           <button
             onClick={() => openModal('profile')}
             title={user?.isGuest ? 'Gast-Modus & Abmelden' : 'Mein Profil & Abmelden'}
-            className="md:hidden w-11 h-11 bg-surface-low border border-outline-variant hover:border-primary rounded-2xl flex items-center justify-center transition-all shadow-sm cursor-pointer shrink-0"
+            className="w-11 h-11 bg-surface-low border border-outline-variant hover:border-primary rounded-2xl flex items-center justify-center transition-all shadow-sm cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            aria-label="Profil und Einstellungen"
           >
             {user?.photoURL ? (
               <img src={user.photoURL} alt="Avatar" className="w-full h-full rounded-2xl object-cover p-1" />
@@ -312,10 +263,34 @@ const Dashboard = ({ setCurrentScreen }) => {
             )}
           </button>
         </div>
-      </div>
+
+        {/* Zeile 2: Fio Assistant Teaser als primäre Fio-Aktion auf Mobile */}
+        <div className="mt-3.5 sm:mt-4">
+          <button
+            onClick={() => setCurrentScreen('coach')}
+            type="button"
+            aria-label={`Fio KI-Coach öffnen: ${FIO_PROMPTS[promptIndex]}`}
+            className="w-full sm:w-auto flex items-center gap-3 p-3 px-4 rounded-2xl bg-white border border-outline-variant hover:border-primary transition-all shadow-sm group text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            <div className="w-8 h-8 rounded-xl bg-primary text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <FioIcon className="w-4 h-4 text-white" color="currentColor" />
+            </div>
+            <div className="flex-grow min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold font-mono text-primary uppercase tracking-wider">Fio KI-Coach</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              </div>
+              <p className="text-sm font-medium text-primary group-hover:text-accent-blue transition-colors truncate">
+                {FIO_PROMPTS[promptIndex]}
+              </p>
+            </div>
+            <span className="material-symbols-outlined text-on-surface-variant text-[18px] shrink-0 group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
+          </button>
+        </div>
+      </header>
 
       {/* Haupt-Ergebnis heute (The Main Outcome / Must-Win) */}
-      <Card className="border-2 border-primary mb-6 sm:mb-8 shadow-md">
+      <Card className="border-2 border-primary mb-6 sm:mb-8 shadow-sm">
         <div className="flex items-center justify-between gap-2 mb-2">
           <span className="text-[11px] sm:text-xs font-mono font-bold text-primary uppercase tracking-wider flex items-center gap-1.5 truncate">
             <span className="material-symbols-outlined text-[16px] sm:text-[18px] flex-shrink-0 text-amber-500">stars</span>
@@ -327,27 +302,28 @@ const Dashboard = ({ setCurrentScreen }) => {
         </div>
 
         {mustWinItem ? (
-          <div className="flex items-start gap-3 mt-2">
-            <input
-              type="checkbox"
-              checked={mustWinItem.completed}
-              onChange={() => handleToggleItem(mustWinItem)}
-              className="w-5 h-5 border-2 border-outline-variant text-primary rounded focus:ring-primary cursor-pointer mt-1 flex-shrink-0"
-              aria-label="Must-Win abhaken"
-            />
-            <div className="flex-grow min-w-0">
-              <div className="marquee-wrapper">
-                <p className={`text-base sm:text-lg font-bold leading-snug marquee-content ${mustWinItem.completed ? 'line-through opacity-60' : ''}`}>
-                  {mustWinItem.title}
-                </p>
-              </div>
-              <p className="text-xs text-on-surface-variant mt-1">
+          <div className="flex items-start gap-2 sm:gap-3 mt-2">
+            {/* 44x44px Touch Target Container for Checkbox */}
+            <label className="min-w-[44px] min-h-[44px] flex items-center justify-center -ml-2 shrink-0 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={mustWinItem.completed}
+                onChange={() => handleToggleItem(mustWinItem)}
+                className="w-5 h-5 border-2 border-outline-variant text-primary rounded focus:ring-primary cursor-pointer"
+                aria-label="Must-Win abhaken"
+              />
+            </label>
+            <div className="flex-grow min-w-0 pt-2 pb-1">
+              <p className={`text-base sm:text-lg font-bold leading-snug line-clamp-2 sm:line-clamp-none ${mustWinItem.completed ? 'line-through opacity-60' : ''}`}>
+                {mustWinItem.title}
+              </p>
+              <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
                 {mustWinItem.subtitle || 'Dieses eine konkrete Ergebnis macht deinen heutigen Tag zum vollen Erfolg.'}
               </p>
             </div>
           </div>
         ) : (
-          <div className="py-2">
+          <div className="py-3">
             <p className="text-sm font-medium text-on-surface-variant">
               Noch kein Haupt-Ergebnis für heute definiert. Füge eine wichtige Aufgabe hinzu!
             </p>
@@ -380,40 +356,46 @@ const Dashboard = ({ setCurrentScreen }) => {
                   key={`${item.sourceType}-${item.id}`}
                   interactive
                   padding="small"
-                  className={`flex items-center gap-3 sm:gap-4 transition-all ${
+                  className={`flex items-start gap-1 sm:gap-2 transition-all rounded-2xl ${
                     item.completed ? 'opacity-60 bg-surface-low/50' : ''
                   }`}
                 >
-                  <input
-                    type="checkbox"
-                    checked={item.completed}
-                    onChange={() => handleToggleItem(item)}
-                    onClick={(e) => e.stopPropagation()}
-                    className="w-5 h-5 border-2 border-outline-variant text-primary rounded focus:ring-primary cursor-pointer mt-0.5 flex-shrink-0"
-                    aria-label={`Aufgabe ${item.title} abhaken`}
-                  />
+                  {/* 44x44px Touch Target for Task Checkbox */}
+                  <label 
+                    onClick={(e) => e.stopPropagation()} 
+                    className="min-w-[44px] min-h-[44px] flex items-center justify-center -ml-1 shrink-0 cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={item.completed}
+                      onChange={() => handleToggleItem(item)}
+                      className="w-5 h-5 border-2 border-outline-variant text-primary rounded focus:ring-primary cursor-pointer"
+                      aria-label={`Aufgabe ${item.title} abhaken`}
+                    />
+                  </label>
+
                   <div
-                    className="flex-grow min-w-0 cursor-pointer"
+                    className="flex-grow min-w-0 cursor-pointer pt-2 pb-1"
                     onClick={() => handleItemClick(item)}
                   >
-                    <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-mono text-on-surface-variant mb-0.5 no-wrap-scroll">
-                      <span className="font-bold text-primary truncate max-w-[140px] sm:max-w-[200px]">
+                    <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-mono text-on-surface-variant mb-1 flex-wrap">
+                      <span className="font-bold text-primary">
                         {item.parentTitle}
                       </span>
                       <span>›</span>
-                      <span className="truncate">{item.subtitle}</span>
+                      <span>{item.subtitle}</span>
                     </div>
-                    <div className="marquee-wrapper">
-                      <span
-                        className={`text-xs sm:text-sm font-medium block marquee-content ${
-                          item.completed ? 'line-through text-on-surface-variant' : ''
-                        }`}
-                      >
-                        {item.title}
-                      </span>
-                    </div>
+
+                    <p
+                      className={`text-sm sm:text-base font-semibold leading-snug line-clamp-2 sm:line-clamp-none ${
+                        item.completed ? 'line-through text-on-surface-variant' : 'text-primary'
+                      }`}
+                    >
+                      {item.title}
+                    </p>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
+
+                  <div className="flex items-center gap-1.5 flex-shrink-0 pt-2.5 pr-1">
                     {item.isOverdue && !item.completed && (
                       <span className="text-[10px] text-rose-600 font-mono font-bold bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
                         Überfällig
@@ -448,12 +430,17 @@ const Dashboard = ({ setCurrentScreen }) => {
         {/* Sidebar Widgets */}
         <div className="lg:col-span-4 space-y-6">
           {/* Fokus Score Widget */}
-          <Card padding="normal" className="bg-surface-low border-transparent">
-            <h3 className="text-xs font-mono text-on-surface-variant mb-4 border-b border-outline-variant pb-2 uppercase tracking-wider">
-              FOKUS SCORE
-            </h3>
+          <Card padding="normal" className="bg-surface-low border border-outline-variant/60">
+            <div className="flex items-center justify-between border-b border-outline-variant pb-2 mb-3">
+              <h3 className="text-xs font-mono text-on-surface-variant uppercase tracking-wider">
+                FOKUS SCORE
+              </h3>
+              <span className="text-[11px] font-mono text-on-surface-variant">
+                {completedCount}/{totalCount} Erledigt
+              </span>
+            </div>
             <div className="flex items-end gap-2 mb-3">
-              <span className="text-4xl font-bold leading-none">{focusScore || 84}</span>
+              <span className="text-3xl sm:text-4xl font-bold leading-none">{focusScore || 84}</span>
               <span className="text-xs text-on-surface-variant mb-1 mono">/100</span>
             </div>
             <div className="w-full bg-outline-variant h-2 rounded-full overflow-hidden">
@@ -525,5 +512,3 @@ const Dashboard = ({ setCurrentScreen }) => {
 };
 
 export default Dashboard;
-
-
