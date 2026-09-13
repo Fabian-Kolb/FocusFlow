@@ -1,11 +1,11 @@
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { useModalContext } from '../../context/ModalContext';
+import { useModal } from '../../context/ModalContext';
 import FioIcon from '../ui/FioIcon';
 
 const Sidebar = ({ currentScreen, setCurrentScreen, collapsed, setCollapsed }) => {
   const { user } = useAuth();
-  const { openModal } = useModalContext();
+  const { openModal } = useModal();
 
   const userInitial = (user?.displayName || user?.email || 'U').substring(0, 2).toUpperCase();
 

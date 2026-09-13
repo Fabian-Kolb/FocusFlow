@@ -71,6 +71,21 @@
   100% { transform: translateX(calc(-100% + var(--marquee-parent-width, 100%))); }
 }
 
+/* Fio Speech Bubble Float Animation */
+@keyframes fioBubbleFloat {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+.fio-bubble-float-wrapper {
+  animation: fioBubbleFloat 3s ease-in-out infinite;
+}
+
+
 /* Custom Markdown Styling (Global to avoid Tailwind layer issues) */
 .markdown-body {
   word-break: break-word;

@@ -2,6 +2,7 @@
 // Central Firebase ID-Token verification for Vercel Serverless & Node.js backends
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
+import { getFirestore } from 'firebase-admin/firestore';
 
 const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'focusflow-d5a55';
 
@@ -9,7 +10,8 @@ const app = getApps().length > 0
   ? getApps()[0]
   : initializeApp({ projectId });
 
-const auth = getAuth(app);
+export const auth = getAuth(app);
+export const db = getFirestore(app);
 
 /**
  * Verifies the Bearer Firebase ID Token in the request header.

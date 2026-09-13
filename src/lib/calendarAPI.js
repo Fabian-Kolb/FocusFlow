@@ -1,24 +1,19 @@
 // src/lib/calendarAPI.js
-// Client API for Google Calendar REST API with invisible background token refresh
+// Client API for Google Calendar proxy (/api/calendar/*)
+// Authenticates every request with Firebase Auth ID-Token.
+// NEVER exposes Google OAuth tokens in the browser or storage.
 
 import { auth } from './firebase';
 
-const GOOGLE_CALENDAR_BASE = 'https://www.googleapis.com/calendar/v3';
-
-function getStoredAccessToken() {
+/**
+ * Legacy Token-Bereinigung & Verbindungs-Flag
+ */
+export function saveCalendarTokens() {
   const uid = auth?.currentUser?.uid || 'user';
-  return sessionStorage.getItem(`ff_cal_token_${uid}`) || localStorage.getItem(`ff_cal_token_${uid}`) || null;
-}
-
-export function saveCalendarTokens({ accessToken }) {
-  const uid = auth?.currentUser?.uid || 'user';
-  if (accessToken) {
-    sessionStorage.setItem(`ff_cal_token_${uid}`, accessToken);
-  }
-  // Sicherheits-Bereinigung: Keine persistenten OAuth-Tokens mehr im localStorage
-  localStorage.removeItem(`ff_cal_refresh_${uid}`);
-  localStorage.removeItem(`ff_cal_token_${uid}`);
   localStorage.setItem(`ff_cal_connected_${uid}`, 'true');
+  sessionStorage.removeItem(`ff_cal_token_${uid}`);
+  localStorage.removeItem(`ff_cal_token_${uid}`);
+  localStorage.removeItem(`ff_cal_refresh_${uid}`);
 }
 
 export function clearCalendarTokens() {
@@ -30,272 +25,183 @@ export function clearCalendarTokens() {
 }
 
 /**
- * Checks if current user is connected to Google Calendar
+ * Helper to get authorization headers with Firebase ID token
  */
-export async function getCalendarConnectionStatus() {
-  const uid = auth?.currentUser?.uid || 'user';
-  const isConnected = localStorage.getItem(`ff_cal_connected_${uid}`) === 'true';
-  const hasToken = Boolean(getStoredAccessToken());
-  
-  if (isConnected && hasToken) {
-    return true;
-  }
-
-  // Fallback: Prüfe, ob der Server ein Refresh-Token für diesen Nutzer gespeichert hat
-  try {
-    const headers = {};
-    if (auth?.currentUser && !auth.currentUser.isGuest) {
-      try {
-        const idToken = await auth.currentUser.getIdToken();
-        headers['Authorization'] = `Bearer ${idToken}`;
-      } catch {
-        // pass
-      }
-    }
-
-    const response = await fetch(`/api/calendar/status?uid=${encodeURIComponent(uid)}`, { headers });
-    if (response.ok) {
-      const data = await response.json();
-      if (data.connected) {
-        const freshToken = await refreshActiveToken();
-        if (freshToken) {
-          return true;
-        }
-      }
-    }
-  } catch {
-    // Ignoriere Netzwerkfehler beim Fallback-Check
-  }
-
-  return false;
-}
-
-/**
- * Requests fresh access token via backend proxy
- */
-async function refreshActiveToken() {
-  const uid = auth?.currentUser?.uid || 'user';
+async function getCalendarAuthHeaders() {
   const headers = { 'Content-Type': 'application/json' };
-  if (auth?.currentUser && !auth.currentUser.isGuest) {
+  if (auth && auth.currentUser && !auth.currentUser.isGuest) {
     try {
       const idToken = await auth.currentUser.getIdToken();
       headers['Authorization'] = `Bearer ${idToken}`;
     } catch (e) {
-      console.warn('[Calendar Auth] ID-Token Fehler:', e);
+      console.warn('[Calendar Auth] Konnte Firebase ID-Token nicht abrufen:', e);
     }
   }
+  return headers;
+}
 
+/**
+ * Checks if current user is connected to Google Calendar via backend status check
+ */
+export async function getCalendarConnectionStatus() {
   try {
-    const response = await fetch('/api/calendar/refresh', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ uid })
-    });
-
-    if (!response.ok) return null;
-
-    const data = await response.json();
-    if (data.accessToken) {
-      saveCalendarTokens({
-        accessToken: data.accessToken
-      });
-      return data.accessToken;
+    const headers = await getCalendarAuthHeaders();
+    const response = await fetch('/api/calendar/status', { headers });
+    if (response.ok) {
+      const data = await response.json();
+      const uid = auth?.currentUser?.uid || 'user';
+      if (data.connected) {
+        localStorage.setItem(`ff_cal_connected_${uid}`, 'true');
+      } else {
+        localStorage.removeItem(`ff_cal_connected_${uid}`);
+      }
+      return Boolean(data.connected);
     }
   } catch (err) {
-    console.error('Fehler beim automatischen Token-Refresh:', err);
+    console.warn('[Calendar Status] Fehler bei Verbindungsprüfung:', err);
   }
-  return null;
+
+  const uid = auth?.currentUser?.uid || 'user';
+  return localStorage.getItem(`ff_cal_connected_${uid}`) === 'true';
 }
 
 /**
- * Executes a Google Calendar API fetch with automatic token retry
- */
-async function fetchWithGoogleAuth(url, options = {}) {
-  let token = getStoredAccessToken();
-
-  if (!token) {
-    token = await refreshActiveToken();
-  }
-
-  if (!token) {
-    throw new Error('Kein gültiges Google-Kalender-Token vorhanden. Bitte verbinde deinen Kalender neu.');
-  }
-
-  options.headers = {
-    ...options.headers,
-    Authorization: `Bearer ${token}`
-  };
-
-  let response = await fetch(url, options);
-
-  // If 401 Unauthorized, automatically refresh and retry once
-  if (response.status === 401) {
-    const freshToken = await refreshActiveToken();
-    if (freshToken) {
-      options.headers.Authorization = `Bearer ${freshToken}`;
-      response = await fetch(url, options);
-    }
-  }
-
-  return response;
-}
-
-/**
- * Gets the Google OAuth 2.0 Consent URL from backend
+ * Requests Google OAuth 2.0 Consent URL from secure backend proxy
  */
 export async function getCalendarAuthUrl() {
-  const uid = auth?.currentUser?.uid || 'user';
-  const redirectUri = window.location.origin + '/api/calendar/callback';
-  const response = await fetch(`/api/calendar/auth-url?uid=${encodeURIComponent(uid)}&redirectUri=${encodeURIComponent(redirectUri)}`);
-  
+  const headers = await getCalendarAuthHeaders();
+  const response = await fetch('/api/calendar/auth-url', { headers });
+
   if (!response.ok) {
-    throw new Error('Konnte Autorisierungs-URL nicht vom Server laden.');
+    let errorMsg = 'Konnte Autorisierungs-URL nicht vom Server laden.';
+    try {
+      const errJson = await response.json();
+      if (errJson?.error) errorMsg = errJson.error;
+    } catch {
+      // pass
+    }
+    throw new Error(errorMsg);
   }
+
   const data = await response.json();
   return data.url;
 }
 
 /**
- * Fetches calendar events for a specific month
+ * Fetches calendar events for a specific month via backend proxy
  */
 export async function fetchCalendarEvents(year, monthIndex) {
-  let timeMin, timeMax;
+  try {
+    const headers = await getCalendarAuthHeaders();
+    const params = new URLSearchParams();
+    if (year !== undefined && monthIndex !== undefined) {
+      params.set('year', String(year));
+      params.set('monthIndex', String(monthIndex));
+    }
 
-  if (year !== undefined && monthIndex !== undefined) {
-    timeMin = new Date(parseInt(year, 10), parseInt(monthIndex, 10), 1);
-    timeMin.setDate(timeMin.getDate() - 7);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    const response = await fetch(`/api/calendar/events${query}`, { headers });
 
-    timeMax = new Date(parseInt(year, 10), parseInt(monthIndex, 10) + 1, 0);
-    timeMax.setDate(timeMax.getDate() + 7);
-  } else {
-    timeMin = new Date();
-    timeMin.setMonth(timeMin.getMonth() - 3);
-    timeMax = new Date();
-    timeMax.setMonth(timeMax.getMonth() + 6);
-  }
+    if (!response.ok) {
+      console.error('Fehler beim Abrufen der Kalenderevents:', response.status);
+      return [];
+    }
 
-  const url = `${GOOGLE_CALENDAR_BASE}/calendars/primary/events?timeMin=${encodeURIComponent(timeMin.toISOString())}&timeMax=${encodeURIComponent(timeMax.toISOString())}&singleEvents=true&orderBy=startTime&maxResults=2500`;
-
-  const response = await fetchWithGoogleAuth(url);
-
-  if (!response.ok) {
-    console.error('Fehler beim Abrufen der Kalenderevents:', response.status);
+    const data = await response.json();
+    return data.items || [];
+  } catch (err) {
+    console.error('Netzwerkfehler beim Abrufen der Kalenderevents:', err);
     return [];
   }
-
-  const data = await response.json();
-  return data.items || [];
 }
 
 /**
- * Creates a new calendar event in Google Calendar
+ * Creates a new calendar event via backend proxy
  */
 export async function createCalendarEvent(eventData) {
-  let startObj = {};
-  let endObj = {};
-
-  if (eventData.allDay) {
-    startObj = { date: eventData.startDate };
-    endObj = { date: eventData.endDate };
-  } else {
-    startObj = { dateTime: eventData.startTime, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone };
-    endObj = { dateTime: eventData.endTime, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone };
-  }
-
-  const body = {
-    summary: eventData.title,
-    description: eventData.description,
-    start: startObj,
-    end: endObj,
-    ...(eventData.colorId && { colorId: eventData.colorId })
-  };
-
-  if (eventData.reminderMinutes !== undefined && eventData.reminderMinutes !== "") {
-    body.reminders = {
-      useDefault: false,
-      overrides: [{ method: 'popup', minutes: parseInt(eventData.reminderMinutes, 10) }]
-    };
-  } else if (eventData.reminderMinutes === "") {
-    body.reminders = { useDefault: true };
-  }
-
-  const response = await fetchWithGoogleAuth(`${GOOGLE_CALENDAR_BASE}/calendars/primary/events`, {
+  const headers = await getCalendarAuthHeaders();
+  const response = await fetch('/api/calendar/events', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
+    headers,
+    body: JSON.stringify({ eventData })
   });
 
   if (!response.ok) {
-    throw new Error(`Termin konnte nicht erstellt werden (${response.status})`);
+    let errorMsg = `Termin konnte nicht erstellt werden (${response.status})`;
+    try {
+      const errJson = await response.json();
+      if (errJson?.error) errorMsg = errJson.error;
+    } catch {
+      // pass
+    }
+    throw new Error(errorMsg);
   }
 
   return await response.json();
 }
 
 /**
- * Updates an existing calendar event in Google Calendar
+ * Updates an existing calendar event via backend proxy
  */
 export async function updateCalendarEvent(eventId, eventData) {
-  let startObj = {};
-  let endObj = {};
-
-  if (eventData.allDay) {
-    startObj = { date: eventData.startDate };
-    endObj = { date: eventData.endDate };
-  } else {
-    startObj = { dateTime: eventData.startTime, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone };
-    endObj = { dateTime: eventData.endTime, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone };
-  }
-
-  const body = {
-    summary: eventData.title,
-    description: eventData.description,
-    start: startObj,
-    end: endObj,
-    ...(eventData.colorId && { colorId: eventData.colorId })
-  };
-
-  if (eventData.reminderMinutes !== undefined && eventData.reminderMinutes !== "") {
-    body.reminders = {
-      useDefault: false,
-      overrides: [{ method: 'popup', minutes: parseInt(eventData.reminderMinutes, 10) }]
-    };
-  } else if (eventData.reminderMinutes === "") {
-    body.reminders = { useDefault: true };
-  }
-
-  const response = await fetchWithGoogleAuth(`${GOOGLE_CALENDAR_BASE}/calendars/primary/events/${encodeURIComponent(eventId)}`, {
+  const headers = await getCalendarAuthHeaders();
+  const response = await fetch(`/api/calendar/events?id=${encodeURIComponent(eventId)}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
+    headers,
+    body: JSON.stringify({ eventId, eventData })
   });
 
   if (!response.ok) {
-    throw new Error(`Termin konnte nicht aktualisiert werden (${response.status})`);
+    let errorMsg = `Termin konnte nicht aktualisiert werden (${response.status})`;
+    try {
+      const errJson = await response.json();
+      if (errJson?.error) errorMsg = errJson.error;
+    } catch {
+      // pass
+    }
+    throw new Error(errorMsg);
   }
 
   return await response.json();
 }
 
 /**
- * Deletes a calendar event from Google Calendar
+ * Deletes a calendar event via backend proxy
  */
 export async function deleteCalendarEvent(eventId) {
-  const response = await fetchWithGoogleAuth(`${GOOGLE_CALENDAR_BASE}/calendars/primary/events/${encodeURIComponent(eventId)}`, {
-    method: 'DELETE'
+  const headers = await getCalendarAuthHeaders();
+  const response = await fetch(`/api/calendar/events?id=${encodeURIComponent(eventId)}`, {
+    method: 'DELETE',
+    headers
   });
 
   if (!response.ok) {
-    throw new Error(`Termin konnte nicht gelöscht werden (${response.status})`);
+    let errorMsg = `Termin konnte nicht gelöscht werden (${response.status})`;
+    try {
+      const errJson = await response.json();
+      if (errJson?.error) errorMsg = errJson.error;
+    } catch {
+      // pass
+    }
+    throw new Error(errorMsg);
   }
 
   return true;
 }
 
 /**
- * Disconnects Google Calendar
+ * Disconnects Google Calendar on backend and local state
  */
 export async function disconnectGoogleCalendar() {
   clearCalendarTokens();
+  try {
+    const headers = await getCalendarAuthHeaders();
+    await fetch('/api/calendar/disconnect', {
+      method: 'POST',
+      headers
+    });
+  } catch (err) {
+    console.warn('Fehler beim Backend-Disconnect:', err);
+  }
   return true;
 }

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Sidebar from './components/layout/Sidebar';
 import BottomNav from './components/layout/BottomNav';
 import { ModalProvider } from './context/ModalContext';
+import { DataProvider } from './context/DataContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ChatProvider } from './context/ChatContext';
 
@@ -101,11 +102,13 @@ function AppContent() {
 function App() {
   return (
     <AuthProvider>
-      <ModalProvider>
-        <ChatProvider>
-          <AppContent />
-        </ChatProvider>
-      </ModalProvider>
+      <DataProvider>
+        <ModalProvider>
+          <ChatProvider>
+            <AppContent />
+          </ChatProvider>
+        </ModalProvider>
+      </DataProvider>
     </AuthProvider>
   );
 }

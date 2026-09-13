@@ -1,6 +1,7 @@
 import { refreshAccessToken } from '../../server/calendarService.js';
 import { applyCorsAndSecurityHeaders } from '../../server/corsHelper.js';
 import { verifyAuthToken } from '../../server/authHelper.js';
+import { getStoredUserRefreshToken } from '../../server/tokenStore.js';
 
 export default async function handler(req, res) {
   if (applyCorsAndSecurityHeaders(req, res, 'POST, OPTIONS')) {
@@ -11,24 +12,23 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  // 1. Zwingende Authentifizierung per Firebase ID-Token
+  let user;
   try {
-    await verifyAuthToken(req);
+    user = await verifyAuthToken(req);
   } catch (authErr) {
     return res.status(authErr.statusCode || 401).json({ error: authErr.message || 'Nicht autorisiert' });
   }
 
-  let body = req.body || {};
-  if (typeof body === 'string') {
-    try {
-      body = JSON.parse(body);
-    } catch {
-      // ignore
-    }
-  }
+  const uid = user.uid;
 
-  const refreshToken = body.refreshToken;
+  // 2. Schließen des Token-Exchange-Orakels (Schwachstelle #5 behoben):
+  // Es wird niemals ein vom Client übermitteltes Refresh-Token akzeptiert.
+  // Das Token wird ausschließlich serverseitig für die verifizierte UID aus Firestore/Store bezogen.
+  const refreshToken = await getStoredUserRefreshToken(uid);
+
   if (!refreshToken) {
-    return res.status(400).json({ error: 'Kein refreshToken übergeben.' });
+    return res.status(400).json({ error: 'Kein Kalender für diesen Account verknüpft.' });
   }
 
   const googleClientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID;
@@ -41,7 +41,10 @@ export default async function handler(req, res) {
       clientSecret: googleClientSecret
     });
 
-    return res.status(200).json(data);
+    return res.status(200).json({
+      accessToken: data.accessToken,
+      expiresIn: data.expiresIn
+    });
   } catch (err) {
     console.error('Refresh Token Error:', err);
     return res.status(500).json({ error: err?.message || 'Fehler beim Aktualisieren des Tokens' });

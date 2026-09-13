@@ -175,34 +175,29 @@ export const api = onRequest({ region: 'europe-west3', cors: true, maxInstances:
           }, { merge: true });
         }
 
-        const accessToken = tokens.accessToken || '';
-        const refreshToken = tokens.refreshToken || '';
-
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        return res.status(200).send(`
-          <!DOCTYPE html>
-          <html>
-            <head><meta charset="utf-8"><title>Google Kalender verbunden</title></head>
-            <body style="font-family: system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 90vh; background: #0f172a; color: white;">
-              <div style="background: #1e293b; padding: 32px; border-radius: 16px; text-align: center; border: 1px solid #334155; max-width: 400px;">
-                <div style="font-size: 40px; margin-bottom: 12px;">🗓️</div>
-                <h2 style="color: #38bdf8; margin: 0 0 8px;">Erfolgreich verknüpft!</h2>
-                <p style="color: #94a3b8; font-size: 14px; margin: 0;">Dein Google Kalender ist jetzt dauerhaft verbunden.</p>
-                <p style="color: #64748b; font-size: 12px; margin-top: 16px;">Dieses Fenster schließt sich automatisch...</p>
-              </div>
-              <script>
-                if (window.opener) {
-                  window.opener.postMessage({
-                    type: 'FOCUSFLOW_CALENDAR_CONNECTED',
-                    uid: '${encodeURIComponent(verifiedUid)}',
-                    accessToken: '${encodeURIComponent(accessToken)}'
-                  }, window.location.origin);
-                }
-                setTimeout(() => window.close(), 1200);
-              </script>
-            </body>
-          </html>
-        `);
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        return res.status(200).send(`<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <title>Google Kalender verbunden</title>
+  </head>
+  <body style="font-family: system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 90vh; background: #0f172a; color: white;">
+    <div style="background: #1e293b; padding: 32px; border-radius: 16px; text-align: center; border: 1px solid #334155; max-width: 400px;">
+      <div style="font-size: 40px; margin-bottom: 12px;">🗓️</div>
+      <h2 style="color: #38bdf8; margin: 0 0 8px;">Erfolgreich verknüpft!</h2>
+      <p style="color: #94a3b8; font-size: 14px; margin: 0;">Dein Google Kalender ist jetzt dauerhaft verbunden.</p>
+      <p style="color: #64748b; font-size: 12px; margin-top: 16px;">Dieses Fenster schließt sich automatisch...</p>
+    </div>
+    <script>
+      if (window.opener) {
+        window.opener.postMessage({ type: 'FOCUSFLOW_CALENDAR_CONNECTED' }, window.location.origin);
+      }
+      setTimeout(function() { window.close(); }, 1000);
+    </script>
+  </body>
+</html>`);
       }
 
       // C) Status-Prüfung
@@ -213,26 +208,15 @@ export const api = onRequest({ region: 'europe-west3', cors: true, maxInstances:
         return res.status(200).json({ connected: isConnected });
       }
 
-      // C.2) Token Refresh
+      // C.2) Token Refresh (Schwachstelle #5 behoben: kein fremdes refreshToken vom Client)
       if (endpoint === 'refresh') {
-        const body = req.body || {};
-        let refreshToken = body.refreshToken;
-        if (!refreshToken) {
-          try {
-            const { uid } = await verifyUser();
-            const tokenDoc = await db.collection('users').doc(uid).collection('tokens').doc('google').get();
-            if (tokenDoc.exists && tokenDoc.data()?.refreshToken) {
-              refreshToken = tokenDoc.data().refreshToken;
-            }
-          } catch {
-            // pass
-          }
+        const { uid } = await verifyUser();
+        const tokenDoc = await db.collection('users').doc(uid).collection('tokens').doc('google').get();
+        if (!tokenDoc.exists || !tokenDoc.data()?.refreshToken) {
+          return res.status(400).json({ error: 'Kein Kalender für diesen Account verknüpft.' });
         }
 
-        if (!refreshToken) {
-          return res.status(400).json({ error: 'Kein Refresh-Token angegeben.' });
-        }
-
+        const refreshToken = tokenDoc.data().refreshToken;
         const refreshed = await refreshAccessToken({
           refreshToken,
           clientId: googleClientId,

@@ -170,13 +170,7 @@ export function AuthProvider({ children }) {
             isResolved = true;
             window.removeEventListener('message', handleMessage);
             clearInterval(checkClosed);
-            if (event.data.accessToken) {
-              const rawToken = event.data.accessToken;
-              const token = rawToken.includes('%') ? decodeURIComponent(rawToken) : rawToken;
-              saveCalendarTokens({
-                accessToken: token
-              });
-            }
+            saveCalendarTokens();
             setIsCalendarConnected(true);
             resolve(true);
           }

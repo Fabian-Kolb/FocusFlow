@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { useModalContext } from '../../context/ModalContext';
+import { useModal } from '../../context/ModalContext';
 import { useAuth } from '../../context/AuthContext';
 
 function ProfileModal() {
-  const { activeModal, closeModal } = useModalContext();
+  const { activeModal, closeModal } = useModal();
   const { user, updateUserProfile, changePassword, logout, googleCalendarToken, disconnectGoogleCalendar } = useAuth();
 
   const [displayName, setDisplayName] = useState(user?.displayName || '');

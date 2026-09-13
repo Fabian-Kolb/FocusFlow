@@ -184,34 +184,29 @@ function apiProxyPlugin(envConfig) {
                 saveDevRefreshToken(verifiedUid, tokens.refreshToken);
               }
 
-              const accessToken = tokens.accessToken || '';
-              const refreshToken = tokens.refreshToken || '';
-
               res.setHeader('Content-Type', 'text/html; charset=utf-8');
-              return res.end(`
-                <!DOCTYPE html>
-                <html>
-                  <head><meta charset="utf-8"><title>Google Kalender verbunden</title></head>
-                  <body style="font-family: system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 90vh; background: #0f172a; color: white;">
-                    <div style="background: #1e293b; padding: 32px; border-radius: 16px; text-align: center; border: 1px solid #334155; max-width: 400px;">
-                      <div style="font-size: 40px; margin-bottom: 12px;">🗓️</div>
-                      <h2 style="color: #38bdf8; margin: 0 0 8px;">Erfolgreich verknüpft!</h2>
-                      <p style="color: #94a3b8; font-size: 14px; margin: 0;">Dein Google Kalender ist jetzt dauerhaft verbunden.</p>
-                      <p style="color: #64748b; font-size: 12px; margin-top: 16px;">Dieses Fenster schließt sich automatisch...</p>
-                    </div>
-                    <script>
-                      if (window.opener) {
-                        window.opener.postMessage({
-                          type: 'FOCUSFLOW_CALENDAR_CONNECTED',
-                          uid: '${encodeURIComponent(verifiedUid)}',
-                          accessToken: '${encodeURIComponent(accessToken)}'
-                        }, window.location.origin);
-                      }
-                      setTimeout(() => window.close(), 1200);
-                    </script>
-                  </body>
-                </html>
-              `);
+              res.setHeader('X-Content-Type-Options', 'nosniff');
+              return res.end(`<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <title>Google Kalender verbunden</title>
+  </head>
+  <body style="font-family: system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 90vh; background: #0f172a; color: white;">
+    <div style="background: #1e293b; padding: 32px; border-radius: 16px; text-align: center; border: 1px solid #334155; max-width: 400px;">
+      <div style="font-size: 40px; margin-bottom: 12px;">🗓️</div>
+      <h2 style="color: #38bdf8; margin: 0 0 8px;">Erfolgreich verknüpft!</h2>
+      <p style="color: #94a3b8; font-size: 14px; margin: 0;">Dein Google Kalender ist jetzt dauerhaft verbunden.</p>
+      <p style="color: #64748b; font-size: 12px; margin-top: 16px;">Dieses Fenster schließt sich automatisch...</p>
+    </div>
+    <script>
+      if (window.opener) {
+        window.opener.postMessage({ type: 'FOCUSFLOW_CALENDAR_CONNECTED' }, window.location.origin);
+      }
+      setTimeout(function() { window.close(); }, 1000);
+    </script>
+  </body>
+</html>`);
             }
 
             // C) Status-Prüfung
@@ -221,13 +216,13 @@ function apiProxyPlugin(envConfig) {
               return res.end(JSON.stringify({ connected: Boolean(refreshToken) }));
             }
 
-            // C.2) Token Refresh
+            // C.2) Token Refresh (Schwachstelle #5 behoben: kein fremdes refreshToken vom Client)
             if (endpoint === 'refresh') {
-              const refreshToken = body.refreshToken || getDevRefreshToken(uid);
+              const refreshToken = getDevRefreshToken(uid);
               if (!refreshToken) {
                 res.statusCode = 400;
                 res.setHeader('Content-Type', 'application/json');
-                return res.end(JSON.stringify({ error: 'Kein Refresh-Token angegeben.' }));
+                return res.end(JSON.stringify({ error: 'Kein Kalender für diesen Account verknüpft.' }));
               }
 
               const refreshed = await refreshAccessToken({
@@ -239,12 +234,17 @@ function apiProxyPlugin(envConfig) {
               return res.end(JSON.stringify(refreshed));
             }
 
-            // D) Events abrufen (GET) oder erstellen (POST)
+            // D) Events abrufen (GET), erstellen (POST), bearbeiten (PATCH/PUT) oder löschen (DELETE)
             if (endpoint === 'events') {
               const refreshToken = getDevRefreshToken(uid);
               if (!refreshToken) {
+                if (req.method === 'GET') {
+                  res.setHeader('Content-Type', 'application/json');
+                  return res.end(JSON.stringify({ connected: false, items: [] }));
+                }
+                res.statusCode = 401;
                 res.setHeader('Content-Type', 'application/json');
-                return res.end(JSON.stringify({ connected: false, items: [] }));
+                return res.end(JSON.stringify({ error: 'Nicht mit Google Kalender verbunden.' }));
               }
 
               const { accessToken } = await refreshAccessToken({
@@ -265,6 +265,30 @@ function apiProxyPlugin(envConfig) {
                 const created = await createEventInGoogle({ accessToken, eventData: body.eventData || body });
                 res.setHeader('Content-Type', 'application/json');
                 return res.end(JSON.stringify(created));
+              }
+
+              if (req.method === 'PATCH' || req.method === 'PUT') {
+                const eventId = parsedUrl.searchParams.get('id') || body.id || body.eventId;
+                if (!eventId) {
+                  res.statusCode = 400;
+                  res.setHeader('Content-Type', 'application/json');
+                  return res.end(JSON.stringify({ error: 'Event-ID fehlt für Aktualisierung.' }));
+                }
+                const updated = await updateEventInGoogle({ accessToken, eventId, eventData: body.eventData || body });
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify(updated));
+              }
+
+              if (req.method === 'DELETE') {
+                const eventId = parsedUrl.searchParams.get('id') || body.id || body.eventId;
+                if (!eventId) {
+                  res.statusCode = 400;
+                  res.setHeader('Content-Type', 'application/json');
+                  return res.end(JSON.stringify({ error: 'Event-ID fehlt für Löschung.' }));
+                }
+                await deleteEventInGoogle({ accessToken, eventId });
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify({ success: true }));
               }
             }
 

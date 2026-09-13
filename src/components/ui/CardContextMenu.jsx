@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useModalContext } from '../../context/ModalContext';
+import { useModal } from '../../context/ModalContext';
 
 const CardContextMenu = ({ 
   isPaused, 
@@ -14,7 +14,7 @@ const CardContextMenu = ({
   itemStatus
 }) => {
   const [open, setOpen] = useState(false);
-  const { openModal } = useModalContext();
+  const { openModal } = useModal();
 
   const isActiveInKanban = inKanban !== false;
 
