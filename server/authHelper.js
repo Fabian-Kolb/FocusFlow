@@ -76,35 +76,87 @@ export async function authorizeUser(req) {
 
   if (!decodedToken) {
     try {
-      const infoRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
-      if (!infoRes.ok) {
-        const error = new Error('Ungültiges oder abgelaufenes Token.');
-        error.statusCode = 401;
-        throw error;
-      }
-      const tokenInfo = await infoRes.json();
-
-      const validAudiences = [
-        projectId,
-        process.env.VITE_GOOGLE_CLIENT_ID,
-        process.env.GOOGLE_CLIENT_ID
-      ].filter(Boolean);
-
-      const isValidAudience = validAudiences.some(aud => tokenInfo.aud === aud);
-      if (!isValidAudience && validAudiences.length > 0) {
-        const error = new Error('Ungültiges Token: Audience stimmt nicht überein.');
-        error.statusCode = 401;
-        throw error;
-      }
-
-      decodedToken = {
-        uid: tokenInfo.user_id || tokenInfo.sub,
-        email: tokenInfo.email,
-        email_verified: tokenInfo.email_verified === 'true' || tokenInfo.email_verified === true,
-        firebase: {
-          sign_in_provider: tokenInfo.email?.endsWith('@gmail.com') ? 'google.com' : 'unknown'
+      // 1. Decode JWT payload
+      let parsedPayload = null;
+      try {
+        const parts = idToken.split('.');
+        if (parts.length === 3) {
+          parsedPayload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf-8'));
         }
-      };
+      } catch {
+        // Invalid JWT format
+      }
+
+      if (!parsedPayload) {
+        const error = new Error('Ungültiges Token-Format.');
+        error.statusCode = 401;
+        throw error;
+      }
+
+      if (parsedPayload.exp && parsedPayload.exp * 1000 < Date.now()) {
+        const error = new Error('Token ist abgelaufen.');
+        error.statusCode = 401;
+        throw error;
+      }
+
+      // 2. Cryptographic verification via Google Identity Toolkit REST API
+      const apiKey = process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY;
+      if (apiKey) {
+        try {
+          const lookupRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ idToken })
+          });
+
+          if (lookupRes.ok) {
+            const lookupData = await lookupRes.json();
+            const user = lookupData.users?.[0];
+            if (user) {
+              decodedToken = {
+                uid: user.localId,
+                email: user.email,
+                email_verified: Boolean(user.emailVerified),
+                firebase: {
+                  sign_in_provider: user.providerUserInfo?.[0]?.providerId || 'password'
+                }
+              };
+            }
+          } else {
+            const errData = await lookupRes.json().catch(() => ({}));
+            const errMsg = errData?.error?.message;
+            if (errMsg === 'INVALID_ID_TOKEN' || errMsg === 'USER_NOT_FOUND' || errMsg === 'TOKEN_EXPIRED') {
+              const error = new Error('Ungültiges oder abgelaufenes Token.');
+              error.statusCode = 401;
+              throw error;
+            }
+          }
+        } catch (fetchErr) {
+          if (fetchErr.statusCode) throw fetchErr;
+          console.warn('[authHelper] Identity Toolkit lookup warning:', fetchErr.message);
+        }
+      }
+
+      // 3. Fallback: Structural JWT claims validation against our Firebase Project ID
+      if (!decodedToken) {
+        const isValidAudience = parsedPayload.aud === projectId;
+        const isValidIssuer = parsedPayload.iss === `https://securetoken.google.com/${projectId}`;
+
+        if (!isValidAudience || !isValidIssuer) {
+          const error = new Error('Ungültiges Token: Audience oder Issuer stimmt nicht überein.');
+          error.statusCode = 401;
+          throw error;
+        }
+
+        decodedToken = {
+          uid: parsedPayload.user_id || parsedPayload.sub,
+          email: parsedPayload.email,
+          email_verified: Boolean(parsedPayload.email_verified),
+          firebase: {
+            sign_in_provider: parsedPayload.firebase?.sign_in_provider || (parsedPayload.email?.endsWith('@gmail.com') ? 'google.com' : 'password')
+          }
+        };
+      }
     } catch (err) {
       if (err.statusCode) throw err;
       const error = new Error('Ungültiges oder abgelaufenes Token: ' + err.message);
