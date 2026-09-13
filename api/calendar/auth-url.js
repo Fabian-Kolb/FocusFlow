@@ -19,6 +19,12 @@ export default async function handler(req, res) {
   const googleClientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID;
   const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
+  if (!googleClientId || !googleClientSecret) {
+    return res.status(500).json({
+      error: 'Google OAuth Konfiguration unvollständig: GOOGLE_CLIENT_ID oder GOOGLE_CLIENT_SECRET fehlt in den Server Environment Variables (Vercel).'
+    });
+  }
+
   // 2. Sichere Ableitung der redirectUri ohne ungeprüfte Query-Parameter
   const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3000';
   const proto = req.headers['x-forwarded-proto'] || 'https';

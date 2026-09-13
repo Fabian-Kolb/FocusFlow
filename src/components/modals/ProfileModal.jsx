@@ -104,13 +104,27 @@ function ProfileModal() {
             <div className="min-w-0 flex-1">
               <p className="font-semibold text-base truncate">{user?.displayName || 'Kein Name angegeben'}</p>
               <p className="text-sm text-on-surface-variant truncate">{user?.email}</p>
-              <span className={`inline-block mt-1 text-xs px-2.5 py-0.5 rounded-full border font-mono ${
-                user?.isGuest 
-                  ? 'bg-amber-500/10 text-amber-500 border-amber-500/30' 
-                  : 'bg-surface border-border text-on-surface-variant'
-              }`}>
-                {user?.isGuest ? 'Gast-Modus (Vorschau)' : (isGoogleUser ? 'Google Konto' : 'E-Mail & Passwort')}
-              </span>
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                <span className={`inline-block text-xs px-2.5 py-0.5 rounded-full border font-mono ${
+                  user?.isGuest 
+                    ? 'bg-amber-500/10 text-amber-500 border-amber-500/30' 
+                    : 'bg-surface border-border text-on-surface-variant'
+                }`}>
+                  {user?.isGuest ? 'Gast-Modus (Vorschau)' : (isGoogleUser ? 'Google Konto' : 'E-Mail & Passwort')}
+                </span>
+                {user && !user.isGuest && (
+                  <span className={`inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full border font-mono ${
+                    user.emailVerified
+                      ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30'
+                      : 'bg-amber-500/10 text-amber-600 border-amber-500/30'
+                  }`}>
+                    <span className="material-symbols-outlined text-[13px]">
+                      {user.emailVerified ? 'verified' : 'pending'}
+                    </span>
+                    {user.emailVerified ? 'Verifiziert' : 'Nicht verifiziert'}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 

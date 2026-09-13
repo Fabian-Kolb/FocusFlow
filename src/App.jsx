@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import Sidebar from './components/layout/Sidebar';
 import BottomNav from './components/layout/BottomNav';
 import { ModalProvider } from './context/ModalContext';
-import { DataProvider } from './context/DataContext';
+import { DataProvider, useData } from './context/DataContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ChatProvider } from './context/ChatContext';
+import FirestoreErrorBanner from './components/ui/FirestoreErrorBanner';
 
 // Modals
 import ProjectModal from './components/modals/ProjectModal';
@@ -31,11 +32,13 @@ import ProjectsBoard from './components/screens/ProjectsBoard';
 import Reminders from './components/screens/Reminders';
 import ReminderDetail from './components/screens/ReminderDetail';
 import Trash from './components/screens/Trash';
+import EmailVerificationScreen from './components/screens/EmailVerificationScreen';
 
 function AppContent() {
   const [currentScreen, setCurrentScreen] = useState('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { user } = useAuth();
+  const { firestoreError, clearFirestoreError } = useData();
 
   const screenTitles = {
     dashboard: 'Dashboard',
@@ -43,10 +46,11 @@ function AppContent() {
     reminders: 'Erinnerungen',
     projects: 'Projekte',
     board: 'Kanban Board',
-    'project-detail': 'Projekt Details',
+    'project-detail': 'Projektdetails',
+    'reminder-detail': 'Erinnerungsdetails',
     calendar: 'Kalender',
-    coach: 'AI Coach',
-    review: 'Wöchentlicher Rückblick',
+    coach: 'Fio Coach',
+    review: 'Wochenrückblick',
     trash: 'Papierkorb'
   };
 
@@ -55,6 +59,11 @@ function AppContent() {
   // If the user is not logged in, render only the Login screen
   if (!user) {
     return <Login />;
+  }
+
+  // If the user is logged in via email/password but not yet verified, require email verification
+  if (!user.isGuest && !user.emailVerified) {
+    return <EmailVerificationScreen />;
   }
 
   return (
@@ -68,6 +77,9 @@ function AppContent() {
 
       <main className={`flex-grow min-w-0 relative h-full flex flex-col ${currentScreen === 'coach' ? 'overflow-hidden pb-16 lg:pb-0' : 'overflow-y-auto content-bottom-safe lg:pb-0'}`}>
         <div className={`mx-auto w-full flex-grow flex flex-col h-full min-h-0 ${currentScreen === 'coach' ? 'p-0 max-w-none overflow-hidden' : 'max-w-none px-2 sm:px-4 md:px-8 py-4 sm:py-8'}`}>
+          {firestoreError && currentScreen !== 'coach' && (
+            <FirestoreErrorBanner error={firestoreError} onDismiss={clearFirestoreError} />
+          )}
           {currentScreen === 'dashboard' && <Dashboard setCurrentScreen={setCurrentScreen} />}
           {currentScreen === 'inbox' && <Inbox setCurrentScreen={setCurrentScreen} />}
           {currentScreen === 'reminders' && <Reminders setCurrentScreen={setCurrentScreen} />}

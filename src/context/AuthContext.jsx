@@ -7,7 +7,8 @@ import {
   signOut,
   updateProfile,
   updatePassword,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  sendEmailVerification
 } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { doc, getDoc, getFirestore } from 'firebase/firestore';
@@ -238,9 +239,25 @@ export function AuthProvider({ children }) {
     await sendPasswordResetEmail(auth, email);
   };
 
+  const sendVerificationEmail = async () => {
+    if (!auth.currentUser) return;
+    await sendEmailVerification(auth.currentUser);
+  };
+
+  const reloadUser = async () => {
+    if (!auth.currentUser) return null;
+    await auth.currentUser.reload();
+    await auth.currentUser.getIdToken(true);
+    setUser({ ...auth.currentUser });
+    return auth.currentUser;
+  };
+
+  const isEmailVerified = Boolean(user?.isGuest || user?.emailVerified);
+
   const value = {
     user,
     loading,
+    isEmailVerified,
     isCalendarConnected,
     googleCalendarToken: isCalendarConnected ? 'connected' : null, // Abwärtskompatibilität
     setIsCalendarConnected,
@@ -252,7 +269,9 @@ export function AuthProvider({ children }) {
     logout,
     updateUserProfile,
     changePassword,
-    resetPassword
+    resetPassword,
+    sendVerificationEmail,
+    reloadUser
   };
 
   return (

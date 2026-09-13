@@ -13,7 +13,7 @@ service cloud.firestore {
     function isWhitelisted() {
       return isAuthenticated() &&
              request.auth.token.email != null &&
-             (request.auth.token.email_verified == true || request.auth.token.firebase.sign_in_provider == 'google.com') &&
+             request.auth.token.email_verified == true &&
              exists(/databases/$(database)/documents/whitelist/$(request.auth.token.email.lower()));
     }
 

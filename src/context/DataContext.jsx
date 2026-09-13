@@ -126,6 +126,9 @@ export const DataProvider = ({ children }) => {
     { id: 'allgemein', name: 'Allgemein', isExpanded: true, createdAt: 0 }
   ]);
 
+  // Firestore Error State for Visibility
+  const [firestoreError, setFirestoreError] = useState(null);
+
   // Helper for auto-delete
   const checkAutoDelete = async (data, colName) => {
     if (data.deletedAt) {
@@ -146,6 +149,8 @@ export const DataProvider = ({ children }) => {
 
   // Firestore Sync
   useEffect(() => {
+    setFirestoreError(null);
+
     if (!user) {
       setProjects([]);
       setReminders([]);
@@ -178,6 +183,27 @@ export const DataProvider = ({ children }) => {
       return;
     }
 
+    // Wenn der Nutzer nicht verifiziert ist, keine Firestore-Listener starten (Regeln würden abweisen)
+    if (!user.emailVerified) {
+      setProjects([]);
+      setReminders([]);
+      setInboxItems({ today: [], yesterday: [] });
+      setTrashedProjects([]);
+      setTrashedReminders([]);
+      setTrashedInboxItems([]);
+      return;
+    }
+
+    const handleFirestoreError = (colName, err) => {
+      console.error(`[DataContext] Error fetching ${colName} from Firestore:`, err);
+      setFirestoreError({
+        collection: colName,
+        code: err?.code || 'unknown',
+        message: err?.message || 'Fehler beim Laden der Daten aus Firestore',
+        timestamp: Date.now()
+      });
+    };
+
     const unsubProjects = onSnapshot(collection(db, 'users', user.uid, 'projects'), (snapshot) => {
       const projs = [];
       const trashed = [];
@@ -194,8 +220,9 @@ export const DataProvider = ({ children }) => {
       trashed.sort((a, b) => b.id.localeCompare(a.id));
       setProjects(projs);
       setTrashedProjects(trashed);
+      setFirestoreError(null);
     }, (err) => {
-      console.error('[DataContext] Error fetching projects from Firestore:', err);
+      handleFirestoreError('projects', err);
     });
 
     const unsubReminders = onSnapshot(collection(db, 'users', user.uid, 'reminders'), (snapshot) => {
@@ -214,8 +241,9 @@ export const DataProvider = ({ children }) => {
       trashed.sort((a, b) => b.id.localeCompare(a.id));
       setReminders(rems);
       setTrashedReminders(trashed);
+      setFirestoreError(null);
     }, (err) => {
-      console.error('[DataContext] Error fetching reminders from Firestore:', err);
+      handleFirestoreError('reminders', err);
     });
 
     const unsubInbox = onSnapshot(collection(db, 'users', user.uid, 'inboxItems'), (snapshot) => {
@@ -256,8 +284,9 @@ export const DataProvider = ({ children }) => {
       });
       setInboxItems({ today, yesterday, thisWeek, older });
       setTrashedInboxItems(trashed);
+      setFirestoreError(null);
     }, (err) => {
-      console.error('[DataContext] Error fetching inboxItems from Firestore:', err);
+      handleFirestoreError('inboxItems', err);
     });
 
     const unsubCategories = onSnapshot(collection(db, 'users', user.uid, 'categories'), (snapshot) => {
@@ -283,8 +312,9 @@ export const DataProvider = ({ children }) => {
           isExpanded: prevExpandMap[c.id] !== undefined ? prevExpandMap[c.id] : (c.isExpanded ?? true)
         }));
       });
+      setFirestoreError(null);
     }, (err) => {
-      console.error('[DataContext] Error fetching categories from Firestore:', err);
+      handleFirestoreError('categories', err);
     });
 
     const unsubReminderCategories = onSnapshot(collection(db, 'users', user.uid, 'reminderCategories'), (snapshot) => {
@@ -310,8 +340,9 @@ export const DataProvider = ({ children }) => {
           isExpanded: prevExpandMap[c.id] !== undefined ? prevExpandMap[c.id] : (c.isExpanded ?? true)
         }));
       });
+      setFirestoreError(null);
     }, (err) => {
-      console.error('[DataContext] Error fetching reminderCategories from Firestore:', err);
+      handleFirestoreError('reminderCategories', err);
     });
 
     return () => {
@@ -1099,7 +1130,9 @@ export const DataProvider = ({ children }) => {
     mutateReminder,
     trashItems,
     restoreItem,
-    permanentlyDeleteItem
+    permanentlyDeleteItem,
+    firestoreError,
+    clearFirestoreError: () => setFirestoreError(null)
   };
 
   return (

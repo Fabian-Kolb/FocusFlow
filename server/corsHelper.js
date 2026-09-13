@@ -20,7 +20,7 @@ const ALLOWED_ORIGINS = [
  * @returns {boolean} true if preflight OPTIONS was handled and response ended
  */
 export function applyCorsAndSecurityHeaders(req, res, allowedMethods = 'GET, POST, PATCH, PUT, DELETE, OPTIONS') {
-  const origin = req.headers.origin;
+  const origin = req?.headers?.origin;
 
   if (origin && ALLOWED_ORIGINS.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);

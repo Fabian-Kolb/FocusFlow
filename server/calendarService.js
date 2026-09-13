@@ -10,7 +10,10 @@ const GOOGLE_TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 const GOOGLE_CALENDAR_BASE = 'https://www.googleapis.com/calendar/v3';
 
 // Lokaler Cache-Speicher für Entwicklung
-const DEV_TOKEN_FILE = path.join(process.cwd(), '.gemini', 'dev_calendar_tokens.json');
+const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT);
+const DEV_TOKEN_FILE = isServerless
+  ? path.join('/tmp', 'dev_calendar_tokens.json')
+  : path.join(process.cwd(), '.gemini', 'dev_calendar_tokens.json');
 
 function getDevTokens() {
   try {
