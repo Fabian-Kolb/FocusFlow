@@ -138,7 +138,9 @@ export function AuthProvider({ children }) {
   };
 
   /**
-   * Startet den OAuth 2.0 Offline-Access-Flow für Google Kalender
+   * Startet den OAuth 2.0 Offline-Access-Flow für Google Kalender.
+   * Nutzt Backend-Status-Polling statt postMessage/popup.closed,
+   * da Google's COOP-Header die Popup-Kommunikation blockieren.
    */
   const linkGoogleCalendar = async () => {
     if (!auth.currentUser) return;
@@ -163,14 +165,11 @@ export function AuthProvider({ children }) {
       return new Promise((resolve) => {
         let isResolved = false;
 
+        // Primär: postMessage vom Callback-Fenster (falls COOP es erlaubt)
         const handleMessage = async (event) => {
-          // Sicherheitsprüfung: Nur Nachrichten vom identischen Origin erlauben
           if (event.origin !== window.location.origin) return;
-
           if (event.data?.type === 'FOCUSFLOW_CALENDAR_CONNECTED') {
-            isResolved = true;
-            window.removeEventListener('message', handleMessage);
-            clearInterval(checkClosed);
+            cleanup();
             saveCalendarTokens();
             setIsCalendarConnected(true);
             resolve(true);
@@ -179,18 +178,40 @@ export function AuthProvider({ children }) {
 
         window.addEventListener('message', handleMessage);
 
-        // Fallback-Timer zum Prüfen, ob das Fenster geschlossen wurde
-        const checkClosed = setInterval(async () => {
-          if (popup.closed) {
-            clearInterval(checkClosed);
-            window.removeEventListener('message', handleMessage);
-            if (!isResolved) {
-              const connected = await getCalendarConnectionStatus();
-              setIsCalendarConnected(connected);
-              resolve(connected);
+        // Fallback: Polling des Backend-Status alle 2 Sekunden.
+        // Fängt den Fall ab, dass COOP postMessage und popup.closed blockiert.
+        const statusPoll = setInterval(async () => {
+          if (isResolved) return;
+          try {
+            const connected = await getCalendarConnectionStatus();
+            if (connected) {
+              cleanup();
+              saveCalendarTokens();
+              setIsCalendarConnected(true);
+              resolve(true);
             }
+          } catch {
+            // Status-Check fehlgeschlagen, weiter pollen
           }
-        }, 1000);
+        }, 2000);
+
+        // Sicherheits-Timeout: Nach 5 Minuten aufgeben
+        const timeout = setTimeout(() => {
+          if (!isResolved) {
+            cleanup();
+            resolve(false);
+          }
+        }, 5 * 60 * 1000);
+
+        function cleanup() {
+          if (isResolved) return;
+          isResolved = true;
+          window.removeEventListener('message', handleMessage);
+          clearInterval(statusPoll);
+          clearTimeout(timeout);
+          // Popup schließen, falls noch offen (try/catch wegen COOP)
+          try { if (popup && !popup.closed) popup.close(); } catch {}
+        }
       });
     } catch (error) {
       console.error("Error linking Google Calendar:", error);
