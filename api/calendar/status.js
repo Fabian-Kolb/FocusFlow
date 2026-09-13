@@ -1,5 +1,5 @@
 import { applyCorsAndSecurityHeaders } from '../../server/corsHelper.js';
-import { verifyAuthToken } from '../../server/authHelper.js';
+import { verifyAuthToken, getAdminInitStatus } from '../../server/authHelper.js';
 import { getStoredUserRefreshToken } from '../../server/tokenStore.js';
 
 export default async function handler(req, res) {
@@ -19,7 +19,15 @@ export default async function handler(req, res) {
 
   try {
     const refreshToken = await getStoredUserRefreshToken(uid);
-    return res.status(200).json({ connected: Boolean(refreshToken) });
+    const adminStatus = getAdminInitStatus();
+    return res.status(200).json({ 
+      connected: Boolean(refreshToken),
+      diagnostics: {
+        isDbReady: adminStatus.isReady,
+        hasServiceAccountEnv: adminStatus.hasEnv,
+        adminError: adminStatus.error || null
+      }
+    });
   } catch (err) {
     console.error('Calendar Status Error:', err);
     return res.status(500).json({ error: err?.message || 'Fehler bei Status-Prüfung' });

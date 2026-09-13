@@ -35,9 +35,22 @@ export default async function handler(req, res) {
     });
 
     // 4. Tokens sicher serverseitig in 'server_tokens/{uid}' speichern
-    if (tokens.refreshToken) {
-      await saveStoredUserRefreshToken(uid, tokens.refreshToken);
+    if (!tokens.refreshToken) {
+      console.error('[Calendar Callback] Kein refreshToken von Google erhalten!');
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.status(400).send(`<!DOCTYPE html>
+<html lang="de">
+  <head><meta charset="utf-8"><title>Fehler</title></head>
+  <body style="font-family: system-ui; background: #0f172a; color: white; display: flex; align-items: center; justify-content: center; height: 90vh;">
+    <div style="background: #1e293b; padding: 24px; border-radius: 12px; max-width: 450px; text-align: center; border: 1px solid #ef4444;">
+      <h3 style="color: #ef4444; margin-top: 0;">Kein Refresh-Token erhalten</h3>
+      <p style="color: #94a3b8; font-size: 14px;">Google hat keinen dauerhaften Refresh-Token mitgesendet. Bitte trenne die App einmal in deinen Google-Kontoeinstellungen (Sicherheit → Drittanbieter-Apps) und verbinde sie erneut mit voller Zustimmung.</p>
+    </div>
+  </body>
+</html>`);
     }
+
+    await saveStoredUserRefreshToken(uid, tokens.refreshToken);
 
     // 5. Rein statisches HTML ohne dynamische Script-Werte (XSS- und Leak-Schutz)
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -66,6 +79,15 @@ export default async function handler(req, res) {
   } catch (err) {
     console.error('Calendar Callback Error:', err.message);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    return res.status(500).send('<h3>Fehler bei der Kalender-Verknüpfung</h3><p>Die Autorisierung konnte nicht verifiziert werden. Bitte versuche es erneut.</p>');
+    return res.status(500).send(`<!DOCTYPE html>
+<html lang="de">
+  <head><meta charset="utf-8"><title>Fehler bei Verknüpfung</title></head>
+  <body style="font-family: system-ui; background: #0f172a; color: white; display: flex; align-items: center; justify-content: center; height: 90vh;">
+    <div style="background: #1e293b; padding: 24px; border-radius: 12px; max-width: 450px; text-align: center; border: 1px solid #ef4444;">
+      <h3 style="color: #ef4444; margin-top: 0;">Fehler bei der Kalender-Verknüpfung</h3>
+      <p style="color: #94a3b8; font-size: 14px;">${err?.message || 'Unbekannter Fehler'}</p>
+    </div>
+  </body>
+</html>`);
   }
 }

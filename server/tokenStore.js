@@ -64,10 +64,14 @@ export async function getStoredUserRefreshToken(uid) {
  * @returns {Promise<void>}
  */
 export async function saveStoredUserRefreshToken(uid, refreshToken) {
-  if (!uid || !refreshToken) return;
+  if (!uid || !refreshToken) {
+    throw new Error('Speichern fehlgeschlagen: UID oder Refresh-Token fehlt.');
+  }
 
-  try {
-    if (db) {
+  const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT);
+
+  if (db) {
+    try {
       // Save strictly to isolated server_tokens collection
       await db.collection('server_tokens').doc(uid).set({
         refreshToken,
@@ -76,9 +80,17 @@ export async function saveStoredUserRefreshToken(uid, refreshToken) {
 
       // Clean up legacy document if it existed
       await db.collection('users').doc(uid).collection('tokens').doc('google').delete().catch(() => {});
+      console.log(`[tokenStore] Refresh-Token erfolgreich für UID ${uid} in Firestore gespeichert.`);
+    } catch (err) {
+      console.error('[tokenStore] Firestore token write failed:', err?.message);
+      if (isServerless) {
+        throw new Error('Fehler beim Speichern in Firestore: ' + err.message);
+      }
     }
-  } catch (err) {
-    console.warn('[tokenStore] Firestore token write failed, saving to dev store fallback:', err?.message);
+  } else {
+    if (isServerless) {
+      throw new Error('Firestore Datenbank im Serverless Backend nicht initialisiert (FIREBASE_SERVICE_ACCOUNT prüfen).');
+    }
   }
 
   // Always keep dev store synchronized for local development convenience

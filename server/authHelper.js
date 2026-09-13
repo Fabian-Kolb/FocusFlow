@@ -7,6 +7,7 @@ const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_P
 let app = null;
 let auth = null;
 let db = null;
+let adminInitError = null;
 
 try {
   const adminAppPkg = 'firebase-admin/app';
@@ -18,17 +19,39 @@ try {
   const { getFirestore } = await import(adminFirestorePkg);
 
   let serviceAccount = null;
-  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+  const rawSa = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (rawSa) {
     try {
-      serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-    } catch {
-      // pass
+      let trimmed = rawSa.trim();
+      if ((trimmed.startsWith("'") && trimmed.endsWith("'")) || (trimmed.startsWith('"') && trimmed.endsWith('"'))) {
+        trimmed = trimmed.slice(1, -1);
+      }
+      try {
+        serviceAccount = JSON.parse(trimmed);
+      } catch {
+        const decoded = Buffer.from(trimmed, 'base64').toString('utf-8');
+        serviceAccount = JSON.parse(decoded);
+      }
+
+      if (serviceAccount && typeof serviceAccount.private_key === 'string') {
+        serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+      }
+    } catch (parseErr) {
+      adminInitError = 'FIREBASE_SERVICE_ACCOUNT Parse-Fehler: ' + parseErr.message;
+      console.error('[authHelper]', adminInitError);
     }
+  } else {
+    adminInitError = 'FIREBASE_SERVICE_ACCOUNT Umgebungsvariable fehlt.';
   }
 
   const options = { projectId };
   if (serviceAccount) {
-    options.credential = cert(serviceAccount);
+    try {
+      options.credential = cert(serviceAccount);
+    } catch (certErr) {
+      adminInitError = 'Firebase cert() Fehler: ' + certErr.message;
+      console.error('[authHelper]', adminInitError);
+    }
   }
 
   app = getApps().length > 0 ? getApps()[0] : initializeApp(options);
@@ -36,10 +59,20 @@ try {
   try {
     db = getFirestore(app);
   } catch (e) {
+    adminInitError = 'Firestore Init Fehler: ' + e?.message;
     console.warn('[authHelper] Firestore Admin init warning:', e?.message);
   }
 } catch (e) {
+  adminInitError = 'Firebase Admin SDK Import Fehler: ' + e?.message;
   console.warn('[authHelper] Firebase Admin SDK unavailable in current environment:', e?.message);
+}
+
+export function getAdminInitStatus() {
+  return {
+    isReady: Boolean(db),
+    hasEnv: Boolean(process.env.FIREBASE_SERVICE_ACCOUNT),
+    error: adminInitError
+  };
 }
 
 export { auth, db };
