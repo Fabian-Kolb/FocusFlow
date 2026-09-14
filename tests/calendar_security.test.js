@@ -92,6 +92,14 @@ async function runSecurityTests() {
     assert(src.includes('authorizeUser(req)') || src.includes('verifyAuthToken(req)'), 'auth-url.js must invoke authorizeUser');
   });
 
+  test('AUTH: authHelper never accepts structurally decoded JWTs without verification', () => {
+    const authSrc = fs.readFileSync(path.resolve('server/authHelper.js'), 'utf-8');
+    assert(authSrc.includes('Identity Toolkit REST API'), 'authHelper must retain a cryptographic verification path');
+    assert(authSrc.includes('Serverseitige Token-Verifizierung ist nicht konfiguriert.'), 'authHelper must fail closed when verification is unavailable');
+    assert(!authSrc.includes('parsedPayload.firebase?.sign_in_provider'), 'authHelper must not derive provider claims from decoded JWT contents');
+    assert(!authSrc.includes('parsedPayload.aud === projectId'), 'authHelper must not treat audience/issuer claims as signature verification');
+  });
+
   // --- VULNERABILITY 2: Callback Script Injection & Safe PostMessage ---
   test('VULN-2: callback.js does not interpolate dynamic user or token variables into script', () => {
     const callbackSrc = fs.readFileSync(path.resolve('api/calendar/callback.js'), 'utf-8');

@@ -332,8 +332,6 @@ export function getServiceAccountDiagnostics() {
   return {
     isConfigured: Boolean(serviceAccount),
     variableFound: foundVar,
-    clientEmail: serviceAccount?.client_email || null,
-    projectId: serviceAccount?.project_id || PROJECT_ID,
     error: error || null
   };
 }

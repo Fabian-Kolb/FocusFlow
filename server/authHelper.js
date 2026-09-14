@@ -161,25 +161,16 @@ export async function authorizeUser(req) {
         }
       }
 
-      // 3. Fallback: Structural JWT claims validation against our Firebase Project ID
+      // Project/issuer claims are not a signature. Never accept a token based
+      // only on decoded JWT contents when cryptographic verification failed.
       if (!decodedToken) {
-        const isValidAudience = parsedPayload.aud === projectId;
-        const isValidIssuer = parsedPayload.iss === `https://securetoken.google.com/${projectId}`;
-
-        if (!isValidAudience || !isValidIssuer) {
-          const error = new Error('Ungültiges Token: Audience oder Issuer stimmt nicht überein.');
-          error.statusCode = 401;
-          throw error;
-        }
-
-        decodedToken = {
-          uid: parsedPayload.user_id || parsedPayload.sub,
-          email: parsedPayload.email,
-          email_verified: Boolean(parsedPayload.email_verified),
-          firebase: {
-            sign_in_provider: parsedPayload.firebase?.sign_in_provider || (parsedPayload.email?.endsWith('@gmail.com') ? 'google.com' : 'password')
-          }
-        };
+        const error = new Error(
+          apiKey
+            ? 'Authentifizierungsdienst konnte das Firebase-Token nicht verifizieren.'
+            : 'Serverseitige Token-Verifizierung ist nicht konfiguriert.'
+        );
+        error.statusCode = apiKey ? 401 : 503;
+        throw error;
       }
     } catch (err) {
       if (err.statusCode) throw err;
