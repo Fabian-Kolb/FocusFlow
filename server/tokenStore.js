@@ -3,7 +3,7 @@
 // Stores tokens strictly in Firestore 'server_tokens/{uid}' (isolated from client-accessible collections).
 // Performs verified one-time migration and immediate deletion of legacy token paths.
 
-import { db } from './authHelper.js';
+import { db, ensureAdminInit } from './authHelper.js';
 import {
   getDevRefreshToken,
   saveDevRefreshToken,
@@ -23,6 +23,7 @@ export async function getStoredUserRefreshToken(uid) {
   if (!uid) return null;
 
   try {
+    await ensureAdminInit();
     if (db) {
       // 1. Primary secure store
       const secureDoc = await db.collection('server_tokens').doc(uid).get();
@@ -69,7 +70,8 @@ export async function saveStoredUserRefreshToken(uid, refreshToken) {
   }
 
   const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT);
-
+  await ensureAdminInit();
+  
   if (db) {
     try {
       // Save strictly to isolated server_tokens collection
@@ -107,6 +109,7 @@ export async function deleteStoredUserRefreshToken(uid) {
   if (!uid) return;
 
   try {
+    await ensureAdminInit();
     if (db) {
       await Promise.all([
         db.collection('server_tokens').doc(uid).delete().catch(() => {}),

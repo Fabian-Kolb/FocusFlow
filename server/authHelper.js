@@ -2,69 +2,81 @@
 // Central, unified Firebase Authentication & Whitelist verification for all backend endpoints.
 // Enforces cryptographically verified ID tokens, verified email status, and Firestore whitelist presence.
 
-import { initializeApp, getApps, cert } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
-import { getFirestore } from 'firebase-admin/firestore';
-
 const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'focusflow-d5a55';
 
 let app = null;
 let auth = null;
 let db = null;
 let adminInitError = null;
+let initPromise = null;
 
-try {
+export async function ensureAdminInit() {
+  if (app) return { app, auth, db };
+  if (adminInitError) return { error: adminInitError };
+  if (initPromise) return initPromise;
 
-  let serviceAccount = null;
-  const rawSa = process.env.FIREBASE_SERVICE_ACCOUNT;
-  if (rawSa) {
+  initPromise = (async () => {
     try {
-      let trimmed = rawSa.trim();
-      if ((trimmed.startsWith("'") && trimmed.endsWith("'")) || (trimmed.startsWith('"') && trimmed.endsWith('"'))) {
-        trimmed = trimmed.slice(1, -1);
+      const { initializeApp, getApps, cert } = await import('firebase-admin/app');
+      const { getAuth } = await import('firebase-admin/auth');
+      const { getFirestore } = await import('firebase-admin/firestore');
+
+      let serviceAccount = null;
+      const rawSa = process.env.FIREBASE_SERVICE_ACCOUNT;
+      if (rawSa) {
+        try {
+          let trimmed = rawSa.trim();
+          if ((trimmed.startsWith("'") && trimmed.endsWith("'")) || (trimmed.startsWith('"') && trimmed.endsWith('"'))) {
+            trimmed = trimmed.slice(1, -1);
+          }
+          try {
+            serviceAccount = JSON.parse(trimmed);
+          } catch {
+            const decoded = Buffer.from(trimmed, 'base64').toString('utf-8');
+            serviceAccount = JSON.parse(decoded);
+          }
+
+          if (serviceAccount && typeof serviceAccount.private_key === 'string') {
+            serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+          }
+        } catch (parseErr) {
+          adminInitError = 'FIREBASE_SERVICE_ACCOUNT Parse-Fehler: ' + parseErr.message;
+          console.error('[authHelper]', adminInitError);
+        }
+      } else {
+        adminInitError = 'FIREBASE_SERVICE_ACCOUNT Umgebungsvariable fehlt.';
       }
+
+      const options = { projectId };
+      if (serviceAccount) {
+        try {
+          options.credential = cert(serviceAccount);
+        } catch (certErr) {
+          adminInitError = 'Firebase cert() Fehler: ' + certErr.message;
+          console.error('[authHelper]', adminInitError);
+        }
+      }
+
+      app = getApps().length > 0 ? getApps()[0] : initializeApp(options);
+      auth = getAuth(app);
       try {
-        serviceAccount = JSON.parse(trimmed);
-      } catch {
-        const decoded = Buffer.from(trimmed, 'base64').toString('utf-8');
-        serviceAccount = JSON.parse(decoded);
+        db = getFirestore(app);
+      } catch (e) {
+        adminInitError = 'Firestore Init Fehler: ' + e?.message;
+        console.warn('[authHelper] Firestore Admin init warning:', e?.message);
       }
-
-      if (serviceAccount && typeof serviceAccount.private_key === 'string') {
-        serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
-      }
-    } catch (parseErr) {
-      adminInitError = 'FIREBASE_SERVICE_ACCOUNT Parse-Fehler: ' + parseErr.message;
-      console.error('[authHelper]', adminInitError);
+    } catch (e) {
+      adminInitError = 'Firebase Admin SDK Import Fehler: ' + e?.message;
+      console.warn('[authHelper] Firebase Admin SDK unavailable in current environment:', e?.message);
     }
-  } else {
-    adminInitError = 'FIREBASE_SERVICE_ACCOUNT Umgebungsvariable fehlt.';
-  }
+    return { app, auth, db, error: adminInitError };
+  })();
 
-  const options = { projectId };
-  if (serviceAccount) {
-    try {
-      options.credential = cert(serviceAccount);
-    } catch (certErr) {
-      adminInitError = 'Firebase cert() Fehler: ' + certErr.message;
-      console.error('[authHelper]', adminInitError);
-    }
-  }
-
-  app = getApps().length > 0 ? getApps()[0] : initializeApp(options);
-  auth = getAuth(app);
-  try {
-    db = getFirestore(app);
-  } catch (e) {
-    adminInitError = 'Firestore Init Fehler: ' + e?.message;
-    console.warn('[authHelper] Firestore Admin init warning:', e?.message);
-  }
-} catch (e) {
-  adminInitError = 'Firebase Admin SDK Import Fehler: ' + e?.message;
-  console.warn('[authHelper] Firebase Admin SDK unavailable in current environment:', e?.message);
+  return initPromise;
 }
 
-export function getAdminInitStatus() {
+export async function getAdminInitStatus() {
+  await ensureAdminInit();
   return {
     isReady: Boolean(db),
     hasEnv: Boolean(process.env.FIREBASE_SERVICE_ACCOUNT),
@@ -96,6 +108,7 @@ export async function authorizeUser(req) {
   }
 
   let decodedToken = null;
+  await ensureAdminInit();
   if (auth) {
     try {
       decodedToken = await auth.verifyIdToken(idToken);
@@ -279,6 +292,7 @@ export async function authorizeUid(uid) {
   }
 
   let userRecord = null;
+  await ensureAdminInit();
   if (auth) {
     try {
       userRecord = await auth.getUser(uid);
