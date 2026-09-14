@@ -2,6 +2,8 @@
 // Central, unified Firebase Authentication & Whitelist verification for all backend endpoints.
 // Enforces cryptographically verified ID tokens, verified email status, and Firestore whitelist presence.
 
+import { getServiceAccountCredentials } from './serviceAccountRest.js';
+
 const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'focusflow-d5a55';
 
 let app = null;
@@ -12,7 +14,7 @@ let initPromise = null;
 
 export async function ensureAdminInit() {
   if (app) return { app, auth, db };
-  if (adminInitError) return { error: adminInitError };
+  if (adminInitError && !initPromise) return { error: adminInitError };
   if (initPromise) return initPromise;
 
   initPromise = (async () => {
@@ -21,30 +23,9 @@ export async function ensureAdminInit() {
       const { getAuth } = await import('firebase-admin/auth');
       const { getFirestore } = await import('firebase-admin/firestore');
 
-      let serviceAccount = null;
-      const rawSa = process.env.FIREBASE_SERVICE_ACCOUNT;
-      if (rawSa) {
-        try {
-          let trimmed = rawSa.trim();
-          if ((trimmed.startsWith("'") && trimmed.endsWith("'")) || (trimmed.startsWith('"') && trimmed.endsWith('"'))) {
-            trimmed = trimmed.slice(1, -1);
-          }
-          try {
-            serviceAccount = JSON.parse(trimmed);
-          } catch {
-            const decoded = Buffer.from(trimmed, 'base64').toString('utf-8');
-            serviceAccount = JSON.parse(decoded);
-          }
-
-          if (serviceAccount && typeof serviceAccount.private_key === 'string') {
-            serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
-          }
-        } catch (parseErr) {
-          adminInitError = 'FIREBASE_SERVICE_ACCOUNT Parse-Fehler: ' + parseErr.message;
-          console.error('[authHelper]', adminInitError);
-        }
-      } else {
-        adminInitError = 'FIREBASE_SERVICE_ACCOUNT Umgebungsvariable fehlt.';
+      const { serviceAccount, error: saError } = getServiceAccountCredentials();
+      if (saError) {
+        adminInitError = saError;
       }
 
       const options = { projectId };

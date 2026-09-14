@@ -2,6 +2,8 @@ import { applyCorsAndSecurityHeaders } from '../../server/corsHelper.js';
 import { verifyAuthToken, getAdminInitStatus } from '../../server/authHelper.js';
 import { getStoredUserRefreshToken } from '../../server/tokenStore.js';
 
+import { getServiceAccountDiagnostics } from '../../server/serviceAccountRest.js';
+
 export default async function handler(req, res) {
   if (applyCorsAndSecurityHeaders(req, res, 'GET, OPTIONS')) {
     return;
@@ -19,13 +21,15 @@ export default async function handler(req, res) {
 
   try {
     const refreshToken = await getStoredUserRefreshToken(uid);
-    const adminStatus = getAdminInitStatus();
+    const adminStatus = await getAdminInitStatus();
+    const saDiag = getServiceAccountDiagnostics();
     return res.status(200).json({ 
       connected: Boolean(refreshToken),
       diagnostics: {
         isDbReady: adminStatus.isReady,
-        hasServiceAccountEnv: adminStatus.hasEnv,
-        adminError: adminStatus.error || null
+        hasServiceAccountEnv: adminStatus.hasEnv || saDiag.isConfigured,
+        serviceAccountVar: saDiag.variableFound,
+        adminError: adminStatus.error || saDiag.error || null
       }
     });
   } catch (err) {
