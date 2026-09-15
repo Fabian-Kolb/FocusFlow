@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { fetchCalendarEvents, deleteCalendarEvent, createCalendarEvent, updateCalendarEvent } from '../../lib/calendarAPI';
 import Card from '../ui/Card';
@@ -9,6 +9,12 @@ const MONTH_NAMES = [
   'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
   'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'
 ];
+
+const WEEKDAY_NAMES = [
+  'Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'
+];
+
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 // Offizielle Google Calendar Event Farben (IDs 1-11)
 const GOOGLE_COLORS = {
@@ -25,24 +31,176 @@ const GOOGLE_COLORS = {
   "11": { bg: "#dc2127", text: "#590d10" }, // Tomato
 };
 
+// Hilfsfunktion: Berechnet Position (top, height) und Spaltenaufteilung bei Überlappungen
+function getLayoutedEvents(timedEvents, selectedDate) {
+  if (!timedEvents || timedEvents.length === 0) return [];
+
+  const parsed = timedEvents.map((evt) => {
+    const startD = new Date(evt.start.dateTime);
+    const endD = new Date(evt.end?.dateTime || evt.start.dateTime);
+
+    const dateStart = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+    const dateEnd = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(), 23, 59, 59, 999);
+
+    let startMinutes = startD.getHours() * 60 + startD.getMinutes();
+    if (startD < dateStart) startMinutes = 0;
+
+    let endMinutes = endD.getHours() * 60 + endD.getMinutes();
+    if (endD > dateEnd || endD.getDate() !== selectedDate.getDate()) {
+      endMinutes = 24 * 60;
+    }
+    if (endMinutes <= startMinutes) {
+      endMinutes = Math.min(24 * 60, startMinutes + 30);
+    }
+
+    const duration = endMinutes - startMinutes;
+
+    return {
+      ...evt,
+      startMinutes,
+      endMinutes,
+      duration,
+      startFormatted: startD.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
+      endFormatted: endD.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
+    };
+  });
+
+  parsed.sort((a, b) => a.startMinutes - b.startMinutes || b.duration - a.duration);
+
+  // Cluster bilden für überlappende Intervalle
+  const clusters = [];
+  let currentCluster = [];
+  let clusterEnd = -1;
+
+  for (const evt of parsed) {
+    if (currentCluster.length === 0) {
+      currentCluster.push(evt);
+      clusterEnd = evt.endMinutes;
+    } else if (evt.startMinutes < clusterEnd) {
+      currentCluster.push(evt);
+      clusterEnd = Math.max(clusterEnd, evt.endMinutes);
+    } else {
+      clusters.push(currentCluster);
+      currentCluster = [evt];
+      clusterEnd = evt.endMinutes;
+    }
+  }
+  if (currentCluster.length > 0) {
+    clusters.push(currentCluster);
+  }
+
+  // Spalten innerhalb jedes Clusters zuweisen
+  const result = [];
+  for (const cluster of clusters) {
+    const colEndTimes = [];
+    for (const evt of cluster) {
+      let placedCol = -1;
+      for (let i = 0; i < colEndTimes.length; i++) {
+        if (colEndTimes[i] <= evt.startMinutes) {
+          colEndTimes[i] = evt.endMinutes;
+          placedCol = i;
+          break;
+        }
+      }
+      if (placedCol === -1) {
+        placedCol = colEndTimes.length;
+        colEndTimes.push(evt.endMinutes);
+      }
+      evt.col = placedCol;
+    }
+    const totalCols = colEndTimes.length;
+    for (const evt of cluster) {
+      evt.totalCols = totalCols;
+      result.push(evt);
+    }
+  }
+
+  return result;
+}
+
 const SkeletonCalendarGrid = () => (
-  <Card padding="none" className="w-full grid grid-cols-7 bg-outline-variant gap-px overflow-hidden border border-outline-variant select-none opacity-60">
-    {['MO', 'DI', 'MI', 'DO', 'FR', 'SA', 'SO'].map(d => (
-      <div key={d} className="bg-surface py-2 text-center text-xs font-mono font-bold">{d}</div>
-    ))}
-    {Array.from({ length: 31 }).map((_, i) => (
-      <div key={i} className="min-h-[120px] p-2 text-xs mono border-transparent border-b border-r border-outline-variant/30 bg-white">
-        <div className="flex flex-col sm:flex-row sm:justify-between items-center sm:items-start opacity-50">
-          <span>{i + 1}</span>
+  <Card padding="none" className="w-full overflow-hidden border border-outline-variant rounded-2xl shadow-sm bg-white select-none opacity-60">
+    <div className="grid grid-cols-7 border-b border-outline-variant bg-surface-low/50">
+      {['MO', 'DI', 'MI', 'DO', 'FR', 'SA', 'SO'].map((d, idx) => (
+        <div key={d} className={`py-2 text-center text-xs font-mono font-bold tracking-wider ${idx >= 5 ? 'text-on-surface-variant/70' : 'text-on-surface'}`}>{d}</div>
+      ))}
+    </div>
+    <div className="grid grid-cols-7 bg-outline-variant/60 gap-px">
+      {Array.from({ length: 35 }).map((_, i) => (
+        <div key={i} className="min-h-[72px] sm:min-h-[100px] lg:min-h-[115px] p-1.5 sm:p-2.5 bg-white flex flex-col justify-between">
+          <div className="flex justify-between items-start opacity-40">
+            <span className="w-6 h-6 rounded-full bg-surface-low text-xs font-mono flex items-center justify-center">{(i % 31) + 1}</span>
+          </div>
+          <div className="mt-1 space-y-1">
+             <div className="h-2 bg-outline-variant/40 rounded w-full"></div>
+             <div className="h-2 bg-outline-variant/40 rounded w-2/3"></div>
+          </div>
         </div>
-        <div className="mt-1.5 space-y-1">
-           <div className="h-2.5 bg-outline-variant/40 rounded w-full"></div>
-           <div className="h-2.5 bg-outline-variant/40 rounded w-2/3"></div>
-        </div>
-      </div>
-    ))}
+      ))}
+    </div>
   </Card>
 );
+
+// Hilfsfunktion: Berechnet alle Kalendertage für das 7-Spalten-Raster inkl. Vormonat- & Folgemonat-Padding
+// Startet immer mit Montag (0 = MO, ..., 6 = SO)
+function getCalendarDays(year, monthIndex) {
+  const firstDay = new Date(year, monthIndex, 1);
+  const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+  const daysInPrevMonth = new Date(year, monthIndex, 0).getDate();
+
+  // In JS: 0 = Sonntag, 1 = Montag, ..., 6 = Samstag.
+  // Für Montag-basierten Wochenstart: 0 = Mo, 1 = Di, ..., 6 = So
+  const startDayOfWeek = (firstDay.getDay() + 6) % 7;
+
+  const cells = [];
+
+  // 1. Tage des Vormonats als führendes Padding
+  for (let i = startDayOfWeek - 1; i >= 0; i--) {
+    const day = daysInPrevMonth - i;
+    const dateObj = new Date(year, monthIndex - 1, day);
+    cells.push({
+      day,
+      dateObj,
+      year: dateObj.getFullYear(),
+      monthIndex: dateObj.getMonth(),
+      isCurrentMonth: false,
+      isPrevMonth: true,
+      key: `prev-${dateObj.getFullYear()}-${dateObj.getMonth()}-${day}`
+    });
+  }
+
+  // 2. Tage des aktuellen Monats
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateObj = new Date(year, monthIndex, day);
+    cells.push({
+      day,
+      dateObj,
+      year,
+      monthIndex,
+      isCurrentMonth: true,
+      key: `curr-${year}-${monthIndex}-${day}`
+    });
+  }
+
+  // 3. Tage des Folgemonats, um volle Zeilen (35 oder 42 Zellen) aufzufüllen
+  const totalSlots = Math.ceil(cells.length / 7) * 7;
+  const nextMonthDaysCount = totalSlots - cells.length;
+
+  for (let day = 1; day <= nextMonthDaysCount; day++) {
+    const dateObj = new Date(year, monthIndex + 1, day);
+    cells.push({
+      day,
+      dateObj,
+      year: dateObj.getFullYear(),
+      monthIndex: dateObj.getMonth(),
+      isCurrentMonth: false,
+      isNextMonth: true,
+      key: `next-${dateObj.getFullYear()}-${dateObj.getMonth()}-${day}`
+    });
+  }
+
+  return cells;
+}
 
 const Calendar = () => {
   const { user, isCalendarConnected, linkGoogleCalendar, disconnectGoogleCalendar } = useAuth();
@@ -193,22 +351,37 @@ const Calendar = () => {
     }
   };
 
+  // Hilfsfunktion: Berechne, wie viele Tage ein Monat hat
+  const getDaysInMonth = (month, year) => new Date(year, month + 1, 0).getDate();
+
   const handlePrevMonth = () => {
+    let newMonth, newYear;
     if (currentMonthIndex === 0) {
-      setCurrentMonthIndex(11);
-      setCurrentYear((y) => y - 1);
+      newMonth = 11;
+      newYear = currentYear - 1;
     } else {
-      setCurrentMonthIndex((m) => m - 1);
+      newMonth = currentMonthIndex - 1;
+      newYear = currentYear;
     }
+    const maxDays = getDaysInMonth(newMonth, newYear);
+    setCurrentMonthIndex(newMonth);
+    setCurrentYear(newYear);
+    setSelectedDay(prev => Math.min(prev, maxDays));
   };
 
   const handleNextMonth = () => {
+    let newMonth, newYear;
     if (currentMonthIndex === 11) {
-      setCurrentMonthIndex(0);
-      setCurrentYear((y) => y + 1);
+      newMonth = 0;
+      newYear = currentYear + 1;
     } else {
-      setCurrentMonthIndex((m) => m + 1);
+      newMonth = currentMonthIndex + 1;
+      newYear = currentYear;
     }
+    const maxDays = getDaysInMonth(newMonth, newYear);
+    setCurrentMonthIndex(newMonth);
+    setCurrentYear(newYear);
+    setSelectedDay(prev => Math.min(prev, maxDays));
   };
 
   const triggerSwipe = (direction) => {
@@ -272,9 +445,42 @@ const Calendar = () => {
     }
   };
 
-  // Hilfsfunktion: Berechne, wie viele Tage der aktuelle Monat hat
-  const getDaysInMonth = (month, year) => new Date(year, month + 1, 0).getDate();
-  const daysInCurrentMonth = Array.from({ length: getDaysInMonth(currentMonthIndex, currentYear) }, (_, i) => i + 1);
+  // Berechne das 7-Spalten-Raster für den aktuellen Monat (inkl. Vormonat- & Folgemonat-Padding)
+  const calendarDays = useMemo(() => {
+    return getCalendarDays(currentYear, currentMonthIndex);
+  }, [currentYear, currentMonthIndex]);
+
+  const isDateToday = (dateObj) => {
+    const n = new Date();
+    return (
+      dateObj.getDate() === n.getDate() &&
+      dateObj.getMonth() === n.getMonth() &&
+      dateObj.getFullYear() === n.getFullYear()
+    );
+  };
+
+  const handleCellClick = (cell) => {
+    if (cell.isPrevMonth) {
+      handlePrevMonth();
+      setSelectedDay(cell.day);
+    } else if (cell.isNextMonth) {
+      handleNextMonth();
+      setSelectedDay(cell.day);
+    } else {
+      setSelectedDay(cell.day);
+    }
+  };
+
+  const handleAddEventOnCell = (e, cell) => {
+    e.stopPropagation();
+    handleCellClick(cell);
+    const startD = new Date(cell.year, cell.monthIndex, cell.day, 10, 0);
+    const endD = new Date(cell.year, cell.monthIndex, cell.day, 11, 0);
+    setEditingEvent({
+      start: { dateTime: startD.toISOString() },
+      end: { dateTime: endD.toISOString() }
+    });
+  };
   
   // Hilfsfunktion: Überprüft, ob ein Event an einem bestimmten Datum stattfindet (auch mehrtägig/ganztägig)
   const isEventOnDate = (evt, dateObj) => {
@@ -310,6 +516,89 @@ const Calendar = () => {
   const currentMonthEvents = eventsCache[currentCacheKey] ? events : [];
   const dayEvents = currentMonthEvents.filter(evt => isEventOnDate(evt, selectedDateObj));
 
+  const allDayEvents = dayEvents.filter(evt => !!evt.start?.date);
+  const timedEvents = dayEvents.filter(evt => !evt.start?.date && !!evt.start?.dateTime);
+  const layoutedTimedEvents = getLayoutedEvents(timedEvents, selectedDateObj);
+  const weekdayName = WEEKDAY_NAMES[selectedDateObj.getDay()];
+
+  const isSelectedToday = 
+    today.getDate() === selectedDay &&
+    today.getMonth() === currentMonthIndex &&
+    today.getFullYear() === currentYear;
+
+  const [nowMinutes, setNowMinutes] = useState(() => {
+    const n = new Date();
+    return n.getHours() * 60 + n.getMinutes();
+  });
+
+  const timeGridScrollRef = useRef(null);
+
+  useEffect(() => {
+    if (!isSelectedToday) return;
+    const updateNow = () => {
+      const n = new Date();
+      setNowMinutes(n.getHours() * 60 + n.getMinutes());
+    };
+    updateNow();
+    const interval = setInterval(updateNow, 60000);
+    return () => clearInterval(interval);
+  }, [isSelectedToday]);
+
+  // Automatischer Scroll im Stundenraster zum passenden Startzeitpunkt
+  useEffect(() => {
+    if (!timeGridScrollRef.current) return;
+    let targetMinutes = 8 * 60; // 08:00 morgens als Standard
+    if (isSelectedToday) {
+      const now = new Date();
+      targetMinutes = Math.max(0, (now.getHours() - 1) * 60);
+    } else if (timedEvents.length > 0) {
+      const earliestHour = Math.min(...timedEvents.map(evt => new Date(evt.start.dateTime).getHours()));
+      targetMinutes = Math.max(0, (earliestHour - 1) * 60);
+    }
+    timeGridScrollRef.current.scrollTop = targetMinutes;
+  }, [selectedDay, currentMonthIndex, currentYear, isSelectedToday, timedEvents.length]);
+
+  const handlePrevDay = () => {
+    if (selectedDay > 1) {
+      setSelectedDay(selectedDay - 1);
+    } else {
+      if (currentMonthIndex === 0) {
+        setCurrentMonthIndex(11);
+        setCurrentYear(y => y - 1);
+        setSelectedDay(31);
+      } else {
+        const prevMonthLastDay = new Date(currentYear, currentMonthIndex, 0).getDate();
+        setCurrentMonthIndex(m => m - 1);
+        setSelectedDay(prevMonthLastDay);
+      }
+    }
+  };
+
+  const handleNextDay = () => {
+    const daysInMonth = getDaysInMonth(currentMonthIndex, currentYear);
+    if (selectedDay < daysInMonth) {
+      setSelectedDay(selectedDay + 1);
+    } else {
+      if (currentMonthIndex === 11) {
+        setCurrentMonthIndex(0);
+        setCurrentYear(y => y + 1);
+        setSelectedDay(1);
+      } else {
+        setCurrentMonthIndex(m => m + 1);
+        setSelectedDay(1);
+      }
+    }
+  };
+
+  const handleSlotClick = (hour) => {
+    const slotStart = new Date(currentYear, currentMonthIndex, selectedDay, hour, 0, 0);
+    const slotEnd = new Date(currentYear, currentMonthIndex, selectedDay, hour + 1, 0, 0);
+    setEditingEvent({
+      start: { dateTime: slotStart.toISOString() },
+      end: { dateTime: slotEnd.toISOString() }
+    });
+  };
+
   const handleDayClick = (dayNum) => {
     setSelectedDay(dayNum);
   };
@@ -333,7 +622,7 @@ const Calendar = () => {
         </p>
         <button 
           onClick={handleConnectCalendar}
-          className="bg-primary text-white px-6 py-3 rounded-xl font-bold hover:bg-primary-hover transition-colors flex items-center gap-2"
+          className="bg-primary text-white px-6 py-3 rounded-xl font-bold hover:bg-black transition-colors flex items-center gap-2"
         >
           <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5 bg-white rounded-full p-0.5" />
           Mit Google Kalender verbinden
@@ -361,37 +650,64 @@ const Calendar = () => {
       
       <div className="mb-6 flex flex-col sm:flex-row items-center justify-between gap-4 flex-wrap">
         
-        {/* Mobile: Swipe Hint (nur sichtbar auf ganz kleinen Screens, optional) */}
-        <div className="sm:hidden text-[10px] text-on-surface-variant w-full text-center uppercase tracking-widest font-bold opacity-50 mb-[-10px]">
+        {/* Mobile: Swipe Hint */}
+        <div className="sm:hidden text-[10px] text-on-surface-variant w-full text-center uppercase tracking-widest font-bold opacity-50 mb-[-6px]">
           Wischen für nächsten Monat
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto justify-between sm:justify-start">
-          <button onClick={() => triggerSwipe('right')} className="hidden sm:flex p-2 hover:bg-surface-low rounded-full transition-colors text-on-surface-variant">
-            <span className="material-symbols-outlined">chevron_left</span>
-          </button>
+        <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-between sm:justify-start">
+          {/* Navigations-Steuerung: < Heute > */}
+          <div className="flex items-center gap-1 bg-surface-low border border-outline-variant rounded-xl p-1 shadow-xs">
+            <button
+              onClick={() => triggerSwipe('right')}
+              className="p-1.5 hover:bg-white rounded-lg transition-colors text-on-surface-variant hover:text-primary active:scale-95 flex items-center justify-center"
+              title="Vorheriger Monat"
+            >
+              <span className="material-symbols-outlined text-[20px]">chevron_left</span>
+            </button>
+            <button
+              onClick={handleResetToday}
+              className="px-2.5 py-1 hover:bg-white text-xs font-bold rounded-lg transition-colors text-primary active:scale-95 border border-transparent hover:border-outline-variant shadow-xs"
+              title="Zum heutigen Tag springen"
+            >
+              Heute
+            </button>
+            <button
+              onClick={() => triggerSwipe('left')}
+              className="p-1.5 hover:bg-white rounded-lg transition-colors text-on-surface-variant hover:text-primary active:scale-95 flex items-center justify-center"
+              title="Nächster Monat"
+            >
+              <span className="material-symbols-outlined text-[20px]">chevron_right</span>
+            </button>
+          </div>
 
+          {/* Monats- & Jahresauswahl Header */}
           <h2 
-            className="text-xl sm:text-3xl font-bold cursor-pointer hover:text-primary transition-colors flex items-center gap-1 select-none whitespace-nowrap"
+            className="text-xl sm:text-2xl font-bold cursor-pointer hover:text-primary transition-colors flex items-center gap-1 select-none whitespace-nowrap pl-1"
             onClick={() => {
               setPickerYear(currentYear);
               setShowMonthPicker(true);
             }}
+            title="Monat & Jahr wählen"
           >
-            {MONTH_NAMES[currentMonthIndex]} {currentYear}
-            <span className="material-symbols-outlined text-[20px] sm:text-[24px]">arrow_drop_down</span>
+            <span>{MONTH_NAMES[currentMonthIndex]} {currentYear}</span>
+            <span className="material-symbols-outlined text-[20px] text-on-surface-variant">arrow_drop_down</span>
           </h2>
-
-          <button onClick={() => triggerSwipe('left')} className="hidden sm:flex p-2 hover:bg-surface-low rounded-full transition-colors text-on-surface-variant">
-            <span className="material-symbols-outlined">chevron_right</span>
-          </button>
         </div>
 
+        {/* Neuer Termin Button */}
         <button 
-           onClick={() => setEditingEvent({})}
-           className="hidden sm:flex w-auto bg-primary text-white text-sm sm:text-base px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl font-bold hover:bg-primary-hover transition-transform active:scale-95 items-center justify-center gap-1.5 sm:gap-2 shadow-sm whitespace-nowrap flex-shrink-0"
+           onClick={() => {
+             const startD = new Date(currentYear, currentMonthIndex, selectedDay, 9, 0);
+             const endD = new Date(currentYear, currentMonthIndex, selectedDay, 10, 0);
+             setEditingEvent({
+               start: { dateTime: startD.toISOString() },
+               end: { dateTime: endD.toISOString() }
+             });
+           }}
+           className="hidden sm:flex w-auto bg-primary text-white text-sm px-4 py-2 rounded-xl font-bold hover:bg-black transition-all active:scale-95 items-center justify-center gap-2 shadow-xs whitespace-nowrap flex-shrink-0"
         >
-           <span className="material-symbols-outlined text-[18px] sm:text-[20px]">add</span>
+           <span className="material-symbols-outlined text-[18px]">add</span>
            Neuer Termin
         </button>
       </div>
@@ -440,178 +756,402 @@ const Calendar = () => {
             </div>
           )}
 
-          <Card padding="none" className="w-full grid grid-cols-7 bg-outline-variant gap-px overflow-hidden border border-outline-variant select-none relative z-10">
-            <div className="bg-surface py-2 text-center text-xs font-mono font-bold">MO</div>
-            <div className="bg-surface py-2 text-center text-xs font-mono font-bold">DI</div>
-            <div className="bg-surface py-2 text-center text-xs font-mono font-bold">MI</div>
-            <div className="bg-surface py-2 text-center text-xs font-mono font-bold">DO</div>
-            <div className="bg-surface py-2 text-center text-xs font-mono font-bold">FR</div>
-            <div className="bg-surface py-2 text-center text-xs font-mono font-bold">SA</div>
-            <div className="bg-surface py-2 text-center text-xs font-mono font-bold">SO</div>
-
-            {/* Hier könnte man noch Padding für die Wochentage berechnen, für den MVP reicht die Grid-Ansicht */}
-            
-            {daysInCurrentMonth.map((dayNum) => {
-              const isSelected = dayNum === selectedDay;
-              
-              // Finde Events für diese spezifische Zelle
-              const cellDateObj = new Date(currentYear, currentMonthIndex, dayNum);
-              const cellEvents = currentMonthEvents.filter(evt => isEventOnDate(evt, cellDateObj));
-
-              return (
-                <div
-                  key={`day-${dayNum}`}
-                  className={`min-h-[120px] p-2 text-xs mono cursor-pointer border transition-colors ${
-                    isSelected
-                      ? 'bg-surface-low border-2 border-primary z-10'
-                      : 'bg-white hover:bg-surface/50 border-transparent border-b border-r border-outline-variant/30'
-                  }`}
-                  onClick={() => handleDayClick(dayNum)}
-                  onDoubleClick={(e) => handleAddEventOnDay(e, dayNum)}
-                >
-                  <div className="flex flex-col sm:flex-row sm:justify-between items-center sm:items-start">
-                    <span className={isSelected ? 'font-bold' : ''}>{dayNum}</span>
+          <Card padding="none" className="w-full overflow-hidden border border-outline-variant rounded-2xl shadow-sm bg-white select-none relative z-10">
+            {/* Wochentags-Kopfzeile */}
+            <div className="grid grid-cols-7 border-b border-outline-variant bg-surface-low/50">
+              {['MO', 'DI', 'MI', 'DO', 'FR', 'SA', 'SO'].map((d, idx) => {
+                const isWeekend = idx >= 5;
+                return (
+                  <div
+                    key={d}
+                    className={`py-2.5 text-center text-xs font-mono font-bold tracking-wider ${
+                      isWeekend ? 'text-on-surface-variant/70' : 'text-on-surface'
+                    }`}
+                  >
+                    {d}
                   </div>
-                  {isDataLoading ? (
-                    <div className="mt-1.5 space-y-1 opacity-50">
-                      <div className="h-2.5 bg-outline-variant/60 rounded w-full animate-pulse"></div>
-                      <div className="h-2.5 bg-outline-variant/60 rounded w-2/3 animate-pulse"></div>
-                    </div>
-                  ) : (
-                    cellEvents.slice(0, 2).map((evt) => {
-                      const isAllDay = !!evt.start.date;
-                      let timeStr = "";
-                      if (!isAllDay) {
-                         timeStr = new Date(evt.start.dateTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' ';
-                      }
-                      
-                      const customColor = evt.colorId ? GOOGLE_COLORS[evt.colorId] : null;
-                      const style = customColor 
-                        ? (isAllDay ? { backgroundColor: customColor.bg, color: customColor.text } : { backgroundColor: `${customColor.bg}40`, color: customColor.text })
-                        : {};
-                      const fallbackClasses = customColor ? '' : (isAllDay ? 'bg-primary text-white' : 'bg-primary/10 text-primary');
+                );
+              })}
+            </div>
 
-                      return (
-                        <div 
-                          key={evt.id} 
-                          className={`mt-1 p-1.5 font-medium rounded-md text-[10.5px] leading-tight truncate cursor-pointer hover:brightness-95 transition-all ${fallbackClasses}`} 
-                          style={style}
-                          title={evt.summary}
-                          onClick={(e) => {
-                            e.stopPropagation(); // Verhindert, dass der Tag (Zelle) ausgewählt wird
-                            setSelectedEvent(evt);
-                          }}
-                        >
-                          {timeStr}{evt.summary}
+            {/* 7-Spalten Monats-Raster (volles 35- bzw. 42-Tage-Grid) */}
+            <div className="grid grid-cols-7 bg-outline-variant/60 gap-px">
+              {calendarDays.map((cell, cellIdx) => {
+                const isToday = isDateToday(cell.dateObj);
+                const isSelected = cell.isCurrentMonth && cell.day === selectedDay;
+                const isWeekend = (cellIdx % 7) >= 5;
+
+                // Finde Events für diese Zelle
+                const cellEvents = currentMonthEvents.filter(evt => isEventOnDate(evt, cell.dateObj));
+
+                let bgClass = "bg-white hover:bg-surface-low/50";
+                if (isSelected) {
+                  bgClass = "bg-surface-low/90 ring-2 ring-inset ring-primary z-10";
+                } else if (isToday) {
+                  bgClass = "bg-primary/[0.03] hover:bg-primary/[0.06]";
+                } else if (!cell.isCurrentMonth) {
+                  bgClass = "bg-surface/50 hover:bg-surface-low/60";
+                } else if (isWeekend) {
+                  bgClass = "bg-[#FCFAFA] hover:bg-surface-low/50";
+                }
+
+                return (
+                  <div
+                    key={cell.key}
+                    className={`min-h-[72px] sm:min-h-[100px] lg:min-h-[115px] p-1.5 sm:p-2.5 cursor-pointer flex flex-col justify-between transition-colors group ${bgClass}`}
+                    onClick={() => handleCellClick(cell)}
+                    onDoubleClick={(e) => handleAddEventOnCell(e, cell)}
+                  >
+                    {/* Zellen-Header: Tageszahl & 'Heute'-Badge */}
+                    <div className="flex items-center justify-between">
+                      {isToday ? (
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-primary text-white flex items-center justify-center font-bold text-xs sm:text-sm shadow-xs ring-2 ring-primary/20">
+                            {cell.day}
+                          </span>
+                          <span className="hidden lg:inline-block text-[9px] font-bold uppercase tracking-wider text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+                            Heute
+                          </span>
                         </div>
-                      );
-                    })
-                  )}
-                  {!isDataLoading && cellEvents.length > 2 && (
-                    <div className="text-[9px] text-center text-on-surface-variant mt-0.5">
-                      +{cellEvents.length - 2} weitere
+                      ) : (
+                        <span
+                          className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-xs sm:text-sm font-mono ${
+                            isSelected
+                              ? 'font-bold text-primary bg-surface-low border border-outline-variant shadow-xs'
+                              : cell.isCurrentMonth
+                              ? 'text-on-surface font-semibold'
+                              : 'text-on-surface-variant/40 font-normal'
+                          }`}
+                        >
+                          {cell.day}
+                        </span>
+                      )}
+
+                      {/* Desktop Hover-Plus zum schnellen Erstellen */}
+                      {cell.isCurrentMonth && (
+                        <button
+                          onClick={(e) => handleAddEventOnCell(e, cell)}
+                          className="hidden sm:group-hover:flex w-5 h-5 items-center justify-center rounded-md hover:bg-primary/10 text-on-surface-variant hover:text-primary transition-colors"
+                          title="Termin an diesem Tag erstellen"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">add</span>
+                        </button>
+                      )}
                     </div>
-                  )}
-                </div>
-              );
-            })}
+
+                    {/* Ladezustand */}
+                    {isDataLoading ? (
+                      <div className="mt-1 space-y-1 opacity-40">
+                        <div className="h-2 bg-outline-variant/60 rounded w-full animate-pulse"></div>
+                        <div className="h-2 bg-outline-variant/60 rounded w-2/3 animate-pulse"></div>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Mobile Anzeige: Farbige Punkte */}
+                        <div className="sm:hidden flex items-center gap-1 mt-1 flex-wrap">
+                          {cellEvents.slice(0, 3).map((evt) => {
+                            const customColor = evt.colorId ? GOOGLE_COLORS[evt.colorId] : null;
+                            const dotBg = customColor ? customColor.bg : 'var(--primary)';
+                            return (
+                              <span
+                                key={evt.id}
+                                className="w-1.5 h-1.5 rounded-full"
+                                style={{ backgroundColor: dotBg }}
+                                title={evt.summary}
+                              />
+                            );
+                          })}
+                          {cellEvents.length > 3 && (
+                            <span className="text-[8px] font-bold text-on-surface-variant font-mono">
+                              +{cellEvents.length - 3}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Tablet/Desktop Anzeige: Ausführliche Event-Chips */}
+                        <div className="hidden sm:block mt-1 space-y-1">
+                          {cellEvents.slice(0, 2).map((evt) => {
+                            const isAllDay = !!evt.start?.date;
+                            let timeStr = "";
+                            if (!isAllDay && evt.start?.dateTime) {
+                              timeStr = new Date(evt.start.dateTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' ';
+                            }
+
+                            const customColor = evt.colorId ? GOOGLE_COLORS[evt.colorId] : null;
+                            const bg = customColor
+                              ? (isAllDay ? customColor.bg : `${customColor.bg}30`)
+                              : (isAllDay ? '#1A1A1A' : 'rgba(26, 26, 26, 0.08)');
+                            const text = customColor ? customColor.text : (isAllDay ? '#FFFFFF' : '#1A1A1A');
+                            const border = customColor ? customColor.bg : 'transparent';
+
+                            return (
+                              <div
+                                key={evt.id}
+                                className="px-1.5 py-0.5 rounded-md text-[10.5px] font-medium leading-tight truncate cursor-pointer hover:brightness-95 hover:shadow-xs transition-all border border-black/5 flex items-center gap-1"
+                                style={{ backgroundColor: bg, color: text, borderColor: border }}
+                                title={evt.summary}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedEvent(evt);
+                                }}
+                              >
+                                {timeStr && (
+                                  <span className="font-mono font-bold text-[9.5px] opacity-80 shrink-0">
+                                    {timeStr}
+                                  </span>
+                                )}
+                                <span className="truncate">{evt.summary || '(Ohne Titel)'}</span>
+                              </div>
+                            );
+                          })}
+                          {cellEvents.length > 2 && (
+                            <div className="text-[9px] font-mono font-bold text-on-surface-variant/80 text-center pt-0.5">
+                              +{cellEvents.length - 2} weitere
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </Card>
         </div>
 
         {/* Tages-Timeline (Unter dem Kalender) */}
         <div className="w-full">
-          <Card padding="normal" className="space-y-4 border border-outline-variant">
-            <h3 className="text-sm font-bold text-primary border-b border-outline-variant pb-3 uppercase tracking-wider flex items-center gap-2">
-              <span className="material-symbols-outlined">schedule</span>
-              Tages-Timeline: {selectedDay}. {MONTH_NAMES[currentMonthIndex]} {currentYear}
-            </h3>
+          <Card padding="normal" className="space-y-4 border border-outline-variant shadow-sm">
+            {/* Header mit Tag, Datum, Navigation und Aktionsbutton */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-outline-variant pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-primary/5 text-primary flex items-center justify-center flex-shrink-0">
+                  <span className="material-symbols-outlined text-[22px]">schedule</span>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-base sm:text-lg font-bold text-on-surface">
+                      {weekdayName}, {selectedDay}. {MONTH_NAMES[currentMonthIndex]} {currentYear}
+                    </h3>
+                    {isSelectedToday && (
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-primary text-white">
+                        Heute
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-on-surface-variant mt-0.5">
+                    {dayEvents.length === 0
+                      ? 'Keine Termine für diesen Tag'
+                      : `${dayEvents.length} ${dayEvents.length === 1 ? 'Termin' : 'Termine'} (${allDayEvents.length} ganztägig, ${timedEvents.length} mit Uhrzeit)`}
+                  </p>
+                </div>
+              </div>
 
-            <div 
-              className="relative pt-4 sm:pt-6 pb-2 pl-0 pr-0 overflow-hidden"
+              {/* Navigation & Neuer Termin Button */}
+              <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                <button
+                  onClick={handlePrevDay}
+                  className="p-1.5 hover:bg-surface-low rounded-lg transition-colors text-on-surface-variant hover:text-on-surface border border-outline-variant/60 shadow-xs active:scale-95"
+                  title="Vorheriger Tag"
+                >
+                  <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+                </button>
+                {!isSelectedToday && (
+                  <button
+                    onClick={handleResetToday}
+                    className="px-2.5 py-1 text-xs font-bold text-primary hover:bg-primary/5 rounded-lg transition-colors border border-outline-variant/60 shadow-xs active:scale-95"
+                  >
+                    Heute
+                  </button>
+                )}
+                <button
+                  onClick={handleNextDay}
+                  className="p-1.5 hover:bg-surface-low rounded-lg transition-colors text-on-surface-variant hover:text-on-surface border border-outline-variant/60 shadow-xs active:scale-95"
+                  title="Nächster Tag"
+                >
+                  <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+                </button>
+                <div className="w-px h-5 bg-outline-variant mx-1"></div>
+                <button
+                  onClick={() => {
+                    const startD = new Date(currentYear, currentMonthIndex, selectedDay, 9, 0);
+                    const endD = new Date(currentYear, currentMonthIndex, selectedDay, 10, 0);
+                    setEditingEvent({
+                      start: { dateTime: startD.toISOString() },
+                      end: { dateTime: endD.toISOString() }
+                    });
+                  }}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-xs font-bold rounded-lg hover:bg-black active:scale-95 transition-all shadow-xs"
+                >
+                  <span className="material-symbols-outlined text-[16px]">add</span>
+                  Termin
+                </button>
+              </div>
+            </div>
+
+            {/* Ganztägige Termine (falls vorhanden) */}
+            {allDayEvents.length > 0 && (
+              <div className="flex items-start gap-2.5 px-3 py-2.5 bg-surface-low/70 rounded-xl border border-outline-variant/60 flex-wrap">
+                <div className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider flex items-center gap-1 mt-0.5 select-none">
+                  <span className="material-symbols-outlined text-[15px]">calendar_today</span>
+                  Ganztägig:
+                </div>
+                <div className="flex flex-wrap gap-1.5 flex-1">
+                  {allDayEvents.map((evt) => {
+                    const customColor = evt.colorId && GOOGLE_COLORS[evt.colorId] ? GOOGLE_COLORS[evt.colorId] : null;
+                    const bg = customColor ? customColor.bg : 'var(--primary)';
+                    const text = customColor ? customColor.text : '#1A1A1A';
+                    return (
+                      <button
+                        key={evt.id}
+                        onClick={() => setSelectedEvent(evt)}
+                        className="px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 hover:brightness-95 hover:shadow-xs transition-all border shadow-xs"
+                        style={{ backgroundColor: `${bg}25`, borderColor: bg, color: text }}
+                        title={evt.summary}
+                      >
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: bg }}></span>
+                        <span className="truncate max-w-[240px]">{evt.summary || '(Ohne Titel)'}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Festes Stunden-Raster (Time Grid) */}
+            <div
+              ref={timeGridScrollRef}
+              className="relative h-[480px] sm:h-[560px] overflow-y-auto no-scrollbar overflow-x-hidden border border-outline-variant/60 rounded-xl bg-surface/30 select-none"
             >
-              {(isDataLoading || dayEvents.length > 0) && (
-                <div className="absolute left-[15px] sm:left-[23px] top-4 sm:top-6 bottom-0 w-[2px] bg-outline-variant/60 rounded-full"></div>
-              )}
-
               {isDataLoading && (
-                <div className="space-y-4 pt-1">
-                  {[1, 2].map(i => (
-                    <div key={i} className="relative pl-8 sm:pl-12 pr-2 sm:pr-4 mb-4 sm:mb-5 group animate-pulse">
-                      <div className="absolute left-[11px] sm:left-[18px] top-3.5 sm:top-4 w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full z-10 bg-outline-variant"></div>
-                      <div className="w-full p-3 sm:p-4 rounded-xl border-l-4 border-outline-variant bg-surface-low flex flex-col gap-2">
-                        <div className="h-4 bg-outline-variant/50 rounded w-1/2"></div>
-                        <div className="h-3 bg-outline-variant/30 rounded w-1/4 mt-1"></div>
-                      </div>
-                    </div>
-                  ))}
+                <div className="absolute inset-0 bg-white/70 backdrop-blur-[1px] z-30 flex items-center justify-center">
+                  <div className="flex items-center gap-2 text-sm text-on-surface-variant font-medium animate-pulse">
+                    <span className="material-symbols-outlined animate-spin text-[20px]">progress_activity</span>
+                    Termine werden geladen...
+                  </div>
                 </div>
               )}
 
-              {!isDataLoading && dayEvents.length === 0 && (
-                <p className="text-sm text-on-surface-variant italic px-2">Keine Termine für diesen Tag.</p>
-              )}
-
-              {!isDataLoading && dayEvents.map((evt) => {
-                const isAllDay = !!evt.start.date;
-                let timeDisplay = "Ganztägig";
-                
-                if (!isAllDay) {
-                  const startT = new Date(evt.start.dateTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-                  const endT = new Date(evt.end.dateTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-                  timeDisplay = `${startT} - ${endT} Uhr`;
-                } else if (evt.end && evt.end.date) {
-                  // Bei ganztägigen Events, die über mehrere Tage gehen
-                  const [y1, m1, d1] = evt.end.date.split('-');
-                  const endDate = new Date(parseInt(y1), parseInt(m1) - 1, parseInt(d1));
-                  endDate.setDate(endDate.getDate() - 1); // Google setzt das Ende auf den Tag danach
-                  
-                  const [y2, m2, d2] = evt.start.date.split('-');
-                  const startDate = new Date(parseInt(y2), parseInt(m2) - 1, parseInt(d2));
-                  
-                  if (startDate.toDateString() !== endDate.toDateString()) {
-                     timeDisplay = `Bis ${endDate.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}`;
-                  }
-                }
-                
-                const evtColor = evt.colorId && GOOGLE_COLORS[evt.colorId] ? GOOGLE_COLORS[evt.colorId] : { bg: 'var(--primary)', text: 'white' };
-                
-                return (
-                  <div key={evt.id} className="relative pl-8 sm:pl-12 pr-2 sm:pr-4 mb-4 sm:mb-5 group">
-                    {/* Timeline Dot */}
-                    <div 
-                      className="absolute left-[11px] sm:left-[18px] top-3.5 sm:top-4 w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full z-10 border-2 border-surface shadow-sm transition-transform group-hover:scale-125"
-                      style={{ backgroundColor: evtColor.bg }}
-                    ></div>
-
-                    <div 
-                      className="w-full p-3 sm:p-4 rounded-xl border-l-4 cursor-pointer hover:-translate-y-0.5 hover:shadow-md transition-all shadow-sm bg-white flex flex-col gap-1"
-                      style={{
-                        borderColor: evtColor.bg,
-                        backgroundColor: evt.colorId ? `${evtColor.bg}10` : 'var(--surface-low)'
-                      }}
-                      onClick={() => setSelectedEvent(evt)}
+              {/* 24-Stunden Raster Container (1440px Höhe = 60px pro Stunde = 1px pro Minute) */}
+              <div className="relative flex w-full" style={{ height: 1440 }}>
+                {/* Linke Zeit-Spalte (Time Gutter) */}
+                <div className="w-14 sm:w-16 flex-shrink-0 relative border-r border-outline-variant/50 bg-surface/80">
+                  {HOURS.map((h) => (
+                    <div
+                      key={`time-${h}`}
+                      className="absolute right-0 pr-2 sm:pr-3 text-[11px] font-mono font-medium text-on-surface-variant/80 select-none"
+                      style={{ top: `${h * 60 - 7}px` }}
                     >
-                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1 sm:gap-2">
-                        <p className="font-bold text-[13px] sm:text-base leading-snug break-words" style={{ color: evt.colorId ? evtColor.text : 'inherit' }}>
-                          {evt.summary}
-                        </p>
-                        <div className="flex items-center gap-1.5 mt-0.5 sm:mt-0 mb-1 sm:mb-0">
-                          <span className="text-[10px] sm:text-[11px] font-bold px-2 py-0.5 rounded-md bg-white/60 text-on-surface-variant border border-black/5 shadow-sm flex items-center gap-1 whitespace-nowrap w-fit">
-                            <span className="material-symbols-outlined text-[12px] sm:text-[14px]">schedule</span>
-                            {timeDisplay}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      {evt.description && (
-                        <p className="text-on-surface-variant mt-1 text-[11px] sm:text-[13px] line-clamp-2">
-                          {evt.description}
-                        </p>
-                      )}
+                      {String(h).padStart(2, '0')}:00
                     </div>
-                  </div>
-                );
-              })}
+                  ))}
+
+                  {/* Jetzt-Badge auf der Zeitachse */}
+                  {isSelectedToday && (
+                    <span
+                      className="absolute right-1 text-[9px] font-mono font-bold text-white bg-red-500 px-1 py-0.5 rounded shadow-sm z-30 pointer-events-none"
+                      style={{ top: `${nowMinutes - 8}px` }}
+                    >
+                      {String(Math.floor(nowMinutes / 60)).padStart(2, '0')}:{String(nowMinutes % 60).padStart(2, '0')}
+                    </span>
+                  )}
+                </div>
+
+                {/* Rechtes Raster mit Stunden-Zeilen & platzierten Terminen */}
+                <div className="relative flex-1 bg-white">
+                  {/* Stunden-Rasterlinien & Klick-Slots */}
+                  {HOURS.map((h) => (
+                    <div
+                      key={`slot-${h}`}
+                      onClick={() => handleSlotClick(h)}
+                      className="absolute left-0 right-0 border-t border-outline-variant/30 hover:bg-primary/[0.02] cursor-pointer transition-colors group"
+                      style={{ top: `${h * 60}px`, height: '60px' }}
+                      title={`Klicken für neuen Termin um ${String(h).padStart(2, '0')}:00 Uhr`}
+                    >
+                      {/* Feine Halbstunden-Hilfslinie (:30) */}
+                      <div className="absolute left-0 right-0 border-t border-dashed border-outline-variant/20 top-[30px] pointer-events-none" />
+                      
+                      {/* Dezentes Plus-Symbol beim Hovern über freien Slot */}
+                      <span className="hidden group-hover:flex items-center gap-1 text-[10px] text-on-surface-variant/60 font-mono font-medium pl-2 pt-1 pointer-events-none">
+                        <span className="material-symbols-outlined text-[12px]">add</span>
+                        {String(h).padStart(2, '0')}:00
+                      </span>
+                    </div>
+                  ))}
+
+                  {/* "Jetzt"-Linie (Current Time Indicator) */}
+                  {isSelectedToday && (
+                    <div
+                      className="absolute left-0 right-0 h-[2px] bg-red-500 z-20 pointer-events-none flex items-center"
+                      style={{ top: `${nowMinutes}px` }}
+                    >
+                      <div className="w-2.5 h-2.5 bg-red-500 rounded-full -ml-1.5 shadow-sm" />
+                    </div>
+                  )}
+
+                  {/* Platzierte Termine im Stunden-Raster */}
+                  {!isDataLoading && layoutedTimedEvents.map((evt) => {
+                    const customColor = evt.colorId && GOOGLE_COLORS[evt.colorId] ? GOOGLE_COLORS[evt.colorId] : null;
+                    const accentColor = customColor ? customColor.bg : 'var(--primary)';
+                    const textColor = customColor ? customColor.text : 'inherit';
+                    const isShort = evt.duration < 40;
+
+                    return (
+                      <div
+                        key={evt.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedEvent(evt);
+                        }}
+                        style={{
+                          top: `${evt.startMinutes}px`,
+                          height: `${Math.max(evt.duration, 26)}px`,
+                          left: `calc(${(evt.col / evt.totalCols) * 100}% + 2px)`,
+                          width: `calc(${(1 / evt.totalCols) * 100}% - 4px)`,
+                          borderLeftColor: accentColor,
+                          backgroundColor: customColor ? `${accentColor}25` : 'rgba(26, 26, 26, 0.08)',
+                        }}
+                        className="absolute z-10 border-l-[3.5px] rounded-r-lg px-2 py-1 cursor-pointer overflow-hidden transition-all duration-150 hover:brightness-95 hover:shadow-md hover:z-30 group select-none shadow-xs"
+                        title={`${evt.summary || '(Ohne Titel)'} (${evt.startFormatted} - ${evt.endFormatted})`}
+                      >
+                        {isShort ? (
+                          <div className="flex items-center gap-1.5 h-full text-[11px] leading-none">
+                            <span className="font-mono font-bold text-[10px] opacity-80 whitespace-nowrap" style={{ color: textColor }}>
+                              {evt.startFormatted}
+                            </span>
+                            <span className="font-semibold truncate" style={{ color: textColor }}>
+                              {evt.summary || '(Ohne Titel)'}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col h-full justify-between">
+                            <div>
+                              <div className="flex items-center justify-between gap-1 text-[10px] font-mono font-bold opacity-80 mb-0.5 leading-tight" style={{ color: textColor }}>
+                                <span>{evt.startFormatted} – {evt.endFormatted}</span>
+                                {evt.hangoutLink && (
+                                  <span className="material-symbols-outlined text-[13px]">videocam</span>
+                                )}
+                                {evt.location && !evt.hangoutLink && (
+                                  <span className="material-symbols-outlined text-[13px]">location_on</span>
+                                )}
+                              </div>
+                              <div className="font-bold text-xs leading-snug line-clamp-2" style={{ color: textColor }}>
+                                {evt.summary || '(Ohne Titel)'}
+                              </div>
+                            </div>
+                            {evt.duration >= 90 && evt.location && (
+                              <div className="text-[10px] text-on-surface-variant truncate flex items-center gap-1 mt-0.5">
+                                <span className="material-symbols-outlined text-[11px]">pin_drop</span>
+                                <span className="truncate">{evt.location}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </Card>
         </div>

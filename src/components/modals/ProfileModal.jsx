@@ -94,7 +94,7 @@ function ProfileModal() {
           <div className="flex items-center gap-4 p-4 rounded-xl bg-surface-variant/20 border border-border/50">
             <div className="w-14 h-14 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center font-bold text-xl text-primary overflow-hidden flex-shrink-0">
               {user?.photoURL ? (
-                <img src={user.photoURL} alt="Avatar" className="w-full h-full object-cover" />
+                <img src={user.photoURL} alt="Avatar" className="w-full h-full object-cover rounded-full" />
               ) : user?.isGuest ? (
                 <span className="material-symbols-outlined text-2xl text-amber-500">person</span>
               ) : (

@@ -19,6 +19,15 @@
     font-family: 'Plus Jakarta Sans', sans-serif;
   }
 
+  /* Hide scrollbar across all browsers while allowing scroll */
+  .no-scrollbar {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+  }
+
   /* Prevent messy line breaks on mobile badges with smooth touch scroll */
   .no-wrap-scroll {
     white-space: nowrap;
@@ -44,6 +53,25 @@
   .touch-target {
     min-width: 44px;
     min-height: 44px;
+  }
+
+  /* Slim scrollbar for sidebar navigation */
+  .sidebar-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(115, 115, 115, 0.25) transparent;
+  }
+  .sidebar-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+  .sidebar-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .sidebar-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(115, 115, 115, 0.25);
+    border-radius: 4px;
+  }
+  .sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(115, 115, 115, 0.45);
   }
 
   /* LAUFBAND (MARQUEE) ANIMATION FÜR ÜBERSTEHENDE TEXTE */

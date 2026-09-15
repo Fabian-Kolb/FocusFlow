@@ -62,33 +62,35 @@ service cloud.firestore {
           projectId == request.resource.data.id &&
           request.resource.data.keys().hasAll(['id', 'title']) &&
           request.resource.data.keys().hasOnly([
-            'id', 'title', 'category', 'phases', 'status', 'progress',
-            'startDate', 'endDate', 'notes', 'createdAt', 'updatedAt', 'deletedAt', '_type'
+            'id', 'title', 'description', 'category', 'categoryId', 'phases', 'status', 'progress',
+            'isPaused', 'inKanban', 'nextStep', 'startDate', 'endDate', 'dateRange', 'daysRemaining',
+            'timeElapsed', 'phasesCompleted', 'phasesTotal', 'tasksCompleted', 'tasksTotal',
+            'warning', 'notes', 'history', 'createdAt', 'updatedAt', 'deletedAt', '_type', 'tags', 'order'
           ]) &&
           request.resource.data.title is string &&
           request.resource.data.title.size() > 0 &&
           request.resource.data.title.size() <= 200 &&
           (!('progress' in request.resource.data) || (request.resource.data.progress is number && request.resource.data.progress >= 0 && request.resource.data.progress <= 100)) &&
-          (!('status' in request.resource.data) || (request.resource.data.status in ['GEPLANT', 'IN_ARBEIT', 'ABGESCHLOSSEN'])) &&
           (!('phases' in request.resource.data) || (request.resource.data.phases is list && request.resource.data.phases.size() <= 50)) &&
           (!('notes' in request.resource.data) || (request.resource.data.notes is list && request.resource.data.notes.size() <= 100)) &&
-          request.resource.data.keys().size() <= 20;
+          request.resource.data.keys().size() <= 40;
 
         allow update: if isOwner(userId) &&
           request.resource.data.id == resource.data.id &&
           request.resource.data.keys().hasAll(['id', 'title']) &&
           request.resource.data.keys().hasOnly([
-            'id', 'title', 'category', 'phases', 'status', 'progress',
-            'startDate', 'endDate', 'notes', 'createdAt', 'updatedAt', 'deletedAt', '_type'
+            'id', 'title', 'description', 'category', 'categoryId', 'phases', 'status', 'progress',
+            'isPaused', 'inKanban', 'nextStep', 'startDate', 'endDate', 'dateRange', 'daysRemaining',
+            'timeElapsed', 'phasesCompleted', 'phasesTotal', 'tasksCompleted', 'tasksTotal',
+            'warning', 'notes', 'history', 'createdAt', 'updatedAt', 'deletedAt', '_type', 'tags', 'order'
           ]) &&
           request.resource.data.title is string &&
           request.resource.data.title.size() > 0 &&
           request.resource.data.title.size() <= 200 &&
           (!('progress' in request.resource.data) || (request.resource.data.progress is number && request.resource.data.progress >= 0 && request.resource.data.progress <= 100)) &&
-          (!('status' in request.resource.data) || (request.resource.data.status in ['GEPLANT', 'IN_ARBEIT', 'ABGESCHLOSSEN'])) &&
           (!('phases' in request.resource.data) || (request.resource.data.phases is list && request.resource.data.phases.size() <= 50)) &&
           (!('notes' in request.resource.data) || (request.resource.data.notes is list && request.resource.data.notes.size() <= 100)) &&
-          request.resource.data.keys().size() <= 20;
+          request.resource.data.keys().size() <= 40;
       }
 
       // B) Erinnerungen / Tasks
@@ -100,29 +102,31 @@ service cloud.firestore {
           reminderId == request.resource.data.id &&
           request.resource.data.keys().hasAll(['id', 'title']) &&
           request.resource.data.keys().hasOnly([
-            'id', 'title', 'date', 'time', 'category', 'priority',
-            'completed', 'notes', 'createdAt', 'updatedAt', 'deletedAt', '_type'
+            'id', 'title', 'description', 'date', 'time', 'category', 'categoryId', 'priority',
+            'status', 'isPaused', 'inKanban', 'completed', 'notes', 'history', 'createdAt',
+            'updatedAt', 'deletedAt', '_type', 'tags', 'dateRange', 'daysRemaining', 'timeElapsed', 'order'
           ]) &&
           request.resource.data.title is string &&
           request.resource.data.title.size() > 0 &&
           request.resource.data.title.size() <= 300 &&
           (!('completed' in request.resource.data) || request.resource.data.completed is bool) &&
           (!('notes' in request.resource.data) || (request.resource.data.notes is list && request.resource.data.notes.size() <= 50)) &&
-          request.resource.data.keys().size() <= 20;
+          request.resource.data.keys().size() <= 40;
 
         allow update: if isOwner(userId) &&
           request.resource.data.id == resource.data.id &&
           request.resource.data.keys().hasAll(['id', 'title']) &&
           request.resource.data.keys().hasOnly([
-            'id', 'title', 'date', 'time', 'category', 'priority',
-            'completed', 'notes', 'createdAt', 'updatedAt', 'deletedAt', '_type'
+            'id', 'title', 'description', 'date', 'time', 'category', 'categoryId', 'priority',
+            'status', 'isPaused', 'inKanban', 'completed', 'notes', 'history', 'createdAt',
+            'updatedAt', 'deletedAt', '_type', 'tags', 'dateRange', 'daysRemaining', 'timeElapsed', 'order'
           ]) &&
           request.resource.data.title is string &&
           request.resource.data.title.size() > 0 &&
           request.resource.data.title.size() <= 300 &&
           (!('completed' in request.resource.data) || request.resource.data.completed is bool) &&
           (!('notes' in request.resource.data) || (request.resource.data.notes is list && request.resource.data.notes.size() <= 50)) &&
-          request.resource.data.keys().size() <= 20;
+          request.resource.data.keys().size() <= 40;
       }
 
       // C) Inbox Items

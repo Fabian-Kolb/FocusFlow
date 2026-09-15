@@ -73,6 +73,30 @@ export function registerTier2Tests(runner) {
       env.viewportWidth = 375; // Rotate/resize to mobile
       assertEqual(env.currentScreen, 'project-detail', 'Viewport resize must maintain active screen state');
     });
+
+    runner.test('T2-RESP-06: Sidebar nav container implements min-h-0 and overflow-y-auto for low height viewports', () => {
+      const sidebarSrc = context.getComponentSource('src/components/layout/Sidebar.jsx');
+      assert(
+        sidebarSrc.includes('min-h-0') && sidebarSrc.includes('overflow-y-auto'),
+        'Sidebar nav must feature min-h-0 and overflow-y-auto to allow scrolling on short viewports'
+      );
+    });
+
+    runner.test('T2-RESP-07: Sidebar footer section is flex-shrink-0 to guarantee sticky visibility of account and toggle controls', () => {
+      const sidebarSrc = context.getComponentSource('src/components/layout/Sidebar.jsx');
+      assert(
+        sidebarSrc.includes('flex-shrink-0') && sidebarSrc.includes('mt-auto'),
+        'Sidebar footer must enforce flex-shrink-0 and mt-auto to never be clipped by low viewports'
+      );
+    });
+
+    runner.test('T2-RESP-08: Sidebar implements tablet drawer backdrop overlay for screen widths < 1024px', () => {
+      const sidebarSrc = context.getComponentSource('src/components/layout/Sidebar.jsx');
+      assert(
+        sidebarSrc.includes('backdrop-blur') && sidebarSrc.includes('lg:hidden'),
+        'Sidebar must render a dimmed backdrop overlay for tablet drawer mode'
+      );
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -351,6 +375,31 @@ export function registerTier2Tests(runner) {
 
       assert(catDragSrc.includes('longPressTimerRef') && catDragSrc.includes('vibrate'), 'useCategoryDrag must feature long press timer and haptic vibration');
       assert(catDragSrc.includes('y - 60') || catDragSrc.includes('posY'), 'useCategoryDrag ghost element must position preview above thumb');
+    });
+
+    // Inbox UI & Collapse Logic
+    runner.test('T2-INBOX-01: Inbox uses SummaryLengthDropdown matching ModelSelectorDropdown style', () => {
+      const inboxSrc = context.getComponentSource('src/components/screens/Inbox.jsx');
+      assert(inboxSrc.includes("import SummaryLengthDropdown from '../ui/SummaryLengthDropdown'"), 'Inbox must import SummaryLengthDropdown');
+      assert(inboxSrc.includes('<SummaryLengthDropdown'), 'Inbox must render SummaryLengthDropdown component');
+      assert(!inboxSrc.includes('<select') || !inboxSrc.includes('title="Zusammenfassungs-Länge"'), 'Inbox must not use raw select for summary length');
+    });
+
+    runner.test('T2-INBOX-02: Inbox partitions items into current and older items, showing last 3 older items when current is empty', () => {
+      const inboxSrc = context.getComponentSource('src/components/screens/Inbox.jsx');
+      assert(inboxSrc.includes('currentNotes'), 'Inbox must maintain currentNotes from today');
+      assert(inboxSrc.includes('sortedOlderNotes'), 'Inbox must maintain sortedOlderNotes from previous days');
+      assert(inboxSrc.includes('!hasCurrentNotes'), 'Inbox must check if current notes are empty to conditionally auto-expand older items');
+      assert(inboxSrc.includes('sortedOlderNotes.slice(0, 3)'), 'Inbox must slice sorted older notes to show the last 3 older notes');
+      assert(inboxSrc.includes('Mehr anzeigen'), 'Inbox must render "Mehr anzeigen" toggle for older items');
+      assert(inboxSrc.includes('Weniger anzeigen'), 'Inbox must render "Weniger anzeigen" button when older items are expanded');
+    });
+
+    runner.test('T2-INBOX-03: Inbox cards format timestamps with relative day labels (Heute / Gestern)', () => {
+      const inboxSrc = context.getComponentSource('src/components/screens/Inbox.jsx');
+      assert(inboxSrc.includes("dayLabel = 'Heute'"), 'Inbox item cards must format today timestamp with "Heute"');
+      assert(inboxSrc.includes("dayLabel = 'Gestern'"), 'Inbox item cards must format yesterday timestamp with "Gestern"');
+      assert(inboxSrc.includes('{dayLabel}, {createdFormattedStr}'), 'Inbox timestamp badge must display dayLabel and formatted time');
     });
   });
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from './components/layout/Sidebar';
 import BottomNav from './components/layout/BottomNav';
 import { ModalProvider } from './context/ModalContext';
@@ -36,9 +36,28 @@ import EmailVerificationScreen from './components/screens/EmailVerificationScree
 
 function AppContent() {
   const [currentScreen, setCurrentScreen] = useState('dashboard');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth < 1024;
+    }
+    return false;
+  });
   const { user } = useAuth();
   const { firestoreError, clearFirestoreError } = useData();
+
+  // Auto-collapse sidebar when screen is resized down to tablet (< 1024px)
+  useEffect(() => {
+    let prevWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
+    const handleResize = () => {
+      const currentWidth = window.innerWidth;
+      if (currentWidth < 1024 && prevWidth >= 1024) {
+        setSidebarCollapsed(true);
+      }
+      prevWidth = currentWidth;
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const screenTitles = {
     dashboard: 'Dashboard',
@@ -75,7 +94,7 @@ function AppContent() {
         setCollapsed={setSidebarCollapsed}
       />
 
-      <main className={`flex-grow min-w-0 relative h-full flex flex-col ${currentScreen === 'coach' ? 'overflow-hidden pb-16 lg:pb-0' : 'overflow-y-auto content-bottom-safe lg:pb-0'}`}>
+      <main className={`flex-grow min-w-0 relative h-full flex flex-col ${currentScreen === 'coach' ? 'overflow-hidden pb-16 md:pb-0' : 'overflow-y-auto no-scrollbar content-bottom-safe md:pb-0'}`}>
         <div className={`mx-auto w-full flex-grow flex flex-col h-full min-h-0 ${currentScreen === 'coach' ? 'p-0 max-w-none overflow-hidden' : 'max-w-none px-2 sm:px-4 md:px-8 py-4 sm:py-8'}`}>
           {firestoreError && currentScreen !== 'coach' && (
             <FirestoreErrorBanner error={firestoreError} onDismiss={clearFirestoreError} />

@@ -236,32 +236,14 @@ const Dashboard = ({ setCurrentScreen }) => {
     <div className="screen-transition">
       {/* Header mit 2-Zeilen-Hierarchie */}
       <header className="mb-6 sm:mb-8 border-b border-outline-variant pb-5 sm:pb-6">
-        {/* Zeile 1: Datum & Begrüßung links, Avatar/Profil rechts */}
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <span className="text-xs text-on-surface-variant mb-1 block mono uppercase">
-              {formattedDate} • Fokus-Modus
-            </span>
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold leading-tight">
-              {greeting}, {userName}
-            </h1>
-          </div>
-
-          {/* Profile & Logout Trigger */}
-          <button
-            onClick={() => openModal('profile')}
-            title={user?.isGuest ? 'Gast-Modus & Abmelden' : 'Mein Profil & Abmelden'}
-            className="w-11 h-11 bg-surface-low border border-outline-variant hover:border-primary rounded-2xl flex items-center justify-center transition-all shadow-sm cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            aria-label="Profil und Einstellungen"
-          >
-            {user?.photoURL ? (
-              <img src={user.photoURL} alt="Avatar" className="w-full h-full rounded-2xl object-cover p-1" />
-            ) : user?.isGuest ? (
-              <span className="material-symbols-outlined text-amber-500 text-[22px]">person</span>
-            ) : (
-              <span className="text-xs font-bold font-mono text-primary">{(user?.displayName || user?.email || 'U').substring(0, 2).toUpperCase()}</span>
-            )}
-          </button>
+        {/* Zeile 1: Datum & Begrüßung */}
+        <div>
+          <span className="text-xs text-on-surface-variant mb-1 block mono uppercase">
+            {formattedDate} • Fokus-Modus
+          </span>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold leading-tight">
+            {greeting}, {userName}
+          </h1>
         </div>
 
         {/* Zeile 2: Fio Assistant Teaser als primäre Fio-Aktion auf Mobile */}

@@ -1,11 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
 /**
- * useCategoryDrag – Safe slot-based drag-and-drop for category lists with Mobile Long-Press gesture.
+ * useCategoryDrag – Modern Live-Shuffling (In-Place Reordering) drag-and-drop
+ * for category lists with Mobile Long-Press gesture, FLIP Animation, and Lifted Preview.
  *
- * Uses mousedown/mousemove/mouseup for desktop mouse (instant).
- * Uses 400ms long-press for touch devices (allows normal page scrolling unless held).
- * Supports manual wheel scrolling and edge auto-scrolling during category reordering.
+ * Pattern:
+ * - Desktop: Instant mousedown on drag handle lifts category into elevated card preview (straight, no tilt).
+ * - Mobile: 400ms long-press + 45ms haptic pulse activates drag above thumb.
+ * - Live Shuffling: Categories smoothly slide out of the way via FLIP animation (Spotify/Apple style).
+ * - Continuous Auto-Scroll: RequestAnimationFrame loop keeps scrolling while holding near top/bottom edges.
+ * - Haptics: 15ms subtle pulse on each slot transition on supported devices.
+ * - Cleanup & Safety: Bulletproof window listeners, auto-scroll at screen edges.
  */
 export function useCategoryDrag({
   categories,
@@ -14,21 +19,25 @@ export function useCategoryDrag({
   onDragEnd,
   sectionIdPrefix,
 }) {
-  const [draggedCatId, setDraggedCatId] = useState(null);
-  const [dropTarget, setDropTarget]     = useState(null);
+  const [draggedCatId, setDraggedCatId]           = useState(null);
+  const [orderedCategories, setOrderedCategories] = useState(categories);
 
   // Stable refs
-  const draggedCatIdRef = useRef(null);
-  const dropTargetRef   = useRef(null);
-  const savedStatesRef  = useRef(null);
-  const categoriesRef   = useRef(categories);
-  const reorderRef      = useRef(reorderCategories);
-  const onDragEndRef    = useRef(onDragEnd);
-  const ghostRef        = useRef(null);
-  const isDraggingRef   = useRef(false);
+  const draggedCatIdRef      = useRef(null);
+  const orderedCategoriesRef = useRef(categories);
+  const savedStatesRef       = useRef(null);
+  const categoriesRef        = useRef(categories);
+  const reorderRef           = useRef(reorderCategories);
+  const onDragEndRef         = useRef(onDragEnd);
+  const ghostRef             = useRef(null);
+  const isDraggingRef        = useRef(false);
+
+  // Auto-scroll loop refs
+  const scrollAnimFrameRef = useRef(null);
+  const currentPointerYRef = useRef(null);
 
   // Touch long press refs
-  const longPressTimerRef = useRef(null);
+  const longPressTimerRef      = useRef(null);
   const earlyTouchListenersRef = useRef(null);
 
   // Handler refs for guaranteed cleanup
@@ -36,11 +45,18 @@ export function useCategoryDrag({
   const wheelHandlerRef = useRef(null);
   const endHandlerRef   = useRef(null);
 
-  useEffect(() => { categoriesRef.current = categories; }, [categories]);
+  useEffect(() => {
+    categoriesRef.current = categories;
+    if (!isDraggingRef.current) {
+      setOrderedCategories(categories);
+      orderedCategoriesRef.current = categories;
+    }
+  }, [categories]);
+
   useEffect(() => { reorderRef.current = reorderCategories; }, [reorderCategories]);
   useEffect(() => { onDragEndRef.current = onDragEnd; }, [onDragEnd]);
 
-  // ── Ghost ──────────────────────────────────────────────────────────────────
+  // ── High-Fidelity Lifted Preview (Ghost) ───────────────────────────────────
 
   const destroyGhost = useCallback(() => {
     if (ghostRef.current) {
@@ -49,99 +65,235 @@ export function useCategoryDrag({
     }
   }, []);
 
-  const createGhost = useCallback((label, x, y, isTouch = false) => {
+  const createGhost = useCallback((cat, itemCount, x, y, isTouch = false) => {
     destroyGhost();
     const el = document.createElement('div');
     el.id = '__cat-drag-ghost__';
 
-    // On touch, position 60px above finger so thumb does not obscure the preview
-    const posX = isTouch ? Math.max(10, x - 70) : x + 16;
-    const posY = isTouch ? Math.max(10, y - 60) : y - 16;
+    const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+
+    // On touch, position 55px above finger so thumb does not obscure the preview
+    const posX = isTouch ? Math.max(12, x - 90) : x + 12;
+    const posY = isTouch ? Math.max(12, y - 55) : y - 22;
 
     Object.assign(el.style, {
       position: 'fixed',
       top: '0',
       left: '0',
-      transform: `translate(${posX}px, ${posY}px)`,
+      transform: `translate(${posX}px, ${posY}px) scale(1.02)`,
+      transformOrigin: 'top left',
       pointerEvents: 'none',
-      zIndex: '99999',
-      background: 'linear-gradient(135deg, #1E1B4B 0%, #312E81 100%)',
-      color: '#EEF2FF',
-      border: '1.5px solid rgba(129, 140, 248, 0.7)',
-      padding: '8px 16px',
-      borderRadius: '9999px',
-      fontSize: '12px',
-      fontWeight: '700',
-      fontFamily: 'inherit',
-      letterSpacing: '0.02em',
-      boxShadow: '0 20px 30px -5px rgba(0,0,0,0.5), 0 0 15px rgba(99, 102, 241, 0.3)',
-      whiteSpace: 'nowrap',
-      userSelect: 'none',
-      opacity: '0.95',
+      zIndex: '999999',
+      width: 'max-content',
+      minWidth: '220px',
+      maxWidth: '380px',
+      height: '42px',
+      padding: '0 16px',
+      borderRadius: '12px',
       display: 'flex',
       alignItems: 'center',
-      gap: '8px',
+      gap: '10px',
+      background: isDark ? '#1E1E1E' : '#FFFFFF',
+      color: isDark ? '#F3F4F6' : '#1A1A1A',
+      border: isDark ? '1.5px solid rgba(255, 255, 255, 0.2)' : '1.5px solid rgba(26, 26, 26, 0.15)',
+      boxShadow: isDark
+        ? '0 20px 35px -5px rgba(0,0,0,0.7), 0 0 20px rgba(99, 102, 241, 0.25)'
+        : '0 20px 35px -5px rgba(0,0,0,0.18), 0 4px 12px rgba(0,0,0,0.08)',
+      userSelect: 'none',
+      fontFamily: "'Outfit', sans-serif",
+      letterSpacing: '0.05em',
+      transition: 'none',
     });
 
-    const icon = document.createElement('span');
-    icon.className = 'material-symbols-outlined';
-    icon.style.fontSize = '16px';
-    icon.style.color = '#818CF8';
-    icon.textContent = 'folder_open';
-    el.appendChild(icon);
+    // Drag Handle icon
+    const grip = document.createElement('span');
+    grip.className = 'material-symbols-outlined';
+    grip.style.fontSize = '18px';
+    grip.style.color = isDark ? '#818CF8' : '#1A1A1A';
+    grip.style.flexShrink = '0';
+    grip.textContent = 'drag_indicator';
+    el.appendChild(grip);
 
-    const textNode = document.createElement('span');
-    textNode.textContent = label.startsWith('Kategorie') ? label : `Kategorie: ${label}`;
-    el.appendChild(textNode);
+    // Chevron icon
+    const chevron = document.createElement('span');
+    chevron.className = 'material-symbols-outlined';
+    chevron.style.fontSize = '18px';
+    chevron.style.color = isDark ? '#6B7280' : '#A3A3A3';
+    chevron.style.flexShrink = '0';
+    chevron.textContent = 'chevron_right';
+    el.appendChild(chevron);
+
+    // Title & count wrapper
+    const textWrap = document.createElement('div');
+    textWrap.style.display = 'flex';
+    textWrap.style.alignItems = 'center';
+    textWrap.style.gap = '6px';
+    textWrap.style.flex = '1';
+    textWrap.style.overflow = 'hidden';
+
+    // Category name
+    const title = document.createElement('span');
+    title.textContent = (cat?.name || 'KATEGORIE').toUpperCase();
+    title.style.fontSize = '12px';
+    title.style.fontWeight = '700';
+    title.style.whiteSpace = 'nowrap';
+    title.style.overflow = 'hidden';
+    title.style.textOverflow = 'ellipsis';
+    textWrap.appendChild(title);
+
+    // Count badge
+    if (typeof itemCount === 'number') {
+      const count = document.createElement('span');
+      count.textContent = `(${itemCount})`;
+      count.style.fontSize = '11px';
+      count.style.fontWeight = '400';
+      count.style.color = isDark ? '#9CA3AF' : '#737373';
+      count.style.flexShrink = '0';
+      textWrap.appendChild(count);
+    }
+    el.appendChild(textWrap);
 
     document.body.appendChild(el);
     ghostRef.current = el;
   }, [destroyGhost]);
 
-  // ── Drop Target Calculation ────────────────────────────────────────────────
+  // ── Live Reordering Calculation with FLIP Animation ────────────────────────
 
-  const calcDropSlot = useCallback((cursorY) => {
-    const cats = categoriesRef.current;
+  const updateLiveOrder = useCallback((cursorY) => {
+    const currentCats = orderedCategoriesRef.current || categoriesRef.current;
     const draggedId = draggedCatIdRef.current;
+    if (!draggedId || !currentCats) return;
 
-    const visibleOtherItems = [];
-    for (let i = 0; i < cats.length; i++) {
-      const cat = cats[i];
-      if (cat.id === draggedId) continue;
+    const currentIndex = currentCats.findIndex(c => c.id === draggedId);
+    if (currentIndex === -1) return;
+
+    const draggedItem = currentCats[currentIndex];
+    const withoutDragged = currentCats.filter(c => c.id !== draggedId);
+
+    // Find vertical midpoints of all other visible categories in DOM
+    const otherItemsWithPos = [];
+    for (let i = 0; i < withoutDragged.length; i++) {
+      const cat = withoutDragged[i];
       const el = document.getElementById(`${sectionIdPrefix}${cat.id}`);
       if (!el) continue;
       const rect = el.getBoundingClientRect();
-      visibleOtherItems.push({
-        catId: cat.id,
-        indexInFullList: i,
+      if (rect.height === 0 && rect.width === 0) continue;
+      otherItemsWithPos.push({
+        cat,
         midY: rect.top + rect.height / 2,
       });
     }
 
-    if (visibleOtherItems.length === 0) {
-      return null;
-    }
+    if (otherItemsWithPos.length === 0) return;
 
-    let slotIndex = visibleOtherItems.length;
-    for (let k = 0; k < visibleOtherItems.length; k++) {
-      if (cursorY < visibleOtherItems[k].midY) {
-        slotIndex = k;
+    // Determine target slot among visible items
+    let targetSlot = otherItemsWithPos.length;
+    for (let k = 0; k < otherItemsWithPos.length; k++) {
+      if (cursorY < otherItemsWithPos[k].midY) {
+        targetSlot = k;
         break;
       }
     }
 
-    if (slotIndex < visibleOtherItems.length) {
-      return {
-        targetCatId: visibleOtherItems[slotIndex].catId,
-        position: 'before',
-      };
+    let insertIndexInWithoutDragged;
+    if (targetSlot < otherItemsWithPos.length) {
+      const targetCat = otherItemsWithPos[targetSlot].cat;
+      insertIndexInWithoutDragged = withoutDragged.findIndex(c => c.id === targetCat.id);
     } else {
-      return {
-        targetCatId: visibleOtherItems[visibleOtherItems.length - 1].catId,
-        position: 'after',
-      };
+      insertIndexInWithoutDragged = withoutDragged.length;
+    }
+
+    if (insertIndexInWithoutDragged === -1) {
+      insertIndexInWithoutDragged = withoutDragged.length;
+    }
+
+    const nextOrder = [...withoutDragged];
+    nextOrder.splice(insertIndexInWithoutDragged, 0, draggedItem);
+
+    // Only update if the order genuinely changed
+    const hasChanged = nextOrder.some((c, idx) => c.id !== currentCats[idx]?.id);
+    if (hasChanged) {
+      // FLIP: 1. Record current positions before state update
+      const prevTops = {};
+      currentCats.forEach(c => {
+        const el = document.getElementById(`${sectionIdPrefix}${c.id}`);
+        if (el) prevTops[c.id] = el.getBoundingClientRect().top;
+      });
+
+      orderedCategoriesRef.current = nextOrder;
+      setOrderedCategories(nextOrder);
+
+      // FLIP: 2. Animate elements from previous position to new position
+      requestAnimationFrame(() => {
+        nextOrder.forEach(c => {
+          if (c.id === draggedId) return; // Dragged item is the gap
+          const el = document.getElementById(`${sectionIdPrefix}${c.id}`);
+          if (el && prevTops[c.id] != null) {
+            const newTop = el.getBoundingClientRect().top;
+            const deltaY = prevTops[c.id] - newTop;
+            if (Math.abs(deltaY) > 0.5) {
+              el.style.transform = `translateY(${deltaY}px)`;
+              el.style.transition = 'none';
+              requestAnimationFrame(() => {
+                el.style.transition = 'transform 220ms cubic-bezier(0.2, 0, 0, 1)';
+                el.style.transform = '';
+              });
+            }
+          }
+        });
+      });
+
+      // Subtle haptic tick for mechanical notch feeling on mobile
+      if (typeof window !== 'undefined' && window.navigator && navigator.vibrate) {
+        try { navigator.vibrate(15); } catch (_) {}
+      }
     }
   }, [sectionIdPrefix]);
+
+  // ── Continuous Auto-Scroll Loop ───────────────────────────────────────────
+
+  const stopAutoScroll = useCallback(() => {
+    if (scrollAnimFrameRef.current) {
+      cancelAnimationFrame(scrollAnimFrameRef.current);
+      scrollAnimFrameRef.current = null;
+    }
+    currentPointerYRef.current = null;
+  }, []);
+
+  const startAutoScroll = useCallback(() => {
+    stopAutoScroll();
+
+    const scrollLoop = () => {
+      if (!isDraggingRef.current) return;
+
+      const y = currentPointerYRef.current;
+      if (y != null) {
+        const edgeThreshold = 120;
+        const viewportHeight = window.innerHeight;
+        const main = document.querySelector('main');
+
+        if (y < edgeThreshold) {
+          const intensity = (edgeThreshold - Math.max(0, y)) / edgeThreshold;
+          const speed = Math.max(3, Math.round(intensity * 22));
+          if (main) main.scrollBy(0, -speed);
+          else window.scrollBy(0, -speed);
+          // Recalculate live order while auto-scrolling
+          updateLiveOrder(y);
+        } else if (y > viewportHeight - edgeThreshold) {
+          const intensity = (Math.min(viewportHeight, y) - (viewportHeight - edgeThreshold)) / edgeThreshold;
+          const speed = Math.max(3, Math.round(intensity * 22));
+          if (main) main.scrollBy(0, speed);
+          else window.scrollBy(0, speed);
+          // Recalculate live order while auto-scrolling
+          updateLiveOrder(y);
+        }
+      }
+
+      scrollAnimFrameRef.current = requestAnimationFrame(scrollLoop);
+    };
+
+    scrollAnimFrameRef.current = requestAnimationFrame(scrollLoop);
+  }, [stopAutoScroll, updateLiveOrder]);
 
   // ── Long press cleanup ─────────────────────────────────────────────────────
 
@@ -163,6 +315,7 @@ export function useCategoryDrag({
 
   const cleanup = useCallback(() => {
     cancelLongPress();
+    stopAutoScroll();
     isDraggingRef.current = false;
     destroyGhost();
 
@@ -173,6 +326,7 @@ export function useCategoryDrag({
     }
     if (wheelHandlerRef.current) {
       window.removeEventListener('wheel', wheelHandlerRef.current);
+      window.removeEventListener('wheel', wheelHandlerRef.current, { capture: true });
       wheelHandlerRef.current = null;
     }
     if (endHandlerRef.current) {
@@ -182,18 +336,25 @@ export function useCategoryDrag({
       endHandlerRef.current = null;
     }
 
+    // Clean up any lingering transforms on categories
+    categoriesRef.current.forEach(c => {
+      const el = document.getElementById(`${sectionIdPrefix}${c.id}`);
+      if (el) {
+        el.style.transform = '';
+        el.style.transition = '';
+      }
+    });
+
     draggedCatIdRef.current = null;
-    dropTargetRef.current = null;
     setDraggedCatId(null);
-    setDropTarget(null);
 
     document.body.style.userSelect = '';
     document.body.style.cursor = '';
-  }, [destroyGhost, cancelLongPress]);
+  }, [destroyGhost, cancelLongPress, stopAutoScroll, sectionIdPrefix]);
 
   // ── Public API ─────────────────────────────────────────────────────────────
 
-  const startDrag = useCallback((e, catId) => {
+  const startDrag = useCallback((e, catId, itemCount = 0) => {
     if (e.type === 'mousedown' && e.button !== 0) return;
 
     cleanup();
@@ -209,20 +370,20 @@ export function useCategoryDrag({
       draggedCatIdRef.current = catId;
       setDraggedCatId(catId);
 
+      const initialOrder = [...categoriesRef.current];
+      orderedCategoriesRef.current = initialOrder;
+      setOrderedCategories(initialOrder);
+
       collapseAll();
 
       const cat = categoriesRef.current.find(c => c.id === catId);
-      const catLabel = cat?.name ?? catId;
-      createGhost(catLabel, startX, startY, isTouch);
+      createGhost(cat, itemCount, startX, startY, isTouch);
 
       document.body.style.userSelect = 'none';
       document.body.style.cursor = 'grabbing';
 
-      requestAnimationFrame(() => {
-        const dt = calcDropSlot(startY);
-        dropTargetRef.current = dt;
-        setDropTarget(dt);
-      });
+      currentPointerYRef.current = startY;
+      startAutoScroll();
 
       const moveHandler = (me) => {
         if (!isDraggingRef.current) return;
@@ -230,32 +391,15 @@ export function useCategoryDrag({
         const my = me.clientY ?? me.touches?.[0]?.clientY;
         if (mx == null || my == null) return;
 
+        currentPointerYRef.current = my;
+
         if (ghostRef.current) {
-          const posX = isTouch ? Math.max(10, mx - 70) : mx + 16;
-          const posY = isTouch ? Math.max(10, my - 60) : my - 16;
-          ghostRef.current.style.transform = `translate(${posX}px, ${posY}px)`;
+          const posX = isTouch ? Math.max(12, mx - 90) : mx + 12;
+          const posY = isTouch ? Math.max(12, my - 55) : my - 22;
+          ghostRef.current.style.transform = `translate(${posX}px, ${posY}px) scale(1.02)`;
         }
 
-        const dt = calcDropSlot(my);
-        dropTargetRef.current = dt;
-        setDropTarget(dt);
-
-        // Auto-scroll at edges
-        const edgeThreshold = 120;
-        const viewportHeight = window.innerHeight;
-        const main = document.querySelector('main');
-        
-        if (my < edgeThreshold) {
-          const intensity = (edgeThreshold - Math.max(0, my)) / edgeThreshold;
-          const speed = Math.max(3, Math.round(intensity * 22));
-          if (main) main.scrollBy(0, -speed);
-          else window.scrollBy(0, -speed);
-        } else if (my > viewportHeight - edgeThreshold) {
-          const intensity = (Math.min(viewportHeight, my) - (viewportHeight - edgeThreshold)) / edgeThreshold;
-          const speed = Math.max(3, Math.round(intensity * 22));
-          if (main) main.scrollBy(0, speed);
-          else window.scrollBy(0, speed);
-        }
+        updateLiveOrder(my);
       };
 
       const wheelHandler = (we) => {
@@ -263,30 +407,22 @@ export function useCategoryDrag({
           const main = document.querySelector('main');
           if (main) main.scrollBy(0, we.deltaY);
           else window.scrollBy(0, we.deltaY);
+          if (currentPointerYRef.current != null) {
+            updateLiveOrder(currentPointerYRef.current);
+          }
         }
       };
 
       const endHandler = () => {
+        stopAutoScroll();
         const dragged = draggedCatIdRef.current;
-        const target = dropTargetRef.current;
-        const cats = categoriesRef.current;
+        const finalOrder = orderedCategoriesRef.current;
+        const initialCats = categoriesRef.current;
 
-        if (dragged !== null && target !== null) {
-          const fromIndex = cats.findIndex(c => c.id === dragged);
-          if (fromIndex !== -1) {
-            const draggedCat = cats[fromIndex];
-            const newCats = cats.filter(c => c.id !== dragged);
-            const targetIndex = newCats.findIndex(c => c.id === target.targetCatId);
-
-            if (targetIndex !== -1) {
-              const insertIndex = target.position === 'before' ? targetIndex : targetIndex + 1;
-              newCats.splice(insertIndex, 0, draggedCat);
-
-              const hasOrderChanged = newCats.some((c, idx) => c.id !== cats[idx]?.id);
-              if (hasOrderChanged) {
-                reorderRef.current(newCats);
-              }
-            }
+        if (dragged !== null && finalOrder) {
+          const hasOrderChanged = finalOrder.some((c, idx) => c.id !== initialCats[idx]?.id);
+          if (hasOrderChanged) {
+            reorderRef.current(finalOrder);
           }
         }
 
@@ -303,7 +439,7 @@ export function useCategoryDrag({
 
       if (!isTouch) {
         window.addEventListener('mousemove', moveHandler, { passive: true });
-        window.addEventListener('wheel', wheelHandler, { passive: true });
+        window.addEventListener('wheel', wheelHandler, { passive: true, capture: true });
         window.addEventListener('mouseup', endHandler);
       } else {
         window.addEventListener('touchmove', moveHandler, { passive: true });
@@ -319,7 +455,7 @@ export function useCategoryDrag({
       const y = e.clientY ?? 0;
       executeDragStart(x, y);
     } else {
-      // Touch event: apply 400ms long press delay before activating category drag
+      // Touch event: 400ms long press delay before activating category drag
       const startX = e.touches[0].clientX;
       const startY = e.touches[0].clientY;
 
@@ -357,7 +493,7 @@ export function useCategoryDrag({
         executeDragStart(startX, startY);
       }, 400);
     }
-  }, [cleanup, cancelLongPress, collapseAll, createGhost, calcDropSlot]);
+  }, [cleanup, cancelLongPress, collapseAll, createGhost, updateLiveOrder, startAutoScroll, stopAutoScroll]);
 
   useEffect(() => {
     return () => {
@@ -365,5 +501,10 @@ export function useCategoryDrag({
     };
   }, [cleanup]);
 
-  return { draggedCatId, dropTarget, startDrag };
+  return {
+    draggedCatId,
+    orderedCategories,
+    dropTarget: null, // Kept for backwards compatibility
+    startDrag,
+  };
 }

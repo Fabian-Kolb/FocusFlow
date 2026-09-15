@@ -132,7 +132,7 @@ const Projects = ({ setCurrentScreen }) => {
     }
   };
 
-  const { draggedCatId, dropTarget, startDrag } = useCategoryDrag({
+  const { draggedCatId, orderedCategories, startDrag } = useCategoryDrag({
     categories: projectCategories,
     reorderCategories: reorderProjectCategories,
     collapseAll: collapseAllProjectCategories,
@@ -140,15 +140,6 @@ const Projects = ({ setCurrentScreen }) => {
     onDragEnd: isEditMode ? collapseAllProjectCategories : restoreProjectCategoryExpandStates,
     sectionIdPrefix: 'cat-sec-',
   });
-
-  // Visual drop indicator line
-  const DropIndicator = () => (
-    <div className="h-9 my-1 flex items-center gap-2 px-1 transition-all duration-150 animate-in fade-in zoom-in-95">
-      <div className="w-2.5 h-2.5 rounded-full bg-primary ring-2 ring-primary/30 shrink-0" />
-      <div className="flex-1 h-[2px] bg-primary rounded-full" />
-      <div className="w-2.5 h-2.5 rounded-full bg-primary ring-2 ring-primary/30 shrink-0" />
-    </div>
-  );
 
   const handleCategoryDragOver = (e, categoryId) => {
     handleProjectHtml5DragOver(e, categoryId);
@@ -165,13 +156,12 @@ const Projects = ({ setCurrentScreen }) => {
 
   const handleDrop = (e, categoryId) => {
     e.preventDefault();
+    e.stopPropagation();
     setCardDragOverCatId(null);
     handleProjectHtml5DragEnd();
-    const projectId = e.dataTransfer.getData('text/plain');
+    const projectId = e.dataTransfer.getData('text/plain') || touchDraggedProjectId;
     if (projectId) {
-      setTimeout(() => {
-        handleMoveProjectToCategory(projectId, categoryId);
-      }, 50);
+      handleMoveProjectToCategory(projectId, categoryId);
     }
   };
 
@@ -197,6 +187,8 @@ const Projects = ({ setCurrentScreen }) => {
       onDragStart={(e) => handleProjectHtml5DragStart(e, project.id)}
       onDragEnd={handleProjectHtml5DragEnd}
       onTouchStart={(e) => startProjectCardDrag(e, project.id, project.title)}
+      onDragOver={(e) => handleCategoryDragOver(e, project.categoryId || 'allgemein')}
+      onDrop={(e) => handleDrop(e, project.categoryId || 'allgemein')}
       className="cursor-grab active:cursor-grabbing touch-action-none"
     >
       <Card
@@ -398,56 +390,53 @@ const Projects = ({ setCurrentScreen }) => {
           </div>
         </div>
 
-        {projectCategories && projectCategories.map((cat) => {
+        {(orderedCategories || projectCategories)?.map((cat) => {
           const catProjects = otherProjects.filter(p => (p.categoryId || 'allgemein') === cat.id);
           if (cat.id === 'allgemein' && catProjects.length === 0 && projectCategories.length > 1) {
             return null;
           }
 
-          const showIndicatorBefore = dropTarget?.targetCatId === cat.id && dropTarget?.position === 'before';
-          const showIndicatorAfter  = dropTarget?.targetCatId === cat.id && dropTarget?.position === 'after';
+          const isBeingDragged = draggedCatId === cat.id;
 
           return (
-            <React.Fragment key={cat.id}>
-              {showIndicatorBefore && <DropIndicator />}
-
+            <div 
+              key={cat.id}
+              id={`cat-sec-${cat.id}`}
+              onDragOver={(e) => handleCategoryDragOver(e, cat.id)}
+              onDragLeave={(e) => handleCategoryDragLeave(e, cat.id)}
+              onDrop={(e) => handleDrop(e, cat.id)}
+              className={`rounded-xl transition-all duration-150 border scroll-mt-6 ${
+                isBeingDragged
+                  ? 'opacity-0 pointer-events-none h-11 my-1 p-0 border-transparent overflow-hidden'
+                  : (cardDragOverCatId === cat.id || touchCardDropTargetCatId === cat.id)
+                  ? 'border-primary bg-primary/10 ring-2 ring-primary/40 shadow-lg scale-[1.01] p-2 -m-1'
+                  : 'border-transparent p-2 -m-1'
+              }`}
+            >
+              {/* Steam-Like Header */}
               <div 
-                id={`cat-sec-${cat.id}`}
-                onDragOver={(e) => handleCategoryDragOver(e, cat.id)}
-                onDragLeave={(e) => handleCategoryDragLeave(e, cat.id)}
-                onDrop={(e) => handleDrop(e, cat.id)}
-                className={`rounded-xl transition-all duration-150 border p-2 -m-1 scroll-mt-6 ${
-                  draggedCatId === cat.id
-                    ? 'border-outline-variant/60 opacity-30 scale-[0.98]'
-                    : (cardDragOverCatId === cat.id || touchCardDropTargetCatId === cat.id)
-                    ? 'border-primary bg-primary/10 ring-2 ring-primary/40 shadow-lg scale-[1.01]'
-                    : 'border-transparent'
+                className={`flex items-center gap-3 mb-2 select-none py-1 group ${
+                  isEditMode
+                    ? 'cursor-default'
+                    : 'cursor-pointer'
                 }`}
+                onClick={() => !isEditMode && toggleProjectCategory(cat.id)}
               >
-                {/* Steam-Like Header */}
-                <div 
-                  className={`flex items-center gap-3 mb-2 select-none py-1 group ${
-                    isEditMode
-                      ? 'cursor-default'
-                      : 'cursor-pointer'
-                  }`}
-                  onClick={() => !isEditMode && toggleProjectCategory(cat.id)}
-                >
-                  <div className={`flex items-center gap-1.5 shrink-0 transition-colors text-on-surface ${
-                    isEditMode ? '' : 'hover:text-primary'
-                  }`}>
-                    {/* Drag Handle – always visible in edit mode */}
-                    <span 
-                      onMouseDown={(e) => startDrag(e, cat.id)}
-                      onTouchStart={(e) => startDrag(e, cat.id)}
-                      onClick={(e) => e.stopPropagation()}
-                      className={`material-symbols-outlined text-[18px] hover:text-primary cursor-grab active:cursor-grabbing p-1 -m-1 transition-opacity touch-none select-none ${
-                        isEditMode ? 'opacity-100 text-primary' : 'opacity-50 group-hover:opacity-100'
-                      }`}
-                      title="Halten & Ziehen zum Sortieren"
-                    >
-                      drag_indicator
-                    </span>
+                <div className={`flex items-center gap-1.5 shrink-0 transition-colors text-on-surface ${
+                  isEditMode ? '' : 'hover:text-primary'
+                }`}>
+                  {/* Drag Handle – always visible in edit mode */}
+                  <span 
+                    onMouseDown={(e) => startDrag(e, cat.id, catProjects.length)}
+                    onTouchStart={(e) => startDrag(e, cat.id, catProjects.length)}
+                    onClick={(e) => e.stopPropagation()}
+                    className={`material-symbols-outlined text-[18px] hover:text-primary cursor-grab active:cursor-grabbing p-1 -m-1 transition-opacity touch-none select-none ${
+                      isEditMode ? 'opacity-100 text-primary' : 'opacity-50 group-hover:opacity-100'
+                    }`}
+                    title="Halten & Ziehen zum Sortieren"
+                  >
+                    drag_indicator
+                  </span>
                     {/* Chevron – grayed out and non-interactive in edit mode */}
                     <span className={`material-symbols-outlined text-[20px] transition-all ${
                       isEditMode
@@ -551,9 +540,6 @@ const Projects = ({ setCurrentScreen }) => {
                   </div>
                 )}
               </div>
-
-              {showIndicatorAfter && <DropIndicator />}
-            </React.Fragment>
           );
         })}
       </div>

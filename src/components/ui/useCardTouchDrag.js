@@ -145,10 +145,12 @@ export function useCardTouchDrag({ onMoveItemToCategory, categoryPrefix = 'cat-s
     }
     if (html5WheelHandlerRef.current) {
       window.removeEventListener('wheel', html5WheelHandlerRef.current);
+      window.removeEventListener('wheel', html5WheelHandlerRef.current, { capture: true });
       html5WheelHandlerRef.current = null;
     }
     if (html5DragOverHandlerRef.current) {
       window.removeEventListener('dragover', html5DragOverHandlerRef.current);
+      document.removeEventListener('dragover', html5DragOverHandlerRef.current, { capture: true });
       html5DragOverHandlerRef.current = null;
     }
   }, []);
@@ -175,8 +177,8 @@ export function useCardTouchDrag({ onMoveItemToCategory, categoryPrefix = 'cat-s
     html5WheelHandlerRef.current = wheelHandler;
     html5DragOverHandlerRef.current = dragOverHandler;
 
-    window.addEventListener('wheel', wheelHandler, { passive: true });
-    window.addEventListener('dragover', dragOverHandler, { passive: true });
+    window.addEventListener('wheel', wheelHandler, { passive: true, capture: true });
+    document.addEventListener('dragover', dragOverHandler, { passive: true, capture: true });
 
     const autoScrollLoop = () => {
       if (!isHtml5DraggingRef.current) return;

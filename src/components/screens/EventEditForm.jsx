@@ -118,7 +118,7 @@ const EventEditForm = ({ initialEvent, selectedDateObj, onSave, onCancel }) => {
         <div className="flex-grow"></div>
         <button 
           onClick={handleSubmit} 
-          className="bg-primary text-white px-6 py-2 rounded-xl font-bold hover:bg-primary-hover transition-colors"
+          className="bg-primary text-white px-6 py-2 rounded-xl font-bold hover:bg-black transition-colors"
         >
           Speichern
         </button>

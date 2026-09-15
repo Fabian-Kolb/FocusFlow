@@ -351,48 +351,58 @@ REGELN:
     <div className="flex-1 flex flex-col h-full bg-surface-low/30 overflow-hidden relative">
 
       {/* Synchronized History Slide-Down Overlay */}
-      {isHistoryOpen && (
-        <div className="absolute inset-0 z-30 bg-white flex flex-col overflow-hidden animate-fadeIn">
-          {/* History Header & Scope Toggle */}
-          <div className="p-3 border-b border-outline-variant flex flex-col gap-2 bg-surface-low/50">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-primary">
-                <span className="material-symbols-outlined text-[18px]">history</span>
-                <span className="uppercase tracking-wider">Verlauf ({displayedSessions.length})</span>
-              </div>
-              <button
-                onClick={handleNewChat}
-                className="flex items-center gap-1 px-2.5 py-1 bg-neutral-900 text-white text-[11px] font-mono font-bold rounded-lg hover:bg-black transition-all cursor-pointer shadow-xs"
-              >
-                <span className="material-symbols-outlined text-[14px]">add</span>
-                <span>NEUER CHAT</span>
-              </button>
-            </div>
-
-            {/* Scope Filter Buttons */}
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => setHistoryScopeFilter('context')}
-                className={`flex-1 py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer text-center ${
-                  historyScopeFilter === 'context'
-                    ? 'bg-neutral-900 text-white shadow-xs'
-                    : 'bg-white border border-outline-variant text-on-surface-variant hover:border-primary/40'
-                }`}
-              >
-                Aktueller Bereich
-              </button>
-              <button
-                onClick={() => setHistoryScopeFilter('all')}
-                className={`flex-1 py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer text-center ${
-                  historyScopeFilter === 'all'
-                    ? 'bg-neutral-900 text-white shadow-xs'
-                    : 'bg-white border border-outline-variant text-on-surface-variant hover:border-primary/40'
-                }`}
-              >
-                Alle Chats ({sessions.length})
-              </button>
-            </div>
+      <div 
+        className={`absolute inset-0 z-30 bg-white flex flex-col overflow-hidden transition-all duration-200 ease-in-out ${
+          isHistoryOpen 
+            ? 'opacity-100 translate-y-0 pointer-events-auto' 
+            : 'opacity-0 -translate-y-2 pointer-events-none'
+        }`}
+      >
+        {/* History Header & Scope Toggle */}
+        <div className="p-3 border-b border-outline-variant flex flex-col gap-2 bg-surface-low/50">
+          <div className="flex items-center w-full">
+            <button
+              onClick={handleNewChat}
+              className="w-full h-10 px-3.5 bg-neutral-900 text-white hover:bg-black transition-all flex items-center justify-center gap-2 rounded-xl cursor-pointer shadow-xs hover:shadow-sm font-mono text-xs font-bold active:scale-[0.98]"
+            >
+              <span className="material-symbols-outlined text-[19px]">edit_square</span>
+              <span>NEUER CHAT</span>
+            </button>
           </div>
+
+          {/* Scope Filter Segmented Tabs */}
+          <div className="flex items-center p-1 bg-surface-low/80 border border-outline-variant/60 rounded-xl gap-1 shadow-2xs">
+            <button
+              onClick={() => setHistoryScopeFilter('context')}
+              className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                historyScopeFilter === 'context'
+                  ? 'bg-white dark:bg-surface text-primary shadow-xs border border-outline-variant/50'
+                  : 'text-on-surface-variant hover:text-on-surface hover:bg-white/40 border border-transparent'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[15px]">
+                {contextScope === 'reminder' ? 'notifications' : contextScope === 'task' ? 'check_circle' : 'folder'}
+              </span>
+              <span>Aktueller Bereich</span>
+            </button>
+            <button
+              onClick={() => setHistoryScopeFilter('all')}
+              className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                historyScopeFilter === 'all'
+                  ? 'bg-white dark:bg-surface text-primary shadow-xs border border-outline-variant/50'
+                  : 'text-on-surface-variant hover:text-on-surface hover:bg-white/40 border border-transparent'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[15px]">all_inbox</span>
+              <span>Alle Chats</span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
+                historyScopeFilter === 'all' ? 'bg-primary/10 text-primary font-bold' : 'bg-surface-low text-on-surface-variant'
+              }`}>
+                {sessions.length}
+              </span>
+            </button>
+          </div>
+        </div>
 
           {/* Session List */}
           <div className="flex-1 overflow-y-auto p-3 space-y-2">
@@ -465,7 +475,6 @@ REGELN:
             )}
           </div>
         </div>
-      )}
 
       {/* Context Scope Indicator */}
       {contextScope !== 'general' && (

@@ -1,10 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import FioIcon from '../ui/FioIcon';
+import { useModal } from '../../context/ModalContext';
+import { useAuth } from '../../context/AuthContext';
 
 const BottomNav = ({ currentScreen, setCurrentScreen }) => {
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const moreButtonRef = useRef(null);
   const sheetRef = useRef(null);
+  const { openModal } = useModal();
+  const { user } = useAuth();
 
   // 4 Primary Navigation Items
   const primaryNavItems = [
@@ -21,6 +25,12 @@ const BottomNav = ({ currentScreen, setCurrentScreen }) => {
     { id: 'coach', label: 'Coach', icon: 'fio', desc: 'KI-Assistent & Tages-Sparring' },
     { id: 'review', label: 'Review', icon: 'analytics', desc: 'Wöchentlicher Leistungs-Rückblick' },
     { id: 'trash', label: 'Papierkorb', icon: 'delete', desc: 'Gelöschte Elemente & Wiederherstellung' },
+    { 
+      id: 'profile', 
+      label: 'Mein Profil', 
+      icon: 'account_circle', 
+      desc: user?.isGuest ? 'Gast-Modus & Abmelden' : 'Kontoeinstellungen & Abmelden' 
+    },
   ];
 
   const isMoreActive = [
@@ -84,6 +94,11 @@ const BottomNav = ({ currentScreen, setCurrentScreen }) => {
   }, [isMoreOpen]);
 
   const handleSelectMoreItem = (id) => {
+    if (id === 'profile') {
+      setIsMoreOpen(false);
+      openModal('profile');
+      return;
+    }
     setCurrentScreen(id);
     setIsMoreOpen(false);
     moreButtonRef.current?.focus();
@@ -92,7 +107,7 @@ const BottomNav = ({ currentScreen, setCurrentScreen }) => {
   return (
     <nav 
       aria-label="Mobile Navigation"
-      className="/* md:hidden */ lg:hidden fixed bottom-0 left-0 w-full z-50 pointer-events-none"
+      className="md:hidden fixed bottom-0 left-0 w-full z-50 pointer-events-none"
     >
       {/* Backdrop for "Mehr" Bottom Sheet */}
       {isMoreOpen && (
@@ -113,7 +128,7 @@ const BottomNav = ({ currentScreen, setCurrentScreen }) => {
         aria-modal="true"
         aria-label="Weitere Navigationsziele"
         ref={sheetRef}
-        className={`fixed left-0 right-0 z-50 mx-auto max-w-lg w-full bg-surface border-t border-outline-variant rounded-t-3xl shadow-2xl p-4 sm:p-6 pointer-events-auto transition-all duration-300 ease-out ${
+        className={`fixed left-0 right-0 z-50 mx-auto max-w-lg w-full bg-surface border-t border-outline-variant rounded-t-3xl shadow-2xl p-4 sm:p-6 pointer-events-auto transition-all duration-300 ease-out max-h-[85vh] flex flex-col ${
           isMoreOpen 
             ? 'bottom-0 translate-y-0 opacity-100' 
             : 'bottom-0 translate-y-full opacity-0 pointer-events-none'
@@ -121,7 +136,7 @@ const BottomNav = ({ currentScreen, setCurrentScreen }) => {
         style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}
       >
         {/* Drag Notch / Header */}
-        <div className="flex flex-col items-center mb-4">
+        <div className="flex flex-col items-center mb-4 shrink-0">
           <div className="w-12 h-1.5 bg-outline-variant rounded-full mb-3" />
           <div className="flex items-center justify-between w-full px-1">
             <h2 className="text-base font-bold text-primary">Weitere Bereiche</h2>
@@ -139,7 +154,7 @@ const BottomNav = ({ currentScreen, setCurrentScreen }) => {
         </div>
 
         {/* Grid of secondary items */}
-        <div className="grid grid-cols-1 gap-2">
+        <div className="grid grid-cols-1 gap-2 overflow-y-auto pr-0.5">
           {moreNavItems.map((item) => {
             const isItemActive = 
               currentScreen === item.id ||
@@ -155,11 +170,19 @@ const BottomNav = ({ currentScreen, setCurrentScreen }) => {
                     : 'bg-white border-outline-variant text-primary hover:border-primary/50'
                 }`}
               >
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                <div className={`w-10 h-10 ${item.id === 'profile' ? 'rounded-full' : 'rounded-xl'} flex items-center justify-center shrink-0 overflow-hidden ${
                   isItemActive ? 'bg-primary text-white' : 'bg-surface-low text-primary'
                 }`}>
                   {item.id === 'coach' ? (
                     <FioIcon className="w-5 h-5" color="currentColor" />
+                  ) : item.id === 'profile' && user?.photoURL ? (
+                    <img src={user.photoURL} alt="Avatar" className="w-full h-full object-cover rounded-full" />
+                  ) : item.id === 'profile' && user?.isGuest ? (
+                    <span className="material-symbols-outlined text-amber-500 text-[22px]">person</span>
+                  ) : item.id === 'profile' && !user?.isGuest ? (
+                    <span className="text-xs font-bold font-mono text-primary">
+                      {(user?.displayName || user?.email || 'U').substring(0, 2).toUpperCase()}
+                    </span>
                   ) : (
                     <span className="material-symbols-outlined text-[22px]">{item.icon}</span>
                   )}

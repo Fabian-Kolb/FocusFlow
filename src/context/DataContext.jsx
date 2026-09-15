@@ -357,18 +357,26 @@ export const DataProvider = ({ children }) => {
   // Helper to save a project directly to Firestore
   const saveProject = async (project) => {
     if (!user) return;
-    if (user.isGuest) {
-      setProjects(prev => {
-        const exists = prev.some(p => p.id === project.id);
-        const updated = exists ? prev.map(p => p.id === project.id ? project : p) : [project, ...prev];
+    // Optimistic local update for instant UI feedback
+    setProjects(prev => {
+      const exists = prev.some(p => p.id === project.id);
+      const updated = exists ? prev.map(p => p.id === project.id ? project : p) : [project, ...prev];
+      if (user.isGuest) {
         try {
           localStorage.setItem('focusflow_guest_projects', JSON.stringify(updated));
         } catch (e) {}
-        return updated;
-      });
-      return;
+      }
+      return updated;
+    });
+
+    if (user.isGuest) return;
+
+    try {
+      await setDoc(doc(db, 'users', user.uid, 'projects', project.id), project);
+    } catch (err) {
+      console.error('Error saving project to Firestore:', err);
+      handleFirestoreError('projects', err);
     }
-    await setDoc(doc(db, 'users', user.uid, 'projects', project.id), project);
   };
 
   // Helper to mutate an existing project based on local state, then save
@@ -900,18 +908,26 @@ export const DataProvider = ({ children }) => {
   // Reminders Helpers
   const saveReminder = async (rem) => {
     if (!user) return;
-    if (user.isGuest) {
-      setReminders(prev => {
-        const exists = prev.some(r => r.id === rem.id);
-        const updated = exists ? prev.map(r => r.id === rem.id ? rem : r) : [rem, ...prev];
+    // Optimistic local update for instant UI feedback
+    setReminders(prev => {
+      const exists = prev.some(r => r.id === rem.id);
+      const updated = exists ? prev.map(r => r.id === rem.id ? rem : r) : [rem, ...prev];
+      if (user.isGuest) {
         try {
           localStorage.setItem('focusflow_guest_reminders', JSON.stringify(updated));
         } catch (e) {}
-        return updated;
-      });
-      return;
+      }
+      return updated;
+    });
+
+    if (user.isGuest) return;
+
+    try {
+      await setDoc(doc(db, 'users', user.uid, 'reminders', rem.id), rem);
+    } catch (err) {
+      console.error('Error saving reminder to Firestore:', err);
+      handleFirestoreError('reminders', err);
     }
-    await setDoc(doc(db, 'users', user.uid, 'reminders', rem.id), rem);
   };
 
   const mutateReminder = (reminderId, mutateFn) => {

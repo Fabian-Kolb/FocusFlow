@@ -656,51 +656,53 @@ Regeln für deine Antworten:
     <div className="screen-transition flex flex-col h-full w-full relative overflow-hidden bg-surface">
       <div className="flex h-full w-full relative overflow-hidden">
         {/* Mobile-Only Overlay (Tap to close on small screens) */}
-        {isHistoryOpen && (
-          <div 
-            className="absolute inset-0 bg-black/20 z-30 md:hidden backdrop-blur-xs transition-opacity duration-300"
-            onClick={() => setIsHistoryOpen(false)}
-          />
-        )}
-        
-        {/* Left Floating History Pill Panel (Slides out from behind sidebar, adapts chat width on desktop) */}
-        <div
-          className={`z-40 md:z-20 flex-shrink-0 transition-all duration-300 ease-out flex flex-col ${
-            isHistoryOpen
-              ? 'absolute md:relative inset-y-0 left-0 w-[85%] sm:w-80 max-w-[340px] p-2.5 sm:p-3 opacity-100 translate-x-0'
-              : 'w-0 -translate-x-full opacity-0 p-0 m-0 overflow-hidden pointer-events-none'
+        <div 
+          className={`fixed inset-0 bg-black/25 backdrop-blur-xs z-30 md:hidden transition-opacity duration-300 ${
+            isHistoryOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
           }`}
+          onClick={() => setIsHistoryOpen(false)}
+          aria-hidden="true"
+        />
+        
+        {/* Left Floating History Panel (Slides out smoothly, stable inner width prevents wrapping during close) */}
+        <div
+          className={`
+            fixed inset-y-0 left-0 z-40 h-full
+            md:relative md:inset-auto md:z-20
+            transition-[width,transform,opacity] duration-300 ease-in-out overflow-hidden
+            ${isHistoryOpen
+              ? 'w-[85%] sm:w-80 max-w-[340px] md:w-80 translate-x-0 opacity-100 pointer-events-auto'
+              : 'w-[85%] sm:w-80 max-w-[340px] md:w-0 -translate-x-full md:translate-x-0 md:opacity-0 pointer-events-none'
+            }
+          `}
         >
-          {/* Inner Rounded Floating Pill Card */}
-          <div className="w-full h-full flex flex-col bg-white/95 dark:bg-surface-low/95 backdrop-blur-xl border border-outline-variant/80 rounded-2xl sm:rounded-3xl shadow-xl overflow-hidden">
-            {/* Header */}
-            <div className="p-3.5 border-b border-outline-variant/60 flex items-center justify-between bg-surface-low/50">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[18px]">history</span>
-                </div>
-                <span className="text-xs font-mono font-bold text-on-surface tracking-wider uppercase">Verlauf</span>
-                <span className="text-[10px] font-mono text-on-surface-variant font-bold bg-white px-2 py-0.5 rounded-md border border-outline-variant">
-                  {sessions.length}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5">
+          {/* Inner Container with fixed width so contents never squish/wrap */}
+          <div className={`w-[85vw] sm:w-80 max-w-[340px] md:w-80 h-full p-2.5 sm:p-3 flex flex-col shrink-0 transition-transform duration-300 ease-in-out ${
+            isHistoryOpen ? 'translate-x-0' : '-translate-x-full md:-translate-x-full'
+          }`}>
+            {/* Inner Rounded Floating Pill Card */}
+            <div className="w-full h-full flex flex-col bg-white/95 dark:bg-surface-low/95 backdrop-blur-xl border border-outline-variant/80 rounded-2xl sm:rounded-3xl shadow-xl overflow-hidden">
+              {/* Header with Neuer Chat & Verkleinern Button */}
+              <div className="p-3 sm:p-3.5 border-b border-outline-variant/60 flex items-center gap-2 bg-surface-low/50">
+                {/* Neuer Chat Button (Prominent, Touch-Friendly 40px) */}
                 <button
-                  className="w-8 h-8 bg-neutral-900 text-white rounded-xl hover:bg-black transition-all flex items-center justify-center cursor-pointer shadow-xs hover:shadow-sm"
-                  title="Neues Gespräch beginnen"
+                  className="flex-grow h-10 px-3.5 bg-neutral-900 text-white hover:bg-black transition-all flex items-center justify-center gap-2 rounded-xl cursor-pointer shadow-xs hover:shadow-sm font-mono text-xs font-bold active:scale-[0.98]"
+                  title="Neuen Chat starten"
                   onClick={handleNewChat}
                 >
-                  <span className="material-symbols-outlined text-[17px]">edit_square</span>
+                  <span className="material-symbols-outlined text-[19px]">edit_square</span>
+                  <span>Neuer Chat</span>
                 </button>
+
+                {/* Button zum Verkleinern des Chats (Matching 40px x 40px UI Button) */}
                 <button
-                  className="w-8 h-8 border border-outline-variant bg-white hover:border-primary text-primary transition-all flex items-center justify-center rounded-xl cursor-pointer shadow-xs hover:shadow-sm"
+                  className="w-10 h-10 border border-outline-variant bg-white hover:border-primary text-primary transition-all flex items-center justify-center rounded-xl cursor-pointer shadow-xs hover:shadow-sm active:scale-[0.98] shrink-0"
                   title="Verlauf einklappen"
                   onClick={() => setIsHistoryOpen(false)}
                 >
-                  <span className="material-symbols-outlined text-[17px]">left_panel_close</span>
+                  <span className="material-symbols-outlined text-[20px]">left_panel_close</span>
                 </button>
               </div>
-            </div>
 
             {/* Search Bar for Sessions */}
             <div className="p-2.5 border-b border-outline-variant/60">
@@ -782,32 +784,32 @@ Regeln für deine Antworten:
             </div>
           </div>
         </div>
+      </div>
 
         {/* Right Main Chat Panel (Adapts Width Dynamically, Keeps Centered Input & Messages) */}
         <div className="flex-grow min-w-0 flex flex-col h-full relative overflow-hidden bg-surface">
           {/* Fixed Top Controls Bar with Soft Gradient */}
           <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-between p-3 sm:p-3.5 pointer-events-none bg-gradient-to-b from-surface via-surface/90 to-transparent pb-6">
-            {/* Left Action Buttons when History is closed */}
-            <div className="flex items-center gap-2 pointer-events-auto">
-              {!isHistoryOpen && (
-                <>
-                  <button
-                    className="flex items-center gap-1.5 px-3 py-2 border border-outline-variant bg-white/95 backdrop-blur-md hover:border-primary text-primary transition-all rounded-xl cursor-pointer shadow-xs hover:shadow-sm"
-                    title="Verlauf öffnen"
-                    onClick={() => setIsHistoryOpen(true)}
-                  >
-                    <span className="material-symbols-outlined text-[18px]">history</span>
-                    <span className="text-xs font-mono font-bold hidden sm:inline">Verlauf</span>
-                  </button>
-                  <button
-                    className="w-10 h-10 bg-neutral-900 text-white rounded-xl hover:bg-black transition-all flex items-center justify-center cursor-pointer shadow-xs hover:shadow-sm"
-                    title="Neuer Chat"
-                    onClick={handleNewChat}
-                  >
-                    <span className="material-symbols-outlined text-[19px]">edit_square</span>
-                  </button>
-                </>
-              )}
+            {/* Left Action Buttons with Smooth Crossfade */}
+            <div className={`flex items-center gap-2 pointer-events-auto transition-opacity duration-200 ${
+              isHistoryOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'
+            }`}>
+              <button
+                className="h-10 px-3.5 flex items-center gap-1.5 border border-outline-variant bg-white/95 dark:bg-surface-low/95 backdrop-blur-md hover:border-primary text-primary transition-all rounded-xl cursor-pointer shadow-xs hover:shadow-sm"
+                title="Chatverlauf öffnen"
+                onClick={() => setIsHistoryOpen(true)}
+              >
+                <span className="material-symbols-outlined text-[20px]">history</span>
+                <span className="text-xs font-mono font-bold hidden sm:inline">Verlauf</span>
+              </button>
+              <button
+                className="h-10 px-3.5 flex items-center gap-1.5 bg-neutral-900 text-white hover:bg-black transition-all rounded-xl cursor-pointer shadow-xs hover:shadow-sm"
+                title="Neuen Chat starten"
+                onClick={handleNewChat}
+              >
+                <span className="material-symbols-outlined text-[20px]">edit_square</span>
+                <span className="text-xs font-mono font-bold hidden sm:inline">Neuer Chat</span>
+              </button>
             </div>
 
             {/* Right Model Dropdown (Custom Glass Popover Menu) */}
@@ -945,9 +947,9 @@ Regeln für deine Antworten:
                         </div>
                       )}
                       <div className="flex gap-3 flex-row-reverse">
-                        <div className="w-8 h-8 flex-shrink-0 bg-neutral-900 text-white border border-neutral-700 rounded-xl flex items-center justify-center text-xs font-mono font-bold shadow-xs">
+                        <div className="w-8 h-8 flex-shrink-0 bg-neutral-900 text-white border border-neutral-700 rounded-full flex items-center justify-center text-xs font-mono font-bold shadow-xs overflow-hidden">
                           {user?.photoURL ? (
-                            <img src={user.photoURL} alt="User" className="w-full h-full rounded-xl object-cover" />
+                            <img src={user.photoURL} alt="User" className="w-full h-full rounded-full object-cover" />
                           ) : (
                             <span className="material-symbols-outlined text-[18px]">person</span>
                           )}

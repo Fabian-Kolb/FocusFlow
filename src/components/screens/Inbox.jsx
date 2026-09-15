@@ -9,6 +9,7 @@ import Card from '../ui/Card';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import ModelSelectorDropdown from '../ui/ModelSelectorDropdown';
+import SummaryLengthDropdown from '../ui/SummaryLengthDropdown';
 
 const Inbox = ({ setCurrentScreen }) => {
   const { inboxItems, addInboxItem, updateInboxItem, deleteInboxItem, openModal, projects, mutateProject, reminders, mutateReminder } = useModalContext();
@@ -23,75 +24,39 @@ const Inbox = ({ setCurrentScreen }) => {
   const [activeModel, setActiveModel] = useState('eco');
   const [summaryLength, setSummaryLength] = useState('normal');
   const [isSummaryEnabled, setIsSummaryEnabled] = useState(true);
-  const [sectionOpen, setSectionOpen] = useState({
-    today: true,
-    yesterday: true,
-    thisWeek: false,
-    older: false
+  const [showAllOlder, setShowAllOlder] = useState(false);
+  const [isDeleteMode, setIsDeleteMode] = useState(false);
+  const [isOlderExpandedManually, setIsOlderExpandedManually] = useState(null);
+
+  // Current notes: items created today
+  const currentNotes = [...(inboxItems?.today || [])].sort((a, b) => {
+    const timeA = a.createdAt || (a.id && a.id.includes('_') ? parseInt(a.id.split('_')[1]) : 0);
+    const timeB = b.createdAt || (b.id && b.id.includes('_') ? parseInt(b.id.split('_')[1]) : 0);
+    return timeB - timeA;
   });
-  const [deleteModeCategory, setDeleteModeCategory] = useState({});
 
-  const toggleSection = (sectionKey) => {
-    setSectionOpen(prev => ({ ...prev, [sectionKey]: !prev[sectionKey] }));
-  };
+  // Older notes: items from yesterday, this week, and older
+  const allOlderNotes = [
+    ...(inboxItems?.yesterday || []),
+    ...(inboxItems?.thisWeek || []),
+    ...(inboxItems?.older || [])
+  ];
 
-  const toggleDeleteMode = (categoryKey) => {
-    setDeleteModeCategory(prev => ({
-      ...prev,
-      [categoryKey]: !prev[categoryKey]
-    }));
-  };
+  const sortedOlderNotes = [...allOlderNotes].sort((a, b) => {
+    const timeA = a.createdAt || (a.id && a.id.includes('_') ? parseInt(a.id.split('_')[1]) : 0);
+    const timeB = b.createdAt || (b.id && b.id.includes('_') ? parseInt(b.id.split('_')[1]) : 0);
+    return timeB - timeA;
+  });
 
-  const renderSection = (title, key, items, isDimmed = false) => {
-    if (!items || items.length === 0) return null;
-    const isOpen = !!sectionOpen[key];
-    const isDeleteMode = !!deleteModeCategory[key];
+  const hasCurrentNotes = currentNotes.length > 0;
+  const isOlderOpen = isOlderExpandedManually !== null ? isOlderExpandedManually : !hasCurrentNotes;
+  const visibleOlderNotes = showAllOlder ? sortedOlderNotes : sortedOlderNotes.slice(0, 3);
 
-    return (
-      <div key={key} className="space-y-3">
-        <div className="flex items-center justify-between py-1.5 border-b border-outline-variant/60">
-          <div 
-            className="flex items-center gap-2 cursor-pointer select-none group flex-grow"
-            onClick={() => toggleSection(key)}
-          >
-            <span className={`material-symbols-outlined text-[20px] text-on-surface-variant group-hover:text-primary transition-transform duration-200 ${
-              isOpen ? 'rotate-90 text-primary' : ''
-            }`}>
-              chevron_right
-            </span>
-            <h2 className="text-sm font-bold text-on-surface group-hover:text-primary transition-colors flex items-center gap-1.5">
-              <span>{title}</span>
-              <span className="text-on-surface-variant font-medium">({items.length})</span>
-            </h2>
-          </div>
-
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleDeleteMode(key);
-            }}
-            className={`px-2 py-1 rounded-lg transition-all flex items-center gap-1 cursor-pointer text-xs font-mono font-bold ${
-              isDeleteMode
-                ? 'bg-red-600 text-white border border-red-600 shadow-sm'
-                : 'text-on-surface-variant hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200'
-            }`}
-            title={isDeleteMode ? 'Löschmodus beenden' : 'Löschmodus aktivieren'}
-          >
-            <span className="material-symbols-outlined text-[16px]">
-              {isDeleteMode ? 'check' : 'delete'}
-            </span>
-            {isDeleteMode && <span>Fertig</span>}
-          </button>
-        </div>
-
-        {isOpen && (
-          <div className="space-y-3">
-            {items.map((item) => renderItemCard(item, isDimmed, isDeleteMode))}
-          </div>
-        )}
-      </div>
-    );
+  const toggleOlderSection = () => {
+    setIsOlderExpandedManually(prev => {
+      const currentVal = prev !== null ? prev : !hasCurrentNotes;
+      return !currentVal;
+    });
   };
 
   const recognitionRef = useRef(null);
@@ -381,7 +346,7 @@ const Inbox = ({ setCurrentScreen }) => {
     deleteInboxItem(item.id);
   };
 
-  const renderItemCard = (item, isYesterday = false, isDeleteMode = false) => {
+  const renderItemCard = (item, isOlder = false, isDeleteMode = false) => {
     const isExpanded = !!expandedItems[item.id];
 
     // Format creation time
@@ -389,6 +354,17 @@ const Inbox = ({ setCurrentScreen }) => {
     const createdDateObj = new Date(createdTimestamp);
     const createdFormattedStr = createdDateObj.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr';
     const createdDateStr = createdDateObj.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const startOfYesterday = startOfToday - 24 * 60 * 60 * 1000;
+
+    let dayLabel = createdDateStr;
+    if (createdTimestamp >= startOfToday) {
+      dayLabel = 'Heute';
+    } else if (createdTimestamp >= startOfYesterday) {
+      dayLabel = 'Gestern';
+    }
 
     // Format target/extracted date badge
     let targetBadgeLabel = null;
@@ -424,7 +400,7 @@ const Inbox = ({ setCurrentScreen }) => {
         key={item.id}
         padding="small"
         className={`flex flex-col gap-2 group hover:border-primary transition-all ${
-          isYesterday ? 'opacity-75' : ''
+          isOlder ? 'opacity-85' : ''
         }`}
       >
         <div className="flex items-start justify-between gap-3">
@@ -433,7 +409,7 @@ const Inbox = ({ setCurrentScreen }) => {
             <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono text-on-surface-variant">
               <span className="bg-surface-low border border-outline-variant rounded-md px-2 py-0.5 flex items-center gap-1">
                 <span className="material-symbols-outlined text-[13px]">schedule</span>
-                {createdDateStr}, {createdFormattedStr}
+                {dayLabel}, {createdFormattedStr}
               </span>
               {targetBadgeLabel && (
                 <span className="bg-primary/10 text-primary border border-primary/20 rounded-md px-2 py-0.5 font-bold flex items-center gap-1">
@@ -652,32 +628,146 @@ const Inbox = ({ setCurrentScreen }) => {
                   showEco={true}
                 />
 
-                <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white/95 dark:bg-surface-low/95 backdrop-blur-md border border-outline-variant hover:border-primary/40 rounded-xl shadow-2xs transition-all">
-                  <span className="material-symbols-outlined text-primary text-[15px]">straighten</span>
-                  <select
-                    value={summaryLength}
-                    onChange={(e) => setSummaryLength(e.target.value)}
-                    className="bg-transparent border-none outline-none text-xs font-mono font-bold text-primary focus:ring-0 p-0 cursor-pointer"
-                    title="Zusammenfassungs-Länge"
-                  >
-                    <option value="compact">Kompakt</option>
-                    <option value="normal">Präzise</option>
-                    <option value="detailed">Ausführlich</option>
-                  </select>
-                </div>
+                <SummaryLengthDropdown
+                  value={summaryLength}
+                  onChange={setSummaryLength}
+                />
               </div>
             )}
           </div>
         </Card>
 
-        {renderSection('Heute', 'today', inboxItems?.today, false)}
-        {renderSection('Gestern', 'yesterday', inboxItems?.yesterday, true)}
-        {renderSection('Diese Woche', 'thisWeek', inboxItems?.thisWeek, true)}
-        {renderSection('Älter', 'older', inboxItems?.older, true)}
+        {!hasCurrentNotes && sortedOlderNotes.length === 0 ? (
+          <div className="text-center py-10 px-4 bg-surface-low border border-dashed border-outline-variant rounded-2xl text-on-surface-variant text-xs font-mono space-y-2">
+            <span className="material-symbols-outlined text-[32px] block opacity-40">inbox</span>
+            <p>Keine offenen Notizen in der Inbox.</p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Aktuelle Notizen (nur sichtbar, wenn heute Einträge hinzugefügt wurden) */}
+            {hasCurrentNotes && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between py-1.5 border-b border-outline-variant/60">
+                  <div className="flex items-center gap-2 select-none">
+                    <span className="material-symbols-outlined text-[20px] text-primary">
+                      schedule
+                    </span>
+                    <h2 className="text-sm font-bold text-on-surface flex items-center gap-1.5">
+                      <span>Aktuelle Notizen</span>
+                      <span className="text-on-surface-variant font-medium">
+                        ({currentNotes.length})
+                      </span>
+                    </h2>
+                  </div>
 
-        {(!inboxItems?.today?.length && !inboxItems?.yesterday?.length && !inboxItems?.thisWeek?.length && !inboxItems?.older?.length) && (
-          <div className="text-center py-8 text-on-surface-variant text-xs font-mono">
-            Keine offenen Notizen in der Inbox.
+                  <button
+                    type="button"
+                    onClick={() => setIsDeleteMode(prev => !prev)}
+                    className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer text-xs font-mono font-bold ${
+                      isDeleteMode
+                        ? 'bg-red-600 text-white border border-red-600 shadow-sm'
+                        : 'text-on-surface-variant hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200'
+                    }`}
+                    title={isDeleteMode ? 'Löschmodus beenden' : 'Löschmodus aktivieren'}
+                  >
+                    <span className="material-symbols-outlined text-[16px]">
+                      {isDeleteMode ? 'check' : 'delete'}
+                    </span>
+                    <span>{isDeleteMode ? 'Fertig' : 'Löschen'}</span>
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {currentNotes.map((item) => renderItemCard(item, false, isDeleteMode))}
+                </div>
+              </div>
+            )}
+
+            {/* Ältere Notizen:
+                - Wenn keine aktuellen Notizen vorhanden: Automatisch aufgeklappt mit den letzten 3 älteren Notizen.
+                - Wenn aktuelle Notizen vorhanden: Standardmäßig zugeklappt.
+            */}
+            {sortedOlderNotes.length > 0 && (
+              <div className="space-y-3 pt-1">
+                <div 
+                  className="flex items-center justify-between py-1.5 border-b border-outline-variant/60 cursor-pointer select-none group"
+                  onClick={toggleOlderSection}
+                >
+                  <div className="flex items-center gap-2 flex-grow">
+                    <span className={`material-symbols-outlined text-[20px] text-on-surface-variant group-hover:text-primary transition-transform duration-200 ${
+                      isOlderOpen ? 'rotate-90 text-primary' : ''
+                    }`}>
+                      chevron_right
+                    </span>
+                    <h2 className="text-sm font-bold text-on-surface group-hover:text-primary transition-colors flex items-center gap-1.5">
+                      <span>Ältere Notizen</span>
+                      <span className="text-on-surface-variant font-medium">({sortedOlderNotes.length})</span>
+                    </h2>
+                  </div>
+
+                  {!hasCurrentNotes && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsDeleteMode(prev => !prev);
+                      }}
+                      className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer text-xs font-mono font-bold mr-2 ${
+                        isDeleteMode
+                          ? 'bg-red-600 text-white border border-red-600 shadow-sm'
+                          : 'text-on-surface-variant hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200'
+                      }`}
+                      title={isDeleteMode ? 'Löschmodus beenden' : 'Löschmodus aktivieren'}
+                    >
+                      <span className="material-symbols-outlined text-[16px]">
+                        {isDeleteMode ? 'check' : 'delete'}
+                      </span>
+                      <span>{isDeleteMode ? 'Fertig' : 'Löschen'}</span>
+                    </button>
+                  )}
+
+                  <span className="text-xs font-mono font-bold text-primary group-hover:underline flex items-center gap-1">
+                    {isOlderOpen ? 'Zuklappen' : 'Aufklappen'}
+                  </span>
+                </div>
+
+                {isOlderOpen && (
+                  <div className="space-y-3 animate-fadeIn">
+                    {visibleOlderNotes.map((item) => renderItemCard(item, true, isDeleteMode))}
+
+                    {sortedOlderNotes.length > 3 && (
+                      <div className="flex justify-center pt-2">
+                        {showAllOlder ? (
+                          <button
+                            type="button"
+                            onClick={() => setShowAllOlder(false)}
+                            className="flex items-center gap-2 px-4 py-2 bg-surface-low hover:bg-white border border-outline-variant hover:border-primary text-xs font-mono font-bold text-on-surface-variant hover:text-primary rounded-xl shadow-2xs hover:shadow-xs transition-all cursor-pointer group"
+                          >
+                            <span className="material-symbols-outlined text-[18px] group-hover:-translate-y-0.5 transition-transform">
+                              expand_less
+                            </span>
+                            <span>Weniger anzeigen (nur die letzten 3)</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setShowAllOlder(true)}
+                            className="w-full py-3 px-4 bg-surface-low/80 hover:bg-white border border-dashed border-outline-variant hover:border-primary text-xs font-mono font-bold text-primary rounded-2xl shadow-2xs hover:shadow-xs transition-all cursor-pointer flex items-center justify-center gap-2 group"
+                          >
+                            <span className="material-symbols-outlined text-[18px] group-hover:translate-y-0.5 transition-transform">
+                              expand_more
+                            </span>
+                            <span>
+                              Mehr anzeigen ({sortedOlderNotes.length - 3} weitere ältere Notiz{sortedOlderNotes.length - 3 === 1 ? '' : 'en'})
+                            </span>
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
