@@ -4,7 +4,7 @@ import { generateReminderStructure } from '../../lib/gemini';
 import FioIcon from '../ui/FioIcon';
 
 const ReminderModal = ({ setCurrentScreen }) => {
-  const { activeModal, modalPayload, closeModal, addReminder } = useModalContext();
+  const { activeModal, modalPayload, closeModal, addReminder, user, isCalendarConnected } = useModalContext();
   const isOpen = activeModal === 'reminder';
 
   const [title, setTitle] = useState('');
@@ -12,6 +12,7 @@ const ReminderModal = ({ setCurrentScreen }) => {
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
   const [status, setStatus] = useState('GEPLANT');
+  const [syncWithCalendar, setSyncWithCalendar] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const titleInputRef = useRef(null);
 
@@ -22,6 +23,7 @@ const ReminderModal = ({ setCurrentScreen }) => {
       setDate(modalPayload.date || '');
       setTime(modalPayload.time || '');
       setStatus(modalPayload.status || 'GEPLANT');
+      setSyncWithCalendar(false);
 
       // Auto-focus input after modal opens
       const timer = setTimeout(() => {
@@ -47,7 +49,8 @@ const ReminderModal = ({ setCurrentScreen }) => {
       date,
       time,
       status,
-      inboxItemId: modalPayload.inboxItemId
+      inboxItemId: modalPayload.inboxItemId,
+      syncWithCalendar: Boolean(syncWithCalendar && isCalendarConnected && !user?.isGuest)
     });
 
     closeModal();
@@ -173,6 +176,38 @@ const ReminderModal = ({ setCurrentScreen }) => {
                   onChange={(e) => setTime(e.target.value)}
                 />
               </div>
+            </div>
+
+            {/* Calendar Sync Option */}
+            <div className={`p-3.5 rounded-xl border transition-all ${
+              !isCalendarConnected || user?.isGuest
+                ? 'bg-surface-low border-outline-variant/60 opacity-60'
+                : syncWithCalendar
+                ? 'bg-primary/5 border-primary/30'
+                : 'bg-white border-outline-variant hover:border-outline'
+            }`}>
+              <label className={`flex items-center gap-3 select-none ${(!isCalendarConnected || user?.isGuest) ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                <input
+                  type="checkbox"
+                  disabled={!isCalendarConnected || user?.isGuest}
+                  checked={syncWithCalendar}
+                  onChange={(e) => setSyncWithCalendar(e.target.checked)}
+                  className="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant cursor-pointer disabled:cursor-not-allowed"
+                />
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="material-symbols-outlined text-[18px] text-primary">calendar_month</span>
+                  <span className="text-xs sm:text-sm font-semibold text-on-surface">
+                    Mit Google Kalender synchronisieren
+                  </span>
+                </div>
+              </label>
+              {(!isCalendarConnected || user?.isGuest) && (
+                <p className="text-[11px] text-on-surface-variant mt-1.5 ml-7">
+                  {user?.isGuest
+                    ? 'Kalender-Synchronisation ist nur für registrierte Accounts verfügbar.'
+                    : 'Google Kalender ist aktuell nicht in FocusFlow verknüpft.'}
+                </p>
+              )}
             </div>
           </form>
         </div>

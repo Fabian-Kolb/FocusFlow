@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSwipeToClose } from '../../hooks/useSwipeToClose';
+import { useModalContext } from '../../context/ModalContext';
 import FioIcon from './FioIcon';
+import CalendarDesyncModal from '../modals/CalendarDesyncModal';
 
 const TaskDetailDrawer = ({
   projectData,
@@ -18,10 +20,21 @@ const TaskDetailDrawer = ({
   onDeleteMaterial,
   onOpenNote
 }) => {
+  const {
+    user,
+    isCalendarConnected,
+    isEntitySyncing,
+    syncErrors,
+    clearEntitySyncError,
+    syncTaskToCalendar,
+    desyncTaskFromCalendar
+  } = useModalContext();
+
   const [activeTask, setActiveTask] = useState(task);
   const [activePhase, setActivePhase] = useState(phase);
   const [isSwitching, setIsSwitching] = useState(false);
   const [slideInTrigger, setSlideInTrigger] = useState(true);
+  const [isDesyncModalOpen, setIsDesyncModalOpen] = useState(false);
 
   const [localTitle, setLocalTitle] = useState('');
   const [localNote, setLocalNote] = useState('');
@@ -206,6 +219,29 @@ const TaskDetailDrawer = ({
     }
   };
 
+  const isSyncing = isEntitySyncing ? isEntitySyncing(currentTask?.id) : false;
+  const syncError = syncErrors ? syncErrors[currentTask?.id] : null;
+
+  const handleSyncTask = async () => {
+    if (!projectData?.id || !currentPhase?.id || !currentTask?.id) return;
+    if (isSyncing || user?.isGuest || !isCalendarConnected) return;
+    try {
+      await syncTaskToCalendar(projectData.id, currentPhase.id, currentTask.id);
+    } catch (err) {
+      console.error('Fehler beim Kalender-Sync der Aufgabe:', err);
+    }
+  };
+
+  const handleDesyncConfirm = async ({ deleteInGoogle }) => {
+    if (!projectData?.id || !currentPhase?.id || !currentTask?.id) return;
+    try {
+      await desyncTaskFromCalendar(projectData.id, currentPhase.id, currentTask.id, { deleteInGoogle });
+      setIsDesyncModalOpen(false);
+    } catch (err) {
+      console.error('Fehler beim De-Synchronisieren der Aufgabe:', err);
+    }
+  };
+
   if (!shouldRender && !isOpen) return null;
 
   return (
@@ -282,6 +318,87 @@ const TaskDetailDrawer = ({
                 onChange={handleDateChange}
                 className="w-full px-3 py-1.5 sm:py-2 border border-outline-variant rounded-lg sm:rounded-xl bg-surface-low focus:bg-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-sans text-sm transition-all"
               />
+            </div>
+
+            {/* Calendar Sync Section */}
+            <div className="mt-1 p-2.5 bg-surface-low/80 border border-outline-variant/60 rounded-xl flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="material-symbols-outlined text-[16px] text-primary">calendar_month</span>
+                  <span className="text-xs font-mono font-bold text-on-surface truncate">
+                    Google Kalender
+                  </span>
+                  {currentTask.isCalendarSynced ? (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
+                      <span className="material-symbols-outlined text-[12px]">check_circle</span>
+                      Synchronisiert
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-on-surface-variant font-mono">
+                      Nicht synchronisiert
+                    </span>
+                  )}
+                </div>
+
+                {currentTask.isCalendarSynced ? (
+                  <button
+                    type="button"
+                    disabled={isSyncing}
+                    onClick={() => setIsDesyncModalOpen(true)}
+                    className="px-2 py-1 text-[11px] font-mono font-bold text-on-surface-variant hover:text-red-600 hover:bg-red-50 border border-outline-variant hover:border-red-200 rounded-lg transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    title="Synchronisation trennen"
+                  >
+                    <span className="material-symbols-outlined text-[13px]">sync_disabled</span>
+                    <span>Trennen</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={isSyncing || user?.isGuest || !isCalendarConnected || !localDate}
+                    onClick={handleSyncTask}
+                    title={
+                      user?.isGuest
+                        ? 'Im Gastmodus nicht verfügbar'
+                        : !isCalendarConnected
+                        ? 'Google Kalender ist nicht verbunden'
+                        : !localDate
+                        ? 'Bitte zuerst ein Datum festlegen'
+                        : 'Mit Google Kalender synchronisieren'
+                    }
+                    className="px-2.5 py-1 text-[11px] font-mono font-bold text-white bg-primary hover:bg-neutral-800 rounded-lg transition-colors flex items-center gap-1 cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSyncing ? (
+                      <>
+                        <span className="material-symbols-outlined text-[13px] animate-spin">sync</span>
+                        <span>Sync...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="material-symbols-outlined text-[13px]">sync</span>
+                        <span>Synchronisieren</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+
+              {/* Sync Error Banner */}
+              {syncError && (
+                <div className="p-2 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between gap-2 text-xs text-red-700">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="material-symbols-outlined text-[14px] text-red-600 shrink-0">error</span>
+                    <span className="truncate">{syncError}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => clearEntitySyncError && clearEntitySyncError(currentTask.id)}
+                    className="text-red-500 hover:text-red-700 p-0.5"
+                    title="Meldung schließen"
+                  >
+                    <span className="material-symbols-outlined text-[12px]">close</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -462,6 +579,16 @@ const TaskDetailDrawer = ({
 
         </div>
       </div>
+
+      {/* Calendar Desync Confirmation Modal */}
+      <CalendarDesyncModal
+        isOpen={isDesyncModalOpen}
+        title={currentTask?.title}
+        type="Aufgabe"
+        onClose={() => setIsDesyncModalOpen(false)}
+        onConfirm={handleDesyncConfirm}
+        isLoading={isSyncing}
+      />
     </>
   );
 };

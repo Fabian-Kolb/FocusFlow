@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm';
 import { useModalContext } from '../../context/ModalContext';
 import { useChat } from '../../context/ChatContext';
 import { askGeminiCoach } from '../../lib/gemini';
-import { ACTION_ENGINE_SYSTEM_PROMPT, parseAiActions, executeAiActions } from '../../lib/aiActionEngine';
+import { ACTION_ENGINE_SYSTEM_PROMPT, parseAiActions, executeAiActions, parseIntentChoice } from '../../lib/aiActionEngine';
 import FioIcon from './FioIcon';
 
 const ProjectAiChat = ({
@@ -244,7 +244,7 @@ REGELN:
   };
 
   const modalContext = useModalContext();
-  const { projects = [], reminders = [] } = modalContext;
+  const { projects = [], reminders = [], user, isCalendarConnected } = modalContext;
 
   const handleSend = async (textToSend) => {
     const text = textToSend || inputText;
@@ -301,18 +301,20 @@ REGELN:
         signal: abortController.signal,
         onChunk: (streamedText) => {
           fullStreamedText = streamedText;
-          const { cleanText } = parseAiActions(streamedText);
+          const { cleanText: textWithoutActions } = parseAiActions(streamedText);
+          const { cleanText } = parseIntentChoice(textWithoutActions);
           updateStreamingMessage(targetSessionId, botMsgId, cleanText, true);
         }
       });
 
-      const { cleanText, actions } = parseAiActions(fullStreamedText);
+      const { cleanText: textWithoutActions, actions } = parseAiActions(fullStreamedText);
+      const { cleanText, intentChoice } = parseIntentChoice(textWithoutActions);
       let executedActionResults = [];
       if (actions && actions.length > 0) {
         executedActionResults = await executeAiActions(actions, modalContext, projects, reminders);
       }
 
-      updateStreamingMessage(targetSessionId, botMsgId, cleanText || undefined, false, executedActionResults);
+      updateStreamingMessage(targetSessionId, botMsgId, cleanText || undefined, false, executedActionResults, { intentChoice });
     } catch (err) {
       if (err.name === 'AbortError' || abortController.signal.aborted) {
         // Stopped by user

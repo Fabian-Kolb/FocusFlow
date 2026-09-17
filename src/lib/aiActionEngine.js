@@ -2,6 +2,9 @@
 // Fio AI Action Engine: Tool Calling & Real-Time App Actions
 // Allows Fio to create & mutate projects, phases, tasks, reminders, and statuses directly in the app state.
 
+import { createCalendarEvent } from './calendarAPI';
+import { parseDateToGooglePayload } from './calendarSyncService';
+
 /**
  * System prompt guidelines instructing Gemini on how to format actions.
  */
@@ -45,7 +48,18 @@ Wenn der Nutzer dich darum bittet (z. B. "erstelle einen Abschnitt", "füge Aufg
       "description": "Optionale Beschreibung / Notizen",
       "date": "YYYY-MM-DD (oder 'Demnächst')",
       "time": "HH:MM (oder leer)",
-      "priority": "hoch" | "mittel" | "niedrig"
+      "priority": "hoch" | "mittel" | "niedrig",
+      "syncWithCalendar": true | false // true = mit Google Kalender synchronisieren
+    },
+
+    // 4. Termin direkt im Google Kalender eintragen (ohne FocusFlow-Erinnerung):
+    {
+      "type": "CREATE_CALENDAR_EVENT",
+      "title": "Titel des Kalendertermins",
+      "description": "Optionale Beschreibung",
+      "date": "YYYY-MM-DD",
+      "time": "HH:MM (optional)",
+      "endTime": "HH:MM (optional)"
     },
 
     // 4. Neues Projekt mit Phasen erstellen:
@@ -134,7 +148,45 @@ WICHTIG:
 - Verwende für 'phaseTitle' (Abschnitt) EXAKT die vom Nutzer gewünschte Bezeichnung (z. B. 'Neu', 'Konzept', 'Design'), OHNE künstlich Präfixe wie 'Phase 04:' davorzuschreiben!
 - Verwende in deinen deutschen Antworten immer den Begriff 'Abschnitt' (oder 'Etappe') anstelle von 'Phase'.
 - Formuliere deine Textantwort positiv und bestätigend (z. B. "Ich habe den Abschnitt '...' mit X Aufgaben zum Projekt '...' hinzugefügt!"), da der Aktionsblock direkt nach deiner Antwort ausgeführt wird.
+
+SPEZIELLE REGELN FÜR KALENDER & TERMINE:
+- Wenn der Nutzer dich bittet, einen Termin oder eine Erinnerung einzutragen (z. B. "Trage am Freitag um 14 Uhr Zahnarzt ein"), aber NOCH NICHT spezifiziert hat, ob nur in FocusFlow, synchronisiert oder nur im Google Kalender:
+  Führe noch KEINE Aktion aus! Frage den Nutzer freundlich, welche Variante er wünscht:
+  1. [Nur in FocusFlow] (Lokale Erinnerung)
+  2. [FocusFlow + Kalender-Sync] (Erinnerung synchronisiert mit Google Kalender – Empfohlen)
+  3. [Nur im Google Kalender] (Direkter Kalendertermin)
+  Hänge am Ende deiner Antwort zwingend die Markierung im Format an:
+  [INTENT_CHOICE: appointment | Titel | YYYY-MM-DD | HH:MM]
+  (z. B. [INTENT_CHOICE: appointment | Zahnarzt | 2026-09-25 | 14:00])
+- Wenn der Nutzer "FocusFlow + Kalender-Sync" wählt (oder "beides" / "synchronisieren"), nutze "CREATE_REMINDER" mit "syncWithCalendar": true.
+- Wenn der Nutzer "Nur in FocusFlow" wählt, nutze "CREATE_REMINDER" mit "syncWithCalendar": false.
+- Wenn der Nutzer "Nur im Google Kalender" wählt, nutze "CREATE_CALENDAR_EVENT".
+- Wenn der Nutzer nach Terminen fragt ("Was steht heute noch in meinem Kalender?", "Welche Termine habe ich diese Woche?"), prüfe die 'kalender.termine' und heutigen 'erinnerungen' im übergebenen Kontext und liste sie übersichtlich auf!
+- Gastmodus & Verbindung: Wenn 'kalender.verbunden' false ist oder der Nutzer im Gastmodus ist, weise ihn freundlich darauf hin, dass Google Kalender nicht verknüpft ist, und lege den Termin als lokale FocusFlow-Erinnerung an.
 `;
+
+/**
+ * Extracts any [INTENT_CHOICE: type | title | date | time] marker from text.
+ */
+export function parseIntentChoice(rawText) {
+  if (!rawText || typeof rawText !== 'string') {
+    return { cleanText: rawText || '', intentChoice: null };
+  }
+  const match = rawText.match(/\[INTENT_CHOICE:\s*([^\]|]+)\s*\|\s*([^\]|]+)\s*\|\s*([^\]|]+)(?:\s*\|\s*([^\]]+))?\]/);
+  if (!match) {
+    return { cleanText: rawText, intentChoice: null };
+  }
+  const cleanText = rawText.replace(match[0], '').trim();
+  return {
+    cleanText,
+    intentChoice: {
+      type: match[1].trim(),
+      title: match[2].trim(),
+      date: match[3].trim(),
+      time: (match[4] || '').trim()
+    }
+  };
+}
 
 /**
  * Parses any ```focusflow-action ``` block from the AI's response text.
@@ -331,6 +383,7 @@ export async function executeAiActions(actions, modalContext, projects = [], rem
 
       else if (act.type === 'CREATE_REMINDER') {
         if (!addReminder) continue;
+        const syncWithCalendar = Boolean(act.syncWithCalendar);
         const newRemId = await addReminder({
           title: act.title || 'Neue Erinnerung',
           description: act.description || '',
@@ -338,16 +391,46 @@ export async function executeAiActions(actions, modalContext, projects = [], rem
           time: act.time || '',
           priority: act.priority || 'mittel',
           categoryId: act.categoryId || 'allgemein'
-        });
+        }, { syncWithCalendar });
 
         results.push({
           type: 'CREATE_REMINDER',
           success: true,
           title: `Erinnerung „${act.title}“ erstellt`,
-          subtitle: `${act.date || 'Demnächst'}${act.time ? ` um ${act.time} Uhr` : ''}`,
+          subtitle: `${act.date || 'Demnächst'}${act.time ? ` um ${act.time} Uhr` : ''}${syncWithCalendar ? ' • Mit Google Kalender synchronisiert' : ''}`,
           targetType: 'reminder',
           targetId: newRemId,
-          targetTitle: act.title
+          targetTitle: act.title,
+          isCalendarSynced: syncWithCalendar
+        });
+      }
+
+      else if (act.type === 'CREATE_CALENDAR_EVENT') {
+        const title = act.title || act.summary || 'Neuer Termin';
+        const description = act.description || '';
+        const date = act.date || act.startDate || new Date().toISOString().split('T')[0];
+        const time = act.time || act.startTime || '';
+        const endTime = act.endTime || '';
+
+        const payload = parseDateToGooglePayload({
+          title,
+          description,
+          date,
+          time,
+          endTime
+        });
+
+        const created = await createCalendarEvent(payload);
+
+        results.push({
+          type: 'CREATE_CALENDAR_EVENT',
+          success: true,
+          title: `Google Kalendereintrag erstellt: „${title}“`,
+          subtitle: `${date}${time ? ` um ${time} Uhr` : ' (Ganztägig)'}`,
+          targetType: 'calendar',
+          targetId: created?.id || 'cal_event',
+          targetTitle: title,
+          isOnlyCalendar: true
         });
       }
 

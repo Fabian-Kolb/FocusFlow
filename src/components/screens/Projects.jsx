@@ -21,6 +21,7 @@ const Projects = ({ setCurrentScreen }) => {
     addProjectCategory,
     toggleProjectCategory,
     deleteProjectCategory,
+    updateProjectCategory,
     moveProjectToCategory,
     reorderProjectCategories,
     moveProjectCategoryOrder,
@@ -452,19 +453,29 @@ const Projects = ({ setCurrentScreen }) => {
                           type="text"
                           value={editingCatName}
                           onChange={(e) => setEditingCatName(e.target.value)}
+                          onBlur={() => saveEditCategory(cat.id)}
                           className="px-2 py-1 text-xs font-bold uppercase bg-surface-low border border-primary rounded-lg focus:outline-none"
                           autoFocus
-                          onKeyDown={(e) => e.key === 'Enter' && saveEditCategory(cat.id)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveEditCategory(cat.id);
+                            if (e.key === 'Escape') setEditingCatId(null);
+                          }}
                         />
                         <button
-                          onClick={() => saveEditCategory(cat.id)}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            saveEditCategory(cat.id);
+                          }}
                           className="p-1 bg-primary text-white rounded-lg hover:bg-primary/90"
                           title="Speichern"
                         >
                           <span className="material-symbols-outlined text-[16px]">check</span>
                         </button>
                         <button
-                          onClick={() => setEditingCatId(null)}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            setEditingCatId(null);
+                          }}
                           className="p-1 bg-surface-low text-on-surface-variant rounded-lg hover:bg-surface-variant"
                           title="Abbrechen"
                         >

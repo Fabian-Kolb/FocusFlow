@@ -2,6 +2,13 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { collection, doc, onSnapshot, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from './AuthContext';
+import {
+  syncEntityToGoogle,
+  desyncEntityFromGoogle,
+  batchSyncPhaseTasksToGoogle,
+  parseDateToGooglePayload
+} from '../lib/calendarSyncService';
+import { updateCalendarEvent } from '../lib/calendarAPI';
 
 const DataContext = createContext(null);
 
@@ -104,11 +111,42 @@ const DEMO_REMINDERS = [
 ];
 
 export const DataProvider = ({ children }) => {
-  const { user } = useAuth();
+  const { user, isCalendarConnected } = useAuth();
 
   const [projects, setProjects] = useState([]);
   const [inboxItems, setInboxItems] = useState({ today: [], yesterday: [] });
   const [reminders, setReminders] = useState([]);
+
+  // Calendar Synchronization States & Entity Locks
+  const [syncingEntityIds, setSyncingEntityIds] = useState(() => new Set());
+  const [syncErrors, setSyncErrors] = useState({}); // { [entityId]: { message, timestamp } }
+
+  const setEntitySyncing = (id, isSyncing) => {
+    setSyncingEntityIds((prev) => {
+      const next = new Set(prev);
+      if (isSyncing) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const isEntitySyncing = (id) => syncingEntityIds.has(id);
+
+  const setEntitySyncError = (id, message) => {
+    setSyncErrors((prev) => ({
+      ...prev,
+      [id]: { message, timestamp: Date.now() }
+    }));
+  };
+
+  const clearEntitySyncError = (id) => {
+    setSyncErrors((prev) => {
+      if (!prev[id]) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  };
 
   // Trash States
   const [trashedProjects, setTrashedProjects] = useState([]);
@@ -128,6 +166,16 @@ export const DataProvider = ({ children }) => {
 
   // Firestore Error State for Visibility
   const [firestoreError, setFirestoreError] = useState(null);
+
+  const handleFirestoreError = (colName, err) => {
+    console.error(`[DataContext] Error with ${colName} in Firestore:`, err);
+    setFirestoreError({
+      collection: colName,
+      code: err?.code || 'unknown',
+      message: err?.message || 'Fehler beim Laden oder Speichern der Daten in Firestore',
+      timestamp: Date.now()
+    });
+  };
 
   // Helper for auto-delete
   const checkAutoDelete = async (data, colName) => {
@@ -193,16 +241,6 @@ export const DataProvider = ({ children }) => {
       setTrashedInboxItems([]);
       return;
     }
-
-    const handleFirestoreError = (colName, err) => {
-      console.error(`[DataContext] Error fetching ${colName} from Firestore:`, err);
-      setFirestoreError({
-        collection: colName,
-        code: err?.code || 'unknown',
-        message: err?.message || 'Fehler beim Laden der Daten aus Firestore',
-        timestamp: Date.now()
-      });
-    };
 
     const unsubProjects = onSnapshot(collection(db, 'users', user.uid, 'projects'), (snapshot) => {
       const projs = [];
@@ -385,6 +423,48 @@ export const DataProvider = ({ children }) => {
     if (!proj) return;
     const updatedProj = mutateFn({ ...proj });
     saveProject(updatedProj);
+
+    // Update Propagation: Prüfen, ob synchronisierte Aufgaben geändert wurden
+    if (!user?.isGuest && isCalendarConnected) {
+      const oldTasksMap = new Map();
+      (proj.phases || []).forEach(ph => {
+        (ph.tasks || []).forEach(t => {
+          if (t.isCalendarSynced && t.googleEventId) {
+            oldTasksMap.set(t.id, t);
+          }
+        });
+      });
+
+      (updatedProj.phases || []).forEach(ph => {
+        (ph.tasks || []).forEach(newT => {
+          if (newT.isCalendarSynced && newT.googleEventId && oldTasksMap.has(newT.id)) {
+            const oldT = oldTasksMap.get(newT.id);
+            if (oldT.title !== newT.title || oldT.date !== newT.date || oldT.note !== newT.note) {
+              const { valid, payload } = parseDateToGooglePayload({
+                title: newT.title,
+                description: `Aufgabe aus Projekt: ${updatedProj.title}\nAbschnitt: ${ph.title}${newT.note ? `\nNotiz: ${newT.note}` : ''}`,
+                date: newT.date
+              });
+              if (valid) {
+                updateCalendarEvent(newT.googleEventId, payload).catch((err) => {
+                  console.warn('[CalendarSync] Auto-update der Aufgabe fehlgeschlagen:', err);
+                  if (err.message && (err.message.includes('404') || err.message.toLowerCase().includes('not found'))) {
+                    saveProject({
+                      ...updatedProj,
+                      phases: (updatedProj.phases || []).map(p => ({
+                        ...p,
+                        tasks: (p.tasks || []).map(t => t.id === newT.id ? { ...t, isCalendarSynced: false, googleEventId: null } : t)
+                      }))
+                    });
+                    setEntitySyncError(newT.id, 'Termin existiert im Google Kalender nicht mehr.');
+                  }
+                });
+              }
+            }
+          }
+        });
+      });
+    }
   };
 
   const addProject = async (projectData) => {
@@ -875,7 +955,12 @@ export const DataProvider = ({ children }) => {
     const name = newName.trim();
     setProjectCategories(prev => prev.map(c => c.id === catId ? { ...c, name } : c));
     if (!user || catId === 'allgemein') return;
-    await setDoc(doc(db, 'users', user.uid, 'categories', catId), { name }, { merge: true });
+    try {
+      await setDoc(doc(db, 'users', user.uid, 'categories', catId), { id: catId, name }, { merge: true });
+    } catch (err) {
+      console.error('Error updating project category:', err);
+      handleFirestoreError('categories', err);
+    }
   };
 
   const updateReminderCategory = async (catId, newName) => {
@@ -883,7 +968,12 @@ export const DataProvider = ({ children }) => {
     const name = newName.trim();
     setReminderCategories(prev => prev.map(c => c.id === catId ? { ...c, name } : c));
     if (!user || catId === 'allgemein') return;
-    await setDoc(doc(db, 'users', user.uid, 'reminderCategories', catId), { name }, { merge: true });
+    try {
+      await setDoc(doc(db, 'users', user.uid, 'reminderCategories', catId), { id: catId, name }, { merge: true });
+    } catch (err) {
+      console.error('Error updating reminder category:', err);
+      handleFirestoreError('reminderCategories', err);
+    }
   };
 
   const deleteProjectCategory = async (categoryId) => {
@@ -933,7 +1023,38 @@ export const DataProvider = ({ children }) => {
   const mutateReminder = (reminderId, mutateFn) => {
     const rem = reminders.find(r => r.id === reminderId);
     if (!rem) return;
-    saveReminder(mutateFn({ ...rem }));
+    const updated = mutateFn({ ...rem });
+    saveReminder(updated);
+
+    // Update Propagation: Prüfen, ob geänderte Erinnerung mit Kalender synchronisiert ist
+    if (
+      !user?.isGuest &&
+      isCalendarConnected &&
+      updated.isCalendarSynced &&
+      updated.googleEventId &&
+      (updated.title !== rem.title || updated.date !== rem.date || updated.time !== rem.time)
+    ) {
+      const { valid, payload } = parseDateToGooglePayload({
+        title: updated.title,
+        description: updated.description || 'FocusFlow Erinnerung',
+        date: updated.date,
+        time: updated.time
+      });
+
+      if (valid) {
+        updateCalendarEvent(updated.googleEventId, payload).catch((err) => {
+          console.warn('[CalendarSync] Auto-update der Erinnerung fehlgeschlagen:', err);
+          if (err.message && (err.message.includes('404') || err.message.toLowerCase().includes('not found'))) {
+            saveReminder({
+              ...updated,
+              isCalendarSynced: false,
+              googleEventId: null
+            });
+            setEntitySyncError(reminderId, 'Termin existiert im Google Kalender nicht mehr. Synchronisation getrennt.');
+          }
+        });
+      }
+    }
   };
 
   const addReminder = async (reminderData) => {
@@ -949,6 +1070,8 @@ export const DataProvider = ({ children }) => {
       categoryId: reminderData.categoryId || 'allgemein',
       isPaused: false,
       inKanban: true,
+      isCalendarSynced: false,
+      googleEventId: null,
       createdAt: Date.now(),
       history: [
         {
@@ -967,7 +1090,301 @@ export const DataProvider = ({ children }) => {
     if (reminderData.inboxItemId) {
       deleteInboxItem(reminderData.inboxItemId);
     }
+
+    // Bei Neuanlage mit Kalender-Sync
+    if (reminderData.syncWithCalendar && isCalendarConnected && !user?.isGuest) {
+      syncReminderToCalendar(newId).catch((err) => {
+        console.warn('[CalendarSync] Initiale Synchronisation beim Anlegen fehlgeschlagen:', err);
+      });
+    }
+
     return newId;
+  };
+
+  // --- CALENDAR SYNCHRONIZATION METHODS ---
+
+  const syncReminderToCalendar = async (reminderId) => {
+    if (user?.isGuest) {
+      throw new Error('Kalender-Synchronisation ist im Gastmodus nicht verfügbar.');
+    }
+    if (!isCalendarConnected) {
+      throw new Error('Google Kalender ist nicht verbunden.');
+    }
+    if (syncingEntityIds.has(reminderId)) return null;
+
+    const reminder = reminders.find(r => r.id === reminderId);
+    if (!reminder) {
+      throw new Error('Erinnerung nicht gefunden.');
+    }
+
+    setEntitySyncing(reminderId, true);
+    clearEntitySyncError(reminderId);
+
+    try {
+      const result = await syncEntityToGoogle({
+        entity: reminder,
+        type: 'reminder',
+        isConnected: isCalendarConnected,
+        isGuest: !!user?.isGuest
+      });
+
+      if (result.success && result.googleEventId) {
+        mutateReminder(reminderId, (r) => ({
+          ...r,
+          isCalendarSynced: true,
+          googleEventId: result.googleEventId,
+          history: [
+            {
+              id: `h_${Date.now()}`,
+              date: `${new Date().toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()} • ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`,
+              title: result.action === 'updated' ? 'Google-Kalendertermin aktualisiert' : 'Mit Google Kalender synchronisiert',
+              category: 'Kalender-Sync',
+              icon: 'calendar_month',
+              badgeBg: 'bg-emerald-600 text-white'
+            },
+            ...(r.history || [])
+          ]
+        }));
+        return { success: true, googleEventId: result.googleEventId };
+      } else if (result.action === 'notFound') {
+        mutateReminder(reminderId, (r) => ({
+          ...r,
+          isCalendarSynced: false,
+          googleEventId: null
+        }));
+        setEntitySyncError(reminderId, 'Termin existiert im Google Kalender nicht mehr. Synchronisation getrennt.');
+        return { success: false, notFound: true };
+      }
+    } catch (err) {
+      setEntitySyncError(reminderId, err.message || 'Fehler bei der Synchronisation');
+      throw err;
+    } finally {
+      setEntitySyncing(reminderId, false);
+    }
+  };
+
+  const desyncReminderFromCalendar = async (reminderId, { deleteInGoogle = false } = {}) => {
+    const reminder = reminders.find(r => r.id === reminderId);
+    if (!reminder) return null;
+
+    setEntitySyncing(reminderId, true);
+    clearEntitySyncError(reminderId);
+
+    try {
+      if (reminder.googleEventId) {
+        await desyncEntityFromGoogle({
+          googleEventId: reminder.googleEventId,
+          deleteInGoogle,
+          isConnected: isCalendarConnected,
+          isGuest: !!user?.isGuest
+        });
+      }
+
+      mutateReminder(reminderId, (r) => ({
+        ...r,
+        isCalendarSynced: false,
+        googleEventId: null,
+        history: [
+          {
+            id: `h_${Date.now()}`,
+            date: `${new Date().toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()} • ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`,
+            title: deleteInGoogle ? 'Kalender-Sync getrennt & Termin im Kalender gelöscht' : 'Kalender-Sync getrennt (Termin im Kalender behalten)',
+            category: 'Kalender-Sync',
+            icon: 'sync_disabled',
+            badgeBg: 'bg-neutral-600 text-white'
+          },
+          ...(r.history || [])
+        ]
+      }));
+
+      return { success: true };
+    } catch (err) {
+      setEntitySyncError(reminderId, err.message || 'Fehler beim Trennen der Synchronisation');
+      throw err;
+    } finally {
+      setEntitySyncing(reminderId, false);
+    }
+  };
+
+  const syncTaskToCalendar = async (projectId, phaseId, taskId) => {
+    if (user?.isGuest) {
+      throw new Error('Kalender-Synchronisation ist im Gastmodus nicht verfügbar.');
+    }
+    if (!isCalendarConnected) {
+      throw new Error('Google Kalender ist nicht verbunden.');
+    }
+    if (syncingEntityIds.has(taskId)) return null;
+
+    const project = projects.find(p => p.id === projectId);
+    const phase = project?.phases?.find(ph => ph.id === phaseId);
+    const task = phase?.tasks?.find(t => t.id === taskId);
+
+    if (!project || !phase || !task) {
+      throw new Error('Aufgabe oder Projekt nicht gefunden.');
+    }
+
+    setEntitySyncing(taskId, true);
+    clearEntitySyncError(taskId);
+
+    try {
+      const result = await syncEntityToGoogle({
+        entity: task,
+        type: 'task',
+        projectTitle: project.title,
+        phaseTitle: phase.title,
+        isConnected: isCalendarConnected,
+        isGuest: !!user?.isGuest
+      });
+
+      if (result.success && result.googleEventId) {
+        mutateProject(projectId, (proj) => ({
+          ...proj,
+          phases: (proj.phases || []).map((ph) => {
+            if (ph.id !== phaseId) return ph;
+            return {
+              ...ph,
+              tasks: (ph.tasks || []).map((t) => {
+                if (t.id !== taskId) return t;
+                return {
+                  ...t,
+                  isCalendarSynced: true,
+                  googleEventId: result.googleEventId
+                };
+              })
+            };
+          })
+        }));
+        return { success: true, googleEventId: result.googleEventId };
+      } else if (result.action === 'notFound') {
+        mutateProject(projectId, (proj) => ({
+          ...proj,
+          phases: (proj.phases || []).map((ph) => {
+            if (ph.id !== phaseId) return ph;
+            return {
+              ...ph,
+              tasks: (ph.tasks || []).map((t) => {
+                if (t.id !== taskId) return t;
+                return {
+                  ...t,
+                  isCalendarSynced: false,
+                  googleEventId: null
+                };
+              })
+            };
+          })
+        }));
+        setEntitySyncError(taskId, 'Termin existiert im Google Kalender nicht mehr.');
+        return { success: false, notFound: true };
+      }
+    } catch (err) {
+      setEntitySyncError(taskId, err.message || 'Fehler bei der Synchronisation');
+      throw err;
+    } finally {
+      setEntitySyncing(taskId, false);
+    }
+  };
+
+  const desyncTaskFromCalendar = async (projectId, phaseId, taskId, { deleteInGoogle = false } = {}) => {
+    const project = projects.find(p => p.id === projectId);
+    const phase = project?.phases?.find(ph => ph.id === phaseId);
+    const task = phase?.tasks?.find(t => t.id === taskId);
+
+    if (!project || !phase || !task) return null;
+
+    setEntitySyncing(taskId, true);
+    clearEntitySyncError(taskId);
+
+    try {
+      if (task.googleEventId) {
+        await desyncEntityFromGoogle({
+          googleEventId: task.googleEventId,
+          deleteInGoogle,
+          isConnected: isCalendarConnected,
+          isGuest: !!user?.isGuest
+        });
+      }
+
+      mutateProject(projectId, (proj) => ({
+        ...proj,
+        phases: (proj.phases || []).map((ph) => {
+          if (ph.id !== phaseId) return ph;
+          return {
+            ...ph,
+            tasks: (ph.tasks || []).map((t) => {
+              if (t.id !== taskId) return t;
+              return {
+                ...t,
+                isCalendarSynced: false,
+                googleEventId: null
+              };
+            })
+          };
+        })
+      }));
+
+      return { success: true };
+    } catch (err) {
+      setEntitySyncError(taskId, err.message || 'Fehler beim Trennen der Synchronisation');
+      throw err;
+    } finally {
+      setEntitySyncing(taskId, false);
+    }
+  };
+
+  const batchSyncPhaseTasks = async (projectId, phaseId) => {
+    if (user?.isGuest) {
+      throw new Error('Kalender-Synchronisation ist im Gastmodus nicht verfügbar.');
+    }
+    if (!isCalendarConnected) {
+      throw new Error('Google Kalender ist nicht verbunden.');
+    }
+
+    const project = projects.find(p => p.id === projectId);
+    const phase = project?.phases?.find(ph => ph.id === phaseId);
+    if (!project || !phase) {
+      throw new Error('Projekt oder Abschnitt nicht gefunden.');
+    }
+
+    // Set lock on dated tasks in this phase
+    (phase.tasks || []).forEach(t => {
+      if (t.date && !t.isCalendarSynced) setEntitySyncing(t.id, true);
+    });
+
+    try {
+      const result = await batchSyncPhaseTasksToGoogle({
+        phase,
+        projectTitle: project.title,
+        isConnected: isCalendarConnected,
+        isGuest: !!user?.isGuest
+      });
+
+      if (result.synced && result.synced.length > 0) {
+        const syncedMap = new Map(result.synced.map(s => [s.taskId, s.googleEventId]));
+        mutateProject(projectId, (proj) => ({
+          ...proj,
+          phases: (proj.phases || []).map((ph) => {
+            if (ph.id !== phaseId) return ph;
+            return {
+              ...ph,
+              tasks: (ph.tasks || []).map((t) => {
+                if (syncedMap.has(t.id)) {
+                  return {
+                    ...t,
+                    isCalendarSynced: true,
+                    googleEventId: syncedMap.get(t.id)
+                  };
+                }
+                return t;
+              })
+            };
+          })
+        }));
+      }
+
+      return result;
+    } finally {
+      (phase.tasks || []).forEach(t => setEntitySyncing(t.id, false));
+    }
   };
 
   const updateReminderForKanban = (reminderId, column) => {
@@ -1148,7 +1565,18 @@ export const DataProvider = ({ children }) => {
     restoreItem,
     permanentlyDeleteItem,
     firestoreError,
-    clearFirestoreError: () => setFirestoreError(null)
+    clearFirestoreError: () => setFirestoreError(null),
+    // Calendar Sync
+    isCalendarConnected,
+    syncingEntityIds,
+    syncErrors,
+    isEntitySyncing,
+    clearEntitySyncError,
+    syncReminderToCalendar,
+    desyncReminderFromCalendar,
+    syncTaskToCalendar,
+    desyncTaskFromCalendar,
+    batchSyncPhaseTasks
   };
 
   return (

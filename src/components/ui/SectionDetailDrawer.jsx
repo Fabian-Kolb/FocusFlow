@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSwipeToClose } from '../../hooks/useSwipeToClose';
+import { useModalContext } from '../../context/ModalContext';
 import FioIcon from './FioIcon';
 
 const SectionDetailDrawer = ({
@@ -16,6 +17,12 @@ const SectionDetailDrawer = ({
   onDeleteMaterial,
   onOpenNote
 }) => {
+  const {
+    user,
+    isCalendarConnected,
+    batchSyncPhaseTasks
+  } = useModalContext();
+
   const [activePhase, setActivePhase] = useState(phase);
   const [isSwitching, setIsSwitching] = useState(false);
   const [slideInTrigger, setSlideInTrigger] = useState(true);
@@ -23,6 +30,9 @@ const SectionDetailDrawer = ({
   const [localTitle, setLocalTitle] = useState('');
   const [localDesc, setLocalDesc] = useState('');
   const [localDate, setLocalDate] = useState('');
+  const [isBatchSyncing, setIsBatchSyncing] = useState(false);
+  const [batchSyncResult, setBatchSyncResult] = useState(null);
+  const [batchSyncError, setBatchSyncError] = useState(null);
   const titleTextareaRef = useRef(null);
 
   const [shouldRender, setShouldRender] = useState(isOpen);
@@ -191,6 +201,26 @@ const SectionDetailDrawer = ({
     }
   };
 
+  const phaseTasks = currentPhase?.tasks || [];
+  const datedTasks = phaseTasks.filter(t => t.date && t.date !== 'Geplant: Demnächst');
+  const syncedTasks = datedTasks.filter(t => t.isCalendarSynced);
+
+  const handleBatchSync = async () => {
+    if (!projectData?.id || !currentPhase?.id) return;
+    if (isBatchSyncing || user?.isGuest || !isCalendarConnected || datedTasks.length === 0) return;
+    setIsBatchSyncing(true);
+    setBatchSyncError(null);
+    setBatchSyncResult(null);
+    try {
+      const res = await batchSyncPhaseTasks(projectData.id, currentPhase.id);
+      setBatchSyncResult(res);
+    } catch (err) {
+      setBatchSyncError(err.message || 'Fehler beim Synchronisieren des Abschnitts.');
+    } finally {
+      setIsBatchSyncing(false);
+    }
+  };
+
   if (!shouldRender && !isOpen) return null;
 
   return (
@@ -261,6 +291,85 @@ const SectionDetailDrawer = ({
                 className="w-full px-3 py-1.5 sm:py-2 border border-outline-variant rounded-lg sm:rounded-xl bg-surface-low focus:bg-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-sans text-sm transition-all"
               />
             </div>
+          </div>
+
+          {/* Calendar Batch Sync Section */}
+          <div className="p-3 bg-surface-low/80 border border-outline-variant/60 rounded-xl flex flex-col gap-2.5">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="material-symbols-outlined text-[18px] text-primary">calendar_month</span>
+                <span className="text-xs font-mono font-bold text-on-surface truncate">
+                  Kalender-Synchronisation
+                </span>
+              </div>
+              <span className="text-[10px] font-mono bg-white px-2 py-0.5 rounded-md text-on-surface-variant font-bold border border-outline-variant">
+                {syncedTasks.length} / {datedTasks.length} synchronisiert
+              </span>
+            </div>
+
+            <p className="text-xs text-on-surface-variant leading-relaxed">
+              Synchronisiert alle Aufgaben dieses Abschnitts mit Fälligkeitsdatum mit deinem Google Kalender.
+            </p>
+
+            <button
+              type="button"
+              disabled={isBatchSyncing || user?.isGuest || !isCalendarConnected || datedTasks.length === 0}
+              onClick={handleBatchSync}
+              title={
+                user?.isGuest
+                  ? 'Im Gastmodus nicht verfügbar'
+                  : !isCalendarConnected
+                  ? 'Google Kalender ist nicht verbunden'
+                  : datedTasks.length === 0
+                  ? 'Keine Aufgaben mit Fälligkeitsdatum vorhanden'
+                  : 'Alle datierten Aufgaben dieses Abschnitts synchronisieren'
+              }
+              className="w-full py-2 px-3 rounded-lg bg-primary hover:bg-neutral-800 text-white font-mono text-xs uppercase font-bold flex items-center justify-center gap-2 cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isBatchSyncing ? (
+                <>
+                  <span className="material-symbols-outlined text-[14px] animate-spin">sync</span>
+                  <span>Synchronisiere Aufgaben...</span>
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-[14px]">sync</span>
+                  <span>Abschnitt-Aufgaben synchronisieren</span>
+                </>
+              )}
+            </button>
+
+            {batchSyncResult && (
+              <div className="text-[11px] font-mono p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-center justify-between gap-2">
+                <span>
+                  ✓ {batchSyncResult.synced?.length || 0} synchronisiert
+                  {batchSyncResult.skipped?.length > 0 && ` • ${batchSyncResult.skipped.length} unverändert`}
+                  {batchSyncResult.failed?.length > 0 && ` • ⚠️ ${batchSyncResult.failed.length} fehlgeschlagen`}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setBatchSyncResult(null)}
+                  className="text-emerald-700 hover:text-emerald-900 p-0.5"
+                  title="Ausblenden"
+                >
+                  <span className="material-symbols-outlined text-xs">close</span>
+                </button>
+              </div>
+            )}
+
+            {batchSyncError && (
+              <div className="text-[11px] font-mono p-2 rounded-lg bg-red-50 border border-red-200 text-red-700 flex items-center justify-between gap-2">
+                <span className="truncate">{batchSyncError}</span>
+                <button
+                  type="button"
+                  onClick={() => setBatchSyncError(null)}
+                  className="text-red-500 hover:text-red-700 p-0.5"
+                  title="Ausblenden"
+                >
+                  <span className="material-symbols-outlined text-xs">close</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Description */}

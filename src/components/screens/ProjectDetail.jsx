@@ -18,7 +18,10 @@ const ProjectDetail = ({ setCurrentScreen }) => {
     mutateProject,
     toggleProjectPause,
     toggleProjectKanban,
-    projectCategories
+    projectCategories,
+    user,
+    isCalendarConnected,
+    batchSyncPhaseTasks
   } = useModalContext();
   const selectedProject = contextProjects.find(p => p.id === selectedProjectId) || (trashItems && trashItems.find(p => p.id === selectedProjectId)) || contextProjects[0];
   
@@ -28,10 +31,12 @@ const ProjectDetail = ({ setCurrentScreen }) => {
   const categoryObj = (projectCategories || []).find(c => c.id === (projectData.categoryId || 'allgemein')) || { id: 'allgemein', name: 'Allgemein' };
 
   const setProjectData = (mutateFn) => {
+    const targetId = projectData.id || selectedProjectId;
+    if (!targetId) return;
     if (typeof mutateFn === 'function') {
-      mutateProject(selectedProjectId, mutateFn);
+      mutateProject(targetId, mutateFn);
     } else {
-      mutateProject(selectedProjectId, () => mutateFn);
+      mutateProject(targetId, () => mutateFn);
     }
   };
 
@@ -61,6 +66,8 @@ const ProjectDetail = ({ setCurrentScreen }) => {
   const [showMaterialModal, setShowMaterialModal] = useState(false);
   const [activePhaseIdForTask, setActivePhaseIdForTask] = useState(null);
   const [activeTargetForMaterial, setActiveTargetForMaterial] = useState(null); // { type: 'phase'|'task', id: string }
+  const [syncingPhaseId, setSyncingPhaseId] = useState(null);
+  const [syncFeedback, setSyncFeedback] = useState(null); // { message, type: 'success' | 'error' }
 
   // Form Inputs
   const [newPhaseTitle, setNewPhaseTitle] = useState('');
@@ -77,6 +84,21 @@ const ProjectDetail = ({ setCurrentScreen }) => {
   const [isEditingDates, setIsEditingDates] = useState(false);
   const [editStartDate, setEditStartDate] = useState(selectedProject?.startDate || '');
   const [editEndDate, setEditEndDate] = useState(selectedProject?.endDate || '');
+
+  // States for Editing Title Inline
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editTitle, setEditTitle] = useState(projectData.title || '');
+
+  useEffect(() => {
+    setEditTitle(projectData.title || '');
+  }, [projectData.title]);
+
+  const handleSaveTitle = () => {
+    if (editTitle.trim() && editTitle.trim() !== projectData.title) {
+      setProjectData(prev => ({ ...prev, title: editTitle.trim() }));
+    }
+    setIsEditingTitle(false);
+  };
 
   // Removed unneeded inline edit functions
 
@@ -538,6 +560,38 @@ const ProjectDetail = ({ setCurrentScreen }) => {
     setActivePhaseIdForTask(null);
   };
 
+  const handleBatchSyncPhase = async (phaseId) => {
+    if (!projectData?.id || !phaseId) return;
+    if (user?.isGuest || !isCalendarConnected || syncingPhaseId === phaseId) return;
+    setSyncingPhaseId(phaseId);
+    try {
+      const res = await batchSyncPhaseTasks(projectData.id, phaseId);
+      const syncedCount = res?.synced?.length || 0;
+      const skippedCount = res?.skipped?.length || 0;
+      const failedCount = res?.failed?.length || 0;
+      if (failedCount > 0) {
+        setSyncFeedback({
+          message: `${syncedCount} Aufgaben synchronisiert, ${failedCount} fehlgeschlagen.`,
+          type: 'error'
+        });
+      } else {
+        setSyncFeedback({
+          message: `${syncedCount} Aufgaben synchronisiert (${skippedCount} unverändert).`,
+          type: 'success'
+        });
+      }
+      setTimeout(() => setSyncFeedback(null), 4000);
+    } catch (err) {
+      setSyncFeedback({
+        message: err.message || 'Fehler beim Synchronisieren des Abschnitts.',
+        type: 'error'
+      });
+      setTimeout(() => setSyncFeedback(null), 4000);
+    } finally {
+      setSyncingPhaseId(null);
+    }
+  };
+
   // Handle Add Material / Link
   const handleMaterialSubmit = (e) => {
     e.preventDefault();
@@ -791,6 +845,26 @@ const ProjectDetail = ({ setCurrentScreen }) => {
         <div className="fixed top-0 left-0 right-0 h-64 sm:h-80 bg-gradient-to-b from-blue-200/70 via-blue-100/25 to-transparent pointer-events-none z-0" />
       )}
       <div className={`w-full mx-auto space-y-4 sm:space-y-6 relative z-10 transition-all duration-300 ${rightMarginClass}`}>
+        {syncFeedback && (
+          <div className={`p-3 rounded-xl border flex items-center justify-between gap-3 text-xs font-mono font-bold animate-in fade-in duration-200 ${
+            syncFeedback.type === 'error'
+              ? 'bg-red-50 border-red-200 text-red-700'
+              : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+          }`}>
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-[18px]">
+                {syncFeedback.type === 'error' ? 'error' : 'check_circle'}
+              </span>
+              <span>{syncFeedback.message}</span>
+            </div>
+            <button
+              onClick={() => setSyncFeedback(null)}
+              className="p-1 hover:bg-black/5 rounded-md cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[14px]">close</span>
+            </button>
+          </div>
+        )}
         <div>
           {/* Breadcrumb Navigation */}
           <nav className="flex items-center gap-1.5 text-xs font-mono text-on-surface-variant mb-4 flex-wrap bg-surface-low/60 p-2.5 rounded-xl border border-outline-variant/60">
@@ -848,9 +922,67 @@ const ProjectDetail = ({ setCurrentScreen }) => {
 
           {/* Header Title with Interactive Status Toggle & History Button */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl sm:text-3xl font-bold leading-tight">{projectData.title}</h1>
+            <div className="flex flex-col gap-1 flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                {isEditingTitle ? (
+                  <div className="flex items-center gap-2 flex-1 max-w-xl">
+                    <input
+                      type="text"
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      onBlur={handleSaveTitle}
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveTitle();
+                        if (e.key === 'Escape') {
+                          setEditTitle(projectData.title || '');
+                          setIsEditingTitle(false);
+                        }
+                      }}
+                      className="text-2xl sm:text-3xl font-bold leading-tight px-2 py-1 border border-primary rounded-xl bg-surface-low focus:bg-white focus:outline-none w-full"
+                    />
+                    <button
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        handleSaveTitle();
+                      }}
+                      className="p-1.5 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors cursor-pointer shrink-0"
+                      title="Speichern"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">check</span>
+                    </button>
+                    <button
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setEditTitle(projectData.title || '');
+                        setIsEditingTitle(false);
+                      }}
+                      className="p-1.5 bg-surface-low text-on-surface-variant hover:bg-surface-variant rounded-lg transition-colors cursor-pointer shrink-0"
+                      title="Abbrechen"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">close</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="group flex items-center gap-2 flex-wrap">
+                    <h1 
+                      onClick={() => !isTrashed && setIsEditingTitle(true)}
+                      className={`text-2xl sm:text-3xl font-bold leading-tight cursor-pointer hover:underline decoration-primary/40 underline-offset-4 ${isTrashed ? 'cursor-default hover:no-underline' : ''}`}
+                      title={isTrashed ? '' : 'Klicken zum Umbenennen'}
+                    >
+                      {projectData.title}
+                    </h1>
+                    {!isTrashed && (
+                      <button
+                        onClick={() => setIsEditingTitle(true)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-on-surface-variant hover:text-primary hover:bg-surface-low rounded-lg cursor-pointer"
+                        title="Projekt umbenennen"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">edit</span>
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1179,6 +1311,26 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                       {phase.badgeText || '0/0 ERLEDIGT'}
                     </span>
                     <button
+                      type="button"
+                      disabled={user?.isGuest || !isCalendarConnected || syncingPhaseId === phase.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleBatchSyncPhase(phase.id);
+                      }}
+                      className="p-1 rounded-lg hover:bg-surface-low text-on-surface-variant hover:text-primary transition-colors cursor-pointer disabled:opacity-40"
+                      title={
+                        user?.isGuest
+                          ? 'Im Gastmodus nicht verfügbar'
+                          : !isCalendarConnected
+                          ? 'Google Kalender ist nicht verbunden'
+                          : 'Alle Aufgaben dieses Abschnitts mit Fälligkeitsdatum mit Google Kalender synchronisieren'
+                      }
+                    >
+                      <span className={`material-symbols-outlined text-[18px] ${syncingPhaseId === phase.id ? 'animate-spin text-primary' : ''}`}>
+                        {syncingPhaseId === phase.id ? 'sync' : 'calendar_month'}
+                      </span>
+                    </button>
+                    <button
                       onClick={() => handleSelectPhase(phase)}
                       className="p-1 rounded-lg hover:bg-surface-low text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
                       title="Abschnitt bearbeiten"
@@ -1222,6 +1374,14 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                           >
                             {task.title}
                           </span>
+                          {task.isCalendarSynced && (
+                            <span 
+                              className="material-symbols-outlined text-[16px] text-emerald-600 flex-shrink-0"
+                              title="Mit Google Kalender synchronisiert"
+                            >
+                              calendar_month
+                            </span>
+                          )}
                           {task.date && task.date !== 'Geplant: Demnächst' && (
                             <span className="text-[10px] font-mono text-on-surface-variant bg-surface-low px-2 py-0.5 rounded-lg border border-outline-variant flex-shrink-0 hidden sm:inline">
                               📅 {task.date}

@@ -309,7 +309,7 @@ export const ChatProvider = ({ children }) => {
   }, [persistSessions]);
 
   // Update streaming message in session
-  const updateStreamingMessage = useCallback((sessionId, messageId, streamedContent, isStreaming = true, actionResults = null) => {
+  const updateStreamingMessage = useCallback((sessionId, messageId, streamedContent, isStreaming = true, actionResults = null, extraFields = {}) => {
     setSessions((prev) => {
       const updated = prev.map((sess) => {
         if (sess.id === sessionId) {
@@ -322,7 +322,8 @@ export const ChatProvider = ({ children }) => {
                     ...msg, 
                     content: streamedContent !== undefined ? streamedContent : (msg.content || ''), 
                     isStreaming,
-                    ...(actionResults !== null ? { actionResults } : {})
+                    ...(actionResults !== null ? { actionResults } : {}),
+                    ...(extraFields || {})
                   }
                 : msg
             )

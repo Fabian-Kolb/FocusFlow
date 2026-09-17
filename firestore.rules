@@ -65,7 +65,8 @@ service cloud.firestore {
             'id', 'title', 'description', 'category', 'categoryId', 'phases', 'status', 'progress',
             'isPaused', 'inKanban', 'nextStep', 'startDate', 'endDate', 'dateRange', 'daysRemaining',
             'timeElapsed', 'phasesCompleted', 'phasesTotal', 'tasksCompleted', 'tasksTotal',
-            'warning', 'notes', 'history', 'createdAt', 'updatedAt', 'deletedAt', '_type', 'tags', 'order'
+            'warning', 'notes', 'history', 'createdAt', 'updatedAt', 'deletedAt', '_type', 'tags', 'order',
+            'tasksCountText', 'daysCountText', 'recommendedSteps', 'isPinned', 'firstPhase', 'lastUpdated'
           ]) &&
           request.resource.data.title is string &&
           request.resource.data.title.size() > 0 &&
@@ -73,7 +74,7 @@ service cloud.firestore {
           (!('progress' in request.resource.data) || (request.resource.data.progress is number && request.resource.data.progress >= 0 && request.resource.data.progress <= 100)) &&
           (!('phases' in request.resource.data) || (request.resource.data.phases is list && request.resource.data.phases.size() <= 50)) &&
           (!('notes' in request.resource.data) || (request.resource.data.notes is list && request.resource.data.notes.size() <= 100)) &&
-          request.resource.data.keys().size() <= 40;
+          request.resource.data.keys().size() <= 50;
 
         allow update: if isOwner(userId) &&
           request.resource.data.id == resource.data.id &&
@@ -82,7 +83,8 @@ service cloud.firestore {
             'id', 'title', 'description', 'category', 'categoryId', 'phases', 'status', 'progress',
             'isPaused', 'inKanban', 'nextStep', 'startDate', 'endDate', 'dateRange', 'daysRemaining',
             'timeElapsed', 'phasesCompleted', 'phasesTotal', 'tasksCompleted', 'tasksTotal',
-            'warning', 'notes', 'history', 'createdAt', 'updatedAt', 'deletedAt', '_type', 'tags', 'order'
+            'warning', 'notes', 'history', 'createdAt', 'updatedAt', 'deletedAt', '_type', 'tags', 'order',
+            'tasksCountText', 'daysCountText', 'recommendedSteps', 'isPinned', 'firstPhase', 'lastUpdated'
           ]) &&
           request.resource.data.title is string &&
           request.resource.data.title.size() > 0 &&
@@ -90,7 +92,7 @@ service cloud.firestore {
           (!('progress' in request.resource.data) || (request.resource.data.progress is number && request.resource.data.progress >= 0 && request.resource.data.progress <= 100)) &&
           (!('phases' in request.resource.data) || (request.resource.data.phases is list && request.resource.data.phases.size() <= 50)) &&
           (!('notes' in request.resource.data) || (request.resource.data.notes is list && request.resource.data.notes.size() <= 100)) &&
-          request.resource.data.keys().size() <= 40;
+          request.resource.data.keys().size() <= 50;
       }
 
       // B) Erinnerungen / Tasks
@@ -104,14 +106,15 @@ service cloud.firestore {
           request.resource.data.keys().hasOnly([
             'id', 'title', 'description', 'date', 'time', 'category', 'categoryId', 'priority',
             'status', 'isPaused', 'inKanban', 'completed', 'notes', 'history', 'createdAt',
-            'updatedAt', 'deletedAt', '_type', 'tags', 'dateRange', 'daysRemaining', 'timeElapsed', 'order'
+            'updatedAt', 'deletedAt', '_type', 'tags', 'dateRange', 'daysRemaining', 'timeElapsed', 'order',
+            'isPinned', 'startDate', 'endDate', 'lastUpdated'
           ]) &&
           request.resource.data.title is string &&
           request.resource.data.title.size() > 0 &&
           request.resource.data.title.size() <= 300 &&
           (!('completed' in request.resource.data) || request.resource.data.completed is bool) &&
           (!('notes' in request.resource.data) || (request.resource.data.notes is list && request.resource.data.notes.size() <= 50)) &&
-          request.resource.data.keys().size() <= 40;
+          request.resource.data.keys().size() <= 50;
 
         allow update: if isOwner(userId) &&
           request.resource.data.id == resource.data.id &&
@@ -119,14 +122,15 @@ service cloud.firestore {
           request.resource.data.keys().hasOnly([
             'id', 'title', 'description', 'date', 'time', 'category', 'categoryId', 'priority',
             'status', 'isPaused', 'inKanban', 'completed', 'notes', 'history', 'createdAt',
-            'updatedAt', 'deletedAt', '_type', 'tags', 'dateRange', 'daysRemaining', 'timeElapsed', 'order'
+            'updatedAt', 'deletedAt', '_type', 'tags', 'dateRange', 'daysRemaining', 'timeElapsed', 'order',
+            'isPinned', 'startDate', 'endDate', 'lastUpdated'
           ]) &&
           request.resource.data.title is string &&
           request.resource.data.title.size() > 0 &&
           request.resource.data.title.size() <= 300 &&
           (!('completed' in request.resource.data) || request.resource.data.completed is bool) &&
           (!('notes' in request.resource.data) || (request.resource.data.notes is list && request.resource.data.notes.size() <= 50)) &&
-          request.resource.data.keys().size() <= 40;
+          request.resource.data.keys().size() <= 50;
       }
 
       // C) Inbox Items
@@ -139,28 +143,32 @@ service cloud.firestore {
           request.resource.data.keys().hasAll(['id', 'title']) &&
           request.resource.data.keys().hasOnly([
             'id', 'title', 'summary', 'originalText', 'category',
-            'createdAt', 'updatedAt', 'deletedAt', '_type'
+            'createdAt', 'updatedAt', 'deletedAt', '_type',
+            'cleanText', 'extractedDateType', 'extractedDate', 'extractedEndDate', 'extractedTime',
+            'type', 'completed', 'tags'
           ]) &&
           request.resource.data.title is string &&
           request.resource.data.title.size() > 0 &&
           request.resource.data.title.size() <= 500 &&
           (!('summary' in request.resource.data) || (request.resource.data.summary is string && request.resource.data.summary.size() <= 10000)) &&
           (!('originalText' in request.resource.data) || (request.resource.data.originalText is string && request.resource.data.originalText.size() <= 50000)) &&
-          request.resource.data.keys().size() <= 15;
+          request.resource.data.keys().size() <= 30;
 
         allow update: if isOwner(userId) &&
           request.resource.data.id == resource.data.id &&
           request.resource.data.keys().hasAll(['id', 'title']) &&
           request.resource.data.keys().hasOnly([
             'id', 'title', 'summary', 'originalText', 'category',
-            'createdAt', 'updatedAt', 'deletedAt', '_type'
+            'createdAt', 'updatedAt', 'deletedAt', '_type',
+            'cleanText', 'extractedDateType', 'extractedDate', 'extractedEndDate', 'extractedTime',
+            'type', 'completed', 'tags'
           ]) &&
           request.resource.data.title is string &&
           request.resource.data.title.size() > 0 &&
           request.resource.data.title.size() <= 500 &&
           (!('summary' in request.resource.data) || (request.resource.data.summary is string && request.resource.data.summary.size() <= 10000)) &&
           (!('originalText' in request.resource.data) || (request.resource.data.originalText is string && request.resource.data.originalText.size() <= 50000)) &&
-          request.resource.data.keys().size() <= 15;
+          request.resource.data.keys().size() <= 30;
       }
 
       // D) Projekt-Kategorien

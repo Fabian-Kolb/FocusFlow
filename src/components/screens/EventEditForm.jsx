@@ -229,7 +229,7 @@ const EventEditForm = ({ initialEvent, selectedDateObj, onSave, onCancel }) => {
                <select 
                  value={reminderMinutes} 
                  onChange={(e) => setReminderMinutes(e.target.value)}
-                 className="bg-surface-low border border-outline-variant rounded-lg px-4 py-2 outline-none focus:border-primary text-sm font-medium w-full sm:w-auto"
+                 className="bg-surface-low border border-outline-variant rounded-lg px-4 py-2 outline-none focus:border-primary text-sm font-medium w-full md:w-auto"
                >
                  <option value="">Standard (Kalender-Einstellung)</option>
                  <option value="5">5 Minuten vorher</option>

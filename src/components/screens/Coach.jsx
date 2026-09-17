@@ -3,7 +3,8 @@ import { useModalContext } from '../../context/ModalContext';
 import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
 import { askGeminiCoach } from '../../lib/gemini';
-import { ACTION_ENGINE_SYSTEM_PROMPT, parseAiActions, executeAiActions } from '../../lib/aiActionEngine';
+import { ACTION_ENGINE_SYSTEM_PROMPT, parseAiActions, executeAiActions, parseIntentChoice } from '../../lib/aiActionEngine';
+import { fetchCalendarEvents } from '../../lib/calendarAPI';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import FioIcon from '../ui/FioIcon';
@@ -11,7 +12,7 @@ import ModelSelectorDropdown from '../ui/ModelSelectorDropdown';
 
 const Coach = ({ setCurrentScreen }) => {
   const modalContext = useModalContext();
-  const { projects, reminders = [], setSelectedProjectId, setSelectedReminderId } = modalContext;
+  const { projects, reminders = [], setSelectedProjectId, setSelectedReminderId, isCalendarConnected } = modalContext;
   const { user } = useAuth();
   const {
     sessions,
@@ -40,6 +41,19 @@ const Coach = ({ setCurrentScreen }) => {
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
   const [sessionSearchText, setSessionSearchText] = useState('');
+  const [calendarEvents, setCalendarEvents] = useState([]);
+
+  useEffect(() => {
+    if (!isCalendarConnected || user?.isGuest) return;
+    const now = new Date();
+    fetchCalendarEvents(now.getFullYear(), now.getMonth())
+      .then((events) => {
+        setCalendarEvents(events || []);
+      })
+      .catch((err) => {
+        console.warn('Konnte Kalenderevents für Fio-Kontext nicht laden:', err);
+      });
+  }, [isCalendarConnected, user?.isGuest]);
   
   // 1. SIDEBAR FILTER & SEARCH (Filtert die Chatverlauf-Liste auf der linken Seite)
   const [isSidebarFilterModalOpen, setIsSidebarFilterModalOpen] = useState(false);
@@ -294,6 +308,19 @@ Du kannst projektübergreifend planen, Prioritäten abwägen, Engpässe identifi
       };
     }
 
+    contextData.kalender = {
+      verbunden: !!isCalendarConnected,
+      gastmodus: !!user?.isGuest,
+      heutigesDatum: new Date().toISOString().split('T')[0],
+      termine: (calendarEvents || []).map(e => ({
+        id: e.id,
+        titel: e.summary || 'Termin',
+        beschreibung: e.description || '',
+        start: e.start?.dateTime || e.start?.date || '',
+        ende: e.end?.dateTime || e.end?.date || ''
+      }))
+    };
+
     return `
 Du bist der FocusFlow AI Coach (Fio), ein hochkompetenter, motivierender und pragmatischer Produktivitäts-Assistent.
 Deine Aufgabe ist es, dem Nutzer zu helfen, seine Aufgaben, Projekte und Erinnerungen fokussiert, strukturiert und erfolgreich abzuarbeiten.
@@ -427,19 +454,28 @@ Regeln für deine Antworten:
         signal: abortController.signal,
         onChunk: (currentFullText) => {
           fullGeneratedText = currentFullText;
-          const { cleanText } = parseAiActions(currentFullText);
+          const { cleanText: textWithoutActions } = parseAiActions(currentFullText);
+          const { cleanText } = parseIntentChoice(textWithoutActions);
           updateStreamingMessage(activeSession.id, botMsgId, cleanText, true);
         }
       });
 
       // Parse and execute any generated actions
-      const { cleanText, actions } = parseAiActions(fullGeneratedText);
+      const { cleanText: textWithoutActions, actions } = parseAiActions(fullGeneratedText);
+      const { cleanText, intentChoice } = parseIntentChoice(textWithoutActions);
       let executedActionResults = [];
       if (actions && actions.length > 0) {
         executedActionResults = await executeAiActions(actions, modalContext, projects, reminders);
       }
 
-      updateStreamingMessage(activeSession.id, botMsgId, cleanText || undefined, false, executedActionResults);
+      updateStreamingMessage(
+        activeSession.id,
+        botMsgId,
+        cleanText || undefined,
+        false,
+        executedActionResults,
+        { intentChoice }
+      );
     } catch (err) {
       if (err.name === 'AbortError' || abortController.signal.aborted) {
         return;
@@ -864,14 +900,17 @@ Regeln für deine Antworten:
                                 {msg.actionResults.map((res, idx) => {
                                   const isProjAction = res.targetType === 'project' || res.type === 'ADD_PHASE' || res.type === 'ADD_TASK' || res.type === 'CREATE_PROJECT' || res.type === 'UPDATE_PROJECT';
                                   const isRemAction = res.targetType === 'reminder' || res.type === 'CREATE_REMINDER' || res.type === 'UPDATE_REMINDER';
+                                  const isCalAction = res.targetType === 'calendar' || res.isOnlyCalendar || res.type === 'CREATE_CALENDAR_EVENT';
                                   const isNoteAction = res.type === 'CREATE_NOTE';
                                   const isMatAction = res.type === 'ADD_MATERIAL';
 
-                                  const iconName = isNoteAction ? 'note_alt' : isMatAction ? 'attach_file' : isRemAction ? 'notifications' : isProjAction ? 'folder' : 'check_circle';
+                                  const iconName = isNoteAction ? 'note_alt' : isMatAction ? 'attach_file' : isCalAction ? 'calendar_month' : isRemAction ? 'notifications' : isProjAction ? 'folder' : 'check_circle';
                                   const iconStyle = isNoteAction
                                     ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
                                     : isMatAction
                                     ? 'bg-sky-50 text-sky-700 border-sky-200'
+                                    : isCalAction
+                                    ? 'bg-blue-50 text-blue-700 border-blue-200'
                                     : isRemAction
                                     ? 'bg-amber-50 text-amber-700 border-amber-200'
                                     : isProjAction
@@ -892,6 +931,18 @@ Regeln für deine Antworten:
                                           <div className="text-[10px] font-mono text-on-surface-variant truncate">{res.subtitle}</div>
                                         </div>
                                       </div>
+                                      {(isCalAction || res.targetType === 'calendar') && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            if (setCurrentScreen) setCurrentScreen('calendar');
+                                          }}
+                                          className="px-2.5 py-1 bg-white border border-outline-variant hover:border-primary text-primary font-mono text-[11px] font-bold rounded-lg transition-all flex items-center gap-1 shrink-0 cursor-pointer shadow-2xs hover:shadow-xs"
+                                        >
+                                          <span>Im Kalender ansehen</span>
+                                          <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                                        </button>
+                                      )}
                                       {res.targetType === 'project' && res.targetId && (
                                         <button
                                           type="button"
@@ -906,21 +957,77 @@ Regeln für deine Antworten:
                                         </button>
                                       )}
                                       {res.targetType === 'reminder' && res.targetId && (
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setSelectedReminderId(res.targetId);
-                                            if (setCurrentScreen) setCurrentScreen('reminder-detail');
-                                          }}
-                                          className="px-2.5 py-1 bg-white border border-outline-variant hover:border-primary text-primary font-mono text-[11px] font-bold rounded-lg transition-all flex items-center gap-1 shrink-0 cursor-pointer shadow-2xs hover:shadow-xs"
-                                        >
-                                          <span>Erinnerung öffnen</span>
-                                          <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
-                                        </button>
+                                        <div className="flex items-center gap-1.5 shrink-0">
+                                          {res.isCalendarSynced && (
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                if (setCurrentScreen) setCurrentScreen('calendar');
+                                              }}
+                                              className="p-1 bg-white border border-outline-variant hover:border-primary text-emerald-600 rounded-lg transition-all flex items-center cursor-pointer shadow-2xs"
+                                              title="Im Kalender ansehen"
+                                            >
+                                              <span className="material-symbols-outlined text-[16px]">calendar_month</span>
+                                            </button>
+                                          )}
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setSelectedReminderId(res.targetId);
+                                              if (setCurrentScreen) setCurrentScreen('reminder-detail');
+                                            }}
+                                            className="px-2.5 py-1 bg-white border border-outline-variant hover:border-primary text-primary font-mono text-[11px] font-bold rounded-lg transition-all flex items-center gap-1 shrink-0 cursor-pointer shadow-2xs hover:shadow-xs"
+                                          >
+                                            <span>Erinnerung öffnen</span>
+                                            <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                                          </button>
+                                        </div>
                                       )}
                                     </div>
                                   );
                                 })}
+                              </div>
+                            )}
+
+                            {/* Render 3-Way Intent Choice Pills if AI proposed an appointment/reminder */}
+                            {msg.intentChoice && (
+                              <div className="mt-3 pt-2.5 border-t border-outline-variant/60 w-full space-y-2 not-prose">
+                                <div className="text-[11px] font-mono font-bold text-on-surface-variant flex items-center gap-1">
+                                  <span className="material-symbols-outlined text-[14px] text-primary">help</span>
+                                  <span>Wo soll der Eintrag angelegt werden?</span>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSendMessage(`Bitte erstelle die Erinnerung „${msg.intentChoice.title}“ für den ${msg.intentChoice.date}${msg.intentChoice.time ? ` um ${msg.intentChoice.time} Uhr` : ''} nur in FocusFlow.`)}
+                                    className="px-2.5 py-1.5 rounded-lg bg-surface-low hover:bg-surface-variant border border-outline-variant text-xs font-mono text-on-surface flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs hover:border-primary"
+                                  >
+                                    <span className="material-symbols-outlined text-[14px] text-amber-700">notifications</span>
+                                    <span>Nur in FocusFlow</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    disabled={user?.isGuest || !isCalendarConnected}
+                                    onClick={() => handleSendMessage(`Bitte erstelle die Erinnerung „${msg.intentChoice.title}“ für den ${msg.intentChoice.date}${msg.intentChoice.time ? ` um ${msg.intentChoice.time} Uhr` : ''} in FocusFlow mit Google Kalender-Sync.`)}
+                                    title={user?.isGuest ? 'Im Gastmodus nicht verfügbar' : !isCalendarConnected ? 'Google Kalender nicht verbunden' : 'Empfohlen'}
+                                    className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-xs font-mono text-emerald-800 font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    <span className="material-symbols-outlined text-[14px] text-emerald-600">sync</span>
+                                    <span>FocusFlow + Kalender-Sync (Empfohlen)</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    disabled={user?.isGuest || !isCalendarConnected}
+                                    onClick={() => handleSendMessage(`Bitte trage den Termin „${msg.intentChoice.title}“ für den ${msg.intentChoice.date}${msg.intentChoice.time ? ` um ${msg.intentChoice.time} Uhr` : ''} nur im Google Kalender ein.`)}
+                                    title={user?.isGuest ? 'Im Gastmodus nicht verfügbar' : !isCalendarConnected ? 'Google Kalender nicht verbunden' : 'Direkt im Kalender eintragen'}
+                                    className="px-2.5 py-1.5 rounded-lg bg-surface-low hover:bg-surface-variant border border-outline-variant text-xs font-mono text-on-surface flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs hover:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    <span className="material-symbols-outlined text-[14px] text-primary">calendar_month</span>
+                                    <span>Nur im Google Kalender</span>
+                                  </button>
+                                </div>
                               </div>
                             )}
                           </div>
