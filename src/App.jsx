@@ -13,7 +13,7 @@ import PhaseModal from './components/modals/PhaseModal';
 import TaskModal from './components/modals/TaskModal';
 import MaterialModal from './components/modals/MaterialModal';
 import ProjectHistoryModal from './components/modals/ProjectHistoryModal';
-import ProfileModal from './components/modals/ProfileModal';
+import SettingsModal from './components/modals/SettingsModal';
 import ReminderModal from './components/modals/ReminderModal';
 import MoveCategoryModal from './components/modals/MoveCategoryModal';
 import MoveStatusModal from './components/modals/MoveStatusModal';
@@ -184,7 +184,7 @@ function AppContent() {
       <TaskModal />
       <MaterialModal />
       <ProjectHistoryModal />
-      <ProfileModal />
+      <SettingsModal />
       <ReminderModal setCurrentScreen={setCurrentScreen} />
       <MoveCategoryModal />
       <MoveStatusModal />

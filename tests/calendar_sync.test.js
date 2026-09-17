@@ -261,6 +261,17 @@ describe('calendarSyncService - Batch-Synchronisation für Abschnitte', () => {
     expect(result.googleEventId).toBeNull();
     expect(result.isCalendarSynced).toBe(false);
   });
+
+  it('meldet echte Löschfehler statt fälschlich Erfolg zu signalisieren', async () => {
+    calendarAPI.deleteCalendarEvent.mockRejectedValueOnce(new Error('Google Calendar 403 Forbidden'));
+
+    await expect(desyncEntityFromGoogle({
+      googleEventId: 'evt_forbidden',
+      deleteInGoogle: true,
+      isConnected: true,
+      isGuest: false
+    })).rejects.toThrow(/403/);
+  });
 });
 
 describe('aiActionEngine - Kalender & Intent Choice Parsing', () => {
@@ -330,4 +341,3 @@ describe('aiActionEngine - Kalender & Intent Choice Parsing', () => {
     expect(actions[0].title).toBe('Google Meet Call');
   });
 });
-

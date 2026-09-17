@@ -12,7 +12,7 @@ import ModelSelectorDropdown from '../ui/ModelSelectorDropdown';
 
 const Coach = ({ setCurrentScreen }) => {
   const modalContext = useModalContext();
-  const { projects, reminders = [], setSelectedProjectId, setSelectedReminderId, isCalendarConnected } = modalContext;
+  const { projects, reminders = [], setSelectedProjectId, setSelectedReminderId, isCalendarConnected, openModal } = modalContext;
   const { user } = useAuth();
   const {
     sessions,
@@ -374,17 +374,42 @@ Regeln für deine Antworten:
 
   const abortControllerRef = useRef(null);
   const currentBotMsgIdRef = useRef(null);
+  const currentBotSessionIdRef = useRef(null);
+  const generationRef = useRef(0);
 
   const handleStopGeneration = () => {
+    generationRef.current += 1;
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
     setLoading(false);
-    if (currentBotMsgIdRef.current) {
-      updateStreamingMessage(activeSession.id, currentBotMsgIdRef.current, undefined, false);
+    if (currentBotMsgIdRef.current && currentBotSessionIdRef.current) {
+      updateStreamingMessage(
+        currentBotSessionIdRef.current,
+        currentBotMsgIdRef.current,
+        undefined,
+        false,
+        null,
+        { cancelled: true }
+      );
     }
   };
+
+  useEffect(() => () => {
+    generationRef.current += 1;
+    abortControllerRef.current?.abort();
+    if (currentBotMsgIdRef.current && currentBotSessionIdRef.current) {
+      updateStreamingMessage(
+        currentBotSessionIdRef.current,
+        currentBotMsgIdRef.current,
+        undefined,
+        false,
+        null,
+        { cancelled: true }
+      );
+    }
+  }, [updateStreamingMessage]);
 
   const handleSendMessage = async (textToSend) => {
     const text = textToSend || inputText;
@@ -401,7 +426,10 @@ Regeln für deine Antworten:
     const trimmed = text.trim();
     const userMsgId = `msg_${Date.now()}_u`;
     const botMsgId = `msg_${Date.now()}_b`;
+    const generation = generationRef.current + 1;
+    generationRef.current = generation;
     currentBotMsgIdRef.current = botMsgId;
+    currentBotSessionIdRef.current = activeSession.id;
     const currentAttachments = [...activeAttachments];
 
     // 1. Add User Message with active attachments
@@ -453,12 +481,15 @@ Regeln für deine Antworten:
         aiModel: activeModel,
         signal: abortController.signal,
         onChunk: (currentFullText) => {
+          if (generationRef.current !== generation || abortController.signal.aborted) return;
           fullGeneratedText = currentFullText;
           const { cleanText: textWithoutActions } = parseAiActions(currentFullText);
           const { cleanText } = parseIntentChoice(textWithoutActions);
           updateStreamingMessage(activeSession.id, botMsgId, cleanText, true);
         }
       });
+
+      if (generationRef.current !== generation || abortController.signal.aborted) return;
 
       // Parse and execute any generated actions
       const { cleanText: textWithoutActions, actions } = parseAiActions(fullGeneratedText);
@@ -484,8 +515,12 @@ Regeln für deine Antworten:
       const errMsg = err?.message || 'Fehler beim Aufruf der Gemini API.';
       updateStreamingMessage(activeSession.id, botMsgId, `⚠️ **KI-Fehler:** ${errMsg}`, false);
     } finally {
-      abortControllerRef.current = null;
-      setLoading(false);
+      if (generationRef.current === generation) {
+        abortControllerRef.current = null;
+        currentBotMsgIdRef.current = null;
+        currentBotSessionIdRef.current = null;
+        setLoading(false);
+      }
     }
   };
 
@@ -848,8 +883,18 @@ Regeln für deine Antworten:
               </button>
             </div>
 
-            {/* Right Model Dropdown (Custom Glass Popover Menu) */}
+            {/* Right Header Controls (Fio Guide Button & Model Dropdown) */}
             <div className="flex items-center gap-2 pointer-events-auto ml-auto">
+              <button
+                type="button"
+                onClick={() => openModal('settings', { initialTab: 'fio' })}
+                className="h-10 px-3 flex items-center gap-1.5 border border-outline-variant bg-white/95 dark:bg-surface-low/95 backdrop-blur-md hover:border-primary text-primary transition-all rounded-xl cursor-pointer shadow-xs hover:shadow-sm text-xs font-semibold"
+                title="Was kann Fio? Interaktiven KI-Guide öffnen"
+              >
+                <span className="material-symbols-outlined text-[18px] text-amber-500">lightbulb</span>
+                <span className="hidden sm:inline">Was kann Fio?</span>
+              </button>
+
               <ModelSelectorDropdown
                 activeModel={activeModel}
                 onSelectModel={setActiveModel}
@@ -871,6 +916,14 @@ Regeln für deine Antworten:
                   <p className="text-sm text-on-surface-variant max-w-md leading-relaxed">
                     Dein persönlicher KI-Coach. Wie kann ich dich heute bei deinen Projekten, Aufgaben und Erinnerungen unterstützen?
                   </p>
+                  <button
+                    type="button"
+                    onClick={() => openModal('settings', { initialTab: 'fio' })}
+                    className="mt-4 px-3.5 py-2 bg-surface-variant/40 hover:bg-surface-variant/80 text-on-surface border border-border rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs hover:shadow-sm cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[16px] text-amber-500">lightbulb</span>
+                    <span>Entdecke, was Fio alles kann</span>
+                  </button>
                 </div>
               ) : (
                 messages.map((msg) => {
@@ -887,6 +940,11 @@ Regeln für deine Antworten:
                               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                 {msg.content || msg.text}
                               </ReactMarkdown>
+                            ) : msg.cancelled ? (
+                              <div className="flex items-center gap-1.5 py-1 text-on-surface-variant text-xs italic">
+                                <span className="material-symbols-outlined text-[14px]">pause_circle</span>
+                                <span>Antwort abgebrochen</span>
+                              </div>
                             ) : (
                               <div className="flex items-center gap-1.5 py-1 text-on-surface-variant text-xs">
                                 <span className="w-2 h-2 rounded-full bg-primary animate-ping" />

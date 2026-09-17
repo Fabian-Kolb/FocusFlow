@@ -39,7 +39,7 @@ const Sidebar = ({ currentScreen, setCurrentScreen, collapsed, setCollapsed }) =
   };
 
   const handleProfileClick = () => {
-    openModal('profile');
+    openModal('settings', { initialTab: 'account' });
     if (typeof window !== 'undefined' && window.innerWidth < BREAKPOINTS.DESKTOP && !collapsed) {
       setCollapsed(true);
     }
@@ -204,8 +204,8 @@ const Sidebar = ({ currentScreen, setCurrentScreen, collapsed, setCollapsed }) =
                 type="button"
                 onClick={handleProfileClick}
                 className="w-full h-11 flex items-center p-0 rounded-2xl overflow-hidden cursor-pointer text-left"
-                title={user?.isGuest ? 'Gast-Modus (Einstellungen & Abmelden)' : 'Profil Einstellungen'}
-                aria-label={user?.isGuest ? 'Gast-Modus' : 'Profil Einstellungen'}
+                title={user?.isGuest ? 'Gast-Modus (Einstellungen & Hilfe)' : 'Einstellungen & Profil'}
+                aria-label={user?.isGuest ? 'Gast-Modus (Einstellungen & Hilfe)' : 'Einstellungen & Profil'}
               >
                 {/* Fixed 48px Avatar Slot: center is at 12px (p-3) + 24px = 36px from aside outer edge */}
                 <div className="w-12 h-11 flex items-center justify-center flex-shrink-0">

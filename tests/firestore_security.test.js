@@ -102,6 +102,9 @@ function runFirestoreRuleSecurityTests() {
     assert(content.includes('hasAll([\'id\', \'title\'])'), 'reminders must require id and title');
     assert(content.includes('completed is bool'), 'reminders must validate completed boolean type');
     assert(content.includes('request.resource.data.id == resource.data.id'), 'reminders update must enforce immutable id');
+    assert(content.includes("'isCalendarSynced', 'googleEventId'"), 'reminders must whitelist calendar sync fields');
+    assert(content.includes("request.resource.data.isCalendarSynced is bool"), 'reminders must validate calendar sync flag');
+    assert(content.includes("request.resource.data.googleEventId == null || request.resource.data.googleEventId is string"), 'reminders must validate Google event id');
   });
 
   test('RULES-VALIDATION: inboxItems enforces summary and originalText size boundaries', () => {

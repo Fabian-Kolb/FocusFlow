@@ -107,12 +107,14 @@ service cloud.firestore {
             'id', 'title', 'description', 'date', 'time', 'category', 'categoryId', 'priority',
             'status', 'isPaused', 'inKanban', 'completed', 'notes', 'history', 'createdAt',
             'updatedAt', 'deletedAt', '_type', 'tags', 'dateRange', 'daysRemaining', 'timeElapsed', 'order',
-            'isPinned', 'startDate', 'endDate', 'lastUpdated'
+            'isPinned', 'startDate', 'endDate', 'lastUpdated', 'isCalendarSynced', 'googleEventId'
           ]) &&
           request.resource.data.title is string &&
           request.resource.data.title.size() > 0 &&
           request.resource.data.title.size() <= 300 &&
           (!('completed' in request.resource.data) || request.resource.data.completed is bool) &&
+          (!('isCalendarSynced' in request.resource.data) || request.resource.data.isCalendarSynced is bool) &&
+          (!('googleEventId' in request.resource.data) || request.resource.data.googleEventId == null || request.resource.data.googleEventId is string) &&
           (!('notes' in request.resource.data) || (request.resource.data.notes is list && request.resource.data.notes.size() <= 50)) &&
           request.resource.data.keys().size() <= 50;
 
@@ -123,12 +125,14 @@ service cloud.firestore {
             'id', 'title', 'description', 'date', 'time', 'category', 'categoryId', 'priority',
             'status', 'isPaused', 'inKanban', 'completed', 'notes', 'history', 'createdAt',
             'updatedAt', 'deletedAt', '_type', 'tags', 'dateRange', 'daysRemaining', 'timeElapsed', 'order',
-            'isPinned', 'startDate', 'endDate', 'lastUpdated'
+            'isPinned', 'startDate', 'endDate', 'lastUpdated', 'isCalendarSynced', 'googleEventId'
           ]) &&
           request.resource.data.title is string &&
           request.resource.data.title.size() > 0 &&
           request.resource.data.title.size() <= 300 &&
           (!('completed' in request.resource.data) || request.resource.data.completed is bool) &&
+          (!('isCalendarSynced' in request.resource.data) || request.resource.data.isCalendarSynced is bool) &&
+          (!('googleEventId' in request.resource.data) || request.resource.data.googleEventId == null || request.resource.data.googleEventId is string) &&
           (!('notes' in request.resource.data) || (request.resource.data.notes is list && request.resource.data.notes.size() <= 50)) &&
           request.resource.data.keys().size() <= 50;
       }

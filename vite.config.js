@@ -354,6 +354,10 @@ export default defineConfig(({ mode }) => {
   const googleClientSecret = env.GOOGLE_CLIENT_SECRET || '';
 
   return {
+    define: {
+      __APP_VERSION__: JSON.stringify(process.env.npm_package_version || '1.0.0'),
+      __BUILD_DATE__: JSON.stringify(new Date().toISOString().split('T')[0])
+    },
     plugins: [
       react(),
       apiProxyPlugin({

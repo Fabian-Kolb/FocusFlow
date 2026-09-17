@@ -35,6 +35,21 @@ const createDefaultSession = () => ({
   messages: []
 });
 
+const normalizeSessions = (candidate) => {
+  if (!Array.isArray(candidate) || candidate.length === 0) return null;
+
+  return candidate.map((session) => ({
+    ...session,
+    messages: Array.isArray(session.messages)
+      ? session.messages.map((message) => (
+        message.isStreaming
+          ? { ...message, isStreaming: false, cancelled: true }
+          : message
+      ))
+      : []
+  }));
+};
+
 const loadSessionsFromLocal = (currentUser) => {
   if (!currentUser) return [createDefaultSession()];
 
@@ -62,7 +77,8 @@ const loadSessionsFromLocal = (currentUser) => {
 
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      const normalized = normalizeSessions(parsed);
+      if (normalized) return normalized;
     }
   } catch (e) {
     console.warn('[ChatContext] Fehler beim Laden aus LocalStorage:', e);
@@ -115,14 +131,15 @@ export const ChatProvider = ({ children }) => {
         const snap = await getDoc(docRef);
         if (snap.exists() && isMounted) {
           const data = snap.data();
-          if (Array.isArray(data?.sessions) && data.sessions.length > 0) {
-            setSessions(data.sessions);
+          const normalizedSessions = normalizeSessions(data?.sessions);
+          if (normalizedSessions) {
+            setSessions(normalizedSessions);
             if (data.activeSessionId) {
               setActiveSessionId(data.activeSessionId);
             }
             const key = getStorageKey(user);
             if (key) {
-              localStorage.setItem(key, JSON.stringify(data.sessions));
+              localStorage.setItem(key, JSON.stringify(normalizedSessions));
             }
           }
         }
@@ -377,4 +394,3 @@ export const ChatProvider = ({ children }) => {
     </ChatContext.Provider>
   );
 };
-

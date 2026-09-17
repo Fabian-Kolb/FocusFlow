@@ -231,17 +231,42 @@ REGELN:
 
   const abortControllerRef = useRef(null);
   const currentBotMsgIdRef = useRef(null);
+  const currentBotSessionIdRef = useRef(null);
+  const generationRef = useRef(0);
 
   const handleStopGeneration = () => {
+    generationRef.current += 1;
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
     setIsLoading(false);
-    if (currentBotMsgIdRef.current && activeSession?.id) {
-      updateStreamingMessage(activeSession.id, currentBotMsgIdRef.current, undefined, false);
+    if (currentBotMsgIdRef.current && currentBotSessionIdRef.current) {
+      updateStreamingMessage(
+        currentBotSessionIdRef.current,
+        currentBotMsgIdRef.current,
+        undefined,
+        false,
+        null,
+        { cancelled: true }
+      );
     }
   };
+
+  useEffect(() => () => {
+    generationRef.current += 1;
+    abortControllerRef.current?.abort();
+    if (currentBotMsgIdRef.current && currentBotSessionIdRef.current) {
+      updateStreamingMessage(
+        currentBotSessionIdRef.current,
+        currentBotMsgIdRef.current,
+        undefined,
+        false,
+        null,
+        { cancelled: true }
+      );
+    }
+  }, [updateStreamingMessage]);
 
   const modalContext = useModalContext();
   const { projects = [], reminders = [], user, isCalendarConnected } = modalContext;
@@ -253,6 +278,8 @@ REGELN:
     const trimmedText = text.trim();
     const userMsgId = `user_${Date.now()}`;
     const botMsgId = `bot_${Date.now()}`;
+    const generation = generationRef.current + 1;
+    generationRef.current = generation;
     currentBotMsgIdRef.current = botMsgId;
 
     // Ensure we have an active session
@@ -261,6 +288,7 @@ REGELN:
       const newSess = handleNewChat();
       targetSessionId = newSess.id;
     }
+    currentBotSessionIdRef.current = targetSessionId;
 
     // 1. Add User Message
     addMessageToSession(targetSessionId, {
@@ -300,12 +328,15 @@ REGELN:
         aiModel: activeModel,
         signal: abortController.signal,
         onChunk: (streamedText) => {
+          if (generationRef.current !== generation || abortController.signal.aborted) return;
           fullStreamedText = streamedText;
           const { cleanText: textWithoutActions } = parseAiActions(streamedText);
           const { cleanText } = parseIntentChoice(textWithoutActions);
           updateStreamingMessage(targetSessionId, botMsgId, cleanText, true);
         }
       });
+
+      if (generationRef.current !== generation || abortController.signal.aborted) return;
 
       const { cleanText: textWithoutActions, actions } = parseAiActions(fullStreamedText);
       const { cleanText, intentChoice } = parseIntentChoice(textWithoutActions);
@@ -324,8 +355,12 @@ REGELN:
       const errMsg = err?.message || 'Fehler bei der Kommunikation mit dem KI-Coach.';
       updateStreamingMessage(targetSessionId, botMsgId, `⚠️ **Fehler:** ${errMsg}`, false);
     } finally {
-      abortControllerRef.current = null;
-      setIsLoading(false);
+      if (generationRef.current === generation) {
+        abortControllerRef.current = null;
+        currentBotMsgIdRef.current = null;
+        currentBotSessionIdRef.current = null;
+        setIsLoading(false);
+      }
     }
   };
 
@@ -630,6 +665,11 @@ REGELN:
                       <div className="flex items-center gap-1.5 py-1 text-on-surface-variant text-xs">
                         <span className="w-2 h-2 rounded-full bg-primary animate-ping" />
                         <span>Fio denkt nach...</span>
+                      </div>
+                    ) : msg.cancelled ? (
+                      <div className="flex items-center gap-1.5 py-1 text-on-surface-variant text-xs italic">
+                        <span className="material-symbols-outlined text-[14px]">pause_circle</span>
+                        <span>Antwort abgebrochen</span>
                       </div>
                     ) : (
                       <div className="text-on-surface-variant text-xs italic">

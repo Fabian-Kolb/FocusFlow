@@ -25,11 +25,11 @@ const BottomNav = ({ currentScreen, setCurrentScreen }) => {
     { id: 'coach', label: 'Coach', icon: 'fio', desc: 'KI-Assistent & Tages-Sparring' },
     { id: 'review', label: 'Review', icon: 'analytics', desc: 'Wöchentlicher Leistungs-Rückblick' },
     { id: 'trash', label: 'Papierkorb', icon: 'delete', desc: 'Gelöschte Elemente & Wiederherstellung' },
-    { 
-      id: 'profile', 
-      label: 'Mein Profil', 
-      icon: 'account_circle', 
-      desc: user?.isGuest ? 'Gast-Modus & Abmelden' : 'Kontoeinstellungen & Abmelden' 
+    {
+      id: 'settings',
+      label: 'Einstellungen & Hilfe',
+      icon: 'settings',
+      desc: user?.isGuest ? 'Gast-Modus, Fio-Guide & Hilfe' : 'Account, Fio KI-Guide & Hilfe'
     },
   ];
 
@@ -94,9 +94,9 @@ const BottomNav = ({ currentScreen, setCurrentScreen }) => {
   }, [isMoreOpen]);
 
   const handleSelectMoreItem = (id) => {
-    if (id === 'profile') {
+    if (id === 'profile' || id === 'settings') {
       setIsMoreOpen(false);
-      openModal('profile');
+      openModal('settings', { initialTab: 'account' });
       return;
     }
     setCurrentScreen(id);
@@ -170,16 +170,16 @@ const BottomNav = ({ currentScreen, setCurrentScreen }) => {
                     : 'bg-white border-outline-variant text-primary hover:border-primary/50'
                 }`}
               >
-                <div className={`w-10 h-10 ${item.id === 'profile' ? 'rounded-full' : 'rounded-xl'} flex items-center justify-center shrink-0 overflow-hidden ${
+                <div className={`w-10 h-10 ${(item.id === 'profile' || item.id === 'settings') ? 'rounded-full' : 'rounded-xl'} flex items-center justify-center shrink-0 overflow-hidden ${
                   isItemActive ? 'bg-primary text-white' : 'bg-surface-low text-primary'
                 }`}>
                   {item.id === 'coach' ? (
                     <FioIcon className="w-5 h-5" color="currentColor" />
-                  ) : item.id === 'profile' && user?.photoURL ? (
+                  ) : (item.id === 'profile' || item.id === 'settings') && user?.photoURL ? (
                     <img src={user.photoURL} alt="Avatar" className="w-full h-full object-cover rounded-full" />
-                  ) : item.id === 'profile' && user?.isGuest ? (
+                  ) : (item.id === 'profile' || item.id === 'settings') && user?.isGuest ? (
                     <span className="material-symbols-outlined text-amber-500 text-[22px]">person</span>
-                  ) : item.id === 'profile' && !user?.isGuest ? (
+                  ) : (item.id === 'profile' || item.id === 'settings') && !user?.isGuest ? (
                     <span className="text-xs font-bold font-mono text-primary">
                       {(user?.displayName || user?.email || 'U').substring(0, 2).toUpperCase()}
                     </span>

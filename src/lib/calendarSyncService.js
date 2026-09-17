@@ -240,7 +240,11 @@ export async function desyncEntityFromGoogle({
     try {
       await deleteCalendarEvent(googleEventId);
     } catch (err) {
-      console.warn('[CalendarSync] Event konnte in Google nicht gelöscht werden (womöglich bereits entfernt):', err.message);
+      if (err.message && (err.message.includes('404') || err.message.toLowerCase().includes('not found'))) {
+        console.warn('[CalendarSync] Event war in Google bereits gelöscht:', err.message);
+      } else {
+        throw err;
+      }
     }
   }
 

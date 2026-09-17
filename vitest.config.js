@@ -12,7 +12,8 @@ export default defineConfig({
       'tests/critical_backend.test.js',
       'tests/data_context.test.jsx',
       'tests/auth_context.test.jsx',
-      'tests/calendar_sync.test.js'
+      'tests/calendar_sync.test.js',
+      'tests/settings_modal.test.jsx'
     ]
   }
 });

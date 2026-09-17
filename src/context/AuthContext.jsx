@@ -274,11 +274,13 @@ export function AuthProvider({ children }) {
   };
 
   const isEmailVerified = Boolean(user?.isGuest || user?.emailVerified);
+  const isGoogleUser = Boolean(user?.providerData?.some(p => p.providerId === 'google.com'));
 
   const value = {
     user,
     loading,
     isEmailVerified,
+    isGoogleUser,
     isCalendarConnected,
     googleCalendarToken: isCalendarConnected ? 'connected' : null, // Abwärtskompatibilität
     setIsCalendarConnected,
