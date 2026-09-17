@@ -8,6 +8,7 @@ import {
   desyncEntityFromGoogle,
   batchSyncPhaseTasksToGoogle
 } from '../src/lib/calendarSyncService';
+import { parseIntentChoice, parseAiActions } from '../src/lib/aiActionEngine';
 import * as calendarAPI from '../src/lib/calendarAPI';
 
 vi.mock('../src/lib/calendarAPI', () => ({
@@ -245,4 +246,88 @@ describe('calendarSyncService - Batch-Synchronisation für Abschnitte', () => {
     expect(result.failed[0].taskId).toBe('t4');
     expect(result.failed[0].error).toContain('API Rate Limit');
   });
+
+  it('toleriert 404 Fehler beim Löschen in Google (Event bereits bei Google gelöscht)', async () => {
+    calendarAPI.deleteCalendarEvent.mockRejectedValueOnce(new Error('Google Calendar 404 Not Found'));
+
+    const result = await desyncEntityFromGoogle({
+      googleEventId: 'evt_deleted_remotely',
+      deleteInGoogle: true,
+      isConnected: true,
+      isGuest: false
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.googleEventId).toBeNull();
+    expect(result.isCalendarSynced).toBe(false);
+  });
 });
+
+describe('aiActionEngine - Kalender & Intent Choice Parsing', () => {
+  it('parst [INTENT_CHOICE: appointment | title | date | time] korrekt', () => {
+    const raw = `Soll ich den Termin in FocusFlow, synchronisiert oder nur im Kalender anlegen?
+[INTENT_CHOICE: appointment | Zahnarztkontrolle | 2026-09-25 | 14:00]`;
+
+    const { cleanText, intentChoice } = parseIntentChoice(raw);
+    expect(cleanText).toBe('Soll ich den Termin in FocusFlow, synchronisiert oder nur im Kalender anlegen?');
+    expect(intentChoice).toEqual({
+      type: 'appointment',
+      title: 'Zahnarztkontrolle',
+      date: '2026-09-25',
+      time: '14:00'
+    });
+  });
+
+  it('gibt null für intentChoice zurück, wenn keine Markierung vorhanden ist', () => {
+    const raw = 'Hier ist dein Wochenplan für die nächste Woche.';
+    const { cleanText, intentChoice } = parseIntentChoice(raw);
+    expect(cleanText).toBe(raw);
+    expect(intentChoice).toBeNull();
+  });
+
+  it('parst CREATE_REMINDER mit syncWithCalendar: true', () => {
+    const raw = `Ich lege die Erinnerung an.
+\`\`\`focusflow-action
+{
+  "actions": [
+    {
+      "type": "CREATE_REMINDER",
+      "title": "Steuerberater",
+      "date": "2026-09-30",
+      "time": "15:00",
+      "syncWithCalendar": true
+    }
+  ]
+}
+\`\`\``;
+
+    const { cleanText, actions } = parseAiActions(raw);
+    expect(cleanText).toBe('Ich lege die Erinnerung an.');
+    expect(actions).toHaveLength(1);
+    expect(actions[0].type).toBe('CREATE_REMINDER');
+    expect(actions[0].syncWithCalendar).toBe(true);
+  });
+
+  it('parst CREATE_CALENDAR_EVENT für reine Google Kalender Einträge', () => {
+    const raw = `Termin wird im Kalender eingetragen.
+\`\`\`focusflow-action
+{
+  "actions": [
+    {
+      "type": "CREATE_CALENDAR_EVENT",
+      "title": "Google Meet Call",
+      "date": "2026-10-01",
+      "time": "09:00"
+    }
+  ]
+}
+\`\`\``;
+
+    const { cleanText, actions } = parseAiActions(raw);
+    expect(cleanText).toBe('Termin wird im Kalender eingetragen.');
+    expect(actions).toHaveLength(1);
+    expect(actions[0].type).toBe('CREATE_CALENDAR_EVENT');
+    expect(actions[0].title).toBe('Google Meet Call');
+  });
+});
+

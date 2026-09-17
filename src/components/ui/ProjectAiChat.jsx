@@ -549,14 +549,17 @@ REGELN:
                             {msg.actionResults.map((res, idx) => {
                               const isProjAction = res.targetType === 'project' || res.type === 'ADD_PHASE' || res.type === 'ADD_TASK' || res.type === 'CREATE_PROJECT' || res.type === 'UPDATE_PROJECT';
                               const isRemAction = res.targetType === 'reminder' || res.type === 'CREATE_REMINDER' || res.type === 'UPDATE_REMINDER';
+                              const isCalAction = res.targetType === 'calendar' || res.isOnlyCalendar || res.type === 'CREATE_CALENDAR_EVENT';
                               const isNoteAction = res.type === 'CREATE_NOTE';
                               const isMatAction = res.type === 'ADD_MATERIAL';
 
-                              const iconName = isNoteAction ? 'note_alt' : isMatAction ? 'attach_file' : isRemAction ? 'notifications' : isProjAction ? 'folder' : 'check_circle';
+                              const iconName = isNoteAction ? 'note_alt' : isMatAction ? 'attach_file' : isCalAction ? 'calendar_month' : isRemAction ? 'notifications' : isProjAction ? 'folder' : 'check_circle';
                               const iconStyle = isNoteAction
                                 ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
                                 : isMatAction
                                 ? 'bg-sky-50 text-sky-700 border-sky-200'
+                                : isCalAction
+                                ? 'bg-blue-50 text-blue-700 border-blue-200'
                                 : isRemAction
                                 ? 'bg-amber-50 text-amber-700 border-amber-200'
                                 : isProjAction
@@ -578,6 +581,48 @@ REGELN:
                                 </div>
                               );
                             })}
+                          </div>
+                        )}
+
+                        {/* Render 3-Way Intent Choice Pills if AI proposed an appointment/reminder */}
+                        {msg.intentChoice && (
+                          <div className="mt-2.5 pt-2 border-t border-outline-variant/60 w-full space-y-1.5 not-prose">
+                            <div className="text-[10px] font-mono font-bold text-on-surface-variant flex items-center gap-1">
+                              <span className="material-symbols-outlined text-[12px] text-primary">help</span>
+                              <span>Wo soll der Eintrag angelegt werden?</span>
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleSend(`Bitte erstelle die Erinnerung „${msg.intentChoice.title}“ für den ${msg.intentChoice.date}${msg.intentChoice.time ? ` um ${msg.intentChoice.time} Uhr` : ''} nur in FocusFlow.`)}
+                                className="px-2 py-1 rounded-md bg-surface-low hover:bg-surface-variant border border-outline-variant text-[10px] font-mono text-on-surface flex items-center gap-1 transition-all cursor-pointer shadow-2xs hover:border-primary"
+                              >
+                                <span className="material-symbols-outlined text-[12px] text-amber-700">notifications</span>
+                                <span>Nur in FocusFlow</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                disabled={user?.isGuest || !isCalendarConnected}
+                                onClick={() => handleSend(`Bitte erstelle die Erinnerung „${msg.intentChoice.title}“ für den ${msg.intentChoice.date}${msg.intentChoice.time ? ` um ${msg.intentChoice.time} Uhr` : ''} in FocusFlow mit Google Kalender-Sync.`)}
+                                title={user?.isGuest ? 'Im Gastmodus nicht verfügbar' : !isCalendarConnected ? 'Google Kalender nicht verbunden' : 'Empfohlen'}
+                                className="px-2 py-1 rounded-md bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-[10px] font-mono text-emerald-800 font-bold flex items-center gap-1 transition-all cursor-pointer shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <span className="material-symbols-outlined text-[12px] text-emerald-600">sync</span>
+                                <span>FocusFlow + Kalender-Sync</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                disabled={user?.isGuest || !isCalendarConnected}
+                                onClick={() => handleSend(`Bitte trage den Termin „${msg.intentChoice.title}“ für den ${msg.intentChoice.date}${msg.intentChoice.time ? ` um ${msg.intentChoice.time} Uhr` : ''} nur im Google Kalender ein.`)}
+                                title={user?.isGuest ? 'Im Gastmodus nicht verfügbar' : !isCalendarConnected ? 'Google Kalender nicht verbunden' : 'Direkt im Kalender eintragen'}
+                                className="px-2 py-1 rounded-md bg-surface-low hover:bg-surface-variant border border-outline-variant text-[10px] font-mono text-on-surface flex items-center gap-1 transition-all cursor-pointer shadow-2xs hover:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <span className="material-symbols-outlined text-[12px] text-primary">calendar_month</span>
+                                <span>Nur im Google Kalender</span>
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>

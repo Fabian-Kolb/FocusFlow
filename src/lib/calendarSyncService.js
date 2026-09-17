@@ -245,6 +245,7 @@ export async function desyncEntityFromGoogle({
   }
 
   return {
+    success: true,
     googleEventId: null,
     isCalendarSynced: false
   };
