@@ -360,7 +360,7 @@ export default function AccountSection({
               <button
                 type="submit"
                 disabled={loadingAction === 'profile' || !isProfileDirty}
-                className="px-4 py-2 bg-primary text-neutral-900 rounded-xl text-xs sm:text-sm font-bold hover:bg-primary/90 transition-all disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-primary text-on-primary rounded-xl text-xs sm:text-sm font-bold hover:bg-primary/90 transition-all disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
               >
                 {loadingAction === 'profile' ? 'Wird gespeichert...' : 'Profil speichern'}
               </button>

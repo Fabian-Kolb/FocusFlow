@@ -246,7 +246,7 @@ export default function SettingsModal() {
                   onClick={() => setActiveTab(tab.id)}
                   className={`flex items-center gap-2.5 px-3 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all shrink-0 cursor-pointer ${
                     isSelected 
-                      ? 'bg-primary text-neutral-900 shadow-sm' 
+                      ? 'bg-primary text-on-primary shadow-sm' 
                       : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-variant/40'
                   }`}
                 >

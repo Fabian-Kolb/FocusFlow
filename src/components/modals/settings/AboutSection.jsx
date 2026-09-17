@@ -9,7 +9,7 @@ export default function AboutSection() {
     <div className="space-y-6">
       {/* Brand Header */}
       <div className="flex items-center gap-4 p-4 rounded-2xl bg-surface-variant/20 border border-border">
-        <div className="w-12 h-12 rounded-xl bg-primary text-neutral-900 flex items-center justify-center font-black text-xl tracking-tight shadow-sm shrink-0">
+        <div className="w-12 h-12 rounded-xl bg-primary text-on-primary flex items-center justify-center font-black text-xl tracking-tight shadow-sm shrink-0">
           FF
         </div>
         <div>
@@ -74,7 +74,7 @@ export default function AboutSection() {
           <div className="flex items-center gap-3 flex-wrap">
             <a
               href="mailto:support@focusflow.app?subject=FocusFlow%20Feedback"
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary text-neutral-900 text-xs font-bold hover:bg-primary/90 transition-colors"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary text-on-primary text-xs font-bold hover:bg-primary/90 transition-colors"
             >
               <span className="material-symbols-outlined text-[16px]">mail</span>
               E-Mail an Support
