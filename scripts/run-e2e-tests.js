@@ -10,13 +10,15 @@ import { registerTier1Tests } from '../tests/tier1_feature_coverage.test.js';
 import { registerTier2Tests } from '../tests/tier2_boundary_corner.test.js';
 import { registerTier3Tests } from '../tests/tier3_cross_feature.test.js';
 import { registerTier4Tests } from '../tests/tier4_real_world.test.js';
+import { registerSidebarGeometryAndStateTests } from '../tests/sidebar_geometry_and_state.test.js';
 
 async function main() {
   const runner = new E2ETestRunner();
 
-  // Register all 4 tiers of tests
+  // Register all tiers of tests
   registerTier1Tests(runner);
   registerTier2Tests(runner);
+  registerSidebarGeometryAndStateTests(runner);
   registerTier3Tests(runner);
   registerTier4Tests(runner);
 

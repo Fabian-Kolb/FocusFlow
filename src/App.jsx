@@ -33,30 +33,81 @@ import Reminders from './components/screens/Reminders';
 import ReminderDetail from './components/screens/ReminderDetail';
 import Trash from './components/screens/Trash';
 import EmailVerificationScreen from './components/screens/EmailVerificationScreen';
+import {
+  BREAKPOINTS,
+  isDesktopViewport,
+  readStoredDesktopCollapsed,
+  writeStoredDesktopCollapsed
+} from './lib/breakpoints';
 
 function AppContent() {
   const [currentScreen, setCurrentScreen] = useState('dashboard');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return window.innerWidth < 1024;
+  const [viewportWidth, setViewportWidth] = useState(() => (
+    typeof window !== 'undefined' ? window.innerWidth : 1200
+  ));
+  const [desktopCollapsed, setDesktopCollapsed] = useState(() => (
+    readStoredDesktopCollapsed()
+  ));
+  const [tabletDrawerOpen, setTabletDrawerOpen] = useState(false);
+
+  const isDesktop = isDesktopViewport(viewportWidth);
+  const effectiveSidebarCollapsed = isDesktop ? desktopCollapsed : !tabletDrawerOpen;
+
+  const handleSetSidebarCollapsed = (valueOrFn) => {
+    if (isDesktop) {
+      setDesktopCollapsed((prev) => {
+        const next = typeof valueOrFn === 'function' ? valueOrFn(prev) : valueOrFn;
+        writeStoredDesktopCollapsed(next);
+        return next;
+      });
+    } else {
+      setTabletDrawerOpen((prev) => {
+        const currentCollapsed = !prev;
+        const nextCollapsed = typeof valueOrFn === 'function' ? valueOrFn(currentCollapsed) : valueOrFn;
+        return !nextCollapsed;
+      });
     }
-    return false;
-  });
+  };
+
   const { user } = useAuth();
   const { firestoreError, clearFirestoreError } = useData();
 
-  // Auto-collapse sidebar when screen is resized down to tablet (< 1024px)
+  // Responsive resize handler with rAF throttling and state preservation
   useEffect(() => {
     let prevWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
+    let rAFId = null;
+
     const handleResize = () => {
-      const currentWidth = window.innerWidth;
-      if (currentWidth < 1024 && prevWidth >= 1024) {
-        setSidebarCollapsed(true);
-      }
-      prevWidth = currentWidth;
+      if (rAFId) cancelAnimationFrame(rAFId);
+      rAFId = requestAnimationFrame(() => {
+        const currentWidth = window.innerWidth;
+        setViewportWidth(currentWidth);
+
+        if (currentWidth < BREAKPOINTS.DESKTOP && prevWidth >= BREAKPOINTS.DESKTOP) {
+          // Entering tablet mode: ensure overlay starts closed without touching desktop preference
+          setTabletDrawerOpen(false);
+        } else if (currentWidth >= BREAKPOINTS.DESKTOP && prevWidth < BREAKPOINTS.DESKTOP) {
+          // Returning to desktop mode: cleanly restore saved user preference
+          setDesktopCollapsed(readStoredDesktopCollapsed());
+        }
+        prevWidth = currentWidth;
+      });
     };
+
+    // Multi-tab storage sync
+    const handleStorageChange = (e) => {
+      if (e.key === 'focusflow_sidebar_desktop_collapsed' && typeof window !== 'undefined' && isDesktopViewport(window.innerWidth)) {
+        setDesktopCollapsed(e.newValue === 'true');
+      }
+    };
+
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      if (rAFId) cancelAnimationFrame(rAFId);
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
 
   const screenTitles = {
@@ -90,8 +141,8 @@ function AppContent() {
       <Sidebar
         currentScreen={currentScreen}
         setCurrentScreen={setCurrentScreen}
-        collapsed={sidebarCollapsed}
-        setCollapsed={setSidebarCollapsed}
+        collapsed={effectiveSidebarCollapsed}
+        setCollapsed={handleSetSidebarCollapsed}
       />
 
       <main className={`flex-grow min-w-0 relative h-full flex flex-col ${
