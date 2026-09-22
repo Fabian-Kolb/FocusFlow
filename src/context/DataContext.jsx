@@ -22,6 +22,8 @@ const sanitizeForFirestore = (value) => {
       .filter(([, entry]) => entry !== undefined)
       .map(([key, entry]) => [key, sanitizeForFirestore(entry)])
   );
+};
+
 export const SYSTEM_KANBAN_VIEWS = [
   {
     id: 'system_all',
@@ -1099,18 +1101,6 @@ export const DataProvider = ({ children }) => {
     }
 
     await deleteDoc(doc(db, 'users', user.uid, 'categories', categoryId));
-  };
-
-  const deleteReminderCategory = async (categoryId) => {
-    if (!user || categoryId === 'allgemein') return;
-
-    // Move all reminders in this category to allgemein
-    const remsToMove = reminders.filter(r => r.categoryId === categoryId);
-    for (const r of remsToMove) {
-      await setDoc(doc(db, 'users', user.uid, 'reminders', r.id), { ...r, categoryId: 'allgemein' }, { merge: true });
-    }
-
-    await deleteDoc(doc(db, 'users', user.uid, 'reminderCategories', categoryId));
   };
 
   const deleteProject = async (projectId) => {

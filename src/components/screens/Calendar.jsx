@@ -230,6 +230,7 @@ const Calendar = () => {
   const mobileDayDrawerRef = useRef(null);
   const mobileDayScrollRef = useRef(null);
   const mobileTimelineScrollRef = useRef(null);
+  const lastClosedAtRef = useRef(0);
 
   useEffect(() => {
     if (isMobileDayModalOpen) {
@@ -245,13 +246,17 @@ const Calendar = () => {
     }
   }, [isMobileDayModalOpen]);
 
-  const handleCloseMobileDayDrawer = () => setIsMobileDayModalOpen(false);
+  const handleCloseMobileDayDrawer = () => {
+    lastClosedAtRef.current = Date.now();
+    setIsMobileDayModalOpen(false);
+  };
 
-  const { drawerStyle: mobileDayDrawerStyle, entryAnimActive: mobileDayEntryAnim } = useSwipeToClose({
+  const { drawerStyle: mobileDayDrawerStyle, entryAnimActive: mobileDayEntryAnim, wasSwipedClosed: mobileDayWasSwipedClosed } = useSwipeToClose({
     isOpen: isMobileDayModalOpen && mobileDayDrawerRendered,
     onClose: handleCloseMobileDayDrawer,
     drawerRef: mobileDayDrawerRef,
     scrollContainerRef: mobileDayScrollRef,
+    threshold: 120,
   });
 
   // Desktop/Tablet Layout-Präferenz: 'stacked' (untereinander) oder 'side-by-side' (nebeneinander)
@@ -513,6 +518,11 @@ const Calendar = () => {
   };
 
   const handleCellClick = (cell) => {
+    // Cooldown-Schutz: Verhindert Ghost-Clicks nach dem Schließen des Drawers
+    if (Date.now() - lastClosedAtRef.current < 400) return;
+
+    const isSameDay = cell.isCurrentMonth && cell.day === selectedDay;
+
     if (cell.isPrevMonth) {
       handlePrevMonth();
       setSelectedDay(cell.day);
@@ -523,7 +533,11 @@ const Calendar = () => {
       setSelectedDay(cell.day);
     }
     if (typeof window !== 'undefined' && window.innerWidth < 768) {
-      setIsMobileDayModalOpen(true);
+      if (isSameDay && isMobileDayModalOpen) {
+        handleCloseMobileDayDrawer();
+      } else {
+        setIsMobileDayModalOpen(true);
+      }
     }
   };
 
@@ -1361,14 +1375,16 @@ const Calendar = () => {
       {/* Mobile Day Bottom Sheet / Drawer Modal – mit Swipe-to-Close (Regel 07) */}
       {mobileDayDrawerRendered && (
         <div
-          className="md:hidden fixed inset-0 z-[60] flex flex-col justify-end bg-black/60 backdrop-blur-sm animate-fadeIn"
+          className={`md:hidden fixed inset-0 z-[60] flex flex-col justify-end bg-black/60 backdrop-blur-sm transition-opacity duration-200 ${
+            mobileDayDrawerClosing ? 'opacity-0 pointer-events-none' : 'opacity-100'
+          }`}
           onClick={handleCloseMobileDayDrawer}
         >
           <div
             ref={mobileDayDrawerRef}
             className={`bg-surface border-t border-outline-variant rounded-t-3xl w-full max-h-[88vh] h-[84vh] shadow-2xl flex flex-col overflow-hidden text-primary ${
               mobileDayDrawerClosing
-                ? 'drawer-slide-out-bottom'
+                ? (mobileDayWasSwipedClosed ? '' : 'drawer-slide-out-bottom')
                 : mobileDayEntryAnim
                 ? 'drawer-slide-in-bottom'
                 : ''
@@ -1427,7 +1443,7 @@ const Calendar = () => {
                 </button>
                 <button
                   onClick={() => {
-                    setIsMobileDayModalOpen(false);
+                    handleCloseMobileDayDrawer();
                     const startD = new Date(currentYear, currentMonthIndex, selectedDay, 9, 0);
                     const endD = new Date(currentYear, currentMonthIndex, selectedDay, 10, 0);
                     setEditingEvent({
@@ -1441,7 +1457,7 @@ const Calendar = () => {
                   <span className="material-symbols-outlined text-[18px]">add</span>
                 </button>
                 <button
-                  onClick={() => setIsMobileDayModalOpen(false)}
+                  onClick={handleCloseMobileDayDrawer}
                   className="p-1.5 hover:bg-surface-low text-on-surface-variant hover:text-primary rounded-lg transition-colors ml-1"
                   title="Schließen"
                 >
@@ -1614,7 +1630,7 @@ const Calendar = () => {
                   </p>
                   <button
                     onClick={() => {
-                      setIsMobileDayModalOpen(false);
+                      handleCloseMobileDayDrawer();
                       const startD = new Date(currentYear, currentMonthIndex, selectedDay, 9, 0);
                       const endD = new Date(currentYear, currentMonthIndex, selectedDay, 10, 0);
                       setEditingEvent({

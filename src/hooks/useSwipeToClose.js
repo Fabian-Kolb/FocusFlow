@@ -56,13 +56,17 @@ export const useSwipeToClose = ({
       }
     };
 
-    const handleTouchEnd = () => {
+    const handleTouchEnd = (e) => {
       if (!isDragging) {
         // Reset state
         startYRef.current = null;
         currentYRef.current = null;
         isEligibleToDragRef.current = false;
         return;
+      }
+
+      if (e && e.cancelable) {
+        e.preventDefault();
       }
 
       const deltaY = currentYRef.current - startYRef.current;

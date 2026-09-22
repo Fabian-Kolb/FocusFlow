@@ -2,8 +2,8 @@ import React, { useState, useRef } from 'react';
 import { useModalContext } from '../../context/ModalContext';
 import { useCardTouchDrag } from '../ui/useCardTouchDrag';
 import Card from '../ui/Card';
-import Badge from '../ui/Badge';
 import CardContextMenu from '../ui/CardContextMenu';
+import KanbanFilterDrawer from '../ui/KanbanFilterDrawer';
 
 const ProjectsBoard = ({ setCurrentScreen }) => {
   const { 
@@ -20,7 +20,16 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
     toggleProjectKanban,
     toggleReminderKanban,
     toggleProjectStatus,
-    toggleReminderStatus
+    toggleReminderStatus,
+    // Kanban Views & Categories
+    kanbanViews = [],
+    activeKanbanViewId = 'system_all',
+    setActiveKanbanViewId,
+    addKanbanView,
+    updateKanbanView,
+    deleteKanbanView,
+    projectCategories = [],
+    reminderCategories = []
   } = useModalContext();
 
   const handleMoveKanbanItem = (itemId, column) => {
@@ -44,8 +53,10 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
   });
 
   const [draggedItem, setDraggedItem] = useState(null);
-  const [showProjects, setShowProjects] = useState(true);
-  const [showReminders, setShowReminders] = useState(true);
+
+  // Drawer and Category Filter State
+  const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
+  const [activeCategoryFilter, setActiveCategoryFilter] = useState(null);
 
   // Mobile horizontal column tab navigation & scroll detection
   const [activeTab, setActiveTab] = useState('TODO');
@@ -75,14 +86,54 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
     }
   };
 
-  // Combine arrays based on filters
-  const allItems = [];
-  if (showProjects) {
-    allItems.push(...projects.map(p => ({ ...p, itemType: 'project' })));
+  // Find active view or fallback to 'system_all'
+  const currentView = kanbanViews.find(v => v.id === activeKanbanViewId) || kanbanViews[0] || {
+    id: 'system_all',
+    name: 'Alle',
+    icon: 'view_kanban',
+    type: 'system',
+    showProjects: true,
+    showReminders: true,
+    projectCategoryIds: 'all',
+    reminderCategoryIds: 'all'
+  };
+
+  // 1-Click Category Filter vs. Active View Filter
+  let filteredProjects = [];
+  let filteredReminders = [];
+
+  if (activeCategoryFilter) {
+    if (activeCategoryFilter.type === 'project') {
+      filteredProjects = projects.filter(p => (p.categoryId || 'allgemein') === activeCategoryFilter.id);
+      filteredReminders = [];
+    } else if (activeCategoryFilter.type === 'reminder') {
+      filteredProjects = [];
+      filteredReminders = reminders.filter(r => (r.categoryId || 'allgemein') === activeCategoryFilter.id);
+    }
+  } else {
+    // Filter according to currentView definition
+    if (currentView.showProjects !== false) {
+      if (currentView.projectCategoryIds === 'all' || currentView.id === 'system_all' || currentView.id === 'system_projects') {
+        filteredProjects = projects;
+      } else if (Array.isArray(currentView.projectCategoryIds)) {
+        filteredProjects = projects.filter(p => currentView.projectCategoryIds.includes(p.categoryId || 'allgemein'));
+      }
+    }
+
+    if (currentView.showReminders !== false) {
+      if (currentView.reminderCategoryIds === 'all' || currentView.id === 'system_all' || currentView.id === 'system_reminders') {
+        filteredReminders = reminders;
+      } else if (Array.isArray(currentView.reminderCategoryIds)) {
+        filteredReminders = reminders.filter(r => currentView.reminderCategoryIds.includes(r.categoryId || 'allgemein'));
+      }
+    }
   }
-  if (showReminders) {
-    allItems.push(...reminders.map(r => ({ ...r, itemType: 'reminder' })));
-  }
+
+  // Combine items and apply inKanban flag
+  const allItems = [
+    ...filteredProjects.map(p => ({ ...p, itemType: 'project' })),
+    ...filteredReminders.map(r => ({ ...r, itemType: 'reminder' }))
+  ];
   
   const kanbanItems = allItems.filter(item => item.inKanban !== false);
 
@@ -164,11 +215,12 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
           onDragStart={(e) => handleDragStart(e, project)}
           onDragEnd={handleDragEnd}
           onTouchStart={(e) => startKanbanCardDrag(e, project.id, project.title)}
-          className="mb-4 cursor-grab active:cursor-grabbing touch-action-none"
+          className="mb-3 cursor-grab active:cursor-grabbing touch-action-none"
         >
           <Card
             interactive
-            className={`flex flex-col justify-between min-h-[250px] sm:min-h-[300px] transition-all ${
+            padding="small"
+            className={`flex flex-col justify-between min-h-0 transition-all ${
               project.isPaused 
                 ? '!bg-blue-100 !border-blue-300 ring-1 ring-blue-300/40' 
                 : ''
@@ -218,7 +270,7 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
               </div>
             </div>
 
-            <div className="space-y-2 sm:space-y-3 border-t border-outline-variant pt-2 sm:pt-3 mt-auto">
+            <div className="space-y-2 sm:space-y-2.5 border-t border-outline-variant pt-2 mt-auto">
               <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                 {project.status && (
                   <button
@@ -226,7 +278,7 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
                       e.stopPropagation();
                       toggleProjectStatus(project.id);
                     }}
-                    className={`px-2 py-0.5 sm:px-3 sm:py-1 rounded-lg border text-[9px] sm:text-xs font-mono font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer ${getStatusStyle(project.status)}`}
+                    className={`px-2 py-0.5 sm:px-3 sm:py-0.5 rounded-lg border text-[9px] sm:text-xs font-mono font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer ${getStatusStyle(project.status)}`}
                     title="Klicken um Status zu wechseln"
                   >
                     {project.status === 'LAUFEND' ? 'AKTIV' : project.status}
@@ -234,7 +286,7 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
                 )}
 
                 {project.warning && (
-                  <span className="px-2 py-0.5 sm:px-3 sm:py-1 rounded-lg border bg-amber-100 text-amber-900 border-amber-300 text-[9px] sm:text-xs font-mono font-bold uppercase tracking-wider">
+                  <span className="px-2 py-0.5 sm:px-3 sm:py-0.5 rounded-lg border bg-amber-100 text-amber-900 border-amber-300 text-[9px] sm:text-xs font-mono font-bold uppercase tracking-wider">
                     {project.warning}
                   </span>
                 )}
@@ -272,11 +324,12 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
           onDragStart={(e) => handleDragStart(e, reminder)}
           onDragEnd={handleDragEnd}
           onTouchStart={(e) => startKanbanCardDrag(e, reminder.id, reminder.title)}
-          className="mb-4 cursor-grab active:cursor-grabbing touch-action-none"
+          className="mb-3 cursor-grab active:cursor-grabbing touch-action-none"
         >
           <Card
             interactive
-            className={`flex flex-col justify-between transition-all ${
+            padding="small"
+            className={`flex flex-col justify-between min-h-0 transition-all ${
               reminder.isPaused 
                 ? '!bg-blue-100 !border-blue-300 ring-1 ring-blue-300/40' 
                 : ''
@@ -308,14 +361,14 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
                   itemStatus={reminder.status}
                 />
               </div>
-              <div className="mb-2 sm:mb-3">
+              <div className="mb-2">
                 <p className="text-[10px] sm:text-xs text-on-surface-variant font-mono truncate">
                   {reminder.dateRange} <span className="font-bold text-primary">({reminder.daysRemaining})</span>
                 </p>
               </div>
             </div>
 
-            <div className="space-y-2 sm:space-y-3 border-t border-outline-variant pt-2 sm:pt-3 mt-1">
+            <div className="space-y-2 border-t border-outline-variant pt-2 mt-1">
               <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                 {reminder.status && (
                   <button
@@ -323,7 +376,7 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
                       e.stopPropagation();
                       toggleReminderStatus(reminder.id);
                     }}
-                    className={`px-2 py-0.5 sm:px-3 sm:py-1 rounded-lg border text-[9px] sm:text-xs font-mono font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer ${getStatusStyle(reminder.status)}`}
+                    className={`px-2 py-0.5 sm:px-3 sm:py-0.5 rounded-lg border text-[9px] sm:text-xs font-mono font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer ${getStatusStyle(reminder.status)}`}
                     title="Klicken um Status zu wechseln"
                   >
                     {reminder.status}
@@ -347,96 +400,211 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
     }
   };
 
-  const renderFilter = (className) => (
-    <div className={`flex bg-surface-low p-1 rounded-xl border border-outline-variant shadow-sm gap-1 ${className}`}>
-      <button
-        onClick={() => setShowProjects(!showProjects)}
-        title="Projekte anzeigen/ausblenden"
-        className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
-          showProjects 
-            ? 'bg-primary text-white shadow-sm' 
-            : 'text-on-surface-variant hover:bg-on-surface/5 hover:text-primary'
-        }`}
-      >
-        <span className="material-symbols-outlined text-[18px]">folder</span>
-      </button>
-      <button
-        onClick={() => setShowReminders(!showReminders)}
-        title="Erinnerungen anzeigen/ausblenden"
-        className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
-          showReminders 
-            ? 'bg-primary text-white shadow-sm' 
-            : 'text-on-surface-variant hover:bg-on-surface/5 hover:text-primary'
-        }`}
-      >
-        <span className="material-symbols-outlined text-[18px]">notifications</span>
-      </button>
-    </div>
-  );
+  // Custom view for 3rd Quick Tab (either currently active custom view or first available)
+  const activeCustomView = kanbanViews.find(v => !v.isSystem && v.type === 'custom' && v.id === activeKanbanViewId)
+    || kanbanViews.find(v => !v.isSystem && v.type === 'custom');
+
+  const isFilterActive = activeCategoryFilter !== null || activeKanbanViewId !== 'system_all';
+
+  const activeViewLabel = activeCategoryFilter 
+    ? `${activeCategoryFilter.name}` 
+    : currentView.name;
 
   return (
     <div className="h-full flex flex-col w-full min-h-0">
-      {/* Mobile Kanban Navigation Tabs & Filters */}
-      <div className="flex lg:hidden items-center justify-between gap-1.5 mb-3 bg-surface-low border border-outline-variant p-1.5 rounded-2xl shadow-sm shrink-0">
-        <div className="flex items-center gap-1 flex-1 min-w-0">
+      {/* Top Header Bar: Quick Tabs & Drawer Trigger */}
+      <div className="flex items-center justify-between gap-2 mb-3 bg-surface-low border border-outline-variant p-1.5 rounded-2xl shadow-xs shrink-0">
+        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5 flex-1 min-w-0">
+          {/* Quick Tab 1: Alle */}
           <button
             type="button"
-            onClick={() => scrollToColumn('TODO')}
-            className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl text-xs font-bold transition-all truncate ${
-              activeTab === 'TODO'
-                ? 'bg-amber-500 text-white shadow-sm ring-1 ring-amber-400/50'
-                : 'text-on-surface-variant hover:bg-on-surface/5'
+            onClick={() => {
+              setActiveCategoryFilter(null);
+              setActiveKanbanViewId('system_all');
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+              activeCategoryFilter === null && activeKanbanViewId === 'system_all'
+                ? 'bg-primary text-white shadow-xs'
+                : 'text-on-surface-variant hover:bg-surface-variant hover:text-on-surface'
             }`}
           >
-            <span className={`w-2 h-2 rounded-full shrink-0 ${activeTab === 'TODO' ? 'bg-white' : 'bg-amber-400'}`}></span>
-            <span className="truncate">Geplant</span>
-            <span className={`text-[10px] font-mono shrink-0 ${activeTab === 'TODO' ? 'text-amber-100' : 'opacity-70'}`}>
-              ({todoItems.length})
-            </span>
+            <span className="material-symbols-outlined text-[16px]">view_kanban</span>
+            <span>Alle</span>
           </button>
 
+          {/* Quick Tab 2: Nur Projekte */}
           <button
             type="button"
-            onClick={() => scrollToColumn('IN_PROGRESS')}
-            className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl text-xs font-bold transition-all truncate ${
-              activeTab === 'IN_PROGRESS'
-                ? 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-400/50'
-                : 'text-on-surface-variant hover:bg-on-surface/5'
+            onClick={() => {
+              setActiveCategoryFilter(null);
+              setActiveKanbanViewId('system_projects');
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+              activeCategoryFilter === null && activeKanbanViewId === 'system_projects'
+                ? 'bg-primary text-white shadow-xs'
+                : 'text-on-surface-variant hover:bg-surface-variant hover:text-on-surface'
             }`}
           >
-            <span className={`w-2 h-2 rounded-full shrink-0 ${activeTab === 'IN_PROGRESS' ? 'bg-white' : 'bg-emerald-400'}`}></span>
-            <span className="truncate">In Arbeit</span>
-            <span className={`text-[10px] font-mono shrink-0 ${activeTab === 'IN_PROGRESS' ? 'text-emerald-100' : 'opacity-70'}`}>
-              ({inProgressItems.length})
-            </span>
+            <span className="material-symbols-outlined text-[16px]">folder</span>
+            <span>Nur Projekte</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => scrollToColumn('DONE')}
-            className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl text-xs font-bold transition-all truncate ${
-              activeTab === 'DONE'
-                ? 'bg-neutral-700 text-white shadow-sm ring-1 ring-neutral-400/50'
-                : 'text-on-surface-variant hover:bg-on-surface/5'
-            }`}
-          >
-            <span className={`w-2 h-2 rounded-full shrink-0 ${activeTab === 'DONE' ? 'bg-white' : 'bg-neutral-400'}`}></span>
-            <span className="truncate">Erledigt</span>
-            <span className={`text-[10px] font-mono shrink-0 ${activeTab === 'DONE' ? 'text-neutral-200' : 'opacity-70'}`}>
-              ({doneItems.length})
-            </span>
-          </button>
+          {/* Quick Tab 3: Custom View (if available) */}
+          {activeCustomView && (
+            <button
+              type="button"
+              onClick={() => {
+                setActiveCategoryFilter(null);
+                setActiveKanbanViewId(activeCustomView.id);
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer max-w-[160px] truncate ${
+                activeCategoryFilter === null && activeKanbanViewId === activeCustomView.id
+                  ? 'bg-primary text-white shadow-xs'
+                  : 'text-on-surface-variant hover:bg-surface-variant hover:text-on-surface'
+              }`}
+              title={activeCustomView.name}
+            >
+              <span className="material-symbols-outlined text-[16px]">{activeCustomView.icon || 'star'}</span>
+              <span className="truncate">{activeCustomView.name}</span>
+            </button>
+          )}
+
+          {/* If a category filter is active, show category chip */}
+          {activeCategoryFilter && (
+            <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-primary/15 text-primary border border-primary/30 text-xs font-bold shrink-0">
+              <span className="material-symbols-outlined text-[14px]">
+                {activeCategoryFilter.type === 'project' ? 'folder' : 'notifications'}
+              </span>
+              <span className="truncate max-w-[130px]">{activeCategoryFilter.name}</span>
+              <button
+                type="button"
+                onClick={() => setActiveCategoryFilter(null)}
+                className="hover:bg-primary/20 rounded-full p-0.5 transition-colors cursor-pointer"
+                title="Kategorie-Filter entfernen"
+              >
+                <span className="material-symbols-outlined text-[14px]">close</span>
+              </button>
+            </div>
+          )}
         </div>
 
-        {renderFilter("shrink-0")}
+        {/* Right Section: Drawer Button & Counter */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => setIsFilterDrawerOpen(true)}
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+              isFilterActive
+                ? 'bg-primary/10 border-primary text-primary shadow-xs ring-1 ring-primary/40'
+                : 'bg-surface border-outline-variant text-on-surface hover:bg-surface-variant'
+            }`}
+            title="Ansichten und Filter verwalten"
+          >
+            <span className="material-symbols-outlined text-[17px]">tune</span>
+            <span className="hidden sm:inline">Ansichten</span>
+            <span className="max-w-[100px] truncate text-[11px] font-normal opacity-80">
+              ({activeViewLabel})
+            </span>
+            <span className="material-symbols-outlined text-[15px]">expand_more</span>
+          </button>
+        </div>
       </div>
+
+      {/* Mobile Column Navigation Tabs */}
+      <div className="flex lg:hidden items-center justify-between gap-1.5 mb-3 bg-surface-low border border-outline-variant p-1.5 rounded-2xl shadow-xs shrink-0">
+        <button
+          type="button"
+          onClick={() => scrollToColumn('TODO')}
+          className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl text-xs font-bold transition-all truncate ${
+            activeTab === 'TODO'
+              ? 'bg-amber-500 text-white shadow-xs ring-1 ring-amber-400/50'
+              : 'text-on-surface-variant hover:bg-on-surface/5'
+          }`}
+        >
+          <span className={`w-2 h-2 rounded-full shrink-0 ${activeTab === 'TODO' ? 'bg-white' : 'bg-amber-400'}`}></span>
+          <span className="truncate">Geplant</span>
+          <span className={`text-[10px] font-mono shrink-0 ${activeTab === 'TODO' ? 'text-amber-100' : 'opacity-70'}`}>
+            ({todoItems.length})
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => scrollToColumn('IN_PROGRESS')}
+          className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl text-xs font-bold transition-all truncate ${
+            activeTab === 'IN_PROGRESS'
+              ? 'bg-emerald-600 text-white shadow-xs ring-1 ring-emerald-400/50'
+              : 'text-on-surface-variant hover:bg-on-surface/5'
+          }`}
+        >
+          <span className={`w-2 h-2 rounded-full shrink-0 ${activeTab === 'IN_PROGRESS' ? 'bg-white' : 'bg-emerald-400'}`}></span>
+          <span className="truncate">In Arbeit</span>
+          <span className={`text-[10px] font-mono shrink-0 ${activeTab === 'IN_PROGRESS' ? 'text-emerald-100' : 'opacity-70'}`}>
+            ({inProgressItems.length})
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => scrollToColumn('DONE')}
+          className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl text-xs font-bold transition-all truncate ${
+            activeTab === 'DONE'
+              ? 'bg-neutral-700 text-white shadow-xs ring-1 ring-neutral-400/50'
+              : 'text-on-surface-variant hover:bg-on-surface/5'
+          }`}
+        >
+          <span className={`w-2 h-2 rounded-full shrink-0 ${activeTab === 'DONE' ? 'bg-white' : 'bg-neutral-400'}`}></span>
+          <span className="truncate">Erledigt</span>
+          <span className={`text-[10px] font-mono shrink-0 ${activeTab === 'DONE' ? 'text-neutral-200' : 'opacity-70'}`}>
+            ({doneItems.length})
+          </span>
+        </button>
+      </div>
+
+      {/* Empty State Banner if 0 items across the board */}
+      {kanbanItems.length === 0 && (
+        <div className="mb-3 p-3 sm:p-4 rounded-2xl border border-dashed border-outline-variant bg-surface-low flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-surface-variant flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-[24px] text-on-surface-variant">filter_alt_off</span>
+            </div>
+            <div>
+              <p className="font-bold text-sm text-on-surface">Keine Elemente in dieser Ansicht</p>
+              <p className="text-xs text-on-surface-variant">
+                {activeCategoryFilter 
+                  ? `In der Kategorie "${activeCategoryFilter.name}" befinden sich keine aktiven Kanban-Elemente.`
+                  : `In der Ansicht "${currentView.name}" wurden keine passenden Kategorien oder Elemente gefunden.`}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveCategoryFilter(null);
+                setActiveKanbanViewId('system_all');
+              }}
+              className="px-3 py-1.5 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary/90 transition-colors cursor-pointer"
+            >
+              Alle anzeigen
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsFilterDrawerOpen(true)}
+              className="px-3 py-1.5 rounded-xl border border-outline-variant text-on-surface text-xs font-semibold hover:bg-surface-variant transition-colors cursor-pointer"
+            >
+              Filter öffnen
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Main Kanban Board Container */}
       <div 
         ref={scrollContainerRef}
         onScroll={handleScroll}
         data-kanban-container="true"
-        className="flex-1 min-h-0 flex lg:grid lg:grid-cols-3 gap-4 sm:gap-6 overflow-x-auto lg:overflow-x-visible snap-x snap-mandatory scroll-smooth pb-4 pt-1 px-0.5"
+        className="flex-1 min-h-0 flex lg:grid lg:grid-cols-3 gap-3 sm:gap-5 overflow-x-auto lg:overflow-x-visible snap-x snap-mandatory scroll-smooth pb-4 pt-0.5 px-0.5"
       >
         {/* Geplant Column */}
         <div 
@@ -447,7 +615,7 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
           onDragLeave={handleDragLeave}
           onDrop={(e) => handleDrop(e, 'TODO')}
         >
-          <div className="relative flex items-center gap-2 mb-3 px-1">
+          <div className="flex items-center gap-2 mb-2 px-1">
             <div className="w-2.5 h-2.5 rounded-full bg-amber-400"></div>
             <h3 className="font-bold text-sm">Geplant</h3>
 
@@ -462,7 +630,7 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
           }`}>
             {todoItems.map(renderCard)}
             {todoItems.length === 0 && (
-              <div className="h-32 lg:h-full flex items-center justify-center text-on-surface-variant/50 text-sm italic font-mono border-2 border-dashed border-transparent">
+              <div className="h-28 lg:h-full flex items-center justify-center text-on-surface-variant/50 text-xs italic font-mono border-2 border-dashed border-transparent">
                 Keine geplanten Elemente
               </div>
             )}
@@ -478,11 +646,9 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
           onDragLeave={handleDragLeave}
           onDrop={(e) => handleDrop(e, 'IN_PROGRESS')}
         >
-          <div className="relative flex items-center gap-2 mb-3 px-1">
+          <div className="flex items-center gap-2 mb-2 px-1">
             <div className="w-2.5 h-2.5 rounded-full bg-emerald-400"></div>
             <h3 className="font-bold text-sm">In Arbeit</h3>
-            
-            {renderFilter("hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2")}
 
             <span className="ml-auto bg-surface-low border border-outline-variant text-on-surface-variant text-[10px] font-mono px-2 py-0.5 rounded-full">
               {inProgressItems.length}
@@ -495,7 +661,7 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
           }`}>
             {inProgressItems.map(renderCard)}
             {inProgressItems.length === 0 && (
-              <div className="h-32 lg:h-full flex items-center justify-center text-on-surface-variant/50 text-sm italic font-mono border-2 border-dashed border-transparent">
+              <div className="h-28 lg:h-full flex items-center justify-center text-on-surface-variant/50 text-xs italic font-mono border-2 border-dashed border-transparent">
                 Keine aktiven Elemente
               </div>
             )}
@@ -511,7 +677,7 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
           onDragLeave={handleDragLeave}
           onDrop={(e) => handleDrop(e, 'DONE')}
         >
-          <div className="flex items-center gap-2 mb-3 px-1">
+          <div className="flex items-center gap-2 mb-2 px-1">
             <div className="w-2.5 h-2.5 rounded-full bg-neutral-400"></div>
             <h3 className="font-bold text-sm">Abgeschlossen</h3>
             <span className="ml-auto bg-surface-low border border-outline-variant text-on-surface-variant text-[10px] font-mono px-2 py-0.5 rounded-full">
@@ -525,13 +691,34 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
           }`}>
             {doneItems.map(renderCard)}
             {doneItems.length === 0 && (
-              <div className="h-32 lg:h-full flex items-center justify-center text-on-surface-variant/50 text-sm italic font-mono border-2 border-dashed border-transparent">
+              <div className="h-28 lg:h-full flex items-center justify-center text-on-surface-variant/50 text-xs italic font-mono border-2 border-dashed border-transparent">
                 Keine abgeschlossenen Elemente
               </div>
             )}
           </div>
         </div>
       </div>
+
+      {/* Dedicated Responsive Kanban Filter Drawer (Rule 04 Root Level Placement) */}
+      <KanbanFilterDrawer
+        isOpen={isFilterDrawerOpen}
+        onClose={() => setIsFilterDrawerOpen(false)}
+        kanbanViews={kanbanViews}
+        activeKanbanViewId={activeKanbanViewId}
+        onSelectView={(viewId) => {
+          setActiveCategoryFilter(null);
+          setActiveKanbanViewId(viewId);
+        }}
+        activeCategoryFilter={activeCategoryFilter}
+        onSelectCategoryFilter={(catFilter) => {
+          setActiveCategoryFilter(catFilter);
+        }}
+        projectCategories={projectCategories}
+        reminderCategories={reminderCategories}
+        onAddView={addKanbanView}
+        onUpdateView={updateKanbanView}
+        onDeleteView={deleteKanbanView}
+      />
     </div>
   );
 };
