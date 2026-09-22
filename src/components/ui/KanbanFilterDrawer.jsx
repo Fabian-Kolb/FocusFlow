@@ -317,7 +317,7 @@ const KanbanFilterDrawer = ({
               <div>
                 <div className="flex items-center justify-between mb-2 px-1">
                   <span className="text-xs font-mono font-bold uppercase tracking-wider text-on-surface-variant flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-[15px] text-amber-500">bolt</span>
+                    <span className="material-symbols-outlined text-[15px] text-primary">bolt</span>
                     Standard-Ansichten
                   </span>
                 </div>
@@ -470,7 +470,7 @@ const KanbanFilterDrawer = ({
                         className="w-full flex items-center justify-between p-3 text-left hover:bg-surface-variant/40 transition-colors cursor-pointer"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0">
+                          <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
                             <span className="material-symbols-outlined text-[18px]">notifications</span>
                           </div>
                           <div className="min-w-0">
@@ -481,7 +481,7 @@ const KanbanFilterDrawer = ({
                               </span>
                             </div>
                             {stagedCategoryFilter?.type === 'reminder' && (
-                              <span className="text-[11px] text-amber-600 font-medium truncate block">
+                              <span className="text-[11px] text-primary font-medium truncate block">
                                 Ausgewählt: {stagedCategoryFilter.name}
                               </span>
                             )}
@@ -489,7 +489,7 @@ const KanbanFilterDrawer = ({
                         </div>
 
                         <span className={`material-symbols-outlined text-[20px] text-on-surface-variant transition-transform duration-200 ${
-                          isReminderCategoriesOpen ? 'rotate-180 text-amber-600' : ''
+                          isReminderCategoriesOpen ? 'rotate-180 text-primary' : ''
                         }`}>
                           expand_more
                         </span>
@@ -515,7 +515,7 @@ const KanbanFilterDrawer = ({
                                 }}
                                 className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-all cursor-pointer ${
                                   isSelected
-                                    ? 'bg-amber-600 text-white shadow-xs font-semibold'
+                                    ? 'bg-primary text-white shadow-xs font-semibold'
                                     : 'hover:bg-surface-variant text-on-surface'
                                 }`}
                               >
