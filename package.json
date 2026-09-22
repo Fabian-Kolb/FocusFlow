@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "deploy": "npm run build && firebase deploy --only hosting",
+    "deploy": "npm run build && firebase deploy --only hosting,firestore:rules",
     "deploy:rules": "firebase deploy --only firestore:rules",
     "deploy:all": "npm run build && firebase deploy --only hosting,firestore:rules",
     "lint": "oxlint",

@@ -16,7 +16,7 @@ const WEEKDAY_NAMES = [
 ];
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
-const MOBILE_PX_PER_MIN = 0.4; // 24px pro Stunde auf Mobile (komprimiert vs. 60px auf Desktop)
+const MOBILE_PX_PER_MIN = 0.75; // 45px pro Stunde auf Mobile (24h = 1080px, in ~2-3 Swipes durchscrollbar)
 
 // Offizielle Google Calendar Event Farben (IDs 1-11)
 const GOOGLE_COLORS = {
@@ -32,6 +32,16 @@ const GOOGLE_COLORS = {
   "10": { bg: "#51b749", text: "#194215" }, // Basil
   "11": { bg: "#dc2127", text: "#590d10" }, // Tomato
 };
+
+// Hilfsfunktion: Berechnet lesbare Dauer (z.B. "1 Std. 30 Min." oder "45 Min.")
+function formatDuration(durationMinutes) {
+  if (!durationMinutes || durationMinutes <= 0) return '';
+  const hours = Math.floor(durationMinutes / 60);
+  const mins = durationMinutes % 60;
+  if (hours > 0 && mins > 0) return `${hours} Std. ${mins} Min.`;
+  if (hours > 0) return `${hours} Std.`;
+  return `${mins} Min.`;
+}
 
 // Hilfsfunktion: Berechnet Position (top, height) und Spaltenaufteilung bei Überlappungen
 function getLayoutedEvents(timedEvents, selectedDate) {
@@ -229,8 +239,23 @@ const Calendar = () => {
   const [mobileDayDrawerClosing, setMobileDayDrawerClosing] = useState(false);
   const mobileDayDrawerRef = useRef(null);
   const mobileDayScrollRef = useRef(null);
-  const mobileTimelineScrollRef = useRef(null);
   const lastClosedAtRef = useRef(0);
+
+  // Mobile Day Ansicht: 'timeline' (Zeitstrahl) oder 'list' (Chronologische Liste)
+  const [mobileDayViewMode, setMobileDayViewMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('focusflow_calendar_mobile_day_view');
+      if (saved === 'timeline' || saved === 'list') return saved;
+    }
+    return 'timeline';
+  });
+
+  const handleMobileDayViewChange = (mode) => {
+    setMobileDayViewMode(mode);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('focusflow_calendar_mobile_day_view', mode);
+    }
+  };
 
   useEffect(() => {
     if (isMobileDayModalOpen) {
@@ -628,19 +653,35 @@ const Calendar = () => {
     timeGridScrollRef.current.scrollTop = targetMinutes;
   }, [selectedDay, currentMonthIndex, currentYear, isSelectedToday, timedEvents.length]);
 
-  // Auto-Scroll für Mobile Timeline (komprimiert: MOBILE_PX_PER_MIN Pixel pro Minute)
+  // Auto-Scroll für Mobile Day Drawer (Timeline oder Liste)
   useEffect(() => {
-    if (!mobileTimelineScrollRef.current) return;
-    let targetMinutes = 6 * 60; // 06:00 als Standard
-    if (isSelectedToday) {
-      const now = new Date();
-      targetMinutes = Math.max(0, (now.getHours() - 1) * 60);
-    } else if (timedEvents.length > 0) {
-      const earliestHour = Math.min(...timedEvents.map(evt => new Date(evt.start.dateTime).getHours()));
-      targetMinutes = Math.max(0, (earliestHour - 1) * 60);
+    if (!isMobileDayModalOpen || !mobileDayScrollRef.current) return;
+
+    if (mobileDayViewMode === 'timeline') {
+      let targetMinutes = 6 * 60; // 06:00 als Standard
+      if (isSelectedToday) {
+        const now = new Date();
+        targetMinutes = Math.max(0, (now.getHours() - 1) * 60);
+      } else if (timedEvents.length > 0) {
+        const earliestHour = Math.min(...timedEvents.map(evt => new Date(evt.start.dateTime).getHours()));
+        targetMinutes = Math.max(0, (earliestHour - 1) * 60);
+      }
+      const timer = setTimeout(() => {
+        if (mobileDayScrollRef.current) {
+          mobileDayScrollRef.current.scrollTop = targetMinutes * MOBILE_PX_PER_MIN;
+        }
+      }, 50);
+      return () => clearTimeout(timer);
+    } else {
+      // In der Listenansicht immer oben starten (frühester Termin ist ganz oben)
+      const timer = setTimeout(() => {
+        if (mobileDayScrollRef.current) {
+          mobileDayScrollRef.current.scrollTop = 0;
+        }
+      }, 50);
+      return () => clearTimeout(timer);
     }
-    mobileTimelineScrollRef.current.scrollTop = targetMinutes * MOBILE_PX_PER_MIN;
-  }, [selectedDay, currentMonthIndex, currentYear, isSelectedToday, timedEvents.length, isMobileDayModalOpen]);
+  }, [selectedDay, currentMonthIndex, currentYear, isSelectedToday, timedEvents.length, isMobileDayModalOpen, mobileDayViewMode]);
 
   const handlePrevDay = () => {
     if (selectedDay > 1) {
@@ -1466,162 +1507,85 @@ const Calendar = () => {
               </div>
             </div>
 
-            {/* Body – Scrollbarer Bereich */}
-            <div ref={mobileDayScrollRef} className="flex-1 overflow-y-auto overscroll-contain no-scrollbar">
-
-              {/* Ganztägige Termine als Chips */}
-              {allDayEvents.length > 0 && (
-                <div className="px-3 pt-3 pb-1 flex flex-col gap-1.5">
-                  <div className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[13px]">event</span>
-                    Ganztägig ({allDayEvents.length})
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    {allDayEvents.map((evt) => {
-                      const customColor = evt.colorId && GOOGLE_COLORS[evt.colorId] ? GOOGLE_COLORS[evt.colorId] : null;
-                      const bg = customColor ? customColor.bg : 'var(--primary)';
-                      const text = customColor ? customColor.text : '#1A1A1A';
-                      return (
-                        <div
-                          key={evt.id}
-                          onClick={() => setSelectedEvent(evt)}
-                          className="px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-between gap-2 hover:brightness-95 transition-all border shadow-xs cursor-pointer"
-                          style={{ backgroundColor: `${bg}20`, borderColor: `${bg}50`, color: text }}
-                        >
-                          <div className="flex items-center gap-2 truncate">
-                            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: bg }} />
-                            <span className="truncate font-bold">{evt.summary || '(Ohne Titel)'}</span>
-                          </div>
-                          <span className="material-symbols-outlined text-[16px] opacity-60">chevron_right</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Komprimierte Mobile Timeline (analog Desktop-Stundenraster, 24px/h) */}
-              {timedEvents.length > 0 ? (
-                <div className="px-0 pt-2 pb-4">
-                  {allDayEvents.length > 0 && (
-                    <div className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider px-4 pb-1.5 flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[13px]">schedule</span>
-                      Termine mit Uhrzeit ({timedEvents.length})
-                    </div>
+            {/* View Switcher: Zeitstrahl vs. Chronologische Liste */}
+            <div className="px-4 py-2 border-b border-outline-variant/60 flex items-center justify-between gap-2 flex-shrink-0 bg-surface">
+              <div className="inline-flex p-0.5 bg-surface-low rounded-xl border border-outline-variant/50 text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => handleMobileDayViewChange('timeline')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
+                    mobileDayViewMode === 'timeline'
+                      ? 'bg-surface text-on-surface shadow-xs font-bold'
+                      : 'text-on-surface-variant hover:text-on-surface'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[16px]">schedule</span>
+                  <span>Zeitstrahl</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleMobileDayViewChange('list')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
+                    mobileDayViewMode === 'list'
+                      ? 'bg-surface text-on-surface shadow-xs font-bold'
+                      : 'text-on-surface-variant hover:text-on-surface'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[16px]">format_list_bulleted</span>
+                  <span>Liste</span>
+                  {dayEvents.length > 0 && (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold leading-none ${
+                      mobileDayViewMode === 'list' ? 'bg-primary/10 text-primary' : 'bg-surface-variant text-on-surface-variant'
+                    }`}>
+                      {dayEvents.length}
+                    </span>
                   )}
-                  {/* Scrollbarer Timeline-Container */}
-                  <div
-                    ref={mobileTimelineScrollRef}
-                    className="overflow-y-auto overflow-x-hidden no-scrollbar"
-                    style={{ height: `${Math.min(24 * 60 * MOBILE_PX_PER_MIN, 360)}px` }}
-                  >
-                    {/* Gesamthöhe = 24h × 60min × 0.4px/min = 576px */}
-                    <div className="relative flex w-full" style={{ height: `${24 * 60 * MOBILE_PX_PER_MIN}px` }}>
+                </button>
+              </div>
 
-                      {/* Zeit-Spalte links */}
-                      <div className="w-10 flex-shrink-0 relative border-r border-outline-variant/40 bg-surface/60">
-                        {HOURS.map((h) => (
-                          <div
-                            key={`mtime-${h}`}
-                            className="absolute right-0 pr-1.5 text-[9px] font-mono font-medium text-on-surface-variant/70 select-none leading-none"
-                            style={{ top: `${h * 60 * MOBILE_PX_PER_MIN - 5}px` }}
-                          >
-                            {String(h).padStart(2, '0')}:00
-                          </div>
-                        ))}
+              <div className="text-[11px] text-on-surface-variant font-medium flex items-center gap-1">
+                <span className="material-symbols-outlined text-[14px]">
+                  {mobileDayViewMode === 'timeline' ? 'view_timeline' : 'sort'}
+                </span>
+                <span>{mobileDayViewMode === 'timeline' ? 'Parallele Ansicht' : 'Chronologisch'}</span>
+              </div>
+            </div>
 
-                        {/* Jetzt-Badge */}
-                        {isSelectedToday && (
-                          <span
-                            className="absolute right-0.5 text-[8px] font-mono font-bold text-white bg-red-500 px-0.5 py-px rounded shadow-sm z-30 pointer-events-none leading-none"
-                            style={{ top: `${nowMinutes * MOBILE_PX_PER_MIN - 6}px` }}
-                          >
-                            {String(Math.floor(nowMinutes / 60)).padStart(2, '0')}:{String(nowMinutes % 60).padStart(2, '0')}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Stundenraster-Fläche */}
-                      <div className="relative flex-1 bg-white">
-                        {/* Stunden-Linien */}
-                        {HOURS.map((h) => (
-                          <div
-                            key={`mslot-${h}`}
-                            className="absolute left-0 right-0 border-t border-outline-variant/20"
-                            style={{ top: `${h * 60 * MOBILE_PX_PER_MIN}px` }}
-                          >
-                            {/* Halbstunden-Linie */}
-                            <div
-                              className="absolute left-0 right-0 border-t border-dashed border-outline-variant/10"
-                              style={{ top: `${30 * MOBILE_PX_PER_MIN}px` }}
-                            />
-                          </div>
-                        ))}
-
-                        {/* Jetzt-Linie */}
-                        {isSelectedToday && (
-                          <div
-                            className="absolute left-0 right-0 h-[1.5px] bg-red-500 z-20 pointer-events-none flex items-center"
-                            style={{ top: `${nowMinutes * MOBILE_PX_PER_MIN}px` }}
-                          >
-                            <div className="w-2 h-2 bg-red-500 rounded-full -ml-1 shadow-sm" />
-                          </div>
-                        )}
-
-                        {/* Events absolut platziert */}
-                        {!isDataLoading && layoutedTimedEvents.map((evt) => {
-                          const customColor = evt.colorId && GOOGLE_COLORS[evt.colorId] ? GOOGLE_COLORS[evt.colorId] : null;
-                          const accentColor = customColor ? customColor.bg : 'var(--primary)';
-                          const textColor = customColor ? customColor.text : 'inherit';
-                          const topPx = evt.startMinutes * MOBILE_PX_PER_MIN;
-                          const heightPx = Math.max(evt.duration * MOBILE_PX_PER_MIN, 14);
-                          const isVeryShort = heightPx < 22;
-
-                          return (
-                            <div
-                              key={evt.id}
-                              onClick={(e) => { e.stopPropagation(); setSelectedEvent(evt); }}
-                              style={{
-                                top: `${topPx}px`,
-                                height: `${heightPx}px`,
-                                left: `calc(${(evt.col / evt.totalCols) * 100}% + 2px)`,
-                                width: `calc(${(1 / evt.totalCols) * 100}% - 4px)`,
-                                borderLeftColor: accentColor,
-                                backgroundColor: customColor ? `${accentColor}25` : 'rgba(26,26,26,0.08)',
-                              }}
-                              className="absolute z-10 border-l-[3px] rounded-r-md px-1.5 overflow-hidden cursor-pointer hover:brightness-95 active:scale-[0.98] transition-all shadow-2xs select-none"
-                              title={`${evt.summary || '(Ohne Titel)'} (${evt.startFormatted}–${evt.endFormatted})`}
-                            >
-                              {isVeryShort ? (
-                                <div className="flex items-center gap-1 h-full leading-none">
-                                  <span className="font-mono font-bold text-[8px] opacity-75 whitespace-nowrap" style={{ color: textColor }}>
-                                    {evt.startFormatted}
-                                  </span>
-                                  <span className="font-semibold truncate text-[9px]" style={{ color: textColor }}>
-                                    {evt.summary || '(Ohne Titel)'}
-                                  </span>
-                                </div>
-                              ) : (
-                                <div className="flex flex-col h-full justify-start pt-px">
-                                  <span className="font-mono font-bold text-[8.5px] opacity-75 leading-tight whitespace-nowrap" style={{ color: textColor }}>
-                                    {evt.startFormatted}–{evt.endFormatted}
-                                  </span>
-                                  <span className="font-bold text-[10px] leading-snug line-clamp-2" style={{ color: textColor }}>
-                                    {evt.summary || '(Ohne Titel)'}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
+            {/* Ganztägige Termine als horizontal scrollbare Chips */}
+            {allDayEvents.length > 0 && (
+              <div className="px-4 py-2 border-b border-outline-variant/40 bg-surface-low/40 flex flex-col gap-1 flex-shrink-0">
+                <div className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[13px]">event</span>
+                  Ganztägig ({allDayEvents.length})
                 </div>
-              ) : allDayEvents.length === 0 ? (
+                <div className="flex gap-2 overflow-x-auto no-scrollbar py-0.5">
+                  {allDayEvents.map((evt) => {
+                    const customColor = evt.colorId && GOOGLE_COLORS[evt.colorId] ? GOOGLE_COLORS[evt.colorId] : null;
+                    const bg = customColor ? customColor.bg : 'var(--primary)';
+                    const text = customColor ? customColor.text : '#1A1A1A';
+                    return (
+                      <button
+                        key={evt.id}
+                        type="button"
+                        onClick={() => setSelectedEvent(evt)}
+                        className="px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 shrink-0 border shadow-2xs hover:brightness-95 active:scale-95 transition-all text-left"
+                        style={{ backgroundColor: `${bg}20`, borderColor: `${bg}50`, color: text }}
+                      >
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: bg }} />
+                        <span className="truncate max-w-[200px] font-bold">{evt.summary || '(Ohne Titel)'}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Body – Einziger Scroll-Container für ruckelfreies Scrollen & Schließen */}
+            <div ref={mobileDayScrollRef} className="flex-1 overflow-y-auto overscroll-contain no-scrollbar">
+              {dayEvents.length === 0 ? (
                 /* Empty State */
-                <div className="text-center py-10 px-4">
-                  <div className="w-14 h-14 bg-surface-low rounded-full flex items-center justify-center mx-auto mb-3 text-on-surface-variant">
+                <div className="text-center py-12 px-4">
+                  <div className="w-14 h-14 bg-surface-low rounded-2xl flex items-center justify-center mx-auto mb-3 text-on-surface-variant border border-outline-variant/50">
                     <span className="material-symbols-outlined text-2xl">event_available</span>
                   </div>
                   <h4 className="font-bold text-base text-on-surface">Keine Termine</h4>
@@ -1629,6 +1593,7 @@ const Calendar = () => {
                     Für diesen Tag sind keine Ereignisse in deinem Google Kalender eingetragen.
                   </p>
                   <button
+                    type="button"
                     onClick={() => {
                       handleCloseMobileDayDrawer();
                       const startD = new Date(currentYear, currentMonthIndex, selectedDay, 9, 0);
@@ -1644,8 +1609,186 @@ const Calendar = () => {
                     Termin anlegen
                   </button>
                 </div>
-              ) : null}
+              ) : mobileDayViewMode === 'list' ? (
+                /* Ansicht 1: Chronologische Liste (Frühester oben, spätester unten, Uhrzeit links) */
+                <div className="p-4 space-y-2.5">
+                  {timedEvents.length === 0 ? (
+                    <div className="text-center py-8 text-on-surface-variant text-xs">
+                      Keine zeitgebundenen Termine für heute (nur ganztägig).
+                    </div>
+                  ) : (
+                    layoutedTimedEvents.map((evt) => {
+                      const customColor = evt.colorId && GOOGLE_COLORS[evt.colorId] ? GOOGLE_COLORS[evt.colorId] : null;
+                      const accentColor = customColor ? customColor.bg : 'var(--primary)';
+                      const durationLabel = formatDuration(evt.duration);
 
+                      return (
+                        <div
+                          key={evt.id}
+                          onClick={() => setSelectedEvent(evt)}
+                          className="group bg-surface-low/70 hover:bg-surface-low active:scale-[0.99] border border-outline-variant/60 rounded-2xl p-3.5 transition-all shadow-2xs flex items-center gap-3 cursor-pointer"
+                        >
+                          {/* Linke Spalte: Uhrzeit von wann bis wann + Dauer */}
+                          <div className="w-20 shrink-0 flex flex-col items-start justify-center">
+                            <span className="text-sm font-bold text-on-surface font-mono leading-tight">
+                              {evt.startFormatted}
+                            </span>
+                            <div className="flex items-center gap-1 text-[11px] text-on-surface-variant font-mono leading-tight mt-0.5">
+                              <span className="opacity-60 text-[10px]">bis</span>
+                              <span>{evt.endFormatted}</span>
+                            </div>
+                            {durationLabel && (
+                              <span className="text-[10px] text-primary font-medium mt-1.5 px-1.5 py-0.5 rounded-md bg-primary/10 leading-none">
+                                {durationLabel}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Farbiger Akzent-Balken */}
+                          <div
+                            className="w-1 self-stretch rounded-full shrink-0 min-h-[36px]"
+                            style={{ backgroundColor: accentColor }}
+                          />
+
+                          {/* Mitte: Termin-Details */}
+                          <div className="flex-1 min-w-0 pr-1">
+                            <h4 className="text-sm font-bold text-on-surface truncate">
+                              {evt.summary || '(Ohne Titel)'}
+                            </h4>
+
+                            {evt.location && (
+                              <p className="text-xs text-on-surface-variant flex items-center gap-1 mt-1 truncate">
+                                <span className="material-symbols-outlined text-[14px] text-primary shrink-0">location_on</span>
+                                <span className="truncate">{evt.location}</span>
+                              </p>
+                            )}
+
+                            {evt.description && (
+                              <p className="text-[11px] text-on-surface-variant/80 line-clamp-1 mt-0.5">
+                                {evt.description}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Rechts: Pfeil */}
+                          <div className="text-on-surface-variant/50 group-hover:text-primary transition-colors shrink-0">
+                            <span className="material-symbols-outlined text-[20px]">chevron_right</span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              ) : (
+                /* Ansicht 2: Zeitstrahl (1080px hoch, 45px/h, 2-3 Swipes scrollbar, parallele Events nebeneinander) */
+                <div className="px-0 py-2">
+                  <div className="relative flex w-full" style={{ height: `${24 * 60 * MOBILE_PX_PER_MIN}px` }}>
+                    {/* Zeit-Spalte links */}
+                    <div className="w-12 flex-shrink-0 relative border-r border-outline-variant/40 bg-surface/60">
+                      {HOURS.map((h) => (
+                        <div
+                          key={`mtime-${h}`}
+                          className="absolute right-0 pr-1.5 text-[10px] font-mono font-medium text-on-surface-variant/70 select-none leading-none"
+                          style={{ top: `${h * 60 * MOBILE_PX_PER_MIN - 5}px` }}
+                        >
+                          {String(h).padStart(2, '0')}:00
+                        </div>
+                      ))}
+
+                      {/* Jetzt-Badge */}
+                      {isSelectedToday && (
+                        <span
+                          className="absolute right-0.5 text-[8.5px] font-mono font-bold text-white bg-red-500 px-1 py-0.5 rounded shadow-sm z-30 pointer-events-none leading-none"
+                          style={{ top: `${nowMinutes * MOBILE_PX_PER_MIN - 7}px` }}
+                        >
+                          {String(Math.floor(nowMinutes / 60)).padStart(2, '0')}:{String(nowMinutes % 60).padStart(2, '0')}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Stundenraster-Fläche */}
+                    <div className="relative flex-1 bg-white">
+                      {/* Stunden-Linien */}
+                      {HOURS.map((h) => (
+                        <div
+                          key={`mslot-${h}`}
+                          className="absolute left-0 right-0 border-t border-outline-variant/20"
+                          style={{ top: `${h * 60 * MOBILE_PX_PER_MIN}px` }}
+                        >
+                          {/* Halbstunden-Linie */}
+                          <div
+                            className="absolute left-0 right-0 border-t border-dashed border-outline-variant/10"
+                            style={{ top: `${30 * MOBILE_PX_PER_MIN}px` }}
+                          />
+                        </div>
+                      ))}
+
+                      {/* Jetzt-Linie */}
+                      {isSelectedToday && (
+                        <div
+                          className="absolute left-0 right-0 h-[1.5px] bg-red-500 z-20 pointer-events-none flex items-center"
+                          style={{ top: `${nowMinutes * MOBILE_PX_PER_MIN}px` }}
+                        >
+                          <div className="w-2.5 h-2.5 bg-red-500 rounded-full -ml-1.5 shadow-sm" />
+                        </div>
+                      )}
+
+                      {/* Events absolut platziert */}
+                      {!isDataLoading && layoutedTimedEvents.map((evt) => {
+                        const customColor = evt.colorId && GOOGLE_COLORS[evt.colorId] ? GOOGLE_COLORS[evt.colorId] : null;
+                        const accentColor = customColor ? customColor.bg : 'var(--primary)';
+                        const textColor = customColor ? customColor.text : 'inherit';
+                        const topPx = evt.startMinutes * MOBILE_PX_PER_MIN;
+                        const heightPx = Math.max(evt.duration * MOBILE_PX_PER_MIN, 26);
+                        const isShort = heightPx < 36;
+
+                        return (
+                          <div
+                            key={evt.id}
+                            onClick={(e) => { e.stopPropagation(); setSelectedEvent(evt); }}
+                            style={{
+                              top: `${topPx}px`,
+                              height: `${heightPx}px`,
+                              left: `calc(${(evt.col / evt.totalCols) * 100}% + 2px)`,
+                              width: `calc(${(1 / evt.totalCols) * 100}% - 4px)`,
+                              borderLeftColor: accentColor,
+                              backgroundColor: customColor ? `${accentColor}25` : 'rgba(26,26,26,0.08)',
+                            }}
+                            className="absolute z-10 border-l-[3.5px] rounded-r-lg px-2 overflow-hidden cursor-pointer hover:brightness-95 active:scale-[0.98] transition-all shadow-2xs select-none"
+                            title={`${evt.summary || '(Ohne Titel)'} (${evt.startFormatted}–${evt.endFormatted})`}
+                          >
+                            {isShort ? (
+                              <div className="flex items-center gap-1.5 h-full leading-none">
+                                <span className="font-mono font-bold text-[9px] opacity-80 whitespace-nowrap" style={{ color: textColor }}>
+                                  {evt.startFormatted}
+                                </span>
+                                <span className="font-semibold truncate text-[10px]" style={{ color: textColor }}>
+                                  {evt.summary || '(Ohne Titel)'}
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col h-full justify-start pt-1">
+                                <span className="font-mono font-bold text-[9px] opacity-80 leading-tight whitespace-nowrap" style={{ color: textColor }}>
+                                  {evt.startFormatted} – {evt.endFormatted}
+                                </span>
+                                <span className="font-bold text-[11px] leading-snug line-clamp-2 mt-0.5" style={{ color: textColor }}>
+                                  {evt.summary || '(Ohne Titel)'}
+                                </span>
+                                {heightPx >= 58 && evt.location && (
+                                  <span className="text-[9.5px] opacity-75 truncate flex items-center gap-0.5 mt-0.5" style={{ color: textColor }}>
+                                    <span className="material-symbols-outlined text-[11px]">location_on</span>
+                                    {evt.location}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
