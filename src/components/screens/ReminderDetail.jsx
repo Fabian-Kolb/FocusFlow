@@ -565,7 +565,7 @@ const ReminderDetail = ({ setCurrentScreen }) => {
         <button
           onClick={() => setIsGlobalChatOpen(true)}
           title="Fio (KI-Coach) für diese Erinnerung öffnen"
-          className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-50 w-12 h-12 sm:w-13 sm:h-13 flex items-center justify-center bg-neutral-900 text-white rounded-2xl rounded-br-[3px] shadow-2xl hover:shadow-primary/30 border border-neutral-700/60 hover:bg-black hover:scale-105 active:scale-95 transition-all duration-300 group cursor-pointer p-3"
+          className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] right-4 sm:bottom-6 sm:right-6 z-50 w-12 h-12 sm:w-13 sm:h-13 flex items-center justify-center bg-neutral-900 text-white rounded-2xl rounded-br-[3px] shadow-2xl hover:shadow-primary/30 border border-neutral-700/60 hover:bg-black hover:scale-105 active:scale-95 transition-all duration-300 group cursor-pointer p-3"
         >
           <FioIcon className="w-full h-full text-white group-hover:scale-110 transition-transform" color="currentColor" />
         </button>

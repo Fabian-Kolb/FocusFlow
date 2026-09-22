@@ -10,6 +10,7 @@ const GlobalChatDrawer = ({
   onClose,
   projectData,
   isSecondaryPanel = false,
+  isReplacingDetail = false,
   contextScope = 'project',
   contextData = null
 }) => {
@@ -122,6 +123,13 @@ const GlobalChatDrawer = ({
         />
       )}
 
+      {/* Mobile Backdrop to cover BottomNav and dim background */}
+      <div 
+        className="sm:hidden fixed inset-0 bg-black/40 backdrop-blur-xs z-[55] transition-opacity duration-200"
+        onClick={handleCloseAnimated}
+        aria-hidden="true"
+      />
+
       {/* Drawer Panel */}
       <div 
         ref={drawerPanelRef}
@@ -130,11 +138,15 @@ const GlobalChatDrawer = ({
           '--chat-offset': isSecondaryPanel ? '444px' : '12px'
         }}
         className={`
-          fixed z-50 sm:z-40 flex flex-col bg-white border border-outline-variant shadow-2xl overflow-hidden
+          fixed z-[60] ${isSecondaryPanel ? 'sm:z-40' : 'sm:z-50'} flex flex-col bg-white border border-outline-variant shadow-2xl overflow-hidden
           bottom-0 inset-x-0 h-[85vh] rounded-t-3xl w-full
           sm:bottom-auto sm:inset-x-auto sm:inset-y-0 sm:h-[calc(100vh-24px)] sm:w-[420px] sm:max-w-[420px] sm:my-3 sm:rounded-2xl
           sm:right-0 sm:[margin-right:var(--chat-offset)]
-          ${isClosing ? (wasSwipedClosed ? '' : 'drawer-slide-out') : ((entryAnimActive || slideInTrigger) ? 'drawer-slide-in' : '')}
+          ${
+            isClosing 
+              ? (wasSwipedClosed ? '' : isReplacingDetail ? 'drawer-replace-out' : 'drawer-slide-out') 
+              : (isReplacingDetail ? 'drawer-replace-in' : ((entryAnimActive || slideInTrigger) ? 'drawer-slide-in' : ''))
+          }
         `}
       >
         {/* Notch / Drag Handle for Mobile */}

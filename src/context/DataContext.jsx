@@ -22,7 +22,50 @@ const sanitizeForFirestore = (value) => {
       .filter(([, entry]) => entry !== undefined)
       .map(([key, entry]) => [key, sanitizeForFirestore(entry)])
   );
-};
+export const SYSTEM_KANBAN_VIEWS = [
+  {
+    id: 'system_all',
+    name: 'Alle',
+    icon: 'view_kanban',
+    color: 'primary',
+    type: 'system',
+    isSystem: true,
+    showProjects: true,
+    showReminders: true,
+    projectCategoryIds: 'all',
+    reminderCategoryIds: 'all',
+    order: 0,
+    createdAt: 0
+  },
+  {
+    id: 'system_projects',
+    name: 'Nur Projekte',
+    icon: 'folder',
+    color: 'emerald',
+    type: 'system',
+    isSystem: true,
+    showProjects: true,
+    showReminders: false,
+    projectCategoryIds: 'all',
+    reminderCategoryIds: [],
+    order: 1,
+    createdAt: 0
+  },
+  {
+    id: 'system_reminders',
+    name: 'Nur Erinnerungen',
+    icon: 'notifications',
+    color: 'amber',
+    type: 'system',
+    isSystem: true,
+    showProjects: false,
+    showReminders: true,
+    projectCategoryIds: [],
+    reminderCategoryIds: 'all',
+    order: 2,
+    createdAt: 0
+  }
+];
 
 const DEMO_PROJECTS = [
   {
@@ -177,6 +220,25 @@ export const DataProvider = ({ children }) => {
     { id: 'allgemein', name: 'Allgemein', isExpanded: true, createdAt: 0 }
   ]);
 
+  // Kanban Views State & Persistence
+  const [kanbanViews, setKanbanViews] = useState(SYSTEM_KANBAN_VIEWS);
+  const [activeKanbanViewId, setActiveKanbanViewIdState] = useState(() => {
+    try {
+      return localStorage.getItem('focusflow_active_kanban_view_id') || 'system_all';
+    } catch {
+      return 'system_all';
+    }
+  });
+
+  const setActiveKanbanViewId = (viewId) => {
+    setActiveKanbanViewIdState(viewId);
+    try {
+      localStorage.setItem('focusflow_active_kanban_view_id', viewId);
+    } catch (e) {
+      console.warn('Unable to persist active kanban view:', e);
+    }
+  };
+
   // Firestore Error State for Visibility
   const [firestoreError, setFirestoreError] = useState(null);
 
@@ -219,6 +281,7 @@ export const DataProvider = ({ children }) => {
       setTrashedProjects([]);
       setTrashedReminders([]);
       setTrashedInboxItems([]);
+      setKanbanViews(SYSTEM_KANBAN_VIEWS);
       return;
     }
 
@@ -238,6 +301,18 @@ export const DataProvider = ({ children }) => {
       setInboxItems({ today: [], yesterday: [] });
       setProjectCategories([{ id: 'allgemein', name: 'Allgemein', isExpanded: true, createdAt: 0 }]);
       setReminderCategories([{ id: 'allgemein', name: 'Allgemein', isExpanded: true, createdAt: 0 }]);
+      try {
+        const savedViews = localStorage.getItem('focusflow_guest_kanban_views');
+        if (savedViews) {
+          const parsed = JSON.parse(savedViews);
+          const customOnly = parsed.filter(v => !v.isSystem && v.type === 'custom');
+          setKanbanViews([...SYSTEM_KANBAN_VIEWS, ...customOnly]);
+        } else {
+          setKanbanViews(SYSTEM_KANBAN_VIEWS);
+        }
+      } catch (e) {
+        setKanbanViews(SYSTEM_KANBAN_VIEWS);
+      }
       setTrashedProjects([]);
       setTrashedReminders([]);
       setTrashedInboxItems([]);
@@ -252,6 +327,7 @@ export const DataProvider = ({ children }) => {
       setTrashedProjects([]);
       setTrashedReminders([]);
       setTrashedInboxItems([]);
+      setKanbanViews(SYSTEM_KANBAN_VIEWS);
       return;
     }
 
@@ -396,14 +472,38 @@ export const DataProvider = ({ children }) => {
       handleFirestoreError('reminderCategories', err);
     });
 
+    const unsubKanbanViews = onSnapshot(collection(db, 'users', user.uid, 'kanbanViews'), (snapshot) => {
+      const views = [];
+      snapshot.forEach(docSnap => {
+        views.push({ id: docSnap.id, ...docSnap.data() });
+      });
+      views.sort((a, b) => (a.order !== undefined ? a.order : a.createdAt || 0) - (b.order !== undefined ? b.order : b.createdAt || 0));
+      const customViews = views.filter(v => !v.isSystem && v.type === 'custom');
+      setKanbanViews([...SYSTEM_KANBAN_VIEWS, ...customViews]);
+      setFirestoreError(null);
+    }, (err) => {
+      handleFirestoreError('kanbanViews', err);
+    });
+
     return () => {
       unsubProjects();
       unsubReminders();
       unsubInbox();
       unsubCategories();
       unsubReminderCategories();
+      unsubKanbanViews();
     };
   }, [user]);
+
+  // Auto-Fallback: Wenn die aktive Ansicht nicht mehr existiert, zurück auf 'system_all'
+  useEffect(() => {
+    if (kanbanViews && kanbanViews.length > 0) {
+      const exists = kanbanViews.some(v => v.id === activeKanbanViewId);
+      if (!exists && activeKanbanViewId !== 'system_all') {
+        setActiveKanbanViewId('system_all');
+      }
+    }
+  }, [kanbanViews, activeKanbanViewId]);
 
   // Helper to save a project directly to Firestore
   const saveProject = async (project) => {
@@ -1001,6 +1101,18 @@ export const DataProvider = ({ children }) => {
     await deleteDoc(doc(db, 'users', user.uid, 'categories', categoryId));
   };
 
+  const deleteReminderCategory = async (categoryId) => {
+    if (!user || categoryId === 'allgemein') return;
+
+    // Move all reminders in this category to allgemein
+    const remsToMove = reminders.filter(r => r.categoryId === categoryId);
+    for (const r of remsToMove) {
+      await setDoc(doc(db, 'users', user.uid, 'reminders', r.id), { ...r, categoryId: 'allgemein' }, { merge: true });
+    }
+
+    await deleteDoc(doc(db, 'users', user.uid, 'reminderCategories', categoryId));
+  };
+
   const deleteProject = async (projectId) => {
     mutateProject(projectId, (proj) => ({ ...proj, deletedAt: new Date().toISOString() }));
     if (selectedProjectId === projectId) {
@@ -1542,6 +1654,108 @@ export const DataProvider = ({ children }) => {
     }
   };
 
+  // Kanban Views CRUD
+  const addKanbanView = async (viewData) => {
+    const id = viewData.id || `cv_${Date.now()}`;
+    const newView = {
+      id,
+      name: (viewData.name || 'Neue Ansicht').trim(),
+      icon: viewData.icon || 'star',
+      color: viewData.color || 'primary',
+      type: 'custom',
+      isSystem: false,
+      showProjects: viewData.showProjects ?? true,
+      showReminders: viewData.showReminders ?? true,
+      projectCategoryIds: Array.isArray(viewData.projectCategoryIds) ? viewData.projectCategoryIds : [],
+      reminderCategoryIds: Array.isArray(viewData.reminderCategoryIds) ? viewData.reminderCategoryIds : [],
+      order: kanbanViews.filter(v => v.type === 'custom').length,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+
+    if (user?.isGuest) {
+      const currentCustom = kanbanViews.filter(v => v.type === 'custom');
+      const updated = [...currentCustom, newView];
+      try {
+        localStorage.setItem('focusflow_guest_kanban_views', JSON.stringify(updated));
+      } catch (e) {}
+      setKanbanViews([...SYSTEM_KANBAN_VIEWS, ...updated]);
+      return id;
+    }
+
+    if (!user) return id;
+
+    try {
+      await setDoc(doc(db, 'users', user.uid, 'kanbanViews', id), sanitizeForFirestore(newView));
+    } catch (err) {
+      console.error('Error adding kanban view:', err);
+      handleFirestoreError('kanbanViews', err);
+    }
+    return id;
+  };
+
+  const updateKanbanView = async (viewId, updatedData) => {
+    if (viewId.startsWith('system_')) return; // Presets schützen
+
+    const existing = kanbanViews.find(v => v.id === viewId);
+    if (!existing) return;
+
+    const merged = {
+      ...existing,
+      ...updatedData,
+      id: viewId,
+      type: 'custom',
+      isSystem: false,
+      updatedAt: Date.now()
+    };
+
+    if (user?.isGuest) {
+      const currentCustom = kanbanViews.filter(v => v.type === 'custom');
+      const updated = currentCustom.map(v => v.id === viewId ? merged : v);
+      try {
+        localStorage.setItem('focusflow_guest_kanban_views', JSON.stringify(updated));
+      } catch (e) {}
+      setKanbanViews([...SYSTEM_KANBAN_VIEWS, ...updated]);
+      return;
+    }
+
+    if (!user) return;
+
+    try {
+      await setDoc(doc(db, 'users', user.uid, 'kanbanViews', viewId), sanitizeForFirestore(merged));
+    } catch (err) {
+      console.error('Error updating kanban view:', err);
+      handleFirestoreError('kanbanViews', err);
+    }
+  };
+
+  const deleteKanbanView = async (viewId) => {
+    if (viewId.startsWith('system_')) return; // Presets schützen
+
+    if (activeKanbanViewId === viewId) {
+      setActiveKanbanViewId('system_all');
+    }
+
+    if (user?.isGuest) {
+      const currentCustom = kanbanViews.filter(v => v.type === 'custom');
+      const updated = currentCustom.filter(v => v.id !== viewId);
+      try {
+        localStorage.setItem('focusflow_guest_kanban_views', JSON.stringify(updated));
+      } catch (e) {}
+      setKanbanViews([...SYSTEM_KANBAN_VIEWS, ...updated]);
+      return;
+    }
+
+    if (!user) return;
+
+    try {
+      await deleteDoc(doc(db, 'users', user.uid, 'kanbanViews', viewId));
+    } catch (err) {
+      console.error('Error deleting kanban view:', err);
+      handleFirestoreError('kanbanViews', err);
+    }
+  };
+
   const value = {
     projects,
     inboxItems,
@@ -1577,6 +1791,14 @@ export const DataProvider = ({ children }) => {
     collapseAllReminderCategories,
     expandAllReminderCategories,
     restoreReminderCategoryExpandStates,
+    // Kanban Views & Presets
+    kanbanViews,
+    activeKanbanViewId,
+    setActiveKanbanViewId,
+    addKanbanView,
+    updateKanbanView,
+    deleteKanbanView,
+    SYSTEM_KANBAN_VIEWS,
     addProject,
     addPhase,
     addTask,

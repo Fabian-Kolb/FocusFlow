@@ -48,7 +48,7 @@
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
   .content-bottom-safe {
-    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: max(1.5rem, calc(1.5rem + env(safe-area-inset-bottom, 0px)));
   }
   .touch-target {
     min-width: 44px;
@@ -351,3 +351,34 @@
     animation: slideOutRight 0.22s cubic-bezier(0.4, 0, 1, 1) forwards;
   }
 }
+
+/* Immer von unten – für Bottom Sheets die auch auf Desktop als Bottom Drawer bleiben sollen */
+.drawer-slide-in-bottom {
+  animation: slideInBottom 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+.drawer-slide-out-bottom {
+  animation: slideOutBottom 0.25s cubic-bezier(0.3, 0, 0, 1) forwards;
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* In-place Replacement Animations (Detail Drawer <-> Fio Chat) */
+.drawer-replace-in {
+  animation: fadeIn 0.15s ease-out forwards;
+}
+.drawer-replace-out {
+  animation: fadeOut 0.15s ease-in forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer-replace-in,
+  .drawer-replace-out,
+  .drawer-slide-in,
+  .drawer-slide-out {
+    animation: none !important;
+  }
+}
+

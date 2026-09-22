@@ -11,6 +11,7 @@ const TaskDetailDrawer = ({
   allNotes = [],
   isOpen,
   isGlobalChatOpen,
+  isChatReplacing = false,
   onClose,
   onOpenGlobalChat,
   onUpdateTask,
@@ -123,7 +124,7 @@ const TaskDetailDrawer = ({
   });
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || isChatReplacing) return;
 
     const handlePointerDownOutside = (e) => {
       if (drawerPanelRef.current && !drawerPanelRef.current.contains(e.target)) {
@@ -153,7 +154,7 @@ const TaskDetailDrawer = ({
       clearTimeout(timer);
       document.removeEventListener('pointerdown', handlePointerDownOutside);
     };
-  }, [isOpen]);
+  }, [isOpen, isChatReplacing]);
 
   const lastTaskRef = useRef(task);
   const lastPhaseRef = useRef(phase);
@@ -246,13 +247,22 @@ const TaskDetailDrawer = ({
 
   return (
     <>
-      {/* Drawer Panel - Non-blocking Side Slide-In */}
+      {/* Mobile Backdrop to cover BottomNav and dim background */}
+      <div 
+        className="sm:hidden fixed inset-0 bg-black/40 backdrop-blur-xs z-[55] transition-opacity duration-200"
+        onClick={handleCloseAnimated}
+        aria-hidden="true"
+      />
+
+      {/* Drawer Panel - Non-blocking Side Slide-In on desktop, high-priority bottom sheet on mobile */}
       <div 
         ref={drawerPanelRef}
         style={drawerStyle}
-        className={`fixed z-50 flex flex-col bg-white border border-outline-variant shadow-2xl overflow-hidden
+        aria-hidden={isChatReplacing ? 'true' : undefined}
+        className={`fixed z-[60] sm:z-50 flex flex-col bg-white border border-outline-variant shadow-2xl overflow-hidden
           bottom-0 inset-x-0 h-[85vh] rounded-t-3xl w-full
           sm:bottom-auto sm:inset-x-auto sm:inset-y-0 sm:right-0 sm:h-[calc(100vh-24px)] sm:w-[420px] sm:max-w-[420px] sm:my-3 sm:mr-3 sm:rounded-2xl
+          ${isChatReplacing ? 'pointer-events-none opacity-0 transition-opacity duration-150' : 'transition-opacity duration-150'}
           ${(isClosing || isSwitching) ? (wasSwipedClosed ? '' : 'drawer-slide-out') : ((entryAnimActive || slideInTrigger) ? 'drawer-slide-in' : '')}
         `}
       >
@@ -266,6 +276,16 @@ const TaskDetailDrawer = ({
           {/* Top Bar: Meta Info + Actions */}
           <div className="flex items-center justify-end gap-2 w-full">
             <div className="flex items-center gap-1.5 shrink-0">
+              {onOpenGlobalChat && (
+                <button 
+                  type="button"
+                  onClick={onOpenGlobalChat}
+                  className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg hover:bg-primary/10 text-primary transition-colors cursor-pointer"
+                  title="Fio (KI-Coach) öffnen"
+                >
+                  <FioIcon className="w-4 h-4 text-primary" color="currentColor" />
+                </button>
+              )}
               <button 
                 onClick={() => onToggleTask(currentPhase.id, currentTask.id)}
                 className={`w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer ${
@@ -303,7 +323,11 @@ const TaskDetailDrawer = ({
         </div>
 
         {/* Scrollable Content */}
-        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 sm:p-5 flex flex-col gap-4 sm:gap-5">
+        <div 
+          ref={scrollContainerRef} 
+          className="flex-1 overflow-y-auto p-4 sm:p-5 flex flex-col gap-4 sm:gap-5"
+          style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}
+        >
           
           {/* Due Date */}
           <div className="flex flex-col gap-2">

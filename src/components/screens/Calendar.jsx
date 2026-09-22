@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useSwipeToClose } from '../../hooks/useSwipeToClose';
 import { useAuth } from '../../context/AuthContext';
 import { fetchCalendarEvents, deleteCalendarEvent, createCalendarEvent, updateCalendarEvent } from '../../lib/calendarAPI';
 import Card from '../ui/Card';
@@ -15,6 +16,7 @@ const WEEKDAY_NAMES = [
 ];
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
+const MOBILE_PX_PER_MIN = 0.4; // 24px pro Stunde auf Mobile (komprimiert vs. 60px auf Desktop)
 
 // Offizielle Google Calendar Event Farben (IDs 1-11)
 const GOOGLE_COLORS = {
@@ -221,6 +223,36 @@ const Calendar = () => {
   const [pickerYear, setPickerYear] = useState(currentYear);
   const [isScrollingDown, setIsScrollingDown] = useState(false);
   const [isMobileDayModalOpen, setIsMobileDayModalOpen] = useState(false);
+
+  // Mobile Day Drawer – shouldRender/isClosing für saubere Ein-/Aus-Animation (wie TaskDetailDrawer)
+  const [mobileDayDrawerRendered, setMobileDayDrawerRendered] = useState(false);
+  const [mobileDayDrawerClosing, setMobileDayDrawerClosing] = useState(false);
+  const mobileDayDrawerRef = useRef(null);
+  const mobileDayScrollRef = useRef(null);
+  const mobileTimelineScrollRef = useRef(null);
+
+  useEffect(() => {
+    if (isMobileDayModalOpen) {
+      setMobileDayDrawerRendered(true);
+      setMobileDayDrawerClosing(false);
+    } else {
+      setMobileDayDrawerClosing(true);
+      const t = setTimeout(() => {
+        setMobileDayDrawerRendered(false);
+        setMobileDayDrawerClosing(false);
+      }, 280);
+      return () => clearTimeout(t);
+    }
+  }, [isMobileDayModalOpen]);
+
+  const handleCloseMobileDayDrawer = () => setIsMobileDayModalOpen(false);
+
+  const { drawerStyle: mobileDayDrawerStyle, entryAnimActive: mobileDayEntryAnim } = useSwipeToClose({
+    isOpen: isMobileDayModalOpen && mobileDayDrawerRendered,
+    onClose: handleCloseMobileDayDrawer,
+    drawerRef: mobileDayDrawerRef,
+    scrollContainerRef: mobileDayScrollRef,
+  });
 
   // Desktop/Tablet Layout-Präferenz: 'stacked' (untereinander) oder 'side-by-side' (nebeneinander)
   const [desktopLayout, setDesktopLayout] = useState(() => {
@@ -581,6 +613,20 @@ const Calendar = () => {
     }
     timeGridScrollRef.current.scrollTop = targetMinutes;
   }, [selectedDay, currentMonthIndex, currentYear, isSelectedToday, timedEvents.length]);
+
+  // Auto-Scroll für Mobile Timeline (komprimiert: MOBILE_PX_PER_MIN Pixel pro Minute)
+  useEffect(() => {
+    if (!mobileTimelineScrollRef.current) return;
+    let targetMinutes = 6 * 60; // 06:00 als Standard
+    if (isSelectedToday) {
+      const now = new Date();
+      targetMinutes = Math.max(0, (now.getHours() - 1) * 60);
+    } else if (timedEvents.length > 0) {
+      const earliestHour = Math.min(...timedEvents.map(evt => new Date(evt.start.dateTime).getHours()));
+      targetMinutes = Math.max(0, (earliestHour - 1) * 60);
+    }
+    mobileTimelineScrollRef.current.scrollTop = targetMinutes * MOBILE_PX_PER_MIN;
+  }, [selectedDay, currentMonthIndex, currentYear, isSelectedToday, timedEvents.length, isMobileDayModalOpen]);
 
   const handlePrevDay = () => {
     if (selectedDay > 1) {
@@ -1311,23 +1357,35 @@ const Calendar = () => {
         </div>
       </div>
 
-      {/* Mobile Day Bottom Sheet / Drawer Modal */}
-      {isMobileDayModalOpen && (
-        <div 
-          className="md:hidden fixed inset-0 z-40 flex flex-col justify-end bg-black/60 backdrop-blur-sm animate-fadeIn"
-          onClick={() => setIsMobileDayModalOpen(false)}
+
+      {/* Mobile Day Bottom Sheet / Drawer Modal – mit Swipe-to-Close (Regel 07) */}
+      {mobileDayDrawerRendered && (
+        <div
+          className="md:hidden fixed inset-0 z-[60] flex flex-col justify-end bg-black/60 backdrop-blur-sm animate-fadeIn"
+          onClick={handleCloseMobileDayDrawer}
         >
-          <div 
-            className="bg-surface border-t border-border rounded-t-3xl w-full max-h-[85vh] h-[82vh] shadow-2xl flex flex-col overflow-hidden text-primary drawer-slide-in"
+          <div
+            ref={mobileDayDrawerRef}
+            className={`bg-surface border-t border-outline-variant rounded-t-3xl w-full max-h-[88vh] h-[84vh] shadow-2xl flex flex-col overflow-hidden text-primary ${
+              mobileDayDrawerClosing
+                ? 'drawer-slide-out-bottom'
+                : mobileDayEntryAnim
+                ? 'drawer-slide-in-bottom'
+                : ''
+            }`}
+            style={{
+              ...mobileDayDrawerStyle,
+              paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))'
+            }}
             onClick={e => e.stopPropagation()}
           >
-            {/* Drag Handle Indicator */}
+            {/* Drag Handle */}
             <div className="pt-3 pb-1 flex justify-center flex-shrink-0">
-              <div className="w-12 h-1.5 bg-outline-variant rounded-full"></div>
+              <div className="w-12 h-1.5 bg-outline-variant rounded-full" />
             </div>
 
             {/* Header */}
-            <div className="px-4 py-3 border-b border-outline-variant/70 flex items-center justify-between flex-shrink-0 bg-surface-low/70">
+            <div className="px-4 py-2.5 border-b border-outline-variant/70 flex items-center justify-between flex-shrink-0 bg-surface-low/70">
               <div className="flex items-center gap-2 overflow-hidden">
                 <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
                   <span className="material-symbols-outlined text-[18px]">calendar_today</span>
@@ -1351,7 +1409,7 @@ const Calendar = () => {
                 </div>
               </div>
 
-              {/* Day Nav & Action */}
+              {/* Nav & Action */}
               <div className="flex items-center gap-1 shrink-0">
                 <button
                   onClick={handlePrevDay}
@@ -1392,16 +1450,17 @@ const Calendar = () => {
               </div>
             </div>
 
-            {/* Body */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar">
-              {/* Ganztägige Termine */}
+            {/* Body – Scrollbarer Bereich */}
+            <div ref={mobileDayScrollRef} className="flex-1 overflow-y-auto overscroll-contain no-scrollbar">
+
+              {/* Ganztägige Termine als Chips */}
               {allDayEvents.length > 0 && (
-                <div className="p-2.5 bg-surface-low/80 rounded-xl border border-outline-variant/60 space-y-1.5">
+                <div className="px-3 pt-3 pb-1 flex flex-col gap-1.5">
                   <div className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[14px]">event</span>
+                    <span className="material-symbols-outlined text-[13px]">event</span>
                     Ganztägig ({allDayEvents.length})
                   </div>
-                  <div className="flex flex-col gap-1.5">
+                  <div className="flex flex-col gap-1">
                     {allDayEvents.map((evt) => {
                       const customColor = evt.colorId && GOOGLE_COLORS[evt.colorId] ? GOOGLE_COLORS[evt.colorId] : null;
                       const bg = customColor ? customColor.bg : 'var(--primary)';
@@ -1409,14 +1468,12 @@ const Calendar = () => {
                       return (
                         <div
                           key={evt.id}
-                          onClick={() => {
-                            setSelectedEvent(evt);
-                          }}
+                          onClick={() => setSelectedEvent(evt)}
                           className="px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-between gap-2 hover:brightness-95 transition-all border shadow-xs cursor-pointer"
                           style={{ backgroundColor: `${bg}20`, borderColor: `${bg}50`, color: text }}
                         >
                           <div className="flex items-center gap-2 truncate">
-                            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: bg }}></span>
+                            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: bg }} />
                             <span className="truncate font-bold">{evt.summary || '(Ohne Titel)'}</span>
                           </div>
                           <span className="material-symbols-outlined text-[16px] opacity-60">chevron_right</span>
@@ -1427,51 +1484,126 @@ const Calendar = () => {
                 </div>
               )}
 
-              {/* Termine mit Uhrzeit (Kompakte Liste / Timeline) */}
+              {/* Komprimierte Mobile Timeline (analog Desktop-Stundenraster, 24px/h) */}
               {timedEvents.length > 0 ? (
-                <div className="space-y-2">
-                  <div className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider px-1">
-                    Termine mit Uhrzeit ({timedEvents.length})
-                  </div>
-                  {layoutedTimedEvents.map((evt) => {
-                    const customColor = evt.colorId && GOOGLE_COLORS[evt.colorId] ? GOOGLE_COLORS[evt.colorId] : null;
-                    const accentColor = customColor ? customColor.bg : 'var(--primary)';
-                    const textColor = customColor ? customColor.text : 'inherit';
+                <div className="px-0 pt-2 pb-4">
+                  {allDayEvents.length > 0 && (
+                    <div className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider px-4 pb-1.5 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[13px]">schedule</span>
+                      Termine mit Uhrzeit ({timedEvents.length})
+                    </div>
+                  )}
+                  {/* Scrollbarer Timeline-Container */}
+                  <div
+                    ref={mobileTimelineScrollRef}
+                    className="overflow-y-auto overflow-x-hidden no-scrollbar"
+                    style={{ height: `${Math.min(24 * 60 * MOBILE_PX_PER_MIN, 360)}px` }}
+                  >
+                    {/* Gesamthöhe = 24h × 60min × 0.4px/min = 576px */}
+                    <div className="relative flex w-full" style={{ height: `${24 * 60 * MOBILE_PX_PER_MIN}px` }}>
 
-                    return (
-                      <div
-                        key={evt.id}
-                        onClick={() => {
-                          setSelectedEvent(evt);
-                        }}
-                        className="p-3 rounded-xl border border-outline-variant/70 bg-white hover:bg-surface-low transition-all shadow-xs cursor-pointer border-l-4"
-                        style={{ borderLeftColor: accentColor }}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="space-y-0.5 truncate">
-                            <span className="text-[11px] font-mono font-bold text-on-surface-variant flex items-center gap-1">
-                              <span className="material-symbols-outlined text-[13px]">schedule</span>
-                              {evt.startFormatted} – {evt.endFormatted} Uhr
-                            </span>
-                            <h4 className="font-bold text-sm text-on-surface truncate" style={{ color: textColor }}>
-                              {evt.summary || '(Ohne Titel)'}
-                            </h4>
-                            {evt.location && (
-                              <p className="text-[11px] text-on-surface-variant flex items-center gap-1 truncate mt-0.5">
-                                <span className="material-symbols-outlined text-[12px]">location_on</span>
-                                {evt.location}
-                              </p>
-                            )}
+                      {/* Zeit-Spalte links */}
+                      <div className="w-10 flex-shrink-0 relative border-r border-outline-variant/40 bg-surface/60">
+                        {HOURS.map((h) => (
+                          <div
+                            key={`mtime-${h}`}
+                            className="absolute right-0 pr-1.5 text-[9px] font-mono font-medium text-on-surface-variant/70 select-none leading-none"
+                            style={{ top: `${h * 60 * MOBILE_PX_PER_MIN - 5}px` }}
+                          >
+                            {String(h).padStart(2, '0')}:00
                           </div>
-                          <span className="material-symbols-outlined text-[18px] text-on-surface-variant/60 shrink-0 mt-1">
-                            chevron_right
+                        ))}
+
+                        {/* Jetzt-Badge */}
+                        {isSelectedToday && (
+                          <span
+                            className="absolute right-0.5 text-[8px] font-mono font-bold text-white bg-red-500 px-0.5 py-px rounded shadow-sm z-30 pointer-events-none leading-none"
+                            style={{ top: `${nowMinutes * MOBILE_PX_PER_MIN - 6}px` }}
+                          >
+                            {String(Math.floor(nowMinutes / 60)).padStart(2, '0')}:{String(nowMinutes % 60).padStart(2, '0')}
                           </span>
-                        </div>
+                        )}
                       </div>
-                    );
-                  })}
+
+                      {/* Stundenraster-Fläche */}
+                      <div className="relative flex-1 bg-white">
+                        {/* Stunden-Linien */}
+                        {HOURS.map((h) => (
+                          <div
+                            key={`mslot-${h}`}
+                            className="absolute left-0 right-0 border-t border-outline-variant/20"
+                            style={{ top: `${h * 60 * MOBILE_PX_PER_MIN}px` }}
+                          >
+                            {/* Halbstunden-Linie */}
+                            <div
+                              className="absolute left-0 right-0 border-t border-dashed border-outline-variant/10"
+                              style={{ top: `${30 * MOBILE_PX_PER_MIN}px` }}
+                            />
+                          </div>
+                        ))}
+
+                        {/* Jetzt-Linie */}
+                        {isSelectedToday && (
+                          <div
+                            className="absolute left-0 right-0 h-[1.5px] bg-red-500 z-20 pointer-events-none flex items-center"
+                            style={{ top: `${nowMinutes * MOBILE_PX_PER_MIN}px` }}
+                          >
+                            <div className="w-2 h-2 bg-red-500 rounded-full -ml-1 shadow-sm" />
+                          </div>
+                        )}
+
+                        {/* Events absolut platziert */}
+                        {!isDataLoading && layoutedTimedEvents.map((evt) => {
+                          const customColor = evt.colorId && GOOGLE_COLORS[evt.colorId] ? GOOGLE_COLORS[evt.colorId] : null;
+                          const accentColor = customColor ? customColor.bg : 'var(--primary)';
+                          const textColor = customColor ? customColor.text : 'inherit';
+                          const topPx = evt.startMinutes * MOBILE_PX_PER_MIN;
+                          const heightPx = Math.max(evt.duration * MOBILE_PX_PER_MIN, 14);
+                          const isVeryShort = heightPx < 22;
+
+                          return (
+                            <div
+                              key={evt.id}
+                              onClick={(e) => { e.stopPropagation(); setSelectedEvent(evt); }}
+                              style={{
+                                top: `${topPx}px`,
+                                height: `${heightPx}px`,
+                                left: `calc(${(evt.col / evt.totalCols) * 100}% + 2px)`,
+                                width: `calc(${(1 / evt.totalCols) * 100}% - 4px)`,
+                                borderLeftColor: accentColor,
+                                backgroundColor: customColor ? `${accentColor}25` : 'rgba(26,26,26,0.08)',
+                              }}
+                              className="absolute z-10 border-l-[3px] rounded-r-md px-1.5 overflow-hidden cursor-pointer hover:brightness-95 active:scale-[0.98] transition-all shadow-2xs select-none"
+                              title={`${evt.summary || '(Ohne Titel)'} (${evt.startFormatted}–${evt.endFormatted})`}
+                            >
+                              {isVeryShort ? (
+                                <div className="flex items-center gap-1 h-full leading-none">
+                                  <span className="font-mono font-bold text-[8px] opacity-75 whitespace-nowrap" style={{ color: textColor }}>
+                                    {evt.startFormatted}
+                                  </span>
+                                  <span className="font-semibold truncate text-[9px]" style={{ color: textColor }}>
+                                    {evt.summary || '(Ohne Titel)'}
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="flex flex-col h-full justify-start pt-px">
+                                  <span className="font-mono font-bold text-[8.5px] opacity-75 leading-tight whitespace-nowrap" style={{ color: textColor }}>
+                                    {evt.startFormatted}–{evt.endFormatted}
+                                  </span>
+                                  <span className="font-bold text-[10px] leading-snug line-clamp-2" style={{ color: textColor }}>
+                                    {evt.summary || '(Ohne Titel)'}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ) : allDayEvents.length === 0 ? (
+                /* Empty State */
                 <div className="text-center py-10 px-4">
                   <div className="w-14 h-14 bg-surface-low rounded-full flex items-center justify-center mx-auto mb-3 text-on-surface-variant">
                     <span className="material-symbols-outlined text-2xl">event_available</span>
@@ -1497,10 +1629,12 @@ const Calendar = () => {
                   </button>
                 </div>
               ) : null}
+
             </div>
           </div>
         </div>
       )}
+
 
       {/* Event Detail Modal */}
       {selectedEvent && (
@@ -1623,7 +1757,7 @@ const Calendar = () => {
       {/* Mobile FAB for New Event */}
       <button
         onClick={() => setEditingEvent({})}
-        className={`md:hidden fixed bottom-20 right-5 w-12 h-12 bg-primary text-white rounded-xl shadow-xl flex items-center justify-center z-40 transition-all duration-300 ease-in-out active:scale-90 ${
+        className={`md:hidden fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] right-5 w-12 h-12 bg-primary text-white rounded-xl shadow-xl flex items-center justify-center z-40 transition-all duration-300 ease-in-out active:scale-90 ${
           isScrollingDown || isMobileDayModalOpen ? 'translate-y-32 opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'
         }`}
         title="Neuer Termin"

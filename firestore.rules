@@ -220,6 +220,32 @@ service cloud.firestore {
           (!('sessions' in request.resource.data) || (request.resource.data.sessions is list && request.resource.data.sessions.size() <= 100)) &&
           request.resource.data.keys().size() <= 5;
       }
+
+      // G) Kanban Views (Gespeicherte Ansichten & Filter)
+      match /kanbanViews/{viewId} {
+        allow read: if isOwner(userId);
+        allow delete: if isOwner(userId);
+
+        allow create, update: if isOwner(userId) &&
+          viewId == request.resource.data.id &&
+          request.resource.data.keys().hasAll(['id', 'name']) &&
+          request.resource.data.keys().hasOnly([
+            'id', 'name', 'icon', 'color', 'type', 'isSystem',
+            'showProjects', 'showReminders', 'projectCategoryIds', 'reminderCategoryIds',
+            'order', 'createdAt', 'updatedAt'
+          ]) &&
+          request.resource.data.name is string &&
+          request.resource.data.name.size() > 0 &&
+          request.resource.data.name.size() <= 100 &&
+          (!('type' in request.resource.data) || request.resource.data.type in ['system', 'custom']) &&
+          (!('isSystem' in request.resource.data) || request.resource.data.isSystem is bool) &&
+          (!('showProjects' in request.resource.data) || request.resource.data.showProjects is bool) &&
+          (!('showReminders' in request.resource.data) || request.resource.data.showReminders is bool) &&
+          (!('projectCategoryIds' in request.resource.data) || (request.resource.data.projectCategoryIds is list && request.resource.data.projectCategoryIds.size() <= 50)) &&
+          (!('reminderCategoryIds' in request.resource.data) || (request.resource.data.reminderCategoryIds is list && request.resource.data.reminderCategoryIds.size() <= 50)) &&
+          (!('order' in request.resource.data) || request.resource.data.order is number) &&
+          request.resource.data.keys().size() <= 15;
+      }
     }
   }
 }

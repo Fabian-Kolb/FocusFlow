@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useModalContext } from '../../context/ModalContext';
 import NotesSection from '../ui/NotesSection';
 import TaskDetailDrawer from '../ui/TaskDetailDrawer';
 import SectionDetailDrawer from '../ui/SectionDetailDrawer';
 import GlobalChatDrawer from '../ui/GlobalChatDrawer';
 import FioIcon from '../ui/FioIcon';
+import { canFitDrawersSideBySide } from '../../lib/breakpoints';
 
 const ProjectDetail = ({ setCurrentScreen }) => {
   const { 
@@ -58,6 +59,45 @@ const ProjectDetail = ({ setCurrentScreen }) => {
   const [activeNoteModal, setActiveNoteModal] = useState(null); // note to view/edit in full modal
   const [isGlobalChatOpen, setIsGlobalChatOpen] = useState(false);
   const [isTransitioningDrawer, setIsTransitioningDrawer] = useState(false);
+  const rootRef = useRef(null);
+  const [canFitSideBySide, setCanFitSideBySide] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return canFitDrawersSideBySide(window.innerWidth - 256);
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    const updateAvailableWidth = () => {
+      if (rootRef.current) {
+        const width = rootRef.current.clientWidth;
+        setCanFitSideBySide(canFitDrawersSideBySide(width));
+      } else if (typeof window !== 'undefined') {
+        setCanFitSideBySide(canFitDrawersSideBySide(window.innerWidth - 256));
+      }
+    };
+
+    updateAvailableWidth();
+
+    let resizeObserver = null;
+    if (typeof ResizeObserver !== 'undefined' && rootRef.current) {
+      resizeObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const width = entry.contentRect?.width || rootRef.current?.clientWidth;
+          if (typeof width === 'number') {
+            setCanFitSideBySide(canFitDrawersSideBySide(width));
+          }
+        }
+      });
+      resizeObserver.observe(rootRef.current);
+    }
+
+    window.addEventListener('resize', updateAvailableWidth);
+    return () => {
+      if (resizeObserver) resizeObserver.disconnect();
+      window.removeEventListener('resize', updateAvailableWidth);
+    };
+  }, []);
   
   // Modals state
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -792,7 +832,13 @@ const ProjectDetail = ({ setCurrentScreen }) => {
   });
 
   const detailDrawerOpen = !!selectedTask || !!selectedPhase || isTransitioningDrawer;
-  const rightMarginClass = (detailDrawerOpen && isGlobalChatOpen) ? 'lg:mr-[840px]' : (detailDrawerOpen || isGlobalChatOpen) ? 'lg:mr-[420px]' : '';
+  const isBothSideBySide = detailDrawerOpen && isGlobalChatOpen && canFitSideBySide;
+  const isAnyDrawerOpen = detailDrawerOpen || isGlobalChatOpen;
+  const rightMarginClass = isBothSideBySide 
+    ? 'lg:mr-[864px]' 
+    : isAnyDrawerOpen 
+      ? 'lg:mr-[420px]' 
+      : '';
 
   const handleCloseDetailDrawer = () => {
     if (isGlobalChatOpen) {
@@ -840,7 +886,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
   };
 
   return (
-    <div className="screen-transition">
+    <div ref={rootRef} className="screen-transition">
       {projectData.isPaused && (
         <div className="fixed top-0 left-0 right-0 h-64 sm:h-80 bg-gradient-to-b from-blue-200/70 via-blue-100/25 to-transparent pointer-events-none z-0" />
       )}
@@ -1730,6 +1776,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
         allNotes={projectData.notes || []}
         isOpen={!!selectedTask}
         isGlobalChatOpen={isGlobalChatOpen}
+        isChatReplacing={detailDrawerOpen && !canFitSideBySide && isGlobalChatOpen}
         onClose={handleCloseDetailDrawer}
         onOpenGlobalChat={() => setIsGlobalChatOpen(true)}
         onUpdateTask={handleDrawerUpdateTask}
@@ -1749,6 +1796,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
         allNotes={projectData.notes || []}
         isOpen={!!selectedPhase}
         isGlobalChatOpen={isGlobalChatOpen}
+        isChatReplacing={detailDrawerOpen && !canFitSideBySide && isGlobalChatOpen}
         onClose={handleCloseDetailDrawer}
         onOpenGlobalChat={() => setIsGlobalChatOpen(true)}
         onUpdatePhase={handleDrawerUpdatePhase}
@@ -1766,7 +1814,8 @@ const ProjectDetail = ({ setCurrentScreen }) => {
         isOpen={isGlobalChatOpen}
         onClose={() => setIsGlobalChatOpen(false)}
         projectData={projectData}
-        isSecondaryPanel={detailDrawerOpen}
+        isSecondaryPanel={detailDrawerOpen && canFitSideBySide}
+        isReplacingDetail={detailDrawerOpen && !canFitSideBySide}
         contextScope={selectedTask ? 'task' : selectedPhase ? 'section' : 'project'}
         contextData={selectedTask ? selectedTask : selectedPhase ? selectedPhase : null}
       />
@@ -1777,7 +1826,9 @@ const ProjectDetail = ({ setCurrentScreen }) => {
           onClick={() => setIsGlobalChatOpen(true)}
           title="Fio (KI-Coach) öffnen"
           style={{ '--fab-offset': detailDrawerOpen ? '444px' : '24px' }}
-          className="fixed z-50 bottom-20 right-4 sm:bottom-6 sm:right-auto sm:[right:var(--fab-offset)] w-12 h-12 sm:w-13 sm:h-13 flex items-center justify-center bg-neutral-900 text-white rounded-2xl rounded-br-[3px] shadow-2xl hover:shadow-primary/30 border border-neutral-700/60 hover:bg-black hover:scale-105 active:scale-95 transition-[right,transform] duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] group cursor-pointer p-3"
+          className={`fixed z-50 bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] right-4 sm:bottom-6 sm:right-auto sm:[right:var(--fab-offset)] ${
+            detailDrawerOpen ? 'hidden sm:flex' : 'flex'
+          } w-12 h-12 sm:w-13 sm:h-13 items-center justify-center bg-neutral-900 text-white rounded-2xl rounded-br-[3px] shadow-2xl hover:shadow-primary/30 border border-neutral-700/60 hover:bg-black hover:scale-105 active:scale-95 transition-[right,transform] duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] group cursor-pointer p-3`}
         >
           <FioIcon className="w-full h-full text-white group-hover:scale-110 transition-transform" color="currentColor" />
         </button>

@@ -688,7 +688,10 @@ REGELN:
       </div>
 
       {/* Input Area (Sticky Bottom) */}
-      <div className="shrink-0 bg-white border-t border-outline-variant/60 p-3 flex flex-col gap-2">
+      <div 
+        className="shrink-0 bg-white border-t border-outline-variant/60 p-3 flex flex-col gap-2"
+        style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}
+      >
         {/* Quick Prompts or Floating Stop Indicator */}
         {isLoading ? (
           <div className="flex items-center justify-center pb-1 animate-fadeIn">

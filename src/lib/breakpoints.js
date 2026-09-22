@@ -7,9 +7,25 @@ export const BREAKPOINTS = {
   MOBILE_MAX: 767,
   TABLET: 768,    // Tailwind md:
   DESKTOP: 1024,  // Tailwind lg:
+  BOTTOM_DRAWER_MAX: 639, // Tailwind sm: threshold (640px)
+  DRAWER_WIDTH: 420,
+  DRAWER_MARGIN: 12,
+  DRAWER_PAIR_TOTAL_WIDTH: 864, // 420 + 12 + 420 + 12
+  MIN_PROJECT_CONTENT_WIDTH: 480,
+  SIDE_BY_SIDE_MIN: 1344, // 864 + 480
 };
 
 export const SIDEBAR_STORAGE_KEY = 'focusflow_sidebar_desktop_collapsed';
+
+/**
+ * Checks whether the available content width is sufficient to render two 420px drawers side-by-side
+ * while preserving the minimum project content width (480px).
+ * @param {number} availableWidth - Available width of the main content area (everything without sidebar) in pixels
+ * @returns {boolean}
+ */
+export function canFitDrawersSideBySide(availableWidth) {
+  return typeof availableWidth === 'number' && availableWidth >= BREAKPOINTS.SIDE_BY_SIDE_MIN;
+}
 
 /**
  * Checks whether the given viewport width is considered desktop.

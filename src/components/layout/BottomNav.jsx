@@ -107,7 +107,11 @@ const BottomNav = ({ currentScreen, setCurrentScreen }) => {
   return (
     <nav 
       aria-label="Mobile Navigation"
-      className="md:hidden fixed bottom-0 left-0 w-full z-50 pointer-events-none"
+      className="md:hidden flex-shrink-0 w-full z-40 bg-surface/95 backdrop-blur-md border-t border-outline-variant"
+      style={{
+        minHeight: 'calc(4rem + env(safe-area-inset-bottom, 0px))',
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)'
+      }}
     >
       {/* Backdrop for "Mehr" Bottom Sheet */}
       {isMoreOpen && (
@@ -203,14 +207,8 @@ const BottomNav = ({ currentScreen, setCurrentScreen }) => {
         </div>
       </div>
 
-      {/* Main 4+1 Fixed Bottom Navigation Bar */}
-      <div 
-        className="w-full bg-surface/95 backdrop-blur-md border-t border-outline-variant px-2 sm:px-4 pointer-events-auto flex justify-around items-center transition-all"
-        style={{
-          minHeight: 'calc(4rem + env(safe-area-inset-bottom, 0px))',
-          paddingBottom: 'env(safe-area-inset-bottom, 0px)'
-        }}
-      >
+      {/* Main 4+1 Bottom Navigation Bar */}
+      <div className="w-full h-16 px-2 sm:px-4 flex justify-around items-center">
         {/* 4 Primary Tabs */}
         {primaryNavItems.map((item) => {
           const isActive = 

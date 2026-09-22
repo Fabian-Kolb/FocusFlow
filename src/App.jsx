@@ -137,7 +137,7 @@ function AppContent() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-surface text-primary antialiased font-sans">
+    <div className="flex flex-col md:flex-row h-screen h-[100dvh] overflow-hidden bg-surface text-primary antialiased font-sans">
       <Sidebar
         currentScreen={currentScreen}
         setCurrentScreen={setCurrentScreen}
@@ -145,38 +145,41 @@ function AppContent() {
         setCollapsed={handleSetSidebarCollapsed}
       />
 
-      <main className={`flex-grow min-w-0 relative h-full flex flex-col ${
-        currentScreen === 'coach' 
-          ? 'overflow-hidden pb-16 md:pb-0' 
-          : currentScreen === 'calendar'
-          ? 'overflow-hidden pb-[calc(4rem+env(safe-area-inset-bottom,0px))] md:pb-0 md:overflow-y-auto no-scrollbar'
-          : 'overflow-y-auto no-scrollbar content-bottom-safe md:pb-0'
-      }`}>
-        <div className={`mx-auto w-full flex-grow flex flex-col h-full min-h-0 ${
-          currentScreen === 'coach' 
-            ? 'p-0 max-w-none overflow-hidden' 
-            : currentScreen === 'calendar'
-            ? 'max-w-none px-2 sm:px-4 md:px-8 py-3 sm:py-6 md:py-8 overflow-hidden md:overflow-visible'
-            : 'max-w-none px-2 sm:px-4 md:px-8 py-4 sm:py-8'
+      {/* Main Content Area + Flow-based Mobile BottomNav */}
+      <div className="flex-1 min-w-0 flex flex-col h-full overflow-hidden">
+        <main className={`flex-1 min-w-0 relative flex flex-col min-h-0 ${
+          currentScreen === 'coach' || currentScreen === 'calendar' || currentScreen === 'board'
+            ? 'overflow-hidden' 
+            : 'overflow-y-auto no-scrollbar'
         }`}>
-          {firestoreError && currentScreen !== 'coach' && (
-            <FirestoreErrorBanner error={firestoreError} onDismiss={clearFirestoreError} />
-          )}
-          {currentScreen === 'dashboard' && <Dashboard setCurrentScreen={setCurrentScreen} />}
-          {currentScreen === 'inbox' && <Inbox setCurrentScreen={setCurrentScreen} />}
-          {currentScreen === 'reminders' && <Reminders setCurrentScreen={setCurrentScreen} />}
-          {currentScreen === 'reminder-detail' && <ReminderDetail setCurrentScreen={setCurrentScreen} />}
-          {currentScreen === 'projects' && <Projects setCurrentScreen={setCurrentScreen} />}
-          {currentScreen === 'board' && <ProjectsBoard setCurrentScreen={setCurrentScreen} />}
-          {currentScreen === 'project-detail' && <ProjectDetail setCurrentScreen={setCurrentScreen} />}
-          {currentScreen === 'calendar' && <Calendar />}
-          {currentScreen === 'coach' && <Coach setCurrentScreen={setCurrentScreen} />}
-          {currentScreen === 'review' && <Review />}
-          {currentScreen === 'trash' && <Trash setCurrentScreen={setCurrentScreen} />}
-        </div>
-      </main>
+          <div className={`mx-auto w-full flex-grow flex flex-col ${
+            currentScreen === 'coach' 
+              ? 'p-0 max-w-none h-full overflow-hidden' 
+              : currentScreen === 'calendar'
+              ? 'max-w-none px-2 sm:px-4 md:px-8 py-3 sm:py-6 md:py-8 h-full min-h-0 overflow-hidden md:overflow-visible'
+              : currentScreen === 'board'
+              ? 'max-w-none px-2 sm:px-4 md:px-8 py-3 sm:py-6 md:py-8 h-full min-h-0 overflow-hidden'
+              : 'max-w-none px-2 sm:px-4 md:px-8 py-4 sm:py-8 pb-6 sm:pb-8'
+          }`}>
+            {firestoreError && currentScreen !== 'coach' && (
+              <FirestoreErrorBanner error={firestoreError} onDismiss={clearFirestoreError} />
+            )}
+            {currentScreen === 'dashboard' && <Dashboard setCurrentScreen={setCurrentScreen} />}
+            {currentScreen === 'inbox' && <Inbox setCurrentScreen={setCurrentScreen} />}
+            {currentScreen === 'reminders' && <Reminders setCurrentScreen={setCurrentScreen} />}
+            {currentScreen === 'reminder-detail' && <ReminderDetail setCurrentScreen={setCurrentScreen} />}
+            {currentScreen === 'projects' && <Projects setCurrentScreen={setCurrentScreen} />}
+            {currentScreen === 'board' && <ProjectsBoard setCurrentScreen={setCurrentScreen} />}
+            {currentScreen === 'project-detail' && <ProjectDetail setCurrentScreen={setCurrentScreen} />}
+            {currentScreen === 'calendar' && <Calendar />}
+            {currentScreen === 'coach' && <Coach setCurrentScreen={setCurrentScreen} />}
+            {currentScreen === 'review' && <Review />}
+            {currentScreen === 'trash' && <Trash setCurrentScreen={setCurrentScreen} />}
+          </div>
+        </main>
 
-      <BottomNav currentScreen={currentScreen} setCurrentScreen={setCurrentScreen} />
+        <BottomNav currentScreen={currentScreen} setCurrentScreen={setCurrentScreen} />
+      </div>
 
       {/* Render All Interactive Modals */}
       <ProjectModal setCurrentScreen={setCurrentScreen} />

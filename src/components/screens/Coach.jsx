@@ -728,7 +728,7 @@ Regeln für deine Antworten:
       <div className="flex h-full w-full relative overflow-hidden">
         {/* Mobile-Only Overlay (Tap to close on small screens) */}
         <div 
-          className={`fixed inset-0 bg-black/25 backdrop-blur-xs z-30 md:hidden transition-opacity duration-300 ${
+          className={`fixed inset-0 bg-black/40 backdrop-blur-xs z-[55] md:hidden transition-opacity duration-300 ${
             isHistoryOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
           }`}
           onClick={() => setIsHistoryOpen(false)}
@@ -738,7 +738,7 @@ Regeln für deine Antworten:
         {/* Left Floating History Panel (Slides out smoothly, stable inner width prevents wrapping during close) */}
         <div
           className={`
-            fixed inset-y-0 left-0 z-40 h-full
+            fixed inset-y-0 left-0 z-[60] h-full
             md:relative md:inset-auto md:z-20
             transition-[width,transform,opacity] duration-300 ease-in-out overflow-hidden
             ${isHistoryOpen
@@ -748,7 +748,7 @@ Regeln für deine Antworten:
           `}
         >
           {/* Inner Container with fixed width so contents never squish/wrap */}
-          <div className={`w-[85vw] sm:w-80 max-w-[340px] md:w-80 h-full p-2.5 sm:p-3 flex flex-col shrink-0 transition-transform duration-300 ease-in-out ${
+          <div className={`w-[85vw] sm:w-80 max-w-[340px] md:w-80 h-full p-2.5 sm:p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] md:pb-3 flex flex-col shrink-0 transition-transform duration-300 ease-in-out ${
             isHistoryOpen ? 'translate-x-0' : '-translate-x-full md:-translate-x-full'
           }`}>
             {/* Inner Rounded Floating Pill Card */}

@@ -11,6 +11,7 @@ import { registerTier2Tests } from '../tests/tier2_boundary_corner.test.js';
 import { registerTier3Tests } from '../tests/tier3_cross_feature.test.js';
 import { registerTier4Tests } from '../tests/tier4_real_world.test.js';
 import { registerSidebarGeometryAndStateTests } from '../tests/sidebar_geometry_and_state.test.js';
+import { registerResponsiveDrawerTests } from '../tests/responsive_drawers.test.js';
 
 async function main() {
   const runner = new E2ETestRunner();
@@ -19,6 +20,7 @@ async function main() {
   registerTier1Tests(runner);
   registerTier2Tests(runner);
   registerSidebarGeometryAndStateTests(runner);
+  registerResponsiveDrawerTests(runner);
   registerTier3Tests(runner);
   registerTier4Tests(runner);
 
