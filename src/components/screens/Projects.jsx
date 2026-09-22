@@ -41,13 +41,20 @@ const Projects = ({ setCurrentScreen }) => {
   const {
     draggedCardId: touchDraggedProjectId,
     cardDropTargetId: touchCardDropTargetCatId,
-    startCardTouchDrag: startProjectCardDrag,
+    startCardDrag: startProjectCardDrag,
+    startCardTouchDrag: startProjectCardTouchDrag,
     handleHtml5DragStart: handleProjectHtml5DragStart,
     handleHtml5DragOver: handleProjectHtml5DragOver,
     handleHtml5DragEnd: handleProjectHtml5DragEnd
   } = useCardTouchDrag({
     onMoveItemToCategory: handleMoveProjectToCategory,
-    categoryPrefix: 'cat-sec-'
+    categoryPrefix: 'cat-sec-',
+    onHoverExpandCategory: (catId) => {
+      const cat = projectCategories.find(c => c.id === catId);
+      if (cat && !cat.isExpanded) {
+        toggleProjectCategory(catId);
+      }
+    }
   });
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -181,17 +188,22 @@ const Projects = ({ setCurrentScreen }) => {
     }
   };
 
-  const renderCard = (project) => (
-    <div
-      key={project.id}
-      draggable
-      onDragStart={(e) => handleProjectHtml5DragStart(e, project.id)}
-      onDragEnd={handleProjectHtml5DragEnd}
-      onTouchStart={(e) => startProjectCardDrag(e, project.id, project.title)}
-      onDragOver={(e) => handleCategoryDragOver(e, project.categoryId || 'allgemein')}
-      onDrop={(e) => handleDrop(e, project.categoryId || 'allgemein')}
-      className="cursor-grab active:cursor-grabbing touch-action-none"
-    >
+  const renderCard = (project) => {
+    const isDragged = touchDraggedProjectId === project.id;
+    return (
+      <div
+        key={project.id}
+        data-card-id={project.id}
+        onMouseDown={(e) => startProjectCardDrag(e, project.id, project.title)}
+        onTouchStart={(e) => startProjectCardTouchDrag(e, project.id, project.title)}
+        onDragStart={(e) => handleProjectHtml5DragStart(e, project.id)}
+        onDragEnd={handleProjectHtml5DragEnd}
+        onDragOver={(e) => handleCategoryDragOver(e, project.categoryId || 'allgemein')}
+        onDrop={(e) => handleDrop(e, project.categoryId || 'allgemein')}
+        className={`cursor-grab active:cursor-grabbing touch-action-none select-none transition-all duration-150 ${
+          isDragged ? 'opacity-30 scale-[0.98] ring-2 ring-primary/40 rounded-xl' : 'opacity-100'
+        }`}
+      >
       <Card
         interactive
         className={`flex flex-col justify-between min-h-[250px] sm:min-h-[300px] transition-all h-full ${
@@ -289,6 +301,7 @@ const Projects = ({ setCurrentScreen }) => {
       </Card>
     </div>
   );
+};
 
   return (
     <div className="screen-transition pb-20">
@@ -393,24 +406,26 @@ const Projects = ({ setCurrentScreen }) => {
 
         {(orderedCategories || projectCategories)?.map((cat) => {
           const catProjects = otherProjects.filter(p => (p.categoryId || 'allgemein') === cat.id);
-          if (cat.id === 'allgemein' && catProjects.length === 0 && projectCategories.length > 1) {
+          if (cat.id === 'allgemein' && catProjects.length === 0 && projectCategories.length > 1 && !touchDraggedProjectId) {
             return null;
           }
 
           const isBeingDragged = draggedCatId === cat.id;
+          const isCardHoveringThisCat = (cardDragOverCatId === cat.id || touchCardDropTargetCatId === cat.id) && !isBeingDragged;
 
           return (
             <div 
               key={cat.id}
               id={`cat-sec-${cat.id}`}
+              data-category-id={cat.id}
               onDragOver={(e) => handleCategoryDragOver(e, cat.id)}
               onDragLeave={(e) => handleCategoryDragLeave(e, cat.id)}
               onDrop={(e) => handleDrop(e, cat.id)}
               className={`rounded-xl transition-all duration-150 border scroll-mt-6 ${
                 isBeingDragged
                   ? 'opacity-0 pointer-events-none h-11 my-1 p-0 border-transparent overflow-hidden'
-                  : (cardDragOverCatId === cat.id || touchCardDropTargetCatId === cat.id)
-                  ? 'border-primary bg-primary/10 ring-2 ring-primary/40 shadow-lg scale-[1.01] p-2 -m-1'
+                  : isCardHoveringThisCat
+                  ? 'border-primary bg-primary/10 ring-2 ring-primary/40 shadow-lg p-2.5 -m-1'
                   : 'border-transparent p-2 -m-1'
               }`}
             >
@@ -483,9 +498,17 @@ const Projects = ({ setCurrentScreen }) => {
                         </button>
                       </div>
                     ) : (
-                      <h2 className="text-sm font-bold tracking-wider uppercase flex items-center gap-2">
-                        {cat.name} <span className="text-on-surface-variant font-normal text-xs">({catProjects.length})</span>
-                      </h2>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h2 className="text-sm font-bold tracking-wider uppercase flex items-center gap-2">
+                          {cat.name} <span className="text-on-surface-variant font-normal text-xs">({catProjects.length})</span>
+                        </h2>
+                        {isCardHoveringThisCat && (
+                          <span className="text-[11px] font-bold text-primary bg-primary/15 border border-primary/30 px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse">
+                            <span className="material-symbols-outlined text-[13px]">arrow_downward</span>
+                            Hier ablegen
+                          </span>
+                        )}
+                      </div>
                     )}
                   </div>
 
@@ -544,8 +567,15 @@ const Projects = ({ setCurrentScreen }) => {
                     {catProjects.length > 0 ? (
                       catProjects.map(renderCard)
                     ) : (
-                      <div className="col-span-full py-8 border-2 border-dashed border-outline-variant rounded-xl flex items-center justify-center text-on-surface-variant">
-                        Projekte hier ablegen
+                      <div className={`col-span-full py-8 border-2 border-dashed rounded-xl flex items-center justify-center transition-colors ${
+                        isCardHoveringThisCat
+                          ? 'border-primary bg-primary/15 text-primary font-bold shadow-inner'
+                          : 'border-outline-variant text-on-surface-variant'
+                      }`}>
+                        <span className="material-symbols-outlined mr-2 text-[18px]">
+                          {isCardHoveringThisCat ? 'arrow_downward' : 'drag_indicator'}
+                        </span>
+                        {isCardHoveringThisCat ? 'Hier loslassen' : 'Projekte hier ablegen'}
                       </div>
                     )}
                   </div>

@@ -41,13 +41,20 @@ const Reminders = ({ setCurrentScreen }) => {
   const {
     draggedCardId: touchDraggedReminderId,
     cardDropTargetId: touchCardDropTargetCatId,
-    startCardTouchDrag: startReminderCardDrag,
+    startCardDrag: startReminderCardDrag,
+    startCardTouchDrag: startReminderCardTouchDrag,
     handleHtml5DragStart: handleReminderHtml5DragStart,
     handleHtml5DragOver: handleReminderHtml5DragOver,
     handleHtml5DragEnd: handleReminderHtml5DragEnd
   } = useCardTouchDrag({
     onMoveItemToCategory: handleMoveReminderToCategory,
-    categoryPrefix: 'rcat-sec-'
+    categoryPrefix: 'rcat-sec-',
+    onHoverExpandCategory: (catId) => {
+      const cat = reminderCategories.find(c => c.id === catId);
+      if (cat && !cat.isExpanded) {
+        toggleReminderCategory(catId);
+      }
+    }
   });
 
   const handleReminderClick = (reminderId) => {
@@ -184,17 +191,22 @@ const Reminders = ({ setCurrentScreen }) => {
     }
   };
 
-  const renderCard = (reminder) => (
-    <div
-      key={reminder.id}
-      draggable
-      onDragStart={(e) => handleReminderHtml5DragStart(e, reminder.id)}
-      onDragEnd={handleReminderHtml5DragEnd}
-      onTouchStart={(e) => startReminderCardDrag(e, reminder.id, reminder.title)}
-      onDragOver={(e) => handleCategoryDragOver(e, reminder.categoryId || 'allgemein')}
-      onDrop={(e) => handleDrop(e, reminder.categoryId || 'allgemein')}
-      className="cursor-grab active:cursor-grabbing touch-action-none"
-    >
+  const renderCard = (reminder) => {
+    const isDragged = touchDraggedReminderId === reminder.id;
+    return (
+      <div
+        key={reminder.id}
+        data-card-id={reminder.id}
+        onMouseDown={(e) => startReminderCardDrag(e, reminder.id, reminder.title)}
+        onTouchStart={(e) => startReminderCardTouchDrag(e, reminder.id, reminder.title)}
+        onDragStart={(e) => handleReminderHtml5DragStart(e, reminder.id)}
+        onDragEnd={handleReminderHtml5DragEnd}
+        onDragOver={(e) => handleCategoryDragOver(e, reminder.categoryId || 'allgemein')}
+        onDrop={(e) => handleDrop(e, reminder.categoryId || 'allgemein')}
+        className={`cursor-grab active:cursor-grabbing touch-action-none select-none transition-all duration-150 ${
+          isDragged ? 'opacity-30 scale-[0.98] ring-2 ring-primary/40 rounded-xl' : 'opacity-100'
+        }`}
+      >
       <Card
         interactive
         className={`flex flex-col justify-between transition-all h-full ${
@@ -270,6 +282,7 @@ const Reminders = ({ setCurrentScreen }) => {
       </Card>
     </div>
   );
+};
 
   return (
     <div className="screen-transition pb-20">
@@ -374,24 +387,26 @@ const Reminders = ({ setCurrentScreen }) => {
 
         {(orderedCategories || reminderCategories)?.map((cat) => {
           const catReminders = otherReminders.filter(r => (r.categoryId || 'allgemein') === cat.id);
-          if (cat.id === 'allgemein' && catReminders.length === 0 && reminderCategories.length > 1) {
+          if (cat.id === 'allgemein' && catReminders.length === 0 && reminderCategories.length > 1 && !touchDraggedReminderId) {
             return null;
           }
 
           const isBeingDragged = draggedCatId === cat.id;
+          const isCardHoveringThisCat = (cardDragOverCatId === cat.id || touchCardDropTargetCatId === cat.id) && !isBeingDragged;
 
           return (
             <div 
               key={cat.id}
               id={`rcat-sec-${cat.id}`}
+              data-category-id={cat.id}
               onDragOver={(e) => handleCategoryDragOver(e, cat.id)}
               onDragLeave={(e) => handleCategoryDragLeave(e, cat.id)}
               onDrop={(e) => handleDrop(e, cat.id)}
               className={`rounded-xl transition-all duration-150 border scroll-mt-6 ${
                 isBeingDragged
                   ? 'opacity-0 pointer-events-none h-11 my-1 p-0 border-transparent overflow-hidden'
-                  : (cardDragOverCatId === cat.id || touchCardDropTargetCatId === cat.id)
-                  ? 'border-primary bg-primary/10 ring-2 ring-primary/40 shadow-lg scale-[1.01] p-2 -m-1'
+                  : isCardHoveringThisCat
+                  ? 'border-primary bg-primary/10 ring-2 ring-primary/40 shadow-lg p-2.5 -m-1'
                   : 'border-transparent p-2 -m-1'
               }`}
             >
@@ -463,11 +478,19 @@ const Reminders = ({ setCurrentScreen }) => {
                         <span className="material-symbols-outlined text-[16px]">close</span>
                       </button>
                     </div>
-                  ) : (
-                    <h2 className="text-sm font-bold tracking-wider uppercase flex items-center gap-2">
-                      {cat.name} <span className="text-on-surface-variant font-normal text-xs">({catReminders.length})</span>
-                    </h2>
-                  )}
+                    ) : (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h2 className="text-sm font-bold tracking-wider uppercase flex items-center gap-2">
+                          {cat.name} <span className="text-on-surface-variant font-normal text-xs">({catReminders.length})</span>
+                        </h2>
+                        {isCardHoveringThisCat && (
+                          <span className="text-[11px] font-bold text-primary bg-primary/15 border border-primary/30 px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse">
+                            <span className="material-symbols-outlined text-[13px]">arrow_downward</span>
+                            Hier ablegen
+                          </span>
+                        )}
+                      </div>
+                    )}
                 </div>
 
                 <div className="h-px bg-outline-variant flex-grow opacity-50 group-hover:bg-primary/50 transition-colors" />
@@ -525,8 +548,15 @@ const Reminders = ({ setCurrentScreen }) => {
                   {catReminders.length > 0 ? (
                     catReminders.map(renderCard)
                   ) : (
-                    <div className="col-span-full py-8 border-2 border-dashed border-outline-variant rounded-xl flex items-center justify-center text-on-surface-variant">
-                      Erinnerungen hier ablegen
+                    <div className={`col-span-full py-8 border-2 border-dashed rounded-xl flex items-center justify-center transition-colors ${
+                      isCardHoveringThisCat
+                        ? 'border-primary bg-primary/15 text-primary font-bold shadow-inner'
+                        : 'border-outline-variant text-on-surface-variant'
+                    }`}>
+                      <span className="material-symbols-outlined mr-2 text-[18px]">
+                        {isCardHoveringThisCat ? 'arrow_downward' : 'drag_indicator'}
+                      </span>
+                      {isCardHoveringThisCat ? 'Hier loslassen' : 'Erinnerungen hier ablegen'}
                     </div>
                   )}
                 </div>

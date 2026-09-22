@@ -269,18 +269,20 @@ export function useCategoryDrag({
       const y = currentPointerYRef.current;
       if (y != null) {
         const edgeThreshold = 120;
-        const viewportHeight = window.innerHeight;
         const main = document.querySelector('main');
+        const rect = main ? main.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
 
-        if (y < edgeThreshold) {
-          const intensity = (edgeThreshold - Math.max(0, y)) / edgeThreshold;
+        if (y < rect.top + edgeThreshold) {
+          const dist = Math.max(0, (rect.top + edgeThreshold) - y);
+          const intensity = Math.min(1, dist / edgeThreshold);
           const speed = Math.max(3, Math.round(intensity * 22));
           if (main) main.scrollBy(0, -speed);
           else window.scrollBy(0, -speed);
           // Recalculate live order while auto-scrolling
           updateLiveOrder(y);
-        } else if (y > viewportHeight - edgeThreshold) {
-          const intensity = (Math.min(viewportHeight, y) - (viewportHeight - edgeThreshold)) / edgeThreshold;
+        } else if (y > rect.bottom - edgeThreshold) {
+          const dist = Math.max(0, y - (rect.bottom - edgeThreshold));
+          const intensity = Math.min(1, dist / edgeThreshold);
           const speed = Math.max(3, Math.round(intensity * 22));
           if (main) main.scrollBy(0, speed);
           else window.scrollBy(0, speed);

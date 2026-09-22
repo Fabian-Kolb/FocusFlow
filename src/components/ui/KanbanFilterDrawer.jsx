@@ -65,6 +65,17 @@ const KanbanFilterDrawer = ({
   const [formProjectCategoryIds, setFormProjectCategoryIds] = useState([]);
   const [formReminderCategoryIds, setFormReminderCategoryIds] = useState([]);
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+  const [highlightedViewId, setHighlightedViewId] = useState(null);
+  const highlightTimeoutRef = useRef(null);
+
+  // Helper to cancel any ongoing highlight animation immediately
+  const cancelHighlight = () => {
+    if (highlightTimeoutRef.current) {
+      clearTimeout(highlightTimeoutRef.current);
+      highlightTimeoutRef.current = null;
+    }
+    setHighlightedViewId(null);
+  };
 
   // Synchronize staged selection when drawer opens
   useEffect(() => {
@@ -72,6 +83,7 @@ const KanbanFilterDrawer = ({
       setShouldRender(true);
       setIsClosing(false);
       setDeleteConfirmId(null);
+      cancelHighlight();
       setStagedViewId(activeKanbanViewId);
       setIsProjectCategoriesOpen(false);
       setIsReminderCategoriesOpen(false);
@@ -118,11 +130,13 @@ const KanbanFilterDrawer = ({
   }, [shouldRender]);
 
   const handleClose = () => {
+    cancelHighlight();
     if (onClose) onClose();
   };
 
   // Commit staged selection and close drawer
   const handleApply = () => {
+    cancelHighlight();
     if (onApplyFilter) {
       onApplyFilter({
         projectCategoryIds: stagedProjectCategoryIds,
@@ -131,6 +145,56 @@ const KanbanFilterDrawer = ({
       });
     }
     handleClose();
+  };
+
+  // Helper: check if a view matches given project and reminder category IDs
+  const doesViewMatchCategories = (view, projIds, remIds) => {
+    // 1. Projects check:
+    const vProj = view.showProjects === false ? [] : (
+      view.projectCategoryIds === 'all' 
+        ? projectCategories.map(c => c.id) 
+        : (Array.isArray(view.projectCategoryIds) ? view.projectCategoryIds : [])
+    );
+    const projSorted = [...projIds].sort();
+    const vProjSorted = [...vProj].sort();
+    if (projSorted.length !== vProjSorted.length) return false;
+    for (let i = 0; i < projSorted.length; i++) {
+      if (projSorted[i] !== vProjSorted[i]) return false;
+    }
+
+    // 2. Reminders check:
+    const vRem = view.showReminders === false ? [] : (
+      view.reminderCategoryIds === 'all' 
+        ? reminderCategories.map(c => c.id) 
+        : (Array.isArray(view.reminderCategoryIds) ? view.reminderCategoryIds : [])
+    );
+    const remSorted = [...remIds].sort();
+    const vRemSorted = [...vRem].sort();
+    if (remSorted.length !== vRemSorted.length) return false;
+    for (let i = 0; i < remSorted.length; i++) {
+      if (remSorted[i] !== vRemSorted[i]) return false;
+    }
+
+    return true;
+  };
+
+  const findMatchingView = (projIds, remIds) => {
+    if (projIds.length === 0 && remIds.length === 0) return null;
+    return kanbanViews.find(v => doesViewMatchCategories(v, projIds, remIds)) || null;
+  };
+
+  const triggerHighlight = (viewId) => {
+    cancelHighlight();
+    setHighlightedViewId(viewId);
+    setTimeout(() => {
+      const el = document.getElementById(`custom-view-${viewId}`) || document.getElementById(`preset-view-${viewId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }, 60);
+    highlightTimeoutRef.current = setTimeout(() => {
+      setHighlightedViewId(null);
+    }, 2800);
   };
 
   // Active status check for system presets (Haken-Zustand steuert Buttons)
@@ -144,55 +208,79 @@ const KanbanFilterDrawer = ({
   const isProjectsOnlyPresetActive = allProjectsSelected && noRemindersSelected;
   const isRemindersOnlyPresetActive = allRemindersSelected && noProjectsSelected;
 
+  // Matching view against current staged categories
+  const currentMatchingView = findMatchingView(stagedProjectCategoryIds, stagedReminderCategoryIds);
+
+  // Dynamic check: Has the user selected an individual/custom mix of categories that does not exist yet?
+  const isCustomSelection = !currentMatchingView &&
+    (stagedProjectCategoryIds.length > 0 || stagedReminderCategoryIds.length > 0);
+
+  // Centralized updater for staged categories with automatic view matching and scroll-to-highlight
+  const updateStagedCategories = (nextP, nextR, shouldScroll = true) => {
+    setStagedProjectCategoryIds(nextP);
+    setStagedReminderCategoryIds(nextR);
+    const match = findMatchingView(nextP, nextR);
+    if (match) {
+      setStagedViewId(match.id);
+      if (shouldScroll) {
+        triggerHighlight(match.id);
+      }
+    } else {
+      setStagedViewId(null);
+      cancelHighlight();
+    }
+  };
+
   // Preset Handlers with Toggle On/Off capability (an- und abwählbar, Haken setzen/entfernen)
   const handleSelectPreset = (viewId) => {
+    // Wenn dieses Preset gerade pulsiert, bricht ein Klick die Animation ab und lässt es aktiv
+    if (highlightedViewId === viewId) {
+      cancelHighlight();
+      return;
+    }
+
+    cancelHighlight();
+
     if (viewId === 'system_all') {
       if (isAllPresetActive) {
-        // Toggle OFF: Alle abwählen (alle Haken entfernen)
-        setStagedViewId(null);
-        setStagedProjectCategoryIds([]);
-        setStagedReminderCategoryIds([]);
+        updateStagedCategories([], [], false);
       } else {
-        // Toggle ON: Alle auswählen (alle Haken setzen)
-        setStagedViewId('system_all');
-        setStagedProjectCategoryIds(projectCategories.map(c => c.id));
-        setStagedReminderCategoryIds(reminderCategories.map(c => c.id));
+        updateStagedCategories(projectCategories.map(c => c.id), reminderCategories.map(c => c.id), false);
       }
     } else if (viewId === 'system_projects') {
       if (isProjectsOnlyPresetActive) {
-        // Toggle OFF: Projekte abwählen (Projekt-Haken entfernen)
-        setStagedViewId(null);
-        setStagedProjectCategoryIds([]);
+        updateStagedCategories([], [], false);
       } else {
-        // Toggle ON: Nur Projekte auswählen (Projekt-Haken setzen, Erinnerungs-Haken entfernen)
-        setStagedViewId('system_projects');
-        setStagedProjectCategoryIds(projectCategories.map(c => c.id));
-        setStagedReminderCategoryIds([]);
+        updateStagedCategories(projectCategories.map(c => c.id), [], false);
       }
     } else if (viewId === 'system_reminders') {
       if (isRemindersOnlyPresetActive) {
-        // Toggle OFF: Erinnerungen abwählen (Erinnerungs-Haken entfernen)
-        setStagedViewId(null);
-        setStagedReminderCategoryIds([]);
+        updateStagedCategories([], [], false);
       } else {
-        // Toggle ON: Nur Erinnerungen auswählen (Erinnerungs-Haken setzen, Projekt-Haken entfernen)
-        setStagedViewId('system_reminders');
-        setStagedProjectCategoryIds([]);
-        setStagedReminderCategoryIds(reminderCategories.map(c => c.id));
+        updateStagedCategories([], reminderCategories.map(c => c.id), false);
       }
     }
   };
 
   // Custom View Selection Handler with Toggle On/Off capability
   const handleSelectCustomView = (view) => {
-    if (stagedViewId === view.id) {
-      // Toggle OFF: Ansicht abwählen
-      setStagedViewId(null);
-      setStagedProjectCategoryIds([]);
-      setStagedReminderCategoryIds([]);
+    // Abbruchbedingung: Wenn diese Vorlage gerade hervorgehoben wird (pulsierende Animation),
+    // bricht ein Klick darauf die Animation sofort ab, lässt die Vorlage aber ausgewählt!
+    if (highlightedViewId === view.id) {
+      cancelHighlight();
+      setStagedViewId(view.id);
       return;
     }
-    setStagedViewId(view.id);
+
+    // Wenn etwas anderes geklickt wird oder eine andere Animation lief: abbrechen
+    cancelHighlight();
+
+    // Bereits ausgewählt (und nicht im Pulsieren): Nochmaliges Klicken wählt die Vorlage ab
+    if (stagedViewId === view.id) {
+      updateStagedCategories([], [], false);
+      return;
+    }
+
     const pIds = view.showProjects === false ? [] : (
       view.projectCategoryIds === 'all'
         ? projectCategories.map(c => c.id)
@@ -203,49 +291,52 @@ const KanbanFilterDrawer = ({
         ? reminderCategories.map(c => c.id)
         : (Array.isArray(view.reminderCategoryIds) ? view.reminderCategoryIds : [])
     );
-    setStagedProjectCategoryIds(pIds);
-    setStagedReminderCategoryIds(rIds);
+    updateStagedCategories(pIds, rIds, false);
+    setStagedViewId(view.id);
   };
 
   // Toggle individual category in staged multi-selection
   const toggleStagedProjectCategory = (catId) => {
-    setStagedViewId(null);
-    setStagedProjectCategoryIds(prev => 
-      prev.includes(catId) ? prev.filter(id => id !== catId) : [...prev, catId]
-    );
+    cancelHighlight();
+    const next = stagedProjectCategoryIds.includes(catId)
+      ? stagedProjectCategoryIds.filter(id => id !== catId)
+      : [...stagedProjectCategoryIds, catId];
+    updateStagedCategories(next, stagedReminderCategoryIds, true);
   };
 
   const toggleStagedReminderCategory = (catId) => {
-    setStagedViewId(null);
-    setStagedReminderCategoryIds(prev => 
-      prev.includes(catId) ? prev.filter(id => id !== catId) : [...prev, catId]
-    );
+    cancelHighlight();
+    const next = stagedReminderCategoryIds.includes(catId)
+      ? stagedReminderCategoryIds.filter(id => id !== catId)
+      : [...stagedReminderCategoryIds, catId];
+    updateStagedCategories(stagedProjectCategoryIds, next, true);
   };
 
   // Quick Select All / None Helpers for Accordions
   const selectAllStagedProjects = () => {
-    setStagedViewId(null);
-    setStagedProjectCategoryIds(projectCategories.map(c => c.id));
+    cancelHighlight();
+    updateStagedCategories(projectCategories.map(c => c.id), stagedReminderCategoryIds, true);
   };
 
   const deselectAllStagedProjects = () => {
-    setStagedViewId(null);
-    setStagedProjectCategoryIds([]);
+    cancelHighlight();
+    updateStagedCategories([], stagedReminderCategoryIds, true);
   };
 
   const selectAllStagedReminders = () => {
-    setStagedViewId(null);
-    setStagedReminderCategoryIds(reminderCategories.map(c => c.id));
+    cancelHighlight();
+    updateStagedCategories(stagedProjectCategoryIds, reminderCategories.map(c => c.id), true);
   };
 
   const deselectAllStagedReminders = () => {
-    setStagedViewId(null);
-    setStagedReminderCategoryIds([]);
+    cancelHighlight();
+    updateStagedCategories(stagedProjectCategoryIds, [], true);
   };
 
   // Open Edit Mode
   const handleOpenEdit = (view, e) => {
     e.stopPropagation();
+    cancelHighlight();
     setEditingView(view);
     setFormName(view.name || '');
     setFormIcon(view.icon || 'star');
@@ -267,6 +358,7 @@ const KanbanFilterDrawer = ({
 
   // Open Create Mode (start with clean slate: nothing pre-selected)
   const handleOpenCreate = () => {
+    cancelHighlight();
     setEditingView(null);
     setFormName('');
     setFormIcon('star');
@@ -278,10 +370,36 @@ const KanbanFilterDrawer = ({
     setMode('form');
   };
 
+  // Open Create Mode prefilled from current custom selection
+  const handleOpenCreateFromSelection = () => {
+    cancelHighlight();
+    setEditingView(null);
+    setFormName('');
+    setFormIcon('star');
+    setFormColor('primary');
+    setFormShowProjects(stagedProjectCategoryIds.length > 0);
+    setFormShowReminders(stagedReminderCategoryIds.length > 0);
+    setFormProjectCategoryIds([...stagedProjectCategoryIds]);
+    setFormReminderCategoryIds([...stagedReminderCategoryIds]);
+    setMode('form');
+  };
+
   // Save Form
   const handleSaveForm = async (e) => {
     e.preventDefault();
     if (!formName.trim()) return;
+
+    const activeProjectIds = formShowProjects ? formProjectCategoryIds : [];
+    const activeReminderIds = formShowReminders ? formReminderCategoryIds : [];
+
+    // Duplicate check: If an identical combination already exists in the system or custom views
+    const match = findMatchingView(activeProjectIds, activeReminderIds);
+    if (match && (!editingView || match.id !== editingView.id)) {
+      setMode('list');
+      setEditingView(null);
+      updateStagedCategories(activeProjectIds, activeReminderIds, true);
+      return;
+    }
 
     const payload = {
       name: formName.trim(),
@@ -289,8 +407,8 @@ const KanbanFilterDrawer = ({
       color: formColor,
       showProjects: formShowProjects,
       showReminders: formShowReminders,
-      projectCategoryIds: formShowProjects ? formProjectCategoryIds : [],
-      reminderCategoryIds: formShowReminders ? formReminderCategoryIds : [],
+      projectCategoryIds: activeProjectIds,
+      reminderCategoryIds: activeReminderIds,
     };
 
     if (editingView) {
@@ -298,15 +416,15 @@ const KanbanFilterDrawer = ({
         await onUpdateView(editingView.id, payload);
       }
       setStagedViewId(editingView.id);
-      setStagedProjectCategoryIds(formShowProjects ? formProjectCategoryIds : []);
-      setStagedReminderCategoryIds(formShowReminders ? formReminderCategoryIds : []);
+      setStagedProjectCategoryIds(activeProjectIds);
+      setStagedReminderCategoryIds(activeReminderIds);
     } else {
       if (onAddView) {
         const newId = await onAddView(payload);
         if (newId) {
           setStagedViewId(newId);
-          setStagedProjectCategoryIds(formShowProjects ? formProjectCategoryIds : []);
-          setStagedReminderCategoryIds(formShowReminders ? formReminderCategoryIds : []);
+          setStagedProjectCategoryIds(activeProjectIds);
+          setStagedReminderCategoryIds(activeReminderIds);
         }
       }
     }
@@ -317,6 +435,12 @@ const KanbanFilterDrawer = ({
 
   const systemViews = kanbanViews.filter(v => v.isSystem || v.type === 'system');
   const customViews = kanbanViews.filter(v => !v.isSystem && v.type === 'custom');
+
+  // Duplicate detection for form mode
+  const activeFormProjectIds = formShowProjects ? formProjectCategoryIds : [];
+  const activeFormReminderIds = formShowReminders ? formReminderCategoryIds : [];
+  const formMatchingView = findMatchingView(activeFormProjectIds, activeFormReminderIds);
+  const isFormDuplicate = !!(formMatchingView && (!editingView || formMatchingView.id !== editingView.id));
 
   const drawerStyle = translateY > 0 ? {
     transform: `translateY(${translateY}px)`,
@@ -367,7 +491,7 @@ const KanbanFilterDrawer = ({
                 <span className="material-symbols-outlined text-[20px]">arrow_back</span>
               </button>
               <h2 className="font-bold text-base text-on-surface">
-                {editingView ? 'Ansicht bearbeiten' : 'Neue Ansicht'}
+                {editingView ? 'Vorlage bearbeiten' : 'Gespeicherte Vorlagen'}
               </h2>
             </div>
           ) : (
@@ -387,18 +511,16 @@ const KanbanFilterDrawer = ({
             type="button"
             onClick={handleClose}
             className="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-surface-variant hover:text-on-surface transition-colors cursor-pointer"
-            title="Abbrechen & Schließen"
+            title="Schließen"
           >
             <span className="material-symbols-outlined text-[20px]">close</span>
           </button>
         </div>
 
-        {/* Drawer Body Scroll Container */}
-        <div 
-          ref={scrollContainerRef}
-          className="flex-1 overflow-y-auto p-4 space-y-5 text-on-surface min-h-0 no-scrollbar"
-        >
+        {/* Drawer Scrollable Body */}
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 space-y-6 no-scrollbar">
           {mode === 'list' ? (
+            /* MODE 1: LIST / SELECTION */
             <>
               {/* SECTION 1: Standard Presets */}
               <div>
@@ -412,9 +534,12 @@ const KanbanFilterDrawer = ({
                 <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
+                    id="preset-view-system_all"
                     onClick={() => handleSelectPreset('system_all')}
                     className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
-                      isAllPresetActive
+                      highlightedViewId === 'system_all'
+                        ? 'ring-2 ring-primary ring-offset-2 border-primary bg-primary/15 scale-[1.02] shadow-md font-bold'
+                        : isAllPresetActive
                         ? 'bg-primary/10 border-primary text-primary font-bold ring-1 ring-primary/40 shadow-xs'
                         : 'bg-surface-low border-outline-variant hover:border-outline text-on-surface hover:bg-surface-variant/40'
                     }`}
@@ -426,9 +551,12 @@ const KanbanFilterDrawer = ({
 
                   <button
                     type="button"
+                    id="preset-view-system_projects"
                     onClick={() => handleSelectPreset('system_projects')}
                     className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
-                      isProjectsOnlyPresetActive
+                      highlightedViewId === 'system_projects'
+                        ? 'ring-2 ring-primary ring-offset-2 border-primary bg-primary/15 scale-[1.02] shadow-md font-bold'
+                        : isProjectsOnlyPresetActive
                         ? 'bg-primary/10 border-primary text-primary font-bold ring-1 ring-primary/40 shadow-xs'
                         : 'bg-surface-low border-outline-variant hover:border-outline text-on-surface hover:bg-surface-variant/40'
                     }`}
@@ -440,9 +568,12 @@ const KanbanFilterDrawer = ({
 
                   <button
                     type="button"
+                    id="preset-view-system_reminders"
                     onClick={() => handleSelectPreset('system_reminders')}
                     className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
-                      isRemindersOnlyPresetActive
+                      highlightedViewId === 'system_reminders'
+                        ? 'ring-2 ring-primary ring-offset-2 border-primary bg-primary/15 scale-[1.02] shadow-md font-bold'
+                        : isRemindersOnlyPresetActive
                         ? 'bg-primary/10 border-primary text-primary font-bold ring-1 ring-primary/40 shadow-xs'
                         : 'bg-surface-low border-outline-variant hover:border-outline text-on-surface hover:bg-surface-variant/40'
                     }`}
@@ -655,19 +786,35 @@ const KanbanFilterDrawer = ({
 
               {/* SECTION 3: Custom Saved Views */}
               <div>
-                <div className="flex items-center justify-between mb-2 px-1">
-                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-on-surface-variant flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-[15px] text-primary">bookmark</span>
-                    Gespeicherte Vorlagen ({customViews.length})
+                <div className="flex items-center justify-between gap-2 mb-2 px-1 min-w-0 h-7">
+                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-on-surface-variant flex items-center gap-1.5 min-w-0 truncate">
+                    <span className="material-symbols-outlined text-[15px] text-primary shrink-0">bookmark</span>
+                    <span className="truncate">
+                      <span className="hidden sm:inline">Gespeicherte </span>Vorlagen ({customViews.length})
+                    </span>
                   </span>
-                  <button
-                    type="button"
-                    onClick={handleOpenCreate}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 text-xs font-semibold transition-colors cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-[15px]">add</span>
-                    Neu
-                  </button>
+
+                  {isCustomSelection ? (
+                    <button
+                      type="button"
+                      onClick={handleOpenCreateFromSelection}
+                      className="shrink-0 h-7 box-border flex items-center gap-1.5 px-2.5 rounded-xl bg-primary text-white hover:bg-primary/90 text-xs font-bold border border-primary shadow-xs transition-all cursor-pointer whitespace-nowrap active:scale-95 leading-none"
+                      title="Aktuelle Kategorie-Auswahl als neue Vorlage speichern"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">bookmark_add</span>
+                      <span>Auswahl als Vorlage</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleOpenCreate}
+                      className="shrink-0 h-7 box-border flex items-center gap-1.5 px-2.5 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 text-xs font-bold border border-primary/20 transition-all cursor-pointer whitespace-nowrap active:scale-95 leading-none"
+                      title="Neue Vorlage anlegen"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">bookmark_add</span>
+                      <span>Neu</span>
+                    </button>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -687,9 +834,12 @@ const KanbanFilterDrawer = ({
                     return (
                       <div
                         key={view.id}
+                        id={`custom-view-${view.id}`}
                         onClick={() => handleSelectCustomView(view)}
                         className={`group relative p-3 rounded-xl border transition-all cursor-pointer ${
-                          isSelected
+                          highlightedViewId === view.id
+                            ? 'ring-2 ring-primary ring-offset-2 border-primary bg-primary/15 shadow-md scale-[1.01]'
+                            : isSelected
                             ? 'bg-primary/10 border-primary text-primary shadow-xs ring-1 ring-primary/40'
                             : 'bg-surface-low border-outline-variant hover:border-outline hover:bg-surface-variant/40 text-on-surface'
                         }`}
@@ -697,16 +847,24 @@ const KanbanFilterDrawer = ({
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex items-start gap-3 min-w-0 flex-1">
                             <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                              isSelected ? 'bg-primary text-white' : 'bg-surface-variant text-on-surface-variant'
+                              highlightedViewId === view.id || isSelected ? 'bg-primary text-white' : 'bg-surface-variant text-on-surface-variant'
                             }`}>
                               <span className="material-symbols-outlined text-[18px]">
                                 {view.icon || 'star'}
                               </span>
                             </div>
                             <div className="min-w-0 flex-1">
-                              <h3 className="font-bold text-sm leading-tight truncate text-on-surface">
-                                {view.name}
-                              </h3>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="font-bold text-sm leading-tight truncate text-on-surface">
+                                  {view.name}
+                                </h3>
+                                {highlightedViewId === view.id && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-primary text-white text-[10px] font-bold shadow-xs animate-pulse shrink-0">
+                                    <span className="material-symbols-outlined text-[12px]">check_circle</span>
+                                    Bereits hinterlegt
+                                  </span>
+                                )}
+                              </div>
                               <p className="text-[11px] text-on-surface-variant font-mono mt-0.5 truncate">
                                 {summaryText.join(' • ')}
                               </p>
@@ -790,10 +948,10 @@ const KanbanFilterDrawer = ({
                       </p>
                       <button
                         type="button"
-                        onClick={handleOpenCreate}
+                        onClick={isCustomSelection ? handleOpenCreateFromSelection : handleOpenCreate}
                         className="mt-2 text-xs text-primary font-bold hover:underline cursor-pointer"
                       >
-                        Jetzt erste Vorlage anlegen
+                        {isCustomSelection ? 'Aktuelle Auswahl als Vorlage anlegen' : 'Jetzt erste Vorlage anlegen'}
                       </button>
                     </div>
                   )}
@@ -803,6 +961,35 @@ const KanbanFilterDrawer = ({
           ) : (
             /* MODE 2: FORM (CREATE / EDIT) */
             <form onSubmit={handleSaveForm} className="space-y-5">
+              {/* Duplicate Banner: Informs user if this category combination is already a template */}
+              {isFormDuplicate && (
+                <div className="p-3 bg-primary/10 border border-primary/30 rounded-xl flex items-start gap-2.5 text-xs text-on-surface">
+                  <span className="material-symbols-outlined text-primary text-[20px] shrink-0 mt-0.5">
+                    verified
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-primary">
+                      Kategorie-Kombination existiert bereits: „{formMatchingView.name}“
+                    </p>
+                    <p className="text-on-surface-variant text-[11px] mt-0.5">
+                      Diese Vorlage ist bereits hinterlegt. Du musst keine neue anlegen.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode('list');
+                        setEditingView(null);
+                        updateStagedCategories(activeFormProjectIds, activeFormReminderIds, true);
+                      }}
+                      className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-white font-bold text-xs hover:bg-primary/90 transition-all shadow-xs cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[15px]">arrow_back</span>
+                      Bestehende Vorlage verwenden
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-mono font-bold uppercase tracking-wider text-on-surface-variant mb-1.5">
                   Name der Vorlage *
@@ -865,131 +1052,245 @@ const KanbanFilterDrawer = ({
               </div>
 
               <div className="border-t border-outline-variant pt-4 space-y-4">
-                <div className="p-3 bg-surface-low border border-outline-variant rounded-xl space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formShowProjects}
-                        onChange={(e) => setFormShowProjects(e.target.checked)}
-                        className="w-4 h-4 rounded text-primary focus:ring-primary accent-primary"
-                      />
-                      <span className="font-bold text-sm text-on-surface">Projekte einbeziehen</span>
-                    </label>
-
-                    {formShowProjects && (
-                      <div className="flex items-center gap-1.5 text-[11px] font-mono">
-                        <button
-                          type="button"
-                          onClick={() => setFormProjectCategoryIds(projectCategories.map(c => c.id))}
-                          className="text-primary hover:underline cursor-pointer"
-                        >
-                          Alle
-                        </button>
-                        <span className="text-on-surface-variant">/</span>
-                        <button
-                          type="button"
-                          onClick={() => setFormProjectCategoryIds([])}
-                          className="text-on-surface-variant hover:text-on-surface hover:underline cursor-pointer"
-                        >
-                          Keine
-                        </button>
+                {/* SECTION: Projekte einbeziehen */}
+                <div className={`border rounded-xl overflow-hidden transition-all ${
+                  formShowProjects 
+                    ? 'border-outline-variant bg-surface-low shadow-xs' 
+                    : 'border-outline-variant/60 bg-surface-low/40 opacity-75'
+                }`}>
+                  <div className="flex items-center justify-between p-3 bg-surface-low">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1 text-left">
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                        formShowProjects ? 'bg-primary/10 text-primary' : 'bg-surface-variant text-on-surface-variant'
+                      }`}>
+                        <span className="material-symbols-outlined text-[18px]">folder</span>
                       </div>
-                    )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className={`text-sm font-bold ${formShowProjects ? 'text-on-surface' : 'text-on-surface-variant'}`}>
+                            Projekte einbeziehen
+                          </span>
+                          <span className="text-[10px] font-mono text-on-surface-variant px-1.5 py-0.5 bg-surface rounded-full border border-outline-variant">
+                            {formShowProjects ? `${formProjectCategoryIds.length}/${projectCategories.length}` : `0/${projectCategories.length}`}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-on-surface-variant font-mono truncate block">
+                          {!formShowProjects
+                            ? 'Ausgeschaltet (Keine Projekte)'
+                            : formProjectCategoryIds.length === projectCategories.length
+                            ? 'Alle Projekte aktiv'
+                            : formProjectCategoryIds.length === 0
+                            ? 'Keine Kategorien gewählt'
+                            : `${formProjectCategoryIds.length} ausgewählt`}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0 ml-2">
+                      {formShowProjects && (
+                        <div className="flex items-center gap-1 bg-surface border border-outline-variant px-1.5 py-0.5 rounded-lg text-[11px] font-mono">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormShowProjects(true);
+                              setFormProjectCategoryIds(projectCategories.map(c => c.id));
+                            }}
+                            className="hover:text-primary transition-colors cursor-pointer font-medium"
+                            title="Alle auswählen"
+                          >
+                            Alle
+                          </button>
+                          <span className="text-outline">/</span>
+                          <button
+                            type="button"
+                            onClick={() => setFormProjectCategoryIds([])}
+                            className="hover:text-primary transition-colors cursor-pointer font-medium text-on-surface-variant"
+                            title="Keine auswählen"
+                          >
+                            Keine
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Switch Toggle */}
+                      <button
+                        type="button"
+                        onClick={() => setFormShowProjects(!formShowProjects)}
+                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          formShowProjects ? 'bg-primary' : 'bg-outline-variant'
+                        }`}
+                        role="switch"
+                        aria-checked={formShowProjects}
+                        title={formShowProjects ? 'Projekte ausschalten' : 'Projekte einschalten'}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                            formShowProjects ? 'translate-x-4' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
                   </div>
 
+                  {/* Expandable Project Categories Content in Form */}
                   {formShowProjects && (
-                    <div className="pl-6 space-y-1.5 pt-1 border-t border-outline-variant/60">
-                      <span className="block text-[11px] text-on-surface-variant font-medium">
-                        Projekt-Kategorien für diese Vorlage:
-                      </span>
-                      <div className="space-y-1 max-h-36 overflow-y-auto no-scrollbar pr-1">
-                        {projectCategories.map((cat) => {
-                          const isChecked = formProjectCategoryIds.includes(cat.id);
-                          return (
-                            <label
-                              key={cat.id}
-                              className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-surface-variant/40 cursor-pointer text-xs"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={() => setFormProjectCategoryIds(prev => 
-                                  prev.includes(cat.id) ? prev.filter(id => id !== cat.id) : [...prev, cat.id]
-                                )}
-                                className="w-3.5 h-3.5 rounded text-primary focus:ring-primary accent-primary"
-                              />
+                    <div className="p-2 border-t border-outline-variant/60 bg-surface/70 max-h-52 overflow-y-auto no-scrollbar space-y-1">
+                      {projectCategories.map((cat) => {
+                        const isChecked = formProjectCategoryIds.includes(cat.id);
+                        return (
+                          <div
+                            key={cat.id}
+                            onClick={() => {
+                              setFormShowProjects(true);
+                              setFormProjectCategoryIds(prev => 
+                                prev.includes(cat.id) ? prev.filter(id => id !== cat.id) : [...prev, cat.id]
+                              );
+                            }}
+                            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-all cursor-pointer select-none ${
+                              isChecked
+                                ? 'bg-primary/10 text-primary font-bold border border-primary/30'
+                                : 'hover:bg-surface-variant text-on-surface border border-transparent'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <span className={`material-symbols-outlined text-[16px] ${isChecked ? 'text-primary' : 'text-on-surface-variant'}`}>
+                                folder
+                              </span>
                               <span className="truncate">{cat.name}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
+                            </div>
+
+                            <div className={`w-4 h-4 rounded flex items-center justify-center border transition-all ${
+                              isChecked ? 'bg-primary border-primary text-white' : 'border-outline-variant bg-surface'
+                            }`}>
+                              {isChecked && <span className="material-symbols-outlined text-[13px]">check</span>}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
 
-                <div className="p-3 bg-surface-low border border-outline-variant rounded-xl space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formShowReminders}
-                        onChange={(e) => setFormShowReminders(e.target.checked)}
-                        className="w-4 h-4 rounded text-primary focus:ring-primary accent-primary"
-                      />
-                      <span className="font-bold text-sm text-on-surface">Erinnerungen einbeziehen</span>
-                    </label>
+                {/* SECTION: Erinnerungen einbeziehen */}
+                {reminderCategories.length > 0 && (
+                  <div className={`border rounded-xl overflow-hidden transition-all ${
+                    formShowReminders 
+                      ? 'border-outline-variant bg-surface-low shadow-xs' 
+                      : 'border-outline-variant/60 bg-surface-low/40 opacity-75'
+                  }`}>
+                    <div className="flex items-center justify-between p-3 bg-surface-low">
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1 text-left">
+                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                          formShowReminders ? 'bg-primary/10 text-primary' : 'bg-surface-variant text-on-surface-variant'
+                        }`}>
+                          <span className="material-symbols-outlined text-[18px]">notifications</span>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className={`text-sm font-bold ${formShowReminders ? 'text-on-surface' : 'text-on-surface-variant'}`}>
+                              Erinnerungen einbeziehen
+                            </span>
+                            <span className="text-[10px] font-mono text-on-surface-variant px-1.5 py-0.5 bg-surface rounded-full border border-outline-variant">
+                              {formShowReminders ? `${formReminderCategoryIds.length}/${reminderCategories.length}` : `0/${reminderCategories.length}`}
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-on-surface-variant font-mono truncate block">
+                            {!formShowReminders
+                              ? 'Ausgeschaltet (Keine Erinnerungen)'
+                              : formReminderCategoryIds.length === reminderCategories.length
+                              ? 'Alle Erinnerungen aktiv'
+                              : formReminderCategoryIds.length === 0
+                              ? 'Keine Kategorien gewählt'
+                              : `${formReminderCategoryIds.length} ausgewählt`}
+                          </span>
+                        </div>
+                      </div>
 
-                    {formShowReminders && (
-                      <div className="flex items-center gap-1.5 text-[11px] font-mono">
+                      <div className="flex items-center gap-2 shrink-0 ml-2">
+                        {formShowReminders && (
+                          <div className="flex items-center gap-1 bg-surface border border-outline-variant px-1.5 py-0.5 rounded-lg text-[11px] font-mono">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFormShowReminders(true);
+                                setFormReminderCategoryIds(reminderCategories.map(c => c.id));
+                              }}
+                              className="hover:text-primary transition-colors cursor-pointer font-medium"
+                              title="Alle auswählen"
+                            >
+                              Alle
+                            </button>
+                            <span className="text-outline">/</span>
+                            <button
+                              type="button"
+                              onClick={() => setFormReminderCategoryIds([])}
+                              className="hover:text-primary transition-colors cursor-pointer font-medium text-on-surface-variant"
+                              title="Keine auswählen"
+                            >
+                              Keine
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Switch Toggle */}
                         <button
                           type="button"
-                          onClick={() => setFormReminderCategoryIds(reminderCategories.map(c => c.id))}
-                          className="text-primary hover:underline cursor-pointer"
+                          onClick={() => setFormShowReminders(!formShowReminders)}
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            formShowReminders ? 'bg-primary' : 'bg-outline-variant'
+                          }`}
+                          role="switch"
+                          aria-checked={formShowReminders}
+                          title={formShowReminders ? 'Erinnerungen ausschalten' : 'Erinnerungen einschalten'}
                         >
-                          Alle
-                        </button>
-                        <span className="text-on-surface-variant">/</span>
-                        <button
-                          type="button"
-                          onClick={() => setFormReminderCategoryIds([])}
-                          className="text-on-surface-variant hover:text-on-surface hover:underline cursor-pointer"
-                        >
-                          Keine
+                          <span
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                              formShowReminders ? 'translate-x-4' : 'translate-x-0'
+                            }`}
+                          />
                         </button>
                       </div>
-                    )}
-                  </div>
+                    </div>
 
-                  {formShowReminders && (
-                    <div className="pl-6 space-y-1.5 pt-1 border-t border-outline-variant/60">
-                      <span className="block text-[11px] text-on-surface-variant font-medium">
-                        Erinnerungs-Kategorien für diese Vorlage:
-                      </span>
-                      <div className="space-y-1 max-h-36 overflow-y-auto no-scrollbar pr-1">
+                    {/* Expandable Reminder Categories Content in Form */}
+                    {formShowReminders && (
+                      <div className="p-2 border-t border-outline-variant/60 bg-surface/70 max-h-52 overflow-y-auto no-scrollbar space-y-1">
                         {reminderCategories.map((cat) => {
                           const isChecked = formReminderCategoryIds.includes(cat.id);
                           return (
-                            <label
+                            <div
                               key={cat.id}
-                              className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-surface-variant/40 cursor-pointer text-xs"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={() => setFormReminderCategoryIds(prev => 
+                              onClick={() => {
+                                setFormShowReminders(true);
+                                setFormReminderCategoryIds(prev => 
                                   prev.includes(cat.id) ? prev.filter(id => id !== cat.id) : [...prev, cat.id]
-                                )}
-                                className="w-3.5 h-3.5 rounded text-primary focus:ring-primary accent-primary"
-                              />
-                              <span className="truncate">{cat.name}</span>
-                            </label>
+                                );
+                              }}
+                              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-all cursor-pointer select-none ${
+                                isChecked
+                                  ? 'bg-primary/10 text-primary font-bold border border-primary/30'
+                                  : 'hover:bg-surface-variant text-on-surface border border-transparent'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 truncate">
+                                <span className={`material-symbols-outlined text-[16px] ${isChecked ? 'text-primary' : 'text-on-surface-variant'}`}>
+                                  notifications
+                                </span>
+                                <span className="truncate">{cat.name}</span>
+                              </div>
+
+                              <div className={`w-4 h-4 rounded flex items-center justify-center border transition-all ${
+                                isChecked ? 'bg-primary border-primary text-white' : 'border-outline-variant bg-surface'
+                              }`}>
+                                {isChecked && <span className="material-symbols-outlined text-[13px]">check</span>}
+                              </div>
+                            </div>
                           );
                         })}
                       </div>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center gap-2 pt-2">
@@ -998,7 +1299,7 @@ const KanbanFilterDrawer = ({
                   disabled={!formName.trim()}
                   className="flex-1 py-2.5 px-4 bg-primary text-white rounded-xl font-bold text-sm hover:bg-primary/90 transition-all shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {editingView ? 'Vorlage speichern' : 'Vorlage anlegen'}
+                  {editingView ? 'Vorlage speichern' : (isFormDuplicate ? 'Bestehende Vorlage auswählen' : 'Vorlage anlegen')}
                 </button>
                 <button
                   type="button"
