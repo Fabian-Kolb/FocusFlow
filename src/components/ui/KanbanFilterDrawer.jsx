@@ -28,9 +28,9 @@ const KanbanFilterDrawer = ({
   onClose,
   kanbanViews = [],
   activeKanbanViewId = 'system_all',
-  onSelectView,
-  activeCategoryFilter = null,
-  onSelectCategoryFilter,
+  selectedProjectCategoryIds = 'all',
+  selectedReminderCategoryIds = 'all',
+  onApplyFilter,
   projectCategories = [],
   reminderCategories = [],
   onAddView,
@@ -47,11 +47,12 @@ const KanbanFilterDrawer = ({
   const [mode, setMode] = useState('list');
   const [editingView, setEditingView] = useState(null);
 
-  // Staged selection while drawer is open (only committed on clicking "Speichern")
+  // Staged multi-select selections (UND-Verknüpfung)
+  const [stagedProjectCategoryIds, setStagedProjectCategoryIds] = useState([]);
+  const [stagedReminderCategoryIds, setStagedReminderCategoryIds] = useState([]);
   const [stagedViewId, setStagedViewId] = useState(activeKanbanViewId);
-  const [stagedCategoryFilter, setStagedCategoryFilter] = useState(activeCategoryFilter);
 
-  // Expandable accordions for categories
+  // Expandable accordions for categories (default collapsed in side & bottom drawer)
   const [isProjectCategoriesOpen, setIsProjectCategoriesOpen] = useState(false);
   const [isReminderCategoriesOpen, setIsReminderCategoriesOpen] = useState(false);
 
@@ -72,14 +73,18 @@ const KanbanFilterDrawer = ({
       setIsClosing(false);
       setDeleteConfirmId(null);
       setStagedViewId(activeKanbanViewId);
-      setStagedCategoryFilter(activeCategoryFilter);
+      setIsProjectCategoriesOpen(false);
+      setIsReminderCategoriesOpen(false);
 
-      // Auto-open corresponding category accordion if a category filter is already active
-      if (activeCategoryFilter?.type === 'project') {
-        setIsProjectCategoriesOpen(true);
-      } else if (activeCategoryFilter?.type === 'reminder') {
-        setIsReminderCategoriesOpen(true);
-      }
+      const pIds = selectedProjectCategoryIds === 'all' 
+        ? projectCategories.map(c => c.id) 
+        : (Array.isArray(selectedProjectCategoryIds) ? selectedProjectCategoryIds : []);
+      const rIds = selectedReminderCategoryIds === 'all' 
+        ? reminderCategories.map(c => c.id) 
+        : (Array.isArray(selectedReminderCategoryIds) ? selectedReminderCategoryIds : []);
+
+      setStagedProjectCategoryIds(pIds);
+      setStagedReminderCategoryIds(rIds);
     } else if (shouldRender) {
       setIsClosing(true);
       const timer = setTimeout(() => {
@@ -90,7 +95,7 @@ const KanbanFilterDrawer = ({
       }, 250);
       return () => clearTimeout(timer);
     }
-  }, [isOpen]);
+  }, [isOpen, activeKanbanViewId, selectedProjectCategoryIds, selectedReminderCategoryIds, projectCategories, reminderCategories]);
 
   // Swipe-to-Close gesture exclusively on the mobile drawer panel (acts as cancel/close)
   const { translateY, isDragging, wasSwipedClosed } = useSwipeToClose({
@@ -118,13 +123,124 @@ const KanbanFilterDrawer = ({
 
   // Commit staged selection and close drawer
   const handleApply = () => {
-    if (stagedCategoryFilter) {
-      if (onSelectCategoryFilter) onSelectCategoryFilter(stagedCategoryFilter);
-    } else {
-      if (onSelectCategoryFilter) onSelectCategoryFilter(null);
-      if (onSelectView) onSelectView(stagedViewId || 'system_all');
+    if (onApplyFilter) {
+      onApplyFilter({
+        projectCategoryIds: stagedProjectCategoryIds,
+        reminderCategoryIds: stagedReminderCategoryIds,
+        viewId: stagedViewId
+      });
     }
     handleClose();
+  };
+
+  // Active status check for system presets (Haken-Zustand steuert Buttons)
+  const allProjectsSelected = projectCategories.length > 0 && stagedProjectCategoryIds.length === projectCategories.length;
+  const noProjectsSelected = stagedProjectCategoryIds.length === 0;
+  const allRemindersSelected = reminderCategories.length > 0 && stagedReminderCategoryIds.length === reminderCategories.length;
+  const noRemindersSelected = stagedReminderCategoryIds.length === 0;
+
+  const isAllPresetActive = (allProjectsSelected && allRemindersSelected) ||
+    (projectCategories.length > 0 && reminderCategories.length === 0 && allProjectsSelected && stagedViewId === 'system_all');
+  const isProjectsOnlyPresetActive = allProjectsSelected && noRemindersSelected;
+  const isRemindersOnlyPresetActive = allRemindersSelected && noProjectsSelected;
+
+  // Preset Handlers with Toggle On/Off capability (an- und abwählbar, Haken setzen/entfernen)
+  const handleSelectPreset = (viewId) => {
+    if (viewId === 'system_all') {
+      if (isAllPresetActive) {
+        // Toggle OFF: Alle abwählen (alle Haken entfernen)
+        setStagedViewId(null);
+        setStagedProjectCategoryIds([]);
+        setStagedReminderCategoryIds([]);
+      } else {
+        // Toggle ON: Alle auswählen (alle Haken setzen)
+        setStagedViewId('system_all');
+        setStagedProjectCategoryIds(projectCategories.map(c => c.id));
+        setStagedReminderCategoryIds(reminderCategories.map(c => c.id));
+      }
+    } else if (viewId === 'system_projects') {
+      if (isProjectsOnlyPresetActive) {
+        // Toggle OFF: Projekte abwählen (Projekt-Haken entfernen)
+        setStagedViewId(null);
+        setStagedProjectCategoryIds([]);
+      } else {
+        // Toggle ON: Nur Projekte auswählen (Projekt-Haken setzen, Erinnerungs-Haken entfernen)
+        setStagedViewId('system_projects');
+        setStagedProjectCategoryIds(projectCategories.map(c => c.id));
+        setStagedReminderCategoryIds([]);
+      }
+    } else if (viewId === 'system_reminders') {
+      if (isRemindersOnlyPresetActive) {
+        // Toggle OFF: Erinnerungen abwählen (Erinnerungs-Haken entfernen)
+        setStagedViewId(null);
+        setStagedReminderCategoryIds([]);
+      } else {
+        // Toggle ON: Nur Erinnerungen auswählen (Erinnerungs-Haken setzen, Projekt-Haken entfernen)
+        setStagedViewId('system_reminders');
+        setStagedProjectCategoryIds([]);
+        setStagedReminderCategoryIds(reminderCategories.map(c => c.id));
+      }
+    }
+  };
+
+  // Custom View Selection Handler with Toggle On/Off capability
+  const handleSelectCustomView = (view) => {
+    if (stagedViewId === view.id) {
+      // Toggle OFF: Ansicht abwählen
+      setStagedViewId(null);
+      setStagedProjectCategoryIds([]);
+      setStagedReminderCategoryIds([]);
+      return;
+    }
+    setStagedViewId(view.id);
+    const pIds = view.showProjects === false ? [] : (
+      view.projectCategoryIds === 'all'
+        ? projectCategories.map(c => c.id)
+        : (Array.isArray(view.projectCategoryIds) ? view.projectCategoryIds : [])
+    );
+    const rIds = view.showReminders === false ? [] : (
+      view.reminderCategoryIds === 'all'
+        ? reminderCategories.map(c => c.id)
+        : (Array.isArray(view.reminderCategoryIds) ? view.reminderCategoryIds : [])
+    );
+    setStagedProjectCategoryIds(pIds);
+    setStagedReminderCategoryIds(rIds);
+  };
+
+  // Toggle individual category in staged multi-selection
+  const toggleStagedProjectCategory = (catId) => {
+    setStagedViewId(null);
+    setStagedProjectCategoryIds(prev => 
+      prev.includes(catId) ? prev.filter(id => id !== catId) : [...prev, catId]
+    );
+  };
+
+  const toggleStagedReminderCategory = (catId) => {
+    setStagedViewId(null);
+    setStagedReminderCategoryIds(prev => 
+      prev.includes(catId) ? prev.filter(id => id !== catId) : [...prev, catId]
+    );
+  };
+
+  // Quick Select All / None Helpers for Accordions
+  const selectAllStagedProjects = () => {
+    setStagedViewId(null);
+    setStagedProjectCategoryIds(projectCategories.map(c => c.id));
+  };
+
+  const deselectAllStagedProjects = () => {
+    setStagedViewId(null);
+    setStagedProjectCategoryIds([]);
+  };
+
+  const selectAllStagedReminders = () => {
+    setStagedViewId(null);
+    setStagedReminderCategoryIds(reminderCategories.map(c => c.id));
+  };
+
+  const deselectAllStagedReminders = () => {
+    setStagedViewId(null);
+    setStagedReminderCategoryIds([]);
   };
 
   // Open Edit Mode
@@ -149,7 +265,7 @@ const KanbanFilterDrawer = ({
     setMode('form');
   };
 
-  // Open Create Mode
+  // Open Create Mode (start with clean slate: nothing pre-selected)
   const handleOpenCreate = () => {
     setEditingView(null);
     setFormName('');
@@ -157,8 +273,7 @@ const KanbanFilterDrawer = ({
     setFormColor('primary');
     setFormShowProjects(true);
     setFormShowReminders(false);
-    // Pre-select all project categories by default
-    setFormProjectCategoryIds(projectCategories.map(c => c.id));
+    setFormProjectCategoryIds([]);
     setFormReminderCategoryIds([]);
     setMode('form');
   };
@@ -183,13 +298,15 @@ const KanbanFilterDrawer = ({
         await onUpdateView(editingView.id, payload);
       }
       setStagedViewId(editingView.id);
-      setStagedCategoryFilter(null);
+      setStagedProjectCategoryIds(formShowProjects ? formProjectCategoryIds : []);
+      setStagedReminderCategoryIds(formShowReminders ? formReminderCategoryIds : []);
     } else {
       if (onAddView) {
         const newId = await onAddView(payload);
         if (newId) {
           setStagedViewId(newId);
-          setStagedCategoryFilter(null);
+          setStagedProjectCategoryIds(formShowProjects ? formProjectCategoryIds : []);
+          setStagedReminderCategoryIds(formShowReminders ? formReminderCategoryIds : []);
         }
       }
     }
@@ -198,36 +315,6 @@ const KanbanFilterDrawer = ({
     setEditingView(null);
   };
 
-  // Toggle helpers for categories in form
-  const toggleProjectCategorySelection = (catId) => {
-    setFormProjectCategoryIds(prev => 
-      prev.includes(catId) ? prev.filter(id => id !== catId) : [...prev, catId]
-    );
-  };
-
-  const toggleReminderCategorySelection = (catId) => {
-    setFormReminderCategoryIds(prev => 
-      prev.includes(catId) ? prev.filter(id => id !== catId) : [...prev, catId]
-    );
-  };
-
-  const selectAllProjectCategories = () => {
-    setFormProjectCategoryIds(projectCategories.map(c => c.id));
-  };
-
-  const deselectAllProjectCategories = () => {
-    setFormProjectCategoryIds([]);
-  };
-
-  const selectAllReminderCategories = () => {
-    setFormReminderCategoryIds(reminderCategories.map(c => c.id));
-  };
-
-  const deselectAllReminderCategories = () => {
-    setFormReminderCategoryIds([]);
-  };
-
-  // System vs Custom Views
   const systemViews = kanbanViews.filter(v => v.isSystem || v.type === 'system');
   const customViews = kanbanViews.filter(v => !v.isSystem && v.type === 'custom');
 
@@ -286,11 +373,11 @@ const KanbanFilterDrawer = ({
           ) : (
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                <span className="material-symbols-outlined text-[20px]">dashboard_customize</span>
+                <span className="material-symbols-outlined text-[20px]">tune</span>
               </div>
               <div>
                 <h2 className="font-bold text-base text-on-surface leading-tight">Ansichten & Filter</h2>
-                <p className="text-[11px] text-on-surface-variant font-mono">Auswählen und mit Speichern anwenden</p>
+                <p className="text-[11px] text-on-surface-variant font-mono">Gemeinsame Mehrfachauswahl (UND)</p>
               </div>
             </div>
           )}
@@ -313,231 +400,257 @@ const KanbanFilterDrawer = ({
         >
           {mode === 'list' ? (
             <>
-              {/* SECTION 1: System Presets */}
+              {/* SECTION 1: Standard Presets */}
               <div>
                 <div className="flex items-center justify-between mb-2 px-1">
                   <span className="text-xs font-mono font-bold uppercase tracking-wider text-on-surface-variant flex items-center gap-1.5">
                     <span className="material-symbols-outlined text-[15px] text-primary">bolt</span>
-                    Standard-Ansichten
+                    Schnell-Auswahl
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 gap-1.5">
-                  {systemViews.map((view) => {
-                    const isSelected = stagedCategoryFilter === null && stagedViewId === view.id;
-                    return (
-                      <button
-                        key={view.id}
-                        type="button"
-                        onClick={() => {
-                          setStagedCategoryFilter(null);
-                          setStagedViewId(view.id);
-                        }}
-                        className={`w-full flex items-center justify-between p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                          isSelected
-                            ? 'bg-primary/10 border-primary text-primary shadow-xs ring-1 ring-primary/40 font-semibold'
-                            : 'bg-surface-low border-outline-variant hover:border-outline hover:bg-surface-variant/40 text-on-surface'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <span className={`material-symbols-outlined text-[20px] shrink-0 ${isSelected ? 'text-primary' : 'text-on-surface-variant'}`}>
-                            {view.icon || 'view_kanban'}
-                          </span>
-                          <div className="truncate">
-                            <div className="text-sm leading-tight truncate">{view.name}</div>
-                            <div className="text-[10px] text-on-surface-variant font-mono truncate">
-                              {view.id === 'system_all' && 'Alle Projekte & Erinnerungen'}
-                              {view.id === 'system_projects' && 'Ausschließlich Projekte'}
-                              {view.id === 'system_reminders' && 'Ausschließlich Erinnerungen'}
-                            </div>
-                          </div>
-                        </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPreset('system_all')}
+                    className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                      isAllPresetActive
+                        ? 'bg-primary/10 border-primary text-primary font-bold ring-1 ring-primary/40 shadow-xs'
+                        : 'bg-surface-low border-outline-variant hover:border-outline text-on-surface hover:bg-surface-variant/40'
+                    }`}
+                    title={isAllPresetActive ? 'Klicken um Alle abzuwählen' : 'Alle auswählen'}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">view_kanban</span>
+                    <span className="text-xs leading-tight">Alle</span>
+                  </button>
 
-                        {isSelected && (
-                          <span className="material-symbols-outlined text-[18px] text-primary shrink-0 ml-2">
-                            check_circle
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPreset('system_projects')}
+                    className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                      isProjectsOnlyPresetActive
+                        ? 'bg-primary/10 border-primary text-primary font-bold ring-1 ring-primary/40 shadow-xs'
+                        : 'bg-surface-low border-outline-variant hover:border-outline text-on-surface hover:bg-surface-variant/40'
+                    }`}
+                    title={isProjectsOnlyPresetActive ? 'Klicken um Projekte abzuwählen' : 'Nur Projekte auswählen'}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">folder</span>
+                    <span className="text-xs leading-tight">Nur Projekte</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPreset('system_reminders')}
+                    className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                      isRemindersOnlyPresetActive
+                        ? 'bg-primary/10 border-primary text-primary font-bold ring-1 ring-primary/40 shadow-xs'
+                        : 'bg-surface-low border-outline-variant hover:border-outline text-on-surface hover:bg-surface-variant/40'
+                    }`}
+                    title={isRemindersOnlyPresetActive ? 'Klicken um Erinnerungen abzuwählen' : 'Nur Erinnerungen auswählen'}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">notifications</span>
+                    <span className="text-xs leading-tight">Nur Erinner.</span>
+                  </button>
                 </div>
               </div>
 
-              {/* SECTION 2: Filter by Category (Expandable Accordions) */}
-              <div>
-                <div className="flex items-center justify-between mb-2 px-1">
-                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-on-surface-variant flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-[15px] text-primary">category</span>
-                    Nach Kategorie filtern
-                  </span>
-                  {stagedCategoryFilter && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setStagedCategoryFilter(null);
-                        setStagedViewId('system_all');
-                      }}
-                      className="text-[11px] font-mono text-primary hover:underline cursor-pointer"
-                    >
-                      Filter abwählen
-                    </button>
-                  )}
-                </div>
-
-                <div className="space-y-2.5">
-                  {/* ACCORDION 1: Projekt-Kategorien */}
-                  <div className="border border-outline-variant rounded-xl overflow-hidden bg-surface-low transition-all">
+              {/* SECTION 2: Multi-Select Accordions for Categories */}
+              <div className="space-y-3">
+                {/* ACCORDION 1: Projekt-Kategorien */}
+                <div className="border border-outline-variant rounded-xl overflow-hidden bg-surface-low transition-all">
+                  <div className="flex items-center justify-between p-3 bg-surface-low hover:bg-surface-variant/30 transition-colors">
                     <button
                       type="button"
                       onClick={() => setIsProjectCategoriesOpen(!isProjectCategoriesOpen)}
-                      className="w-full flex items-center justify-between p-3 text-left hover:bg-surface-variant/40 transition-colors cursor-pointer"
+                      className="flex items-center gap-2.5 min-w-0 flex-1 text-left cursor-pointer"
                     >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                          <span className="material-symbols-outlined text-[18px]">folder</span>
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-sm font-bold text-on-surface">Projekt-Kategorien</span>
-                            <span className="text-[10px] font-mono text-on-surface-variant px-1.5 py-0.5 bg-surface rounded-full border border-outline-variant">
-                              {projectCategories.length}
-                            </span>
-                          </div>
-                          {stagedCategoryFilter?.type === 'project' && (
-                            <span className="text-[11px] text-primary font-medium truncate block">
-                              Ausgewählt: {stagedCategoryFilter.name}
-                            </span>
-                          )}
-                        </div>
+                      <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                        <span className="material-symbols-outlined text-[18px]">folder</span>
                       </div>
-
-                      <span className={`material-symbols-outlined text-[20px] text-on-surface-variant transition-transform duration-200 ${
-                        isProjectCategoriesOpen ? 'rotate-180 text-primary' : ''
-                      }`}>
-                        expand_more
-                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm font-bold text-on-surface">Projekt-Kategorien</span>
+                          <span className="text-[10px] font-mono text-on-surface-variant px-1.5 py-0.5 bg-surface rounded-full border border-outline-variant">
+                            {stagedProjectCategoryIds.length}/{projectCategories.length}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-on-surface-variant font-mono truncate block">
+                          {stagedProjectCategoryIds.length === projectCategories.length
+                            ? 'Alle Projekte aktiv'
+                            : stagedProjectCategoryIds.length === 0
+                            ? 'Keine Projekte aktiv'
+                            : `${stagedProjectCategoryIds.length} ausgewählt`}
+                        </span>
+                      </div>
                     </button>
 
-                    {/* Expandable Project Categories Content */}
-                    {isProjectCategoriesOpen && (
-                      <div className="p-2 border-t border-outline-variant/60 bg-surface/60 max-h-56 overflow-y-auto no-scrollbar space-y-1">
-                        {projectCategories.map((cat) => {
-                          const isSelected = stagedCategoryFilter?.type === 'project' && stagedCategoryFilter?.id === cat.id;
+                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                      <div className="flex items-center gap-1 bg-surface border border-outline-variant px-1.5 py-0.5 rounded-lg text-[11px] font-mono">
+                        <button
+                          type="button"
+                          onClick={selectAllStagedProjects}
+                          className="hover:text-primary transition-colors cursor-pointer font-medium"
+                          title="Alle Projekte auswählen"
+                        >
+                          Alle
+                        </button>
+                        <span className="text-outline">/</span>
+                        <button
+                          type="button"
+                          onClick={deselectAllStagedProjects}
+                          className="hover:text-primary transition-colors cursor-pointer font-medium text-on-surface-variant"
+                          title="Keine auswählen"
+                        >
+                          Keine
+                        </button>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setIsProjectCategoriesOpen(!isProjectCategoriesOpen)}
+                        className="p-1 rounded-lg text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
+                      >
+                        <span className={`material-symbols-outlined text-[20px] transition-transform duration-200 block ${
+                          isProjectCategoriesOpen ? 'rotate-180 text-primary' : ''
+                        }`}>
+                          expand_more
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Expandable Project Categories Content (Multi-Select Checkboxes) */}
+                  {isProjectCategoriesOpen && (
+                    <div className="p-2 border-t border-outline-variant/60 bg-surface/70 max-h-56 overflow-y-auto no-scrollbar space-y-1">
+                      {projectCategories.map((cat) => {
+                        const isChecked = stagedProjectCategoryIds.includes(cat.id);
+                        return (
+                          <div
+                            key={cat.id}
+                            onClick={() => toggleStagedProjectCategory(cat.id)}
+                            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-all cursor-pointer select-none ${
+                              isChecked
+                                ? 'bg-primary/10 text-primary font-bold border border-primary/30'
+                                : 'hover:bg-surface-variant text-on-surface border border-transparent'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <span className={`material-symbols-outlined text-[16px] ${isChecked ? 'text-primary' : 'text-on-surface-variant'}`}>
+                                folder
+                              </span>
+                              <span className="truncate">{cat.name}</span>
+                            </div>
+
+                            <div className={`w-4 h-4 rounded flex items-center justify-center border transition-all ${
+                              isChecked ? 'bg-primary border-primary text-white' : 'border-outline-variant bg-surface'
+                            }`}>
+                              {isChecked && <span className="material-symbols-outlined text-[13px]">check</span>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* ACCORDION 2: Erinnerungs-Kategorien */}
+                {reminderCategories.length > 0 && (
+                  <div className="border border-outline-variant rounded-xl overflow-hidden bg-surface-low transition-all">
+                    <div className="flex items-center justify-between p-3 bg-surface-low hover:bg-surface-variant/30 transition-colors">
+                      <button
+                        type="button"
+                        onClick={() => setIsReminderCategoriesOpen(!isReminderCategoriesOpen)}
+                        className="flex items-center gap-2.5 min-w-0 flex-1 text-left cursor-pointer"
+                      >
+                        <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                          <span className="material-symbols-outlined text-[18px]">notifications</span>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-bold text-on-surface">Erinnerungs-Kategorien</span>
+                            <span className="text-[10px] font-mono text-on-surface-variant px-1.5 py-0.5 bg-surface rounded-full border border-outline-variant">
+                              {stagedReminderCategoryIds.length}/{reminderCategories.length}
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-on-surface-variant font-mono truncate block">
+                            {stagedReminderCategoryIds.length === reminderCategories.length
+                              ? 'Alle Erinnerungen aktiv'
+                              : stagedReminderCategoryIds.length === 0
+                              ? 'Keine Erinnerungen aktiv'
+                              : `${stagedReminderCategoryIds.length} ausgewählt`}
+                          </span>
+                        </div>
+                      </button>
+
+                      <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                        <div className="flex items-center gap-1 bg-surface border border-outline-variant px-1.5 py-0.5 rounded-lg text-[11px] font-mono">
+                          <button
+                            type="button"
+                            onClick={selectAllStagedReminders}
+                            className="hover:text-primary transition-colors cursor-pointer font-medium"
+                            title="Alle Erinnerungen auswählen"
+                          >
+                            Alle
+                          </button>
+                          <span className="text-outline">/</span>
+                          <button
+                            type="button"
+                            onClick={deselectAllStagedReminders}
+                            className="hover:text-primary transition-colors cursor-pointer font-medium text-on-surface-variant"
+                            title="Keine auswählen"
+                          >
+                            Keine
+                          </button>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setIsReminderCategoriesOpen(!isReminderCategoriesOpen)}
+                          className="p-1 rounded-lg text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
+                        >
+                          <span className={`material-symbols-outlined text-[20px] transition-transform duration-200 block ${
+                            isReminderCategoriesOpen ? 'rotate-180 text-primary' : ''
+                          }`}>
+                            expand_more
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Expandable Reminder Categories Content (Multi-Select Checkboxes) */}
+                    {isReminderCategoriesOpen && (
+                      <div className="p-2 border-t border-outline-variant/60 bg-surface/70 max-h-56 overflow-y-auto no-scrollbar space-y-1">
+                        {reminderCategories.map((cat) => {
+                          const isChecked = stagedReminderCategoryIds.includes(cat.id);
                           return (
-                            <button
+                            <div
                               key={cat.id}
-                              type="button"
-                              onClick={() => {
-                                if (isSelected) {
-                                  setStagedCategoryFilter(null);
-                                  setStagedViewId('system_all');
-                                } else {
-                                  setStagedCategoryFilter({ type: 'project', id: cat.id, name: cat.name });
-                                  setStagedViewId(null);
-                                }
-                              }}
-                              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-all cursor-pointer ${
-                                isSelected
-                                  ? 'bg-primary text-white shadow-xs font-semibold'
-                                  : 'hover:bg-surface-variant text-on-surface'
+                              onClick={() => toggleStagedReminderCategory(cat.id)}
+                              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-all cursor-pointer select-none ${
+                                isChecked
+                                  ? 'bg-primary/10 text-primary font-bold border border-primary/30'
+                                  : 'hover:bg-surface-variant text-on-surface border border-transparent'
                               }`}
                             >
                               <div className="flex items-center gap-2 truncate">
-                                <span className={`material-symbols-outlined text-[16px] ${isSelected ? 'text-white' : 'text-on-surface-variant'}`}>
-                                  folder
+                                <span className={`material-symbols-outlined text-[16px] ${isChecked ? 'text-primary' : 'text-on-surface-variant'}`}>
+                                  notifications
                                 </span>
                                 <span className="truncate">{cat.name}</span>
                               </div>
-                              {isSelected ? (
-                                <span className="material-symbols-outlined text-[16px] text-white">check_circle</span>
-                              ) : (
-                                <span className="w-3.5 h-3.5 rounded-full border border-outline-variant" />
-                              )}
-                            </button>
+
+                              <div className={`w-4 h-4 rounded flex items-center justify-center border transition-all ${
+                                isChecked ? 'bg-primary border-primary text-white' : 'border-outline-variant bg-surface'
+                              }`}>
+                                {isChecked && <span className="material-symbols-outlined text-[13px]">check</span>}
+                              </div>
+                            </div>
                           );
                         })}
                       </div>
                     )}
                   </div>
-
-                  {/* ACCORDION 2: Erinnerungs-Kategorien */}
-                  {reminderCategories.length > 0 && (
-                    <div className="border border-outline-variant rounded-xl overflow-hidden bg-surface-low transition-all">
-                      <button
-                        type="button"
-                        onClick={() => setIsReminderCategoriesOpen(!isReminderCategoriesOpen)}
-                        className="w-full flex items-center justify-between p-3 text-left hover:bg-surface-variant/40 transition-colors cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                            <span className="material-symbols-outlined text-[18px]">notifications</span>
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-sm font-bold text-on-surface">Erinnerungs-Kategorien</span>
-                              <span className="text-[10px] font-mono text-on-surface-variant px-1.5 py-0.5 bg-surface rounded-full border border-outline-variant">
-                                {reminderCategories.length}
-                              </span>
-                            </div>
-                            {stagedCategoryFilter?.type === 'reminder' && (
-                              <span className="text-[11px] text-primary font-medium truncate block">
-                                Ausgewählt: {stagedCategoryFilter.name}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        <span className={`material-symbols-outlined text-[20px] text-on-surface-variant transition-transform duration-200 ${
-                          isReminderCategoriesOpen ? 'rotate-180 text-primary' : ''
-                        }`}>
-                          expand_more
-                        </span>
-                      </button>
-
-                      {/* Expandable Reminder Categories Content */}
-                      {isReminderCategoriesOpen && (
-                        <div className="p-2 border-t border-outline-variant/60 bg-surface/60 max-h-56 overflow-y-auto no-scrollbar space-y-1">
-                          {reminderCategories.map((cat) => {
-                            const isSelected = stagedCategoryFilter?.type === 'reminder' && stagedCategoryFilter?.id === cat.id;
-                            return (
-                              <button
-                                key={cat.id}
-                                type="button"
-                                onClick={() => {
-                                  if (isSelected) {
-                                    setStagedCategoryFilter(null);
-                                    setStagedViewId('system_all');
-                                  } else {
-                                    setStagedCategoryFilter({ type: 'reminder', id: cat.id, name: cat.name });
-                                    setStagedViewId(null);
-                                  }
-                                }}
-                                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-all cursor-pointer ${
-                                  isSelected
-                                    ? 'bg-primary text-white shadow-xs font-semibold'
-                                    : 'hover:bg-surface-variant text-on-surface'
-                                }`}
-                              >
-                                <div className="flex items-center gap-2 truncate">
-                                  <span className={`material-symbols-outlined text-[16px] ${isSelected ? 'text-white' : 'text-on-surface-variant'}`}>
-                                    notifications
-                                  </span>
-                                  <span className="truncate">{cat.name}</span>
-                                </div>
-                                {isSelected ? (
-                                  <span className="material-symbols-outlined text-[16px] text-white">check_circle</span>
-                                ) : (
-                                  <span className="w-3.5 h-3.5 rounded-full border border-outline-variant" />
-                                )}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
+                )}
               </div>
 
               {/* SECTION 3: Custom Saved Views */}
@@ -545,7 +658,7 @@ const KanbanFilterDrawer = ({
                 <div className="flex items-center justify-between mb-2 px-1">
                   <span className="text-xs font-mono font-bold uppercase tracking-wider text-on-surface-variant flex items-center gap-1.5">
                     <span className="material-symbols-outlined text-[15px] text-primary">bookmark</span>
-                    Eigene Ansichten ({customViews.length})
+                    Gespeicherte Vorlagen ({customViews.length})
                   </span>
                   <button
                     type="button"
@@ -559,25 +672,22 @@ const KanbanFilterDrawer = ({
 
                 <div className="space-y-2">
                   {customViews.map((view) => {
-                    const isSelected = stagedCategoryFilter === null && stagedViewId === view.id;
+                    const isSelected = stagedViewId === view.id;
                     const isDeleting = deleteConfirmId === view.id;
 
-                    const pCount = Array.isArray(view.projectCategoryIds) ? view.projectCategoryIds.length : 0;
-                    const rCount = Array.isArray(view.reminderCategoryIds) ? view.reminderCategoryIds.length : 0;
+                    const pCount = Array.isArray(view.projectCategoryIds) ? view.projectCategoryIds.length : (view.projectCategoryIds === 'all' ? projectCategories.length : 0);
+                    const rCount = Array.isArray(view.reminderCategoryIds) ? view.reminderCategoryIds.length : (view.reminderCategoryIds === 'all' ? reminderCategories.length : 0);
 
                     let summaryText = [];
-                    if (view.showProjects) summaryText.push(`${pCount} Projekt-Kat.`);
-                    if (view.showReminders) summaryText.push(`${rCount} Erinnerungs-Kat.`);
-                    if (!view.showReminders) summaryText.push('Ohne Erinnerungen');
-                    if (!view.showProjects) summaryText.push('Nur Erinnerungen');
+                    if (view.showProjects !== false) summaryText.push(`${pCount} Projekt-Kat.`);
+                    if (view.showReminders !== false) summaryText.push(`${rCount} Erinnerungs-Kat.`);
+                    if (view.showReminders === false) summaryText.push('Ohne Erinnerungen');
+                    if (view.showProjects === false) summaryText.push('Nur Erinnerungen');
 
                     return (
                       <div
                         key={view.id}
-                        onClick={() => {
-                          setStagedCategoryFilter(null);
-                          setStagedViewId(view.id);
-                        }}
+                        onClick={() => handleSelectCustomView(view)}
                         className={`group relative p-3 rounded-xl border transition-all cursor-pointer ${
                           isSelected
                             ? 'bg-primary/10 border-primary text-primary shadow-xs ring-1 ring-primary/40'
@@ -676,14 +786,14 @@ const KanbanFilterDrawer = ({
                         tune
                       </span>
                       <p className="text-xs text-on-surface-variant">
-                        Noch keine eigenen Ansichten vorhanden.
+                        Noch keine gespeicherten Vorlagen vorhanden.
                       </p>
                       <button
                         type="button"
                         onClick={handleOpenCreate}
                         className="mt-2 text-xs text-primary font-bold hover:underline cursor-pointer"
                       >
-                        Jetzt erste Ansicht anlegen
+                        Jetzt erste Vorlage anlegen
                       </button>
                     </div>
                   )}
@@ -693,10 +803,9 @@ const KanbanFilterDrawer = ({
           ) : (
             /* MODE 2: FORM (CREATE / EDIT) */
             <form onSubmit={handleSaveForm} className="space-y-5">
-              {/* View Name */}
               <div>
                 <label className="block text-xs font-mono font-bold uppercase tracking-wider text-on-surface-variant mb-1.5">
-                  Name der Ansicht *
+                  Name der Vorlage *
                 </label>
                 <input
                   type="text"
@@ -709,7 +818,6 @@ const KanbanFilterDrawer = ({
                 />
               </div>
 
-              {/* Icon Selection */}
               <div>
                 <label className="block text-xs font-mono font-bold uppercase tracking-wider text-on-surface-variant mb-1.5">
                   Symbol
@@ -733,7 +841,6 @@ const KanbanFilterDrawer = ({
                 </div>
               </div>
 
-              {/* Color Selection */}
               <div>
                 <label className="block text-xs font-mono font-bold uppercase tracking-wider text-on-surface-variant mb-1.5">
                   Akzentfarbe
@@ -758,7 +865,6 @@ const KanbanFilterDrawer = ({
               </div>
 
               <div className="border-t border-outline-variant pt-4 space-y-4">
-                {/* Projects Switch & Categories */}
                 <div className="p-3 bg-surface-low border border-outline-variant rounded-xl space-y-3">
                   <div className="flex items-center justify-between">
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -775,7 +881,7 @@ const KanbanFilterDrawer = ({
                       <div className="flex items-center gap-1.5 text-[11px] font-mono">
                         <button
                           type="button"
-                          onClick={selectAllProjectCategories}
+                          onClick={() => setFormProjectCategoryIds(projectCategories.map(c => c.id))}
                           className="text-primary hover:underline cursor-pointer"
                         >
                           Alle
@@ -783,7 +889,7 @@ const KanbanFilterDrawer = ({
                         <span className="text-on-surface-variant">/</span>
                         <button
                           type="button"
-                          onClick={deselectAllProjectCategories}
+                          onClick={() => setFormProjectCategoryIds([])}
                           className="text-on-surface-variant hover:text-on-surface hover:underline cursor-pointer"
                         >
                           Keine
@@ -795,7 +901,7 @@ const KanbanFilterDrawer = ({
                   {formShowProjects && (
                     <div className="pl-6 space-y-1.5 pt-1 border-t border-outline-variant/60">
                       <span className="block text-[11px] text-on-surface-variant font-medium">
-                        Wähle die Projekt-Kategorien:
+                        Projekt-Kategorien für diese Vorlage:
                       </span>
                       <div className="space-y-1 max-h-36 overflow-y-auto no-scrollbar pr-1">
                         {projectCategories.map((cat) => {
@@ -808,7 +914,9 @@ const KanbanFilterDrawer = ({
                               <input
                                 type="checkbox"
                                 checked={isChecked}
-                                onChange={() => toggleProjectCategorySelection(cat.id)}
+                                onChange={() => setFormProjectCategoryIds(prev => 
+                                  prev.includes(cat.id) ? prev.filter(id => id !== cat.id) : [...prev, cat.id]
+                                )}
                                 className="w-3.5 h-3.5 rounded text-primary focus:ring-primary accent-primary"
                               />
                               <span className="truncate">{cat.name}</span>
@@ -820,7 +928,6 @@ const KanbanFilterDrawer = ({
                   )}
                 </div>
 
-                {/* Reminders Switch & Categories */}
                 <div className="p-3 bg-surface-low border border-outline-variant rounded-xl space-y-3">
                   <div className="flex items-center justify-between">
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -837,7 +944,7 @@ const KanbanFilterDrawer = ({
                       <div className="flex items-center gap-1.5 text-[11px] font-mono">
                         <button
                           type="button"
-                          onClick={selectAllReminderCategories}
+                          onClick={() => setFormReminderCategoryIds(reminderCategories.map(c => c.id))}
                           className="text-primary hover:underline cursor-pointer"
                         >
                           Alle
@@ -845,7 +952,7 @@ const KanbanFilterDrawer = ({
                         <span className="text-on-surface-variant">/</span>
                         <button
                           type="button"
-                          onClick={deselectAllReminderCategories}
+                          onClick={() => setFormReminderCategoryIds([])}
                           className="text-on-surface-variant hover:text-on-surface hover:underline cursor-pointer"
                         >
                           Keine
@@ -857,7 +964,7 @@ const KanbanFilterDrawer = ({
                   {formShowReminders && (
                     <div className="pl-6 space-y-1.5 pt-1 border-t border-outline-variant/60">
                       <span className="block text-[11px] text-on-surface-variant font-medium">
-                        Wähle die Erinnerungs-Kategorien:
+                        Erinnerungs-Kategorien für diese Vorlage:
                       </span>
                       <div className="space-y-1 max-h-36 overflow-y-auto no-scrollbar pr-1">
                         {reminderCategories.map((cat) => {
@@ -870,7 +977,9 @@ const KanbanFilterDrawer = ({
                               <input
                                 type="checkbox"
                                 checked={isChecked}
-                                onChange={() => toggleReminderCategorySelection(cat.id)}
+                                onChange={() => setFormReminderCategoryIds(prev => 
+                                  prev.includes(cat.id) ? prev.filter(id => id !== cat.id) : [...prev, cat.id]
+                                )}
                                 className="w-3.5 h-3.5 rounded text-primary focus:ring-primary accent-primary"
                               />
                               <span className="truncate">{cat.name}</span>
@@ -883,25 +992,13 @@ const KanbanFilterDrawer = ({
                 </div>
               </div>
 
-              {/* Warning Notice if no categories selected */}
-              {((formShowProjects && formProjectCategoryIds.length === 0 && !formShowReminders) ||
-                (formShowReminders && formReminderCategoryIds.length === 0 && !formShowProjects) ||
-                (!formShowProjects && !formShowReminders) ||
-                (formShowProjects && formProjectCategoryIds.length === 0 && formShowReminders && formReminderCategoryIds.length === 0)) && (
-                <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 flex items-start gap-2 text-xs">
-                  <span className="material-symbols-outlined text-[16px] shrink-0 text-amber-600 mt-0.5">info</span>
-                  <span>Hinweis: Ohne ausgewählte Kategorien wird das Board in dieser Ansicht leer sein.</span>
-                </div>
-              )}
-
-              {/* Form Buttons */}
               <div className="flex items-center gap-2 pt-2">
                 <button
                   type="submit"
                   disabled={!formName.trim()}
                   className="flex-1 py-2.5 px-4 bg-primary text-white rounded-xl font-bold text-sm hover:bg-primary/90 transition-all shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {editingView ? 'Änderungen übernehmen' : 'Ansicht anlegen'}
+                  {editingView ? 'Vorlage speichern' : 'Vorlage anlegen'}
                 </button>
                 <button
                   type="button"
@@ -924,7 +1021,11 @@ const KanbanFilterDrawer = ({
               className="w-full py-2.5 sm:py-3 px-4 bg-primary text-white rounded-xl font-bold text-sm shadow-sm hover:bg-primary/90 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <span className="material-symbols-outlined text-[18px]">check</span>
-              <span>Speichern</span>
+              <span>
+                {stagedProjectCategoryIds.length === 0 && stagedReminderCategoryIds.length === 0
+                  ? 'Speichern (Keine Kategorien gewählt)'
+                  : `Auswahl speichern (${stagedProjectCategoryIds.length} Proj. + ${stagedReminderCategoryIds.length} Erinn.)`}
+              </span>
             </button>
           </div>
         )}

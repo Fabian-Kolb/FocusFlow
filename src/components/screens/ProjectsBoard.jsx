@@ -54,9 +54,53 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
 
   const [draggedItem, setDraggedItem] = useState(null);
 
-  // Drawer and Category Filter State
+  // Drawer and Category Filter State (UND-Verknüpfung: beliebige Kombination aus Projekten & Erinnerungen)
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
-  const [activeCategoryFilter, setActiveCategoryFilter] = useState(null);
+  const [isCustomFilter, setIsCustomFilter] = useState(false);
+  const [selectedProjectCategoryIds, setSelectedProjectCategoryIds] = useState(() => {
+    if (activeKanbanViewId === 'system_projects') return 'all';
+    if (activeKanbanViewId === 'system_reminders') return [];
+    const view = kanbanViews.find(v => v.id === activeKanbanViewId);
+    if (view) {
+      return view.showProjects === false ? [] : (view.projectCategoryIds || 'all');
+    }
+    return 'all';
+  });
+  const [selectedReminderCategoryIds, setSelectedReminderCategoryIds] = useState(() => {
+    if (activeKanbanViewId === 'system_projects') return [];
+    if (activeKanbanViewId === 'system_reminders') return 'all';
+    const view = kanbanViews.find(v => v.id === activeKanbanViewId);
+    if (view) {
+      return view.showReminders === false ? [] : (view.reminderCategoryIds || 'all');
+    }
+    return 'all';
+  });
+
+  // Synchronize category selection when preset view changes (unless user made custom category selection)
+  React.useEffect(() => {
+    if (!isCustomFilter) {
+      if (activeKanbanViewId === 'system_all') {
+        setSelectedProjectCategoryIds('all');
+        setSelectedReminderCategoryIds('all');
+      } else if (activeKanbanViewId === 'system_projects') {
+        setSelectedProjectCategoryIds('all');
+        setSelectedReminderCategoryIds([]);
+      } else if (activeKanbanViewId === 'system_reminders') {
+        setSelectedProjectCategoryIds([]);
+        setSelectedReminderCategoryIds('all');
+      } else {
+        const view = kanbanViews.find(v => v.id === activeKanbanViewId);
+        if (view) {
+          setSelectedProjectCategoryIds(
+            view.showProjects === false ? [] : (view.projectCategoryIds || 'all')
+          );
+          setSelectedReminderCategoryIds(
+            view.showReminders === false ? [] : (view.reminderCategoryIds || 'all')
+          );
+        }
+      }
+    }
+  }, [activeKanbanViewId, kanbanViews, isCustomFilter]);
 
   // Mobile horizontal column tab navigation & scroll detection
   const [activeTab, setActiveTab] = useState('TODO');
@@ -98,35 +142,19 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
     reminderCategoryIds: 'all'
   };
 
-  // 1-Click Category Filter vs. Active View Filter
+  // Multi-Select Category Filtering (UND-Verknüpfung)
   let filteredProjects = [];
+  if (selectedProjectCategoryIds === 'all') {
+    filteredProjects = projects;
+  } else if (Array.isArray(selectedProjectCategoryIds)) {
+    filteredProjects = projects.filter(p => selectedProjectCategoryIds.includes(p.categoryId || 'allgemein'));
+  }
+
   let filteredReminders = [];
-
-  if (activeCategoryFilter) {
-    if (activeCategoryFilter.type === 'project') {
-      filteredProjects = projects.filter(p => (p.categoryId || 'allgemein') === activeCategoryFilter.id);
-      filteredReminders = [];
-    } else if (activeCategoryFilter.type === 'reminder') {
-      filteredProjects = [];
-      filteredReminders = reminders.filter(r => (r.categoryId || 'allgemein') === activeCategoryFilter.id);
-    }
-  } else {
-    // Filter according to currentView definition
-    if (currentView.showProjects !== false) {
-      if (currentView.projectCategoryIds === 'all' || currentView.id === 'system_all' || currentView.id === 'system_projects') {
-        filteredProjects = projects;
-      } else if (Array.isArray(currentView.projectCategoryIds)) {
-        filteredProjects = projects.filter(p => currentView.projectCategoryIds.includes(p.categoryId || 'allgemein'));
-      }
-    }
-
-    if (currentView.showReminders !== false) {
-      if (currentView.reminderCategoryIds === 'all' || currentView.id === 'system_all' || currentView.id === 'system_reminders') {
-        filteredReminders = reminders;
-      } else if (Array.isArray(currentView.reminderCategoryIds)) {
-        filteredReminders = reminders.filter(r => currentView.reminderCategoryIds.includes(r.categoryId || 'allgemein'));
-      }
-    }
+  if (selectedReminderCategoryIds === 'all') {
+    filteredReminders = reminders;
+  } else if (Array.isArray(selectedReminderCategoryIds)) {
+    filteredReminders = reminders.filter(r => selectedReminderCategoryIds.includes(r.categoryId || 'allgemein'));
   }
 
   // Combine items and apply inKanban flag
@@ -404,11 +432,14 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
   const activeCustomView = kanbanViews.find(v => !v.isSystem && v.type === 'custom' && v.id === activeKanbanViewId)
     || kanbanViews.find(v => !v.isSystem && v.type === 'custom');
 
-  const isFilterActive = activeCategoryFilter !== null || activeKanbanViewId !== 'system_all';
+  const isFilterActive = isCustomFilter || activeKanbanViewId !== 'system_all';
 
-  const activeViewLabel = activeCategoryFilter 
-    ? `${activeCategoryFilter.name}` 
-    : currentView.name;
+  let activeViewLabel = currentView.name;
+  if (isCustomFilter) {
+    const pCount = Array.isArray(selectedProjectCategoryIds) ? selectedProjectCategoryIds.length : projectCategories.length;
+    const rCount = Array.isArray(selectedReminderCategoryIds) ? selectedReminderCategoryIds.length : reminderCategories.length;
+    activeViewLabel = `${pCount} Proj. + ${rCount} Erinn.`;
+  }
 
   return (
     <div className="h-full flex flex-col w-full min-h-0">
@@ -419,11 +450,11 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
           <button
             type="button"
             onClick={() => {
-              setActiveCategoryFilter(null);
+              setIsCustomFilter(false);
               setActiveKanbanViewId('system_all');
             }}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-              activeCategoryFilter === null && activeKanbanViewId === 'system_all'
+              !isCustomFilter && activeKanbanViewId === 'system_all'
                 ? 'bg-primary text-white shadow-xs'
                 : 'text-on-surface-variant hover:bg-surface-variant hover:text-on-surface'
             }`}
@@ -436,11 +467,11 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
           <button
             type="button"
             onClick={() => {
-              setActiveCategoryFilter(null);
+              setIsCustomFilter(false);
               setActiveKanbanViewId('system_projects');
             }}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-              activeCategoryFilter === null && activeKanbanViewId === 'system_projects'
+              !isCustomFilter && activeKanbanViewId === 'system_projects'
                 ? 'bg-primary text-white shadow-xs'
                 : 'text-on-surface-variant hover:bg-surface-variant hover:text-on-surface'
             }`}
@@ -454,11 +485,11 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
             <button
               type="button"
               onClick={() => {
-                setActiveCategoryFilter(null);
+                setIsCustomFilter(false);
                 setActiveKanbanViewId(activeCustomView.id);
               }}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer max-w-[160px] truncate ${
-                activeCategoryFilter === null && activeKanbanViewId === activeCustomView.id
+                !isCustomFilter && activeKanbanViewId === activeCustomView.id
                   ? 'bg-primary text-white shadow-xs'
                   : 'text-on-surface-variant hover:bg-surface-variant hover:text-on-surface'
               }`}
@@ -469,18 +500,21 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
             </button>
           )}
 
-          {/* If a category filter is active, show category chip */}
-          {activeCategoryFilter && (
-            <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-primary/15 text-primary border border-primary/30 text-xs font-bold shrink-0">
-              <span className="material-symbols-outlined text-[14px]">
-                {activeCategoryFilter.type === 'project' ? 'folder' : 'notifications'}
+          {/* If a custom multi-select filter is active, show filter chip */}
+          {isCustomFilter && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-primary/10 text-primary border border-primary/30 text-xs font-bold shrink-0">
+              <span className="material-symbols-outlined text-[14px]">tune</span>
+              <span className="truncate max-w-[180px]">
+                Filter: {Array.isArray(selectedProjectCategoryIds) ? selectedProjectCategoryIds.length : projectCategories.length}P + {Array.isArray(selectedReminderCategoryIds) ? selectedReminderCategoryIds.length : reminderCategories.length}E
               </span>
-              <span className="truncate max-w-[130px]">{activeCategoryFilter.name}</span>
               <button
                 type="button"
-                onClick={() => setActiveCategoryFilter(null)}
+                onClick={() => {
+                  setIsCustomFilter(false);
+                  setActiveKanbanViewId('system_all');
+                }}
                 className="hover:bg-primary/20 rounded-full p-0.5 transition-colors cursor-pointer"
-                title="Kategorie-Filter entfernen"
+                title="Filter zurücksetzen"
               >
                 <span className="material-symbols-outlined text-[14px]">close</span>
               </button>
@@ -488,7 +522,7 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
           )}
         </div>
 
-        {/* Right Section: Drawer Button & Counter */}
+        {/* Right Section: Drawer Button */}
         <div className="flex items-center gap-1.5 shrink-0">
           <button
             type="button"
@@ -502,7 +536,7 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
           >
             <span className="material-symbols-outlined text-[17px]">tune</span>
             <span className="hidden sm:inline">Ansichten</span>
-            <span className="max-w-[100px] truncate text-[11px] font-normal opacity-80">
+            <span className="max-w-[120px] truncate text-[11px] font-normal opacity-80">
               ({activeViewLabel})
             </span>
             <span className="material-symbols-outlined text-[15px]">expand_more</span>
@@ -571,8 +605,8 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
             <div>
               <p className="font-bold text-sm text-on-surface">Keine Elemente in dieser Ansicht</p>
               <p className="text-xs text-on-surface-variant">
-                {activeCategoryFilter 
-                  ? `In der Kategorie "${activeCategoryFilter.name}" befinden sich keine aktiven Kanban-Elemente.`
+                {isCustomFilter
+                  ? 'Mit der gewählten Kategorie-Kombination wurden keine aktiven Kanban-Elemente gefunden.'
                   : `In der Ansicht "${currentView.name}" wurden keine passenden Kategorien oder Elemente gefunden.`}
               </p>
             </div>
@@ -581,7 +615,7 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
             <button
               type="button"
               onClick={() => {
-                setActiveCategoryFilter(null);
+                setIsCustomFilter(false);
                 setActiveKanbanViewId('system_all');
               }}
               className="px-3 py-1.5 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary/90 transition-colors cursor-pointer"
@@ -603,29 +637,26 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
       <div 
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        data-kanban-container="true"
-        className="flex-1 min-h-0 flex lg:grid lg:grid-cols-3 gap-3 sm:gap-5 overflow-x-auto lg:overflow-x-visible snap-x snap-mandatory scroll-smooth pb-4 pt-0.5 px-0.5"
+        className="flex-1 flex gap-3 sm:gap-4 overflow-x-auto overflow-y-hidden snap-x snap-mandatory lg:snap-none pb-2 no-scrollbar min-h-0"
       >
-        {/* Geplant Column */}
-        <div 
+        {/* Column 1: Geplant (TODO) */}
+        <div
           id="kanban-col-TODO"
-          data-kanban-column="TODO"
-          className="w-full flex-shrink-0 snap-center min-w-full lg:w-auto lg:min-w-0 lg:flex-shrink flex flex-col min-h-0 lg:h-full"
           onDragOver={(e) => handleDragOver(e, 'TODO')}
           onDragLeave={handleDragLeave}
           onDrop={(e) => handleDrop(e, 'TODO')}
+          className="flex-1 min-w-[85vw] sm:min-w-[320px] lg:min-w-0 flex flex-col bg-surface border border-outline-variant rounded-2xl p-2.5 sm:p-3 snap-center shadow-xs transition-colors"
         >
           <div className="flex items-center gap-2 mb-2 px-1">
-            <div className="w-2.5 h-2.5 rounded-full bg-amber-400"></div>
+            <div className="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
             <h3 className="font-bold text-sm">Geplant</h3>
-
             <span className="ml-auto bg-surface-low border border-outline-variant text-on-surface-variant text-[10px] font-mono px-2 py-0.5 rounded-full">
               {todoItems.length}
             </span>
           </div>
           <div className={`flex-1 overflow-y-auto rounded-xl p-2 sm:p-3 border border-dashed transition-all ${
-            touchKanbanColTarget === 'TODO'
-              ? 'border-primary bg-primary/10 ring-2 ring-primary/40'
+            touchKanbanColTarget === 'TODO' 
+              ? 'border-primary bg-primary/10 ring-2 ring-primary/40' 
               : 'border-outline-variant/60 bg-surface-low/30'
           }`}>
             {todoItems.map(renderCard)}
@@ -637,19 +668,17 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
           </div>
         </div>
 
-        {/* In Arbeit Column */}
-        <div 
+        {/* Column 2: In Arbeit (IN_PROGRESS) */}
+        <div
           id="kanban-col-IN_PROGRESS"
-          data-kanban-column="IN_PROGRESS"
-          className="w-full flex-shrink-0 snap-center min-w-full lg:w-auto lg:min-w-0 lg:flex-shrink flex flex-col min-h-0 lg:h-full"
           onDragOver={(e) => handleDragOver(e, 'IN_PROGRESS')}
           onDragLeave={handleDragLeave}
           onDrop={(e) => handleDrop(e, 'IN_PROGRESS')}
+          className="flex-1 min-w-[85vw] sm:min-w-[320px] lg:min-w-0 flex flex-col bg-surface border border-outline-variant rounded-2xl p-2.5 sm:p-3 snap-center shadow-xs transition-colors"
         >
           <div className="flex items-center gap-2 mb-2 px-1">
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-400"></div>
+            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
             <h3 className="font-bold text-sm">In Arbeit</h3>
-
             <span className="ml-auto bg-surface-low border border-outline-variant text-on-surface-variant text-[10px] font-mono px-2 py-0.5 rounded-full">
               {inProgressItems.length}
             </span>
@@ -662,20 +691,19 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
             {inProgressItems.map(renderCard)}
             {inProgressItems.length === 0 && (
               <div className="h-28 lg:h-full flex items-center justify-center text-on-surface-variant/50 text-xs italic font-mono border-2 border-dashed border-transparent">
-                Keine aktiven Elemente
+                Keine Elemente in Arbeit
               </div>
             )}
           </div>
         </div>
 
-        {/* Abgeschlossen Column */}
-        <div 
+        {/* Column 3: Abgeschlossen (DONE) */}
+        <div
           id="kanban-col-DONE"
-          data-kanban-column="DONE"
-          className="w-full flex-shrink-0 snap-center min-w-full lg:w-auto lg:min-w-0 lg:flex-shrink flex flex-col min-h-0 lg:h-full"
           onDragOver={(e) => handleDragOver(e, 'DONE')}
           onDragLeave={handleDragLeave}
           onDrop={(e) => handleDrop(e, 'DONE')}
+          className="flex-1 min-w-[85vw] sm:min-w-[320px] lg:min-w-0 flex flex-col bg-surface border border-outline-variant rounded-2xl p-2.5 sm:p-3 snap-center shadow-xs transition-colors"
         >
           <div className="flex items-center gap-2 mb-2 px-1">
             <div className="w-2.5 h-2.5 rounded-full bg-neutral-400"></div>
@@ -704,14 +732,18 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
         isOpen={isFilterDrawerOpen}
         onClose={() => setIsFilterDrawerOpen(false)}
         kanbanViews={kanbanViews}
-        activeKanbanViewId={activeKanbanViewId}
-        onSelectView={(viewId) => {
-          setActiveCategoryFilter(null);
-          setActiveKanbanViewId(viewId);
-        }}
-        activeCategoryFilter={activeCategoryFilter}
-        onSelectCategoryFilter={(catFilter) => {
-          setActiveCategoryFilter(catFilter);
+        activeKanbanViewId={isCustomFilter ? null : activeKanbanViewId}
+        selectedProjectCategoryIds={selectedProjectCategoryIds}
+        selectedReminderCategoryIds={selectedReminderCategoryIds}
+        onApplyFilter={({ projectCategoryIds, reminderCategoryIds, viewId }) => {
+          setSelectedProjectCategoryIds(projectCategoryIds);
+          setSelectedReminderCategoryIds(reminderCategoryIds);
+          if (viewId) {
+            setIsCustomFilter(false);
+            setActiveKanbanViewId(viewId);
+          } else {
+            setIsCustomFilter(true);
+          }
         }}
         projectCategories={projectCategories}
         reminderCategories={reminderCategories}

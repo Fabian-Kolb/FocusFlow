@@ -1,7 +1,7 @@
 import { refreshAccessToken } from '../../server/calendarService.js';
 import { applyCorsAndSecurityHeaders } from '../../server/corsHelper.js';
 import { verifyAuthToken } from '../../server/authHelper.js';
-import { getStoredUserRefreshToken } from '../../server/tokenStore.js';
+import { getStoredUserRefreshToken, deleteStoredUserRefreshToken } from '../../server/tokenStore.js';
 
 export default async function handler(req, res) {
   if (applyCorsAndSecurityHeaders(req, res, 'POST, OPTIONS')) {
@@ -46,6 +46,11 @@ export default async function handler(req, res) {
       expiresIn: data.expiresIn
     });
   } catch (err) {
+    if (err.isInvalidGrant || err.status === 400 || err.message?.includes('invalid_grant')) {
+      console.warn(`[refresh] Refresh-Token für UID ${uid} abgelaufen (invalid_grant). Lösche Token.`);
+      await deleteStoredUserRefreshToken(uid);
+      return res.status(401).json({ error: 'Google Kalender Sitzung ist abgelaufen. Bitte neu verknüpfen.', connected: false, reauthRequired: true });
+    }
     console.error('Refresh Token Error:', err);
     return res.status(500).json({ error: err?.message || 'Fehler beim Aktualisieren des Tokens' });
   }

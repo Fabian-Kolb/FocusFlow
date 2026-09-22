@@ -103,11 +103,21 @@ export async function fetchCalendarEvents(year, monthIndex) {
     const response = await fetch(`/api/calendar/events${query}`, { headers });
 
     if (!response.ok) {
-      console.error('Fehler beim Abrufen der Kalenderevents:', response.status);
+      if (response.status === 401) {
+        clearCalendarTokens();
+        window.dispatchEvent(new CustomEvent('focusflow_calendar_sync_status', { detail: { connected: false } }));
+      } else {
+        console.error('Fehler beim Abrufen der Kalenderevents:', response.status);
+      }
       return [];
     }
 
     const data = await response.json();
+    if (data.connected === false) {
+      clearCalendarTokens();
+      window.dispatchEvent(new CustomEvent('focusflow_calendar_sync_status', { detail: { connected: false } }));
+      return [];
+    }
     return data.items || [];
   } catch (err) {
     console.error('Netzwerkfehler beim Abrufen der Kalenderevents:', err);
@@ -127,6 +137,10 @@ export async function createCalendarEvent(eventData) {
   });
 
   if (!response.ok) {
+    if (response.status === 401) {
+      clearCalendarTokens();
+      window.dispatchEvent(new CustomEvent('focusflow_calendar_sync_status', { detail: { connected: false } }));
+    }
     let errorMsg = `Termin konnte nicht erstellt werden (${response.status})`;
     try {
       const errJson = await response.json();

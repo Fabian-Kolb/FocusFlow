@@ -212,6 +212,23 @@ export const api = onRequest({ region: 'europe-west3', cors: true, maxInstances:
 </html>`);
       }
 
+      const safeRefresh = async (refreshToken, uid) => {
+        try {
+          return await refreshAccessToken({
+            refreshToken,
+            clientId: googleClientId,
+            clientSecret: googleClientSecret
+          });
+        } catch (err) {
+          if (err.isInvalidGrant || err.status === 400 || err.message?.includes('invalid_grant')) {
+            console.warn(`[Functions] Refresh-Token für UID ${uid} abgelaufen (invalid_grant). Lösche Token.`);
+            await db.collection('server_tokens').doc(uid).delete().catch(() => {});
+            err.handledAsExpired = true;
+          }
+          throw err;
+        }
+      };
+
       // C) Status-Prüfung
       if (endpoint === 'status') {
         const { uid } = await verifyUser();
@@ -229,12 +246,15 @@ export const api = onRequest({ region: 'europe-west3', cors: true, maxInstances:
         }
 
         const refreshToken = tokenDoc.data().refreshToken;
-        const refreshed = await refreshAccessToken({
-          refreshToken,
-          clientId: googleClientId,
-          clientSecret: googleClientSecret
-        });
-        return res.status(200).json(refreshed);
+        try {
+          const refreshed = await safeRefresh(refreshToken, uid);
+          return res.status(200).json(refreshed);
+        } catch (refreshErr) {
+          if (refreshErr.handledAsExpired) {
+            return res.status(401).json({ error: 'Google Kalender Sitzung ist abgelaufen. Bitte neu verknüpfen.', connected: false, reauthRequired: true });
+          }
+          throw refreshErr;
+        }
       }
 
       // D) Events abrufen (GET) oder anlegen (POST)
@@ -246,11 +266,19 @@ export const api = onRequest({ region: 'europe-west3', cors: true, maxInstances:
           return res.status(200).json({ connected: false, items: [] });
         }
 
-        const { accessToken } = await refreshAccessToken({
-          refreshToken: tokenDoc.data().refreshToken,
-          clientId: googleClientId,
-          clientSecret: googleClientSecret
-        });
+        let accessToken;
+        try {
+          const refreshed = await safeRefresh(tokenDoc.data().refreshToken, uid);
+          accessToken = refreshed.accessToken;
+        } catch (refreshErr) {
+          if (refreshErr.handledAsExpired) {
+            if (req.method === 'GET') {
+              return res.status(200).json({ connected: false, items: [], reauthRequired: true });
+            }
+            return res.status(401).json({ error: 'Google Kalender Sitzung ist abgelaufen. Bitte neu verknüpfen.', connected: false, reauthRequired: true });
+          }
+          throw refreshErr;
+        }
 
         if (req.method === 'GET') {
           const year = req.query.year;
@@ -276,11 +304,16 @@ export const api = onRequest({ region: 'europe-west3', cors: true, maxInstances:
           return res.status(401).json({ error: 'Nicht mit Google Kalender verbunden.' });
         }
 
-        const { accessToken } = await refreshAccessToken({
-          refreshToken: tokenDoc.data().refreshToken,
-          clientId: googleClientId,
-          clientSecret: googleClientSecret
-        });
+        let accessToken;
+        try {
+          const refreshed = await safeRefresh(tokenDoc.data().refreshToken, uid);
+          accessToken = refreshed.accessToken;
+        } catch (refreshErr) {
+          if (refreshErr.handledAsExpired) {
+            return res.status(401).json({ error: 'Google Kalender Sitzung ist abgelaufen. Bitte neu verknüpfen.', connected: false, reauthRequired: true });
+          }
+          throw refreshErr;
+        }
 
         if (req.method === 'DELETE') {
           await deleteEventInGoogle({ accessToken, eventId });

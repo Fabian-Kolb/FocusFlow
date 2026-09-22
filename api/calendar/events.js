@@ -7,7 +7,7 @@ import {
 } from '../../server/calendarService.js';
 import { applyCorsAndSecurityHeaders } from '../../server/corsHelper.js';
 import { authorizeUser } from '../../server/authHelper.js';
-import { getStoredUserRefreshToken } from '../../server/tokenStore.js';
+import { getStoredUserRefreshToken, deleteStoredUserRefreshToken } from '../../server/tokenStore.js';
 import { checkRateLimit } from '../../server/rateLimiter.js';
 
 export default async function handler(req, res) {
@@ -47,11 +47,25 @@ export default async function handler(req, res) {
     }
 
     // 3. Google Access-Token serverseitig erneuern (keine Client-Tokens beteiligt)
-    const { accessToken } = await refreshAccessToken({
-      refreshToken,
-      clientId: googleClientId,
-      clientSecret: googleClientSecret
-    });
+    let accessToken;
+    try {
+      const refreshed = await refreshAccessToken({
+        refreshToken,
+        clientId: googleClientId,
+        clientSecret: googleClientSecret
+      });
+      accessToken = refreshed.accessToken;
+    } catch (refreshErr) {
+      if (refreshErr.isInvalidGrant || refreshErr.status === 400 || refreshErr.message?.includes('invalid_grant')) {
+        console.warn(`[events] Google Refresh-Token für UID ${uid} ist abgelaufen oder widerrufen (invalid_grant). Lösche Token.`);
+        await deleteStoredUserRefreshToken(uid);
+        if (req.method === 'GET') {
+          return res.status(200).json({ connected: false, items: [], reauthRequired: true });
+        }
+        return res.status(401).json({ error: 'Google Kalender Sitzung ist abgelaufen. Bitte neu verknüpfen.', connected: false, reauthRequired: true });
+      }
+      throw refreshErr;
+    }
 
     let body = req.body || {};
     if (typeof body === 'string') {

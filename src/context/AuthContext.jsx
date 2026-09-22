@@ -60,6 +60,14 @@ export function AuthProvider({ children }) {
       }
     };
     checkStatus();
+
+    const handleStatusSync = (e) => {
+      if (typeof e.detail?.connected === 'boolean') {
+        setIsCalendarConnected(e.detail.connected);
+      }
+    };
+    window.addEventListener('focusflow_calendar_sync_status', handleStatusSync);
+    return () => window.removeEventListener('focusflow_calendar_sync_status', handleStatusSync);
   }, [user]);
 
   useEffect(() => {

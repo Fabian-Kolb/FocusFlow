@@ -181,7 +181,12 @@ export async function refreshAccessToken({ refreshToken, clientId, clientSecret 
 
   if (!response.ok) {
     const errText = await response.text();
-    throw new Error(`Google Token-Refresh fehlgeschlagen (${response.status}): ${errText}`);
+    const isInvalidGrant = errText.includes('invalid_grant') || response.status === 400;
+    const error = new Error(`Google Token-Refresh fehlgeschlagen (${response.status}): ${errText}`);
+    error.status = response.status;
+    error.isInvalidGrant = isInvalidGrant;
+    error.rawError = errText;
+    throw error;
   }
 
   const data = await response.json();
