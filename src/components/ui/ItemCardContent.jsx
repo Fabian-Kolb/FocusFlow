@@ -1,5 +1,6 @@
 import React from 'react';
 import { SectionIcon, TaskIcon } from './ItemIcons';
+import { getReminderDateInfo } from '../../lib/reminderDates';
 
 // Gemeinsamer Karteninhalt für Projekte und Erinnerungen.
 // Wird in der Projekt-/Erinnerungsübersicht und im Kanban-Board genutzt, damit alle drei Stellen
@@ -58,7 +59,14 @@ function DoneCheckbox({ done, title, onToggle }) {
   );
 }
 
-function CardHeader({ item, menu, leading, done = false }) {
+const URGENCY_STYLES = {
+  overdue: 'bg-red-50 text-red-700 border-red-200',
+  today: 'bg-amber-50 text-amber-800 border-amber-200',
+  soon: 'bg-surface-low text-primary border-outline-variant',
+  later: 'bg-surface-low text-on-surface-variant border-outline-variant',
+};
+
+function CardHeader({ item, menu, leading, done = false, dateContent }) {
   return (
     <>
       {item.inKanban === false && (
@@ -77,10 +85,7 @@ function CardHeader({ item, menu, leading, done = false }) {
         {menu}
       </div>
       <p className={`mt-0.5 min-h-[1rem] ${leading ? 'pl-7' : ''} text-[10px] sm:text-xs text-on-surface-variant font-mono truncate flex items-center gap-1.5`}>
-        <span className="truncate">
-          {item.dateRange || 'Kein Datum'}
-          {item.daysRemaining && <span className="font-bold text-primary"> ({item.daysRemaining})</span>}
-        </span>
+        {dateContent}
         {item.isCalendarSynced && (
           <span
             className="material-symbols-outlined text-[14px] text-emerald-600 shrink-0"
@@ -134,7 +139,16 @@ function Stat({ icon, done, total, label }) {
 export function ProjectCardContent({ project, menu, onToggleStatus }) {
   return (
     <>
-      <CardHeader item={project} menu={menu} />
+      <CardHeader
+        item={project}
+        menu={menu}
+        dateContent={
+          <span className="truncate">
+            {project.dateRange || 'Kein Datum'}
+            {project.daysRemaining && <span className="font-bold text-primary"> ({project.daysRemaining})</span>}
+          </span>
+        }
+      />
 
       <div className="mt-2 flex items-center gap-3 text-[11px] sm:text-xs font-mono text-on-surface-variant">
         <Stat icon={<SectionIcon />} done={project.phasesCompleted} total={project.phasesTotal} label="Abschnitte" />
@@ -165,12 +179,24 @@ export function ProjectCardContent({ project, menu, onToggleStatus }) {
 
 export function ReminderCardContent({ reminder, menu, onToggleStatus, onToggleDone }) {
   const done = reminder.status === 'ABGESCHLOSSEN';
+  const info = getReminderDateInfo(reminder);
+  const elapsed = info.timeElapsed ?? 0;
   return (
     <>
       <CardHeader
         item={reminder}
         menu={menu}
         done={done}
+        dateContent={
+          <>
+            <span className="truncate">{info.dateLabel}</span>
+            {info.relativeLabel && !done && (
+              <span className={`shrink-0 px-1.5 rounded border font-bold ${URGENCY_STYLES[info.urgency]}`}>
+                {info.relativeLabel}
+              </span>
+            )}
+          </>
+        }
         leading={onToggleDone && <DoneCheckbox done={done} title={reminder.title} onToggle={onToggleDone} />}
       />
 
@@ -179,8 +205,8 @@ export function ReminderCardContent({ reminder, menu, onToggleStatus, onToggleDo
         <span className="material-symbols-outlined text-[14px] shrink-0" title="Verstrichene Zeit" aria-hidden="true">
           schedule
         </span>
-        <ProgressBar value={reminder.timeElapsed} label={`Verstrichene Zeit ${clampPercent(reminder.timeElapsed)}%`} />
-        <span className="w-9 text-right">{clampPercent(reminder.timeElapsed)}%</span>
+        <ProgressBar value={elapsed} label={`Verstrichene Zeit ${elapsed}%`} />
+        <span className="w-9 text-right">{info.hasDate ? `${elapsed}%` : '–'}</span>
       </div>
     </>
   );

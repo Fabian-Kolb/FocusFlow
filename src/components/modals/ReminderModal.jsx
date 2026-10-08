@@ -2,9 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useModalContext } from '../../context/ModalContext';
 import { generateReminderStructure } from '../../lib/gemini';
 import FioIcon from '../ui/FioIcon';
+import CategoryChips from '../ui/CategoryChips';
+import { readLastCategory, writeLastCategory } from '../../lib/lastCategory';
 
 const ReminderModal = ({ setCurrentScreen }) => {
-  const { activeModal, modalPayload, closeModal, addReminder, user, isCalendarConnected } = useModalContext();
+  const { activeModal, modalPayload, closeModal, addReminder, user, isCalendarConnected, reminderCategories, addReminderCategory } = useModalContext();
   const isOpen = activeModal === 'reminder';
 
   const [title, setTitle] = useState('');
@@ -13,6 +15,7 @@ const ReminderModal = ({ setCurrentScreen }) => {
   const [time, setTime] = useState('');
   const [status, setStatus] = useState('GEPLANT');
   const [syncWithCalendar, setSyncWithCalendar] = useState(false);
+  const [categoryId, setCategoryId] = useState('allgemein');
   const [isGenerating, setIsGenerating] = useState(false);
   const titleInputRef = useRef(null);
 
@@ -24,6 +27,12 @@ const ReminderModal = ({ setCurrentScreen }) => {
       setTime(modalPayload.time || '');
       setStatus(modalPayload.status || 'GEPLANT');
       setSyncWithCalendar(false);
+      // Vorauswahl: Kategorie aus dem Aufruf (z. B. "+" in einer Kategorie), sonst die zuletzt benutzte
+      setCategoryId(
+        modalPayload.categoryId && reminderCategories.some((c) => c.id === modalPayload.categoryId)
+          ? modalPayload.categoryId
+          : readLastCategory('reminder', reminderCategories)
+      );
 
       // Auto-focus input after modal opens
       const timer = setTimeout(() => {
@@ -33,6 +42,8 @@ const ReminderModal = ({ setCurrentScreen }) => {
       }, 100);
       return () => clearTimeout(timer);
     }
+    // Kategorien nur beim Öffnen lesen, sonst überschreibt ein Sync die Auswahl
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, modalPayload]);
 
   if (!isOpen) {
@@ -49,10 +60,12 @@ const ReminderModal = ({ setCurrentScreen }) => {
       date,
       time,
       status,
+      categoryId,
       inboxItemId: modalPayload.inboxItemId,
       syncWithCalendar: Boolean(syncWithCalendar && isCalendarConnected && !user?.isGuest)
     });
 
+    writeLastCategory('reminder', categoryId);
     closeModal();
     if (setCurrentScreen) {
       setCurrentScreen('reminders');
@@ -106,6 +119,14 @@ const ReminderModal = ({ setCurrentScreen }) => {
                 onChange={(e) => setTitle(e.target.value)}
               />
             </div>
+
+            {/* Kategorie direkt beim Anlegen */}
+            <CategoryChips
+              categories={reminderCategories}
+              value={categoryId}
+              onChange={setCategoryId}
+              onCreate={addReminderCategory}
+            />
 
             {/* AI Generation Button */}
             {isConversion && (

@@ -4,9 +4,11 @@ import { generateProjectStructure, ensureBulletPoints } from '../../lib/gemini';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import FioIcon from '../ui/FioIcon';
+import CategoryChips from '../ui/CategoryChips';
+import { readLastCategory, writeLastCategory } from '../../lib/lastCategory';
 
 const ProjectModal = ({ setCurrentScreen }) => {
-  const { activeModal, modalPayload, closeModal, addProject } = useModalContext();
+  const { activeModal, modalPayload, closeModal, addProject, projectCategories, addProjectCategory } = useModalContext();
   const isOpen = activeModal === 'project';
 
   const [name, setName] = useState('');
@@ -15,6 +17,7 @@ const ProjectModal = ({ setCurrentScreen }) => {
   const [endDate, setEndDate] = useState('');
   const [status, setStatus] = useState('GEPLANT');
   const [phases, setPhases] = useState([]);
+  const [categoryId, setCategoryId] = useState('allgemein');
   // State for AI phase generation options and preview
   const [isAiConfigOpen, setIsAiConfigOpen] = useState(false);
   const [aiGranularity, setAiGranularity] = useState('balanced');
@@ -36,6 +39,12 @@ const ProjectModal = ({ setCurrentScreen }) => {
       setStartDate(modalPayload.startDate || '');
       setEndDate(modalPayload.endDate || '');
       setStatus(modalPayload.status || 'GEPLANT');
+      // Vorauswahl: Kategorie aus dem Aufruf (z. B. "+" in einer Kategorie), sonst die zuletzt benutzte
+      setCategoryId(
+        modalPayload.categoryId && projectCategories.some((c) => c.id === modalPayload.categoryId)
+          ? modalPayload.categoryId
+          : readLastCategory('project', projectCategories)
+      );
 
       setIncludeSummaryNote(Boolean(modalPayload.summaryText));
       setIncludeCleanNote(Boolean(modalPayload.cleanText));
@@ -53,6 +62,8 @@ const ProjectModal = ({ setCurrentScreen }) => {
       }, 100);
       return () => clearTimeout(timer);
     }
+    // Kategorien nur beim Öffnen lesen, sonst überschreibt ein Sync die Auswahl
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, modalPayload]);
 
   if (!isOpen) {
@@ -119,9 +130,11 @@ const ProjectModal = ({ setCurrentScreen }) => {
       status,
       phases,
       notes,
+      categoryId,
       inboxItemId: modalPayload.inboxItemId
     });
 
+    writeLastCategory('project', categoryId);
     closeModal();
     if (setCurrentScreen) {
       setCurrentScreen('projects');
@@ -238,6 +251,14 @@ const ProjectModal = ({ setCurrentScreen }) => {
                 </select>
               </div>
             </div>
+
+            {/* Kategorie direkt beim Anlegen */}
+            <CategoryChips
+              categories={projectCategories}
+              value={categoryId}
+              onChange={setCategoryId}
+              onCreate={addProjectCategory}
+            />
 
             {/* AI Generation Button */}
             {/* AI Phase Generation Button & Notes Selection when converting from Inbox */}

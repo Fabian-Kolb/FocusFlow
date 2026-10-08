@@ -236,7 +236,7 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
           onDragStart={(e) => handleDragStart(e, project)}
           onDragEnd={handleDragEnd}
           onTouchStart={(e) => startKanbanCardDrag(e, project.id, project.title)}
-          className="mb-3 cursor-grab active:cursor-grabbing touch-action-none"
+          className="mb-3 cursor-grab active:cursor-grabbing [-webkit-touch-callout:none]"
         >
           <Card
             interactive
@@ -260,6 +260,7 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
                   onDelete={() => deleteProject(project.id)}
                   itemType="project"
                   itemId={project.id}
+                  itemTitle={project.title}
                   currentCategoryId={project.categoryId}
                   itemStatus={project.status}
                 />
@@ -277,7 +278,7 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
           onDragStart={(e) => handleDragStart(e, reminder)}
           onDragEnd={handleDragEnd}
           onTouchStart={(e) => startKanbanCardDrag(e, reminder.id, reminder.title)}
-          className="mb-3 cursor-grab active:cursor-grabbing touch-action-none"
+          className="mb-3 cursor-grab active:cursor-grabbing [-webkit-touch-callout:none]"
         >
           <Card
             interactive
@@ -302,6 +303,7 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
                   onDelete={() => deleteReminder(reminder.id)}
                   itemType="reminder"
                   itemId={reminder.id}
+                  itemTitle={reminder.title}
                   currentCategoryId={reminder.categoryId}
                   itemStatus={reminder.status}
                 />

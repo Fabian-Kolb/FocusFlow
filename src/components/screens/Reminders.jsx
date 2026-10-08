@@ -8,6 +8,24 @@ import Badge from '../ui/Badge';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import CardContextMenu from '../ui/CardContextMenu';
+import { ListToolbar, ViewToggle, CategoryToolbar } from '../ui/ListToolbar';
+import { groupRemindersByTime } from '../../lib/reminderDates';
+
+const VIEW_STORAGE_KEY = 'focusflow_reminders_view';
+const VIEW_OPTIONS = [
+  { value: 'time', label: 'Nach Zeit', icon: 'schedule' },
+  { value: 'category', label: 'Nach Kategorie', icon: 'folder' },
+];
+
+function readStoredView() {
+  try {
+    const value = localStorage.getItem(VIEW_STORAGE_KEY);
+    if (value === 'time' || value === 'category') return value;
+  } catch {
+    // Storage gesperrt – Standardansicht
+  }
+  return 'time';
+}
 
 const Reminders = ({ setCurrentScreen }) => {
   const { 
@@ -66,6 +84,18 @@ const Reminders = ({ setCurrentScreen }) => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [viewMode, setViewMode] = useState(readStoredView);
+  // Eingeklappte Zeit-Gruppen; "Erledigt" startet eingeklappt
+  const [collapsedTimeGroups, setCollapsedTimeGroups] = useState({ done: true });
+
+  const changeViewMode = (mode) => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem(VIEW_STORAGE_KEY, mode);
+    } catch {
+      // Ansicht gilt dann nur für diese Sitzung
+    }
+  };
   const [newCategoryName, setNewCategoryName] = useState('');
   const [isAddingCategory, setIsAddingCategory] = useState(false);
 
@@ -160,18 +190,6 @@ const Reminders = ({ setCurrentScreen }) => {
   const pinnedReminders = activeReminders.filter(r => r.isPinned);
   const otherReminders = activeReminders.filter(r => !r.isPinned);
 
-  const FilterButton = ({ label, value }) => (
-    <button
-      onClick={() => setStatusFilter(value)}
-      className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${
-        statusFilter === value 
-          ? 'bg-primary text-white' 
-          : 'bg-surface-low text-on-surface-variant border border-outline-variant hover:border-primary hover:text-primary'
-      }`}
-    >
-      {label}
-    </button>
-  );
 
 
 
@@ -196,7 +214,7 @@ const Reminders = ({ setCurrentScreen }) => {
         onDragEnd={handleReminderHtml5DragEnd}
         onDragOver={(e) => handleCategoryDragOver(e, reminder.categoryId || 'allgemein')}
         onDrop={(e) => handleDrop(e, reminder.categoryId || 'allgemein')}
-        className={`cursor-grab active:cursor-grabbing touch-action-none select-none transition-all duration-150 ${
+        className={`cursor-grab active:cursor-grabbing [-webkit-touch-callout:none] select-none transition-all duration-150 ${
           isDragged ? 'opacity-30 scale-[0.98] ring-2 ring-primary/40 rounded-xl' : 'opacity-100'
         }`}
       >
@@ -223,6 +241,7 @@ const Reminders = ({ setCurrentScreen }) => {
               onDelete={() => deleteReminder(reminder.id)}
               itemType="reminder"
               itemId={reminder.id}
+              itemTitle={reminder.title}
               currentCategoryId={reminder.categoryId}
               itemStatus={reminder.status}
             />
@@ -233,106 +252,83 @@ const Reminders = ({ setCurrentScreen }) => {
   );
 };
 
+  const timeGroups = groupRemindersByTime(otherReminders).filter((g) => g.items.length > 0);
+
   return (
     <div className="screen-transition pb-20">
-      <div className="flex flex-col gap-4 mb-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="relative flex-grow max-w-md w-full">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">
-              search
-            </span>
-            <Input
-              type="text"
-              className="pl-10 w-full"
-              placeholder="Erinnerungen durchsuchen..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-          <div className="flex items-center gap-2 shrink-0 justify-end">
-            <button
-              onClick={() => setCurrentScreen('trash')}
-              className="flex items-center justify-center p-2 text-on-surface-variant hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors border border-transparent hover:border-red-200"
-              title="Papierkorb öffnen"
-            >
-              <span className="material-symbols-outlined text-[24px]">delete</span>
-            </button>
-            <Button onClick={() => openModal('reminder')}>
-              Neue Erinnerung
-            </Button>
-          </div>
-        </div>
-
-        {/* Filter Row */}
-        <div className="flex items-center gap-2 overflow-x-auto no-wrap-scroll pb-2">
-          <FilterButton label="Alle" value="all" />
-          <FilterButton label="Aktiv" value="active" />
-          <FilterButton label="Geplant" value="planned" />
-          <FilterButton label="Pausiert" value="paused" />
-          <FilterButton label="Abgeschlossen" value="completed" />
-        </div>
-      </div>
+      <ListToolbar
+        searchValue={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder="Erinnerungen durchsuchen"
+        onOpenTrash={() => setCurrentScreen('trash')}
+        onCreate={() => openModal('reminder')}
+        createLabel="Neue Erinnerung"
+        statusFilter={statusFilter}
+        onStatusFilterChange={setStatusFilter}
+        viewToggle={<ViewToggle value={viewMode} onChange={changeViewMode} options={VIEW_OPTIONS} />}
+      />
 
       {pinnedReminders.length > 0 && (
-        <div className="mb-8">
-          <h2 className="text-sm font-bold text-on-surface-variant uppercase tracking-wider mb-4 flex items-center gap-2">
+        <div className="mb-6">
+          <h2 className="text-sm font-bold text-on-surface-variant uppercase tracking-wider mb-3 flex items-center gap-2">
             <span className="material-symbols-outlined text-sm">push_pin</span> Angepinnt
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             {pinnedReminders.map(renderCard)}
           </div>
         </div>
       )}
 
+      {viewMode === 'time' ? (
+        <div className="space-y-5">
+          {timeGroups.length === 0 && (
+            <div className="py-10 border-2 border-dashed border-outline-variant rounded-xl text-center text-sm text-on-surface-variant">
+              Keine Erinnerungen{searchQuery || statusFilter !== 'all' ? ' für diesen Filter' : ''}.
+            </div>
+          )}
+          {timeGroups.map((group) => {
+            const collapsed = Boolean(collapsedTimeGroups[group.id]);
+            const isOverdue = group.id === 'overdue';
+            return (
+              <section key={group.id} aria-labelledby={`tgroup-${group.id}`}>
+                <button
+                  type="button"
+                  onClick={() => setCollapsedTimeGroups((prev) => ({ ...prev, [group.id]: !collapsed }))}
+                  aria-expanded={!collapsed}
+                  className="w-full flex items-center gap-2 mb-2 py-1 text-left group cursor-pointer"
+                >
+                  <span className={`material-symbols-outlined text-[20px] text-on-surface-variant transition-transform ${collapsed ? '' : 'rotate-90'}`}>
+                    chevron_right
+                  </span>
+                  <span className={`material-symbols-outlined text-[18px] ${isOverdue ? 'text-red-600' : 'text-on-surface-variant'}`}>
+                    {group.icon}
+                  </span>
+                  <h2 id={`tgroup-${group.id}`} className={`text-sm font-bold tracking-wider uppercase ${isOverdue ? 'text-red-700' : ''}`}>
+                    {group.label} <span className="text-on-surface-variant font-normal text-xs">({group.items.length})</span>
+                  </h2>
+                  <span className="h-px bg-outline-variant flex-grow opacity-50 group-hover:bg-primary/50 transition-colors" />
+                </button>
+                {!collapsed && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                    {group.items.map(renderCard)}
+                  </div>
+                )}
+              </section>
+            );
+          })}
+        </div>
+      ) : (
+      <>
       {/* Categories */}
       <div className="space-y-6">
-        <div className="flex items-center justify-between pb-2 border-b border-outline-variant/40">
-          <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">
-            Kategorien ({reminderCategories.length})
-          </span>
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={toggleEditMode}
-              className={`text-[11px] font-bold transition-colors flex items-center gap-1 px-2.5 py-1 rounded-lg border cursor-pointer ${
-                isEditMode
-                  ? 'bg-primary text-white border-primary shadow-sm'
-                  : 'text-on-surface-variant hover:text-primary bg-surface-low border-outline-variant hover:border-primary/50'
-              }`}
-              title={isEditMode ? 'Bearbeiten beenden – Kategorien zurückklappen' : 'Kategorien bearbeiten – alle einklappen zum Sortieren'}
-            >
-              <span className="material-symbols-outlined text-[14px]">
-                {isEditMode ? 'edit_off' : 'edit'}
-              </span>
-              {isEditMode ? 'Bearbeiten beenden' : 'Kategorien bearbeiten'}
-            </button>
-            <button
-              onClick={collapseAllReminderCategories}
-              disabled={isEditMode}
-              className={`text-[11px] font-bold transition-colors flex items-center gap-1 px-2.5 py-1 rounded-lg border ${
-                isEditMode
-                  ? 'opacity-30 cursor-not-allowed text-on-surface-variant bg-surface-low border-outline-variant'
-                  : 'text-on-surface-variant hover:text-primary bg-surface-low border-outline-variant hover:border-primary/50 cursor-pointer'
-              }`}
-              title="Alle Kategorien einklappen"
-            >
-              <span className="material-symbols-outlined text-[14px]">unfold_less</span>
-              Alle einklappen
-            </button>
-            <button
-              onClick={expandAllReminderCategories}
-              disabled={isEditMode}
-              className={`text-[11px] font-bold transition-colors flex items-center gap-1 px-2.5 py-1 rounded-lg border ${
-                isEditMode
-                  ? 'opacity-30 cursor-not-allowed text-on-surface-variant bg-surface-low border-outline-variant'
-                  : 'text-on-surface-variant hover:text-primary bg-surface-low border-outline-variant hover:border-primary/50 cursor-pointer'
-              }`}
-              title={isEditMode ? 'Im Bearbeitungsmodus nicht verfügbar' : 'Alle Kategorien ausklappen'}
-            >
-              <span className="material-symbols-outlined text-[14px]">unfold_more</span>
-              Alle ausklappen
-            </button>
-          </div>
-        </div>
+        <CategoryToolbar
+          count={reminderCategories.length}
+          isEditMode={isEditMode}
+          onToggleEdit={toggleEditMode}
+          anyExpanded={reminderCategories.some((c) => c.isExpanded)}
+          onCollapseAll={collapseAllReminderCategories}
+          onExpandAll={expandAllReminderCategories}
+        />
 
         {(orderedCategories || reminderCategories)?.map((cat) => {
           const catReminders = otherReminders
@@ -380,7 +376,7 @@ const Reminders = ({ setCurrentScreen }) => {
                     onTouchStart={(e) => startDrag(e, cat.id, catReminders.length)}
                     onClick={(e) => e.stopPropagation()}
                     className={`material-symbols-outlined text-[18px] hover:text-primary cursor-grab active:cursor-grabbing p-1 -m-1 transition-opacity touch-none select-none ${
-                      isEditMode ? 'opacity-100 text-primary' : 'opacity-50 group-hover:opacity-100'
+                      isEditMode ? 'opacity-100 text-primary' : 'hidden md:inline-block opacity-50 group-hover:opacity-100'
                     }`}
                     title="Halten & Ziehen zum Sortieren"
                   >
@@ -449,15 +445,28 @@ const Reminders = ({ setCurrentScreen }) => {
                 
                 {/* Action Buttons – always visible in edit mode, hover-only otherwise */}
                 <div className={`flex items-center gap-0.5 shrink-0 transition-opacity ${
-                  isEditMode ? 'opacity-100' : 'opacity-90 sm:opacity-0 group-hover:opacity-100'
+                  isEditMode ? 'opacity-100' : 'md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100'
                 }`}>
+                  {!isEditMode && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openModal('reminder', { categoryId: cat.id });
+                      }}
+                      className="p-2 md:p-1 text-on-surface-variant hover:text-primary hover:bg-surface-low rounded transition-colors"
+                      title="Neu in dieser Kategorie"
+                      aria-label={`Neu in Kategorie ${cat.name}`}
+                    >
+                      <span className="material-symbols-outlined text-[18px]">add</span>
+                    </button>
+                  )}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       setEditingCatId(cat.id);
                       setEditingCatName(cat.name);
                     }}
-                    className="p-1 text-on-surface-variant hover:text-primary hover:bg-surface-low rounded transition-colors"
+                    className={`p-2 md:p-1 text-on-surface-variant hover:text-primary hover:bg-surface-low rounded transition-colors ${isEditMode ? '' : 'hidden md:inline-flex'}`}
                     title="Kategorie umbenennen"
                   >
                     <span className="material-symbols-outlined text-[18px]">edit</span>
@@ -467,7 +476,7 @@ const Reminders = ({ setCurrentScreen }) => {
                       e.stopPropagation();
                       moveReminderCategoryOrder(cat.id, 'up');
                     }}
-                    className="p-1 text-on-surface-variant hover:text-primary hover:bg-surface-low rounded transition-colors"
+                    className={`p-2 md:p-1 text-on-surface-variant hover:text-primary hover:bg-surface-low rounded transition-colors ${isEditMode ? '' : 'hidden md:inline-flex'}`}
                     title="Kategorie nach oben verschieben"
                   >
                     <span className="material-symbols-outlined text-[18px]">keyboard_arrow_up</span>
@@ -477,7 +486,7 @@ const Reminders = ({ setCurrentScreen }) => {
                       e.stopPropagation();
                       moveReminderCategoryOrder(cat.id, 'down');
                     }}
-                    className="p-1 text-on-surface-variant hover:text-primary hover:bg-surface-low rounded transition-colors"
+                    className={`p-2 md:p-1 text-on-surface-variant hover:text-primary hover:bg-surface-low rounded transition-colors ${isEditMode ? '' : 'hidden md:inline-flex'}`}
                     title="Kategorie nach unten verschieben"
                   >
                     <span className="material-symbols-outlined text-[18px]">keyboard_arrow_down</span>
@@ -485,7 +494,7 @@ const Reminders = ({ setCurrentScreen }) => {
                   {cat.id !== 'allgemein' && (
                     <button 
                       onClick={(e) => { e.stopPropagation(); deleteReminderCategory(cat.id); }}
-                      className="p-1 text-on-surface-variant hover:text-red-500 hover:bg-red-50 rounded transition-colors ml-1"
+                      className={`p-2 md:p-1 text-on-surface-variant hover:text-red-500 hover:bg-red-50 rounded transition-colors ml-1 ${isEditMode ? '' : 'hidden md:inline-flex'}`}
                       title="Kategorie löschen"
                     >
                       <span className="material-symbols-outlined text-[16px]">close</span>
@@ -496,7 +505,7 @@ const Reminders = ({ setCurrentScreen }) => {
 
               {/* Content grid – hidden in edit mode regardless of isExpanded state */}
               {cat.isExpanded && !draggedCatId && !isEditMode && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                   {catReminders.length > 0 ? (
                     catReminders.map(renderCard)
                   ) : (
@@ -559,6 +568,8 @@ const Reminders = ({ setCurrentScreen }) => {
           </div>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 };

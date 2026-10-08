@@ -1,5 +1,9 @@
 import React, { useState } from 'react';
 import { useModal } from '../../context/ModalContext';
+import { BREAKPOINTS } from '../../lib/breakpoints';
+import CardActionSheet from './CardActionSheet';
+
+const isMobileWidth = () => typeof window !== 'undefined' && window.innerWidth <= BREAKPOINTS.MOBILE_MAX;
 
 const CardContextMenu = ({ 
   isPaused, 
@@ -10,10 +14,12 @@ const CardContextMenu = ({
   isKanbanView = false,
   itemType, 
   itemId,
+  itemTitle,
   currentCategoryId,
   itemStatus
 }) => {
   const [open, setOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const { openModal } = useModal();
 
   const isActiveInKanban = inKanban !== false;
@@ -23,13 +29,32 @@ const CardContextMenu = ({
       <button
         onClick={(e) => {
           e.stopPropagation();
-          setOpen(!open);
+          // Handy: großes Bottom Sheet statt kleinem Dropdown
+          if (isMobileWidth()) setSheetOpen(true);
+          else setOpen(!open);
         }}
-        className="w-7 h-7 rounded-lg hover:bg-surface-variant/40 flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
+        aria-label="Optionen"
+        aria-haspopup="menu"
+        className="w-8 h-8 md:w-7 md:h-7 rounded-lg hover:bg-surface-variant/40 flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
         title="Optionen"
       >
         <span className="material-symbols-outlined text-[18px]">more_vert</span>
       </button>
+
+      <CardActionSheet
+        isOpen={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        itemType={itemType}
+        itemId={itemId}
+        itemTitle={itemTitle}
+        currentCategoryId={currentCategoryId}
+        isPaused={isPaused}
+        inKanban={inKanban}
+        onTogglePause={onTogglePause}
+        onToggleKanban={onToggleKanban}
+        onOpenStatus={() => openModal('moveStatus', { type: itemType, itemId, currentStatus: itemStatus })}
+        onDelete={onDelete}
+      />
 
       {open && (
         <>

@@ -8,6 +8,7 @@ import Button from '../ui/Button';
 import Input from '../ui/Input';
 import Badge from '../ui/Badge';
 import CardContextMenu from '../ui/CardContextMenu';
+import { ListToolbar, CategoryToolbar } from '../ui/ListToolbar';
 
 const Projects = ({ setCurrentScreen }) => {
   const { 
@@ -91,18 +92,6 @@ const Projects = ({ setCurrentScreen }) => {
     setCurrentScreen('project-detail');
   };
 
-  const FilterButton = ({ label, value }) => (
-    <button
-      onClick={() => setStatusFilter(value)}
-      className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${
-        statusFilter === value 
-          ? 'bg-primary text-white' 
-          : 'bg-surface-low text-on-surface-variant border border-outline-variant hover:border-primary hover:text-primary'
-      }`}
-    >
-      {label}
-    </button>
-  );
 
 
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -192,7 +181,7 @@ const Projects = ({ setCurrentScreen }) => {
         onDragEnd={handleProjectHtml5DragEnd}
         onDragOver={(e) => handleCategoryDragOver(e, project.categoryId || 'allgemein')}
         onDrop={(e) => handleDrop(e, project.categoryId || 'allgemein')}
-        className={`cursor-grab active:cursor-grabbing touch-action-none select-none transition-all duration-150 ${
+        className={`cursor-grab active:cursor-grabbing [-webkit-touch-callout:none] select-none transition-all duration-150 ${
           isDragged ? 'opacity-30 scale-[0.98] ring-2 ring-primary/40 rounded-xl' : 'opacity-100'
         }`}
       >
@@ -218,6 +207,7 @@ const Projects = ({ setCurrentScreen }) => {
               onDelete={() => deleteProject(project.id)}
               itemType="project"
               itemId={project.id}
+              itemTitle={project.title}
               currentCategoryId={project.categoryId}
               itemStatus={project.status}
             />
@@ -230,50 +220,23 @@ const Projects = ({ setCurrentScreen }) => {
 
   return (
     <div className="screen-transition pb-20">
-      <div className="flex flex-col gap-4 mb-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="relative flex-grow max-w-md w-full">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">
-              search
-            </span>
-            <Input
-              type="text"
-              className="pl-10 w-full"
-              placeholder="Projekte durchsuchen..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-          <div className="flex items-center gap-2 shrink-0 justify-end">
-            <button
-              onClick={() => setCurrentScreen('trash')}
-              className="flex items-center justify-center p-2 text-on-surface-variant hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors border border-transparent hover:border-red-200"
-              title="Papierkorb öffnen"
-            >
-              <span className="material-symbols-outlined text-[24px]">delete</span>
-            </button>
-            <Button onClick={() => openModal('project')}>
-              Neues Projekt
-            </Button>
-          </div>
-        </div>
-        
-        {/* Filter Row */}
-        <div className="flex items-center gap-2 overflow-x-auto no-wrap-scroll pb-2">
-          <FilterButton label="Alle" value="all" />
-          <FilterButton label="Aktiv" value="active" />
-          <FilterButton label="Geplant" value="planned" />
-          <FilterButton label="Pausiert" value="paused" />
-          <FilterButton label="Abgeschlossen" value="completed" />
-        </div>
-      </div>
+      <ListToolbar
+        searchValue={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder="Projekte durchsuchen"
+        onOpenTrash={() => setCurrentScreen('trash')}
+        onCreate={() => openModal('project')}
+        createLabel="Neues Projekt"
+        statusFilter={statusFilter}
+        onStatusFilterChange={setStatusFilter}
+      />
 
       {pinnedProjects.length > 0 && (
-        <div className="mb-8">
-          <h2 className="text-sm font-bold text-on-surface-variant uppercase tracking-wider mb-4 flex items-center gap-2">
+        <div className="mb-6">
+          <h2 className="text-sm font-bold text-on-surface-variant uppercase tracking-wider mb-3 flex items-center gap-2">
             <span className="material-symbols-outlined text-sm">push_pin</span> Angepinnt
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             {pinnedProjects.map(renderCard)}
           </div>
         </div>
@@ -281,53 +244,14 @@ const Projects = ({ setCurrentScreen }) => {
 
       {/* Categories */}
       <div className="space-y-6">
-        <div className="flex items-center justify-between pb-2 border-b border-outline-variant/40">
-          <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">
-            Kategorien ({projectCategories.length})
-          </span>
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={toggleEditMode}
-              className={`text-[11px] font-bold transition-colors flex items-center gap-1 px-2.5 py-1 rounded-lg border cursor-pointer ${
-                isEditMode
-                  ? 'bg-primary text-white border-primary shadow-sm'
-                  : 'text-on-surface-variant hover:text-primary bg-surface-low border-outline-variant hover:border-primary/50'
-              }`}
-              title={isEditMode ? 'Bearbeiten beenden – Kategorien zurückklappen' : 'Kategorien bearbeiten – alle einklappen zum Sortieren'}
-            >
-              <span className="material-symbols-outlined text-[14px]">
-                {isEditMode ? 'edit_off' : 'edit'}
-              </span>
-              {isEditMode ? 'Bearbeiten beenden' : 'Kategorien bearbeiten'}
-            </button>
-            <button
-              onClick={collapseAllProjectCategories}
-              disabled={isEditMode}
-              className={`text-[11px] font-bold transition-colors flex items-center gap-1 px-2.5 py-1 rounded-lg border ${
-                isEditMode
-                  ? 'opacity-30 cursor-not-allowed text-on-surface-variant bg-surface-low border-outline-variant'
-                  : 'text-on-surface-variant hover:text-primary bg-surface-low border-outline-variant hover:border-primary/50 cursor-pointer'
-              }`}
-              title="Alle Kategorien einklappen"
-            >
-              <span className="material-symbols-outlined text-[14px]">unfold_less</span>
-              Alle einklappen
-            </button>
-            <button
-              onClick={expandAllProjectCategories}
-              disabled={isEditMode}
-              className={`text-[11px] font-bold transition-colors flex items-center gap-1 px-2.5 py-1 rounded-lg border ${
-                isEditMode
-                  ? 'opacity-30 cursor-not-allowed text-on-surface-variant bg-surface-low border-outline-variant'
-                  : 'text-on-surface-variant hover:text-primary bg-surface-low border-outline-variant hover:border-primary/50 cursor-pointer'
-              }`}
-              title={isEditMode ? 'Im Bearbeitungsmodus nicht verfügbar' : 'Alle Kategorien ausklappen'}
-            >
-              <span className="material-symbols-outlined text-[14px]">unfold_more</span>
-              Alle ausklappen
-            </button>
-          </div>
-        </div>
+        <CategoryToolbar
+          count={projectCategories.length}
+          isEditMode={isEditMode}
+          onToggleEdit={toggleEditMode}
+          anyExpanded={projectCategories.some((c) => c.isExpanded)}
+          onCollapseAll={collapseAllProjectCategories}
+          onExpandAll={expandAllProjectCategories}
+        />
 
         {(orderedCategories || projectCategories)?.map((cat) => {
           const catProjects = otherProjects.filter(p => (p.categoryId || 'allgemein') === cat.id);
@@ -372,7 +296,7 @@ const Projects = ({ setCurrentScreen }) => {
                     onTouchStart={(e) => startDrag(e, cat.id, catProjects.length)}
                     onClick={(e) => e.stopPropagation()}
                     className={`material-symbols-outlined text-[18px] hover:text-primary cursor-grab active:cursor-grabbing p-1 -m-1 transition-opacity touch-none select-none ${
-                      isEditMode ? 'opacity-100 text-primary' : 'opacity-50 group-hover:opacity-100'
+                      isEditMode ? 'opacity-100 text-primary' : 'hidden md:inline-block opacity-50 group-hover:opacity-100'
                     }`}
                     title="Halten & Ziehen zum Sortieren"
                   >
@@ -441,15 +365,28 @@ const Projects = ({ setCurrentScreen }) => {
                   
                   {/* Action Buttons – always visible in edit mode, hover-only otherwise */}
                   <div className={`flex items-center gap-0.5 shrink-0 transition-opacity ${
-                    isEditMode ? 'opacity-100' : 'opacity-90 sm:opacity-0 group-hover:opacity-100'
+                    isEditMode ? 'opacity-100' : 'md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100'
                   }`}>
+                    {!isEditMode && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openModal('project', { categoryId: cat.id });
+                        }}
+                        className="p-2 md:p-1 text-on-surface-variant hover:text-primary hover:bg-surface-low rounded transition-colors"
+                        title="Neu in dieser Kategorie"
+                        aria-label={`Neu in Kategorie ${cat.name}`}
+                      >
+                        <span className="material-symbols-outlined text-[18px]">add</span>
+                      </button>
+                    )}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         setEditingCatId(cat.id);
                         setEditingCatName(cat.name);
                       }}
-                      className="p-1 text-on-surface-variant hover:text-primary hover:bg-surface-low rounded transition-colors"
+                      className={`p-2 md:p-1 text-on-surface-variant hover:text-primary hover:bg-surface-low rounded transition-colors ${isEditMode ? '' : 'hidden md:inline-flex'}`}
                       title="Kategorie umbenennen"
                     >
                       <span className="material-symbols-outlined text-[18px]">edit</span>
@@ -459,7 +396,7 @@ const Projects = ({ setCurrentScreen }) => {
                         e.stopPropagation();
                         moveProjectCategoryOrder(cat.id, 'up');
                       }}
-                      className="p-1 text-on-surface-variant hover:text-primary hover:bg-surface-low rounded transition-colors"
+                      className={`p-2 md:p-1 text-on-surface-variant hover:text-primary hover:bg-surface-low rounded transition-colors ${isEditMode ? '' : 'hidden md:inline-flex'}`}
                       title="Kategorie nach oben verschieben"
                     >
                       <span className="material-symbols-outlined text-[18px]">keyboard_arrow_up</span>
@@ -469,7 +406,7 @@ const Projects = ({ setCurrentScreen }) => {
                         e.stopPropagation();
                         moveProjectCategoryOrder(cat.id, 'down');
                       }}
-                      className="p-1 text-on-surface-variant hover:text-primary hover:bg-surface-low rounded transition-colors"
+                      className={`p-2 md:p-1 text-on-surface-variant hover:text-primary hover:bg-surface-low rounded transition-colors ${isEditMode ? '' : 'hidden md:inline-flex'}`}
                       title="Kategorie nach unten verschieben"
                     >
                       <span className="material-symbols-outlined text-[18px]">keyboard_arrow_down</span>
@@ -477,7 +414,7 @@ const Projects = ({ setCurrentScreen }) => {
                     {cat.id !== 'allgemein' && (
                       <button 
                         onClick={(e) => { e.stopPropagation(); deleteProjectCategory(cat.id); }}
-                        className="p-1 text-on-surface-variant hover:text-red-500 hover:bg-red-50 rounded transition-colors ml-1"
+                        className={`p-2 md:p-1 text-on-surface-variant hover:text-red-500 hover:bg-red-50 rounded transition-colors ml-1 ${isEditMode ? '' : 'hidden md:inline-flex'}`}
                         title="Kategorie löschen"
                       >
                         <span className="material-symbols-outlined text-[16px]">close</span>
@@ -488,7 +425,7 @@ const Projects = ({ setCurrentScreen }) => {
 
                 {/* Content grid – hidden in edit mode regardless of isExpanded state */}
                 {cat.isExpanded && !draggedCatId && !isEditMode && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                     {catProjects.length > 0 ? (
                       catProjects.map(renderCard)
                     ) : (

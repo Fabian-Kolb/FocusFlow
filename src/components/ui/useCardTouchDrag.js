@@ -511,6 +511,11 @@ export function useCardTouchDrag({
     window.addEventListener('touchend', earlyEndHandler);
     window.addEventListener('touchcancel', earlyEndHandler);
 
+    // Long-Press öffnet auf Android sonst das Kontextmenü und beendet die Touch-Sequenz
+    const blockContextMenu = (ce) => ce.preventDefault();
+    window.addEventListener('contextmenu', blockContextMenu, { once: true });
+    setTimeout(() => window.removeEventListener('contextmenu', blockContextMenu), 1500);
+
     longPressTimerRef.current = setTimeout(() => {
       if (earlyTouchListenersRef.current) {
         window.removeEventListener('touchmove', earlyMoveHandler);
@@ -543,6 +548,9 @@ export function useCardTouchDrag({
 
       const moveHandler = (te) => {
         if (!isDraggingRef.current) return;
+        // Ohne preventDefault scrollt der Browser die Seite statt die Karte zu ziehen
+        // und bricht die Geste per touchcancel ab. Dafür muss der Listener non-passive sein.
+        if (te.cancelable) te.preventDefault();
         const touch = te.touches[0];
         if (!touch) return;
 
@@ -580,7 +588,7 @@ export function useCardTouchDrag({
       activeTouchMoveHandlerRef.current = moveHandler;
       activeTouchEndHandlerRef.current = endHandler;
 
-      window.addEventListener('touchmove', moveHandler, { passive: true });
+      window.addEventListener('touchmove', moveHandler, { passive: false });
       window.addEventListener('touchend', endHandler);
       window.addEventListener('touchcancel', endHandler);
     }, 400);
