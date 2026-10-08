@@ -159,9 +159,8 @@ const CardContextMenu = ({
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                if (window.confirm('In den Papierkorb verschieben?')) {
-                  onDelete();
-                }
+                // Keine Rückfrage: Löschen lässt sich per „Rückgängig“-Toast zurücknehmen
+                onDelete();
               }}
               className="p-1.5 rounded-lg border border-transparent hover:bg-red-50 text-red-600 hover:border-red-200 transition-colors cursor-pointer w-full flex items-center gap-2 px-2 text-xs font-medium"
               title="Löschen"

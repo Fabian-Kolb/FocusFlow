@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { collection, doc, onSnapshot, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from './AuthContext';
+import { useToast } from './ToastContext';
 import {
   syncEntityToGoogle,
   desyncEntityFromGoogle,
@@ -198,6 +199,7 @@ function readGuestInbox() {
 
 export const DataProvider = ({ children }) => {
   const { user, isCalendarConnected } = useAuth();
+  const { showUndoToast } = useToast();
 
   const [projects, setProjects] = useState([]);
   const [inboxItems, setInboxItems] = useState({ today: [], yesterday: [] });
@@ -874,13 +876,25 @@ export const DataProvider = ({ children }) => {
     });
   };
 
+  // Rückgängig-Toast, wenn ein Projekt gerade abgeschlossen wurde
+  const offerProjectUndo = (before, message, icon) => {
+    if (before) showUndoToast(message, () => saveProject(before), icon);
+  };
+  const offerReminderUndo = (before, message, icon) => {
+    if (before) showUndoToast(message, () => saveReminder(before).catch(() => {}), icon);
+  };
+
   const toggleProjectStatus = (projectId) => {
+    const before = projects.find(p => p.id === projectId);
     mutateProject(projectId, (proj) => {
       let newStatus = 'GEPLANT';
       if (proj.status === 'GEPLANT') newStatus = 'AKTIV';
       else if (proj.status === 'AKTIV' || proj.status === 'LAUFEND') newStatus = 'ABGESCHLOSSEN';
       return { ...proj, status: newStatus };
     });
+    if (before && (before.status === 'AKTIV' || before.status === 'LAUFEND')) {
+      offerProjectUndo(before, 'Projekt abgeschlossen');
+    }
   };
 
   const toggleProjectPause = (projectId) => {
@@ -888,10 +902,18 @@ export const DataProvider = ({ children }) => {
   };
 
   const setProjectStatus = (projectId, newStatus) => {
+    const before = projects.find(p => p.id === projectId);
     mutateProject(projectId, (proj) => ({ ...proj, status: newStatus }));
+    if (newStatus === 'ABGESCHLOSSEN' && before?.status !== 'ABGESCHLOSSEN') {
+      offerProjectUndo(before, 'Projekt abgeschlossen');
+    }
   };
 
   const updateProjectForKanban = (projectId, column) => {
+    const before = projects.find(p => p.id === projectId);
+    if (column === 'DONE' && before?.status !== 'ABGESCHLOSSEN') {
+      offerProjectUndo(before, 'Projekt abgeschlossen');
+    }
     mutateProject(projectId, (proj) => {
       if (column === 'TODO') return { ...proj, status: 'GEPLANT', progress: 0 };
       if (column === 'IN_PROGRESS') return { ...proj, status: 'AKTIV', progress: proj.progress === 0 ? 10 : proj.progress };
@@ -908,6 +930,11 @@ export const DataProvider = ({ children }) => {
   };
 
   const moveProjectToCategory = (projectId, categoryId) => {
+    const before = projects.find(p => p.id === projectId);
+    if (before && before.categoryId !== categoryId) {
+      const catName = projectCategories.find(c => c.id === categoryId)?.name || 'Kategorie';
+      offerProjectUndo(before, `Verschoben nach „${catName}“`, 'drive_file_move');
+    }
     mutateProject(projectId, (p) => {
       p.categoryId = categoryId;
       return p;
@@ -915,6 +942,11 @@ export const DataProvider = ({ children }) => {
   };
 
   const moveReminderToCategory = (reminderId, categoryId) => {
+    const before = reminders.find(r => r.id === reminderId);
+    if (before && before.categoryId !== categoryId) {
+      const catName = reminderCategories.find(c => c.id === categoryId)?.name || 'Kategorie';
+      offerReminderUndo(before, `Verschoben nach „${catName}“`, 'drive_file_move');
+    }
     mutateReminder(reminderId, (r) => {
       r.categoryId = categoryId;
       return r;
@@ -1132,7 +1164,9 @@ export const DataProvider = ({ children }) => {
   };
 
   const deleteProject = async (projectId) => {
+    const before = projects.find(p => p.id === projectId);
     mutateProject(projectId, (proj) => ({ ...proj, deletedAt: new Date().toISOString() }));
+    offerProjectUndo(before, 'Projekt in den Papierkorb verschoben', 'delete');
     if (selectedProjectId === projectId) {
       setSelectedProjectId(null);
     }
@@ -1567,6 +1601,8 @@ export const DataProvider = ({ children }) => {
   };
 
   const toggleReminderStatus = (reminderId) => {
+    const before = reminders.find(r => r.id === reminderId);
+    if (before?.status === 'AKTIV') offerReminderUndo(before, 'Erinnerung erledigt');
     mutateReminder(reminderId, (rem) => {
       let nextStatus = 'GEPLANT';
       if (rem.status === 'GEPLANT') nextStatus = 'AKTIV';
@@ -1576,7 +1612,11 @@ export const DataProvider = ({ children }) => {
   };
 
   const setReminderStatus = (reminderId, newStatus) => {
+    const before = reminders.find(r => r.id === reminderId);
     mutateReminder(reminderId, (rem) => ({ ...rem, status: newStatus }));
+    if (newStatus === 'ABGESCHLOSSEN' && before?.status !== 'ABGESCHLOSSEN') {
+      offerReminderUndo(before, 'Erinnerung erledigt');
+    }
   };
 
   const toggleReminderPause = (reminderId) => {
@@ -1588,7 +1628,9 @@ export const DataProvider = ({ children }) => {
   };
 
   const deleteReminder = async (reminderId) => {
+    const before = reminders.find(r => r.id === reminderId);
     mutateReminder(reminderId, (rem) => ({ ...rem, deletedAt: new Date().toISOString() }));
+    offerReminderUndo(before, 'Erinnerung in den Papierkorb verschoben', 'delete');
     if (selectedReminderId === reminderId) {
       setSelectedReminderId(null);
     }
@@ -1669,11 +1711,17 @@ export const DataProvider = ({ children }) => {
     let itemToUpdate = allItems.find(i => i.id === id);
     if (!itemToUpdate) return;
     const updated = { ...itemToUpdate, deletedAt: new Date().toISOString() };
-    if (user.isGuest) {
-      applyGuestInbox(readGuestInbox().map(i => (i.id === id ? updated : i)));
-      return;
-    }
-    await setDoc(doc(db, 'users', user.uid, 'inboxItems', id), updated);
+    const writeItem = async (item) => {
+      if (user.isGuest) {
+        applyGuestInbox(readGuestInbox().map(i => (i.id === id ? item : i)));
+        return;
+      }
+      await setDoc(doc(db, 'users', user.uid, 'inboxItems', id), item);
+    };
+    await writeItem(updated);
+    showUndoToast('Gedanke in den Papierkorb verschoben', () => {
+      writeItem(itemToUpdate).catch((err) => handleFirestoreError('inboxItems', err));
+    }, 'delete');
   };
 
   const trashItems = [...trashedProjects, ...trashedReminders, ...trashedInboxItems];

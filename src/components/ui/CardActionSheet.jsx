@@ -167,10 +167,9 @@ function CardActionSheet({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                if (window.confirm('In den Papierkorb verschieben?')) {
-                  onDelete?.();
-                  onClose();
-                }
+                // Keine Rückfrage: Löschen lässt sich per „Rückgängig“-Toast zurücknehmen
+                onDelete?.();
+                onClose();
               }}
               className={`${rowClass} text-red-600`}
             >

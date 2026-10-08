@@ -5,6 +5,7 @@ import { ModalProvider, useModal } from './context/ModalContext';
 import { DataProvider, useData } from './context/DataContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ChatProvider } from './context/ChatContext';
+import { ToastProvider } from './context/ToastContext';
 import FirestoreErrorBanner from './components/ui/FirestoreErrorBanner';
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -251,13 +252,15 @@ function App() {
 
   return (
     <AuthProvider>
-      <DataProvider>
-        <ModalProvider>
-          <ChatProvider>
-            <AppContent />
-          </ChatProvider>
-        </ModalProvider>
-      </DataProvider>
+      <ToastProvider>
+        <DataProvider>
+          <ModalProvider>
+            <ChatProvider>
+              <AppContent />
+            </ChatProvider>
+          </ModalProvider>
+        </DataProvider>
+      </ToastProvider>
     </AuthProvider>
   );
 }

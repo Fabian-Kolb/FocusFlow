@@ -10,6 +10,7 @@ import Input from '../ui/Input';
 import Badge from '../ui/Badge';
 import CardContextMenu from '../ui/CardContextMenu';
 import { ListToolbar, CategoryToolbar, ViewToggle, PROJECT_VIEW_OPTIONS } from '../ui/ListToolbar';
+import SwipeableCard from '../ui/SwipeableCard';
 
 const Projects = ({ setCurrentScreen }) => {
   const { 
@@ -17,6 +18,7 @@ const Projects = ({ setCurrentScreen }) => {
     openModal, 
     setSelectedProjectId, 
     toggleProjectStatus, 
+    setProjectStatus,
     toggleProjectPause,
     deleteProject,
     toggleProjectKanban,
@@ -155,6 +157,23 @@ const Projects = ({ setCurrentScreen }) => {
         } : {})}
         className={`${sortable ? 'cursor-grab [-webkit-touch-callout:none] select-none' : ''} ${isDragged ? LIFT_CLASS : ''}`}
       >
+      <SwipeableCard
+        disabled={Boolean(drag)}
+        className="h-full"
+        right={{
+          label: project.status === 'ABGESCHLOSSEN' ? 'Wieder öffnen' : 'Abschließen',
+          icon: project.status === 'ABGESCHLOSSEN' ? 'undo' : 'check_circle',
+          className: 'bg-emerald-600',
+          onCommit: () => setProjectStatus(project.id, project.status === 'ABGESCHLOSSEN' ? 'AKTIV' : 'ABGESCHLOSSEN')
+        }}
+        left={{
+          label: 'Papierkorb',
+          icon: 'delete',
+          className: 'bg-red-600',
+          dismiss: true,
+          onCommit: () => deleteProject(project.id)
+        }}
+      >
       <Card
         interactive
         padding="small"
@@ -184,6 +203,7 @@ const Projects = ({ setCurrentScreen }) => {
           }
         />
       </Card>
+      </SwipeableCard>
     </div>
   );
 };

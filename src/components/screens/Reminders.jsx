@@ -11,6 +11,7 @@ import Input from '../ui/Input';
 import CardContextMenu from '../ui/CardContextMenu';
 import { ListToolbar, ViewToggle, CategoryToolbar } from '../ui/ListToolbar';
 import { groupRemindersByTime, compareReminderDue } from '../../lib/reminderDates';
+import SwipeableCard from '../ui/SwipeableCard';
 
 const VIEW_STORAGE_KEY = 'focusflow_reminders_view';
 const VIEW_OPTIONS = [
@@ -192,6 +193,23 @@ const Reminders = ({ setCurrentScreen }) => {
         } : {})}
         className={`${sortable ? 'cursor-grab [-webkit-touch-callout:none] select-none' : ''} ${isDragged ? LIFT_CLASS : ''}`}
       >
+      <SwipeableCard
+        disabled={Boolean(drag)}
+        className="h-full"
+        right={{
+          label: reminder.status === 'ABGESCHLOSSEN' ? 'Wieder öffnen' : 'Erledigt',
+          icon: reminder.status === 'ABGESCHLOSSEN' ? 'undo' : 'check_circle',
+          className: 'bg-emerald-600',
+          onCommit: () => setReminderStatus(reminder.id, reminder.status === 'ABGESCHLOSSEN' ? 'AKTIV' : 'ABGESCHLOSSEN')
+        }}
+        left={{
+          label: 'Papierkorb',
+          icon: 'delete',
+          className: 'bg-red-600',
+          dismiss: true,
+          onCommit: () => deleteReminder(reminder.id)
+        }}
+      >
       <Card
         interactive
         padding="small"
@@ -222,6 +240,7 @@ const Reminders = ({ setCurrentScreen }) => {
           }
         />
       </Card>
+      </SwipeableCard>
     </div>
   );
 };
