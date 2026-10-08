@@ -12,6 +12,7 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test:behavior": "vitest run",
+    "test:tz": "node scripts/run-tz-tests.js",
     "test:coverage": "vitest run --coverage",
     "test": "npm run test:behavior && node scripts/run-e2e-tests.js && node tests/calendar_security.test.js && node tests/firestore_security.test.js"
   },

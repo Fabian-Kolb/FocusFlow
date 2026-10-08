@@ -16,7 +16,9 @@ export default defineConfig({
       'tests/settings_modal.test.jsx',
       'tests/card_drag_and_drop.test.jsx',
       'tests/reminder_dates.test.js',
-      'tests/calendar_ui.test.jsx'
+      'tests/calendar_ui.test.jsx',
+      'tests/calendar_utils.test.js',
+      'tests/calendar_events_hook.test.jsx'
     ]
   }
 });

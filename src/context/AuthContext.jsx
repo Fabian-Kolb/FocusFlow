@@ -8,10 +8,14 @@ import {
   updateProfile,
   updatePassword,
   sendPasswordResetEmail,
-  sendEmailVerification
+  sendEmailVerification,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  reauthenticateWithPopup,
+  deleteUser
 } from 'firebase/auth';
 import { auth } from '../lib/firebase';
-import { doc, getDoc, getFirestore } from 'firebase/firestore';
+import { doc, getDoc, getDocs, collection, writeBatch, getFirestore } from 'firebase/firestore';
 import { 
   getCalendarConnectionStatus, 
   getCalendarAuthUrl, 
@@ -27,6 +31,43 @@ export function useAuth() {
 }
 
 const GUEST_STORAGE_FLAG = 'focusflow_is_guest';
+
+// Alle Nutzer-Subcollections unter users/{uid} (siehe firestore.rules)
+export const USER_DATA_COLLECTIONS = [
+  'projects',
+  'reminders',
+  'inboxItems',
+  'categories',
+  'reminderCategories',
+  'kanbanViews',
+  'chat_data'
+];
+
+async function deleteAllUserData(db, uid) {
+  for (const colName of USER_DATA_COLLECTIONS) {
+    const snap = await getDocs(collection(db, 'users', uid, colName));
+    const docs = snap.docs;
+    // Firestore-Batches erlauben max. 500 Operationen
+    for (let i = 0; i < docs.length; i += 400) {
+      const batch = writeBatch(db);
+      docs.slice(i, i + 400).forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    }
+  }
+}
+
+function clearLocalUserData(uid) {
+  try {
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.includes(uid) || key === 'focusflow_coach_history')) keys.push(key);
+    }
+    keys.forEach((key) => localStorage.removeItem(key));
+  } catch (e) {
+    console.warn('LocalStorage konnte nicht bereinigt werden:', e);
+  }
+}
 
 const GUEST_USER_OBJ = {
   uid: 'guest_preview_user',
@@ -273,6 +314,40 @@ export function AuthProvider({ children }) {
     await sendEmailVerification(auth.currentUser);
   };
 
+  /**
+   * Löscht Konto und alle Inhalte endgültig (DSGVO Art. 17).
+   * Firebase verlangt eine frische Anmeldung: Passwort-Nutzer bestätigen per Passwort,
+   * Google-Nutzer per Google-Popup.
+   */
+  const deleteAccount = async ({ password } = {}) => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) throw new Error('Nicht angemeldet.');
+
+    const usesGoogle = currentUser.providerData?.some(p => p.providerId === 'google.com');
+    if (usesGoogle) {
+      await reauthenticateWithPopup(currentUser, new GoogleAuthProvider());
+    } else {
+      const credential = EmailAuthProvider.credential(currentUser.email, password || '');
+      await reauthenticateWithCredential(currentUser, credential);
+    }
+
+    // Kalender-Token serverseitig entfernen (best effort)
+    try {
+      await disconnectCalendarApi();
+    } catch (err) {
+      console.warn('Kalender konnte beim Löschen nicht getrennt werden:', err);
+    }
+
+    const uid = currentUser.uid;
+    await deleteAllUserData(getFirestore(), uid);
+    await deleteUser(currentUser);
+
+    clearLocalUserData(uid);
+    clearCalendarTokens();
+    setIsCalendarConnected(false);
+    setUser(null);
+  };
+
   const reloadUser = async () => {
     if (!auth.currentUser) return null;
     await auth.currentUser.reload();
@@ -302,7 +377,8 @@ export function AuthProvider({ children }) {
     changePassword,
     resetPassword,
     sendVerificationEmail,
-    reloadUser
+    reloadUser,
+    deleteAccount
   };
 
   return (

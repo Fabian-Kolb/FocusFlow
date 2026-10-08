@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import Sidebar from './components/layout/Sidebar';
 import BottomNav from './components/layout/BottomNav';
 import { ModalProvider } from './context/ModalContext';
@@ -6,6 +6,7 @@ import { DataProvider, useData } from './context/DataContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ChatProvider } from './context/ChatContext';
 import FirestoreErrorBanner from './components/ui/FirestoreErrorBanner';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Modals
 import ProjectModal from './components/modals/ProjectModal';
@@ -23,22 +24,34 @@ import GuestWelcomeModal from './components/modals/GuestWelcomeModal';
 import Dashboard from './components/screens/Dashboard';
 import Inbox from './components/screens/Inbox';
 import Projects from './components/screens/Projects';
-import ProjectDetail from './components/screens/ProjectDetail';
-import Calendar from './components/screens/Calendar';
-import Coach from './components/screens/Coach';
-import Review from './components/screens/Review';
 import Login from './components/screens/Login';
-import ProjectsBoard from './components/screens/ProjectsBoard';
 import Reminders from './components/screens/Reminders';
-import ReminderDetail from './components/screens/ReminderDetail';
-import Trash from './components/screens/Trash';
 import EmailVerificationScreen from './components/screens/EmailVerificationScreen';
+
+// Große bzw. seltener genutzte Screens erst bei Bedarf laden (Code-Splitting)
+const ProjectDetail = lazy(() => import('./components/screens/ProjectDetail'));
+const Calendar = lazy(() => import('./components/screens/Calendar'));
+const Coach = lazy(() => import('./components/screens/Coach'));
+const Review = lazy(() => import('./components/screens/Review'));
+const ProjectsBoard = lazy(() => import('./components/screens/ProjectsBoard'));
+const ReminderDetail = lazy(() => import('./components/screens/ReminderDetail'));
+const Trash = lazy(() => import('./components/screens/Trash'));
+const LegalPage = lazy(() => import('./components/screens/LegalPage'));
 import {
   BREAKPOINTS,
   isDesktopViewport,
   readStoredDesktopCollapsed,
   writeStoredDesktopCollapsed
 } from './lib/breakpoints';
+import { getLegalPageFromPath } from './lib/legal';
+
+function ScreenFallback() {
+  return (
+    <div className="flex-1 flex items-center justify-center min-h-[40vh]" aria-busy="true" aria-label="Wird geladen">
+      <span className="w-6 h-6 rounded-full border-2 border-on-surface-variant/30 border-t-primary animate-spin" />
+    </div>
+  );
+}
 
 function AppContent() {
   const [currentScreen, setCurrentScreen] = useState('dashboard');
@@ -164,17 +177,21 @@ function AppContent() {
             {firestoreError && currentScreen !== 'coach' && (
               <FirestoreErrorBanner error={firestoreError} onDismiss={clearFirestoreError} />
             )}
-            {currentScreen === 'dashboard' && <Dashboard setCurrentScreen={setCurrentScreen} />}
-            {currentScreen === 'inbox' && <Inbox setCurrentScreen={setCurrentScreen} />}
-            {currentScreen === 'reminders' && <Reminders setCurrentScreen={setCurrentScreen} />}
-            {currentScreen === 'reminder-detail' && <ReminderDetail setCurrentScreen={setCurrentScreen} />}
-            {currentScreen === 'projects' && <Projects setCurrentScreen={setCurrentScreen} />}
-            {currentScreen === 'board' && <ProjectsBoard setCurrentScreen={setCurrentScreen} />}
-            {currentScreen === 'project-detail' && <ProjectDetail setCurrentScreen={setCurrentScreen} />}
-            {currentScreen === 'calendar' && <Calendar />}
-            {currentScreen === 'coach' && <Coach setCurrentScreen={setCurrentScreen} />}
-            {currentScreen === 'review' && <Review />}
-            {currentScreen === 'trash' && <Trash setCurrentScreen={setCurrentScreen} />}
+            <ErrorBoundary variant="screen" resetKey={currentScreen}>
+              <Suspense fallback={<ScreenFallback />}>
+                {currentScreen === 'dashboard' && <Dashboard setCurrentScreen={setCurrentScreen} />}
+                {currentScreen === 'inbox' && <Inbox setCurrentScreen={setCurrentScreen} />}
+                {currentScreen === 'reminders' && <Reminders setCurrentScreen={setCurrentScreen} />}
+                {currentScreen === 'reminder-detail' && <ReminderDetail setCurrentScreen={setCurrentScreen} />}
+                {currentScreen === 'projects' && <Projects setCurrentScreen={setCurrentScreen} />}
+                {currentScreen === 'board' && <ProjectsBoard setCurrentScreen={setCurrentScreen} />}
+                {currentScreen === 'project-detail' && <ProjectDetail setCurrentScreen={setCurrentScreen} />}
+                {currentScreen === 'calendar' && <Calendar />}
+                {currentScreen === 'coach' && <Coach setCurrentScreen={setCurrentScreen} />}
+                {currentScreen === 'review' && <Review />}
+                {currentScreen === 'trash' && <Trash setCurrentScreen={setCurrentScreen} />}
+              </Suspense>
+            </ErrorBoundary>
           </div>
         </main>
 
@@ -197,6 +214,16 @@ function AppContent() {
 }
 
 function App() {
+  // Impressum & Datenschutz müssen ohne Login erreichbar sein
+  const legalPage = typeof window !== 'undefined' ? getLegalPageFromPath(window.location.pathname) : null;
+  if (legalPage) {
+    return (
+      <Suspense fallback={<ScreenFallback />}>
+        <LegalPage page={legalPage} />
+      </Suspense>
+    );
+  }
+
   return (
     <AuthProvider>
       <DataProvider>

@@ -1,7 +1,29 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 
-export default function AccountSection({ 
+const DELETE_CONFIRM_WORD = 'LÖSCHEN';
+
+function getDeleteErrorText(err) {
+  const code = err?.code || '';
+  if (code === 'auth/wrong-password' || code === 'auth/invalid-credential' || code === 'auth/missing-password') {
+    return 'Das Passwort ist falsch.';
+  }
+  if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+    return 'Bestätigung abgebrochen. Dein Konto wurde nicht gelöscht.';
+  }
+  if (code === 'auth/popup-blocked') {
+    return 'Das Google-Fenster wurde blockiert. Bitte erlaube Popups und versuche es erneut.';
+  }
+  if (code === 'auth/user-mismatch') {
+    return 'Bitte bestätige mit demselben Google-Konto, mit dem du angemeldet bist.';
+  }
+  if (code === 'auth/too-many-requests') {
+    return 'Zu viele Versuche. Bitte warte einen Moment.';
+  }
+  return 'Das Konto konnte nicht gelöscht werden. Bitte versuche es erneut.';
+}
+
+export default function AccountSection({
   formState, 
   setFormState, 
   onLogout,
@@ -17,7 +39,8 @@ export default function AccountSection({
     sendVerificationEmail,
     reloadUser,
     linkGoogleCalendar, 
-    disconnectGoogleCalendar 
+    disconnectGoogleCalendar,
+    deleteAccount
   } = useAuth();
 
   const isMountedRef = useRef(true);
@@ -180,6 +203,41 @@ export default function AccountSection({
       console.error('Calendar disconnect error:', err);
       if (isMountedRef.current) {
         setMsg({ type: 'error', text: 'Fehler beim Trennen der Kalender-Verbindung.' });
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setLoadingAction(null);
+      }
+    }
+  };
+
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const canDelete = deleteConfirmText.trim().toUpperCase() === DELETE_CONFIRM_WORD
+    && (isGoogleUser || deletePassword.length > 0);
+
+  const resetDeleteState = () => {
+    setDeleteOpen(false);
+    setDeleteConfirmText('');
+    setDeletePassword('');
+    setDeleteError('');
+  };
+
+  const handleDeleteAccount = async (e) => {
+    e.preventDefault();
+    if (loadingAction || !canDelete) return;
+    setDeleteError('');
+    setLoadingAction('delete');
+    try {
+      await deleteAccount({ password: deletePassword });
+      // Nach dem Löschen ist der Nutzer abgemeldet; Modal schließen
+      onClose?.();
+    } catch (err) {
+      console.error('Delete account error:', err);
+      if (isMountedRef.current) {
+        setDeleteError(getDeleteErrorText(err));
       }
     } finally {
       if (isMountedRef.current) {
@@ -467,6 +525,91 @@ export default function AccountSection({
                 )}
               </div>
             </div>
+          </div>
+
+          {/* Konto löschen (DSGVO Art. 17) */}
+          <div className="space-y-3 pt-4 border-t border-border">
+            <h3 className="text-xs font-bold text-red-400 uppercase tracking-wider">
+              Konto löschen
+            </h3>
+            {!deleteOpen ? (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl border border-red-500/20 bg-red-500/5">
+                <p className="text-xs text-on-surface-variant leading-relaxed">
+                  Löscht dein Konto und alle Projekte, Erinnerungen, Gedanken, Notizen und Chats endgültig.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setDeleteOpen(true)}
+                  className="shrink-0 min-h-[44px] sm:min-h-0 px-3.5 py-2 border border-red-500/30 text-red-400 hover:bg-red-500/10 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  Konto löschen …
+                </button>
+              </div>
+            ) : (
+              <form
+                onSubmit={handleDeleteAccount}
+                className="space-y-3 p-4 rounded-xl border border-red-500/30 bg-red-500/5"
+              >
+                <p className="text-xs text-on-surface-variant leading-relaxed">
+                  <strong className="text-red-400">Das kann nicht rückgängig gemacht werden.</strong>{' '}
+                  Alle Inhalte werden sofort gelöscht, auch der Papierkorb. Eine Google-Kalender-Verbindung wird getrennt;
+                  deine Termine im Google Kalender selbst bleiben erhalten.
+                </p>
+                <div>
+                  <label htmlFor="settings-delete-confirm" className="block text-xs font-medium text-on-surface mb-1">
+                    Gib zur Bestätigung <span className="font-mono font-bold">{DELETE_CONFIRM_WORD}</span> ein
+                  </label>
+                  <input
+                    id="settings-delete-confirm"
+                    type="text"
+                    autoComplete="off"
+                    autoCapitalize="characters"
+                    className="w-full bg-surface-variant/20 border border-border rounded-xl px-3.5 py-2 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-red-500/40 transition-all"
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  />
+                </div>
+                {isGoogleUser ? (
+                  <p className="text-[11px] text-on-surface-variant">
+                    Zur Sicherheit bestätigst du den Vorgang gleich noch einmal mit deinem Google-Konto.
+                  </p>
+                ) : (
+                  <div>
+                    <label htmlFor="settings-delete-password" className="block text-xs font-medium text-on-surface mb-1">
+                      Aktuelles Passwort
+                    </label>
+                    <input
+                      id="settings-delete-password"
+                      type="password"
+                      autoComplete="current-password"
+                      className="w-full bg-surface-variant/20 border border-border rounded-xl px-3.5 py-2 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-red-500/40 transition-all"
+                      value={deletePassword}
+                      onChange={(e) => setDeletePassword(e.target.value)}
+                    />
+                  </div>
+                )}
+                {deleteError && (
+                  <p role="alert" className="text-xs text-red-400">{deleteError}</p>
+                )}
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <button
+                    type="submit"
+                    disabled={!canDelete || loadingAction === 'delete'}
+                    className="min-h-[44px] sm:min-h-0 px-4 py-2 bg-red-500 text-white rounded-xl text-xs sm:text-sm font-bold hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    {loadingAction === 'delete' ? 'Wird gelöscht …' : 'Konto endgültig löschen'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={loadingAction === 'delete'}
+                    onClick={resetDeleteState}
+                    className="min-h-[44px] sm:min-h-0 px-3 py-2 text-xs text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
+                  >
+                    Abbrechen
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </>
       )}

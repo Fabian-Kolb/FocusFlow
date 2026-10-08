@@ -4,6 +4,7 @@ import Card from '../ui/Card';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import WordmarkWord from '../brand/WordmarkWord';
+import { LEGAL_PATHS } from '../../lib/legal';
 
 const THEME_STORAGE_KEY = 'focusflow_theme';
 
@@ -245,26 +246,38 @@ function Login() {
           </Button>
         </div>
 
-        {/* Datenschutz & Nutzungshinweise Footer */}
-        <div className="pt-2 text-center border-t border-outline-variant/30 dark:border-white/10">
+        {/* Rechtliche Links & Nutzungshinweise */}
+        <div className="pt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-t border-outline-variant/30 dark:border-white/10">
           <button
             type="button"
             onClick={() => setShowPrivacyModal(true)}
-            className="text-[11px] text-on-surface-variant/80 hover:text-primary transition-colors underline dark:text-neutral-400 dark:hover:text-white"
+            className="py-1 text-[11px] text-on-surface-variant/80 hover:text-primary transition-colors underline dark:text-neutral-400 dark:hover:text-white"
           >
-            Datenschutz & Nutzungshinweise
+            Nutzungshinweise
           </button>
+          <a
+            href={LEGAL_PATHS.datenschutz}
+            className="py-1 text-[11px] text-on-surface-variant/80 hover:text-primary transition-colors underline dark:text-neutral-400 dark:hover:text-white"
+          >
+            Datenschutz
+          </a>
+          <a
+            href={LEGAL_PATHS.impressum}
+            className="py-1 text-[11px] text-on-surface-variant/80 hover:text-primary transition-colors underline dark:text-neutral-400 dark:hover:text-white"
+          >
+            Impressum
+          </a>
         </div>
       </Card>
 
-      {/* Modal: Datenschutz & Nutzungshinweise */}
+      {/* Modal: Nutzungshinweise */}
       {showPrivacyModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
           <div className="bg-surface border border-outline-variant rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto dark:bg-[#12131a] dark:border-white/10">
             <div className="flex items-center justify-between border-b border-outline-variant pb-3 dark:border-white/10">
               <h3 className="text-base font-bold text-primary flex items-center gap-2 dark:text-white">
                 <span className="material-symbols-outlined text-[20px]">shield</span>
-                Datenschutz & Nutzungshinweise
+                Nutzungshinweise
               </h3>
               <button
                 type="button"
