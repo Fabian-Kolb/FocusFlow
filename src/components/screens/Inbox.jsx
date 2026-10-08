@@ -142,7 +142,7 @@ function ManualMenu({ item, projects, reminders, onConvert, onAttach }) {
   );
 }
 
-const Inbox = ({ setCurrentScreen }) => {
+const Inbox = ({ setCurrentScreen, autoStartVoice = false, onAutoStartConsumed }) => {
   const { inboxItems, addInboxItem, deleteInboxItem, openModal, projects, mutateProject, reminders, mutateReminder } = useModalContext();
   const { createDraftSession } = useChat();
   const [inputValue, setInputValue] = useState('');
@@ -187,6 +187,17 @@ const Inbox = ({ setCurrentScreen }) => {
       textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 250)}px`;
     }
   }, [inputValue]);
+
+  // App-Kurzbefehl „Gedanken einsprechen“: Spracheingabe direkt starten.
+  // Ohne Nutzergeste kann der Browser das Mikrofon verweigern – dann bleibt das Feld fokussiert.
+  const autoStartedRef = useRef(false);
+  useEffect(() => {
+    if (!autoStartVoice || autoStartedRef.current) return;
+    autoStartedRef.current = true;
+    onAutoStartConsumed?.();
+    textareaRef.current?.focus();
+    if (!isListening) toggleListening();
+  }, [autoStartVoice]);
 
   const toggleExpand = (id) => {
     setExpandedItems((prev) => ({ ...prev, [id]: !prev[id] }));

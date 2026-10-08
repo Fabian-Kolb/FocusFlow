@@ -1,7 +1,7 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import Sidebar from './components/layout/Sidebar';
 import BottomNav from './components/layout/BottomNav';
-import { ModalProvider } from './context/ModalContext';
+import { ModalProvider, useModal } from './context/ModalContext';
 import { DataProvider, useData } from './context/DataContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ChatProvider } from './context/ChatContext';
@@ -27,6 +27,14 @@ import Projects from './components/screens/Projects';
 import Login from './components/screens/Login';
 import Reminders from './components/screens/Reminders';
 import EmailVerificationScreen from './components/screens/EmailVerificationScreen';
+import {
+  BREAKPOINTS,
+  isDesktopViewport,
+  readStoredDesktopCollapsed,
+  writeStoredDesktopCollapsed
+} from './lib/breakpoints';
+import { getLegalPageFromPath } from './lib/legal';
+import { consumeLaunchAction } from './lib/launchAction';
 
 // Große bzw. seltener genutzte Screens erst bei Bedarf laden (Code-Splitting)
 const ProjectDetail = lazy(() => import('./components/screens/ProjectDetail'));
@@ -37,13 +45,6 @@ const ProjectsBoard = lazy(() => import('./components/screens/ProjectsBoard'));
 const ReminderDetail = lazy(() => import('./components/screens/ReminderDetail'));
 const Trash = lazy(() => import('./components/screens/Trash'));
 const LegalPage = lazy(() => import('./components/screens/LegalPage'));
-import {
-  BREAKPOINTS,
-  isDesktopViewport,
-  readStoredDesktopCollapsed,
-  writeStoredDesktopCollapsed
-} from './lib/breakpoints';
-import { getLegalPageFromPath } from './lib/legal';
 
 function ScreenFallback() {
   return (
@@ -84,6 +85,24 @@ function AppContent() {
 
   const { user } = useAuth();
   const { firestoreError, clearFirestoreError } = useData();
+  const { openModal } = useModal();
+
+  // App-Kurzbefehle (Manifest „shortcuts“): Aktion aus der Start-URL lesen und nach dem Login ausführen
+  const [launchAction, setLaunchAction] = useState(() => consumeLaunchAction());
+  const [autoStartVoice, setAutoStartVoice] = useState(false);
+  const isReady = Boolean(user) && (user.isGuest || user.emailVerified);
+
+  useEffect(() => {
+    if (!launchAction || !isReady) return;
+    if (launchAction === 'voice-thought') {
+      setCurrentScreen('inbox');
+      setAutoStartVoice(true);
+    } else if (launchAction === 'new-reminder') {
+      setCurrentScreen('reminders');
+      openModal('reminder');
+    }
+    setLaunchAction(null);
+  }, [launchAction, isReady]);
 
   // Responsive resize handler with rAF throttling and state preservation
   useEffect(() => {
@@ -180,7 +199,13 @@ function AppContent() {
             <ErrorBoundary variant="screen" resetKey={currentScreen}>
               <Suspense fallback={<ScreenFallback />}>
                 {currentScreen === 'dashboard' && <Dashboard setCurrentScreen={setCurrentScreen} />}
-                {currentScreen === 'inbox' && <Inbox setCurrentScreen={setCurrentScreen} />}
+                {currentScreen === 'inbox' && (
+                  <Inbox
+                    setCurrentScreen={setCurrentScreen}
+                    autoStartVoice={autoStartVoice}
+                    onAutoStartConsumed={() => setAutoStartVoice(false)}
+                  />
+                )}
                 {currentScreen === 'reminders' && <Reminders setCurrentScreen={setCurrentScreen} />}
                 {currentScreen === 'reminder-detail' && <ReminderDetail setCurrentScreen={setCurrentScreen} />}
                 {currentScreen === 'projects' && <Projects setCurrentScreen={setCurrentScreen} />}

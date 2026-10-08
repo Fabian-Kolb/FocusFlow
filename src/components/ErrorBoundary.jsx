@@ -17,11 +17,19 @@ const CHUNK_RELOAD_FLAG = 'focusflow_chunk_reload';
 export default class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { error: null };
+    this.state = { error: null, resetKey: props.resetKey };
   }
 
   static getDerivedStateFromError(error) {
     return { error };
+  }
+
+  // Wechsel des resetKey (z. B. anderer Screen) setzt den Fehler zurück
+  static getDerivedStateFromProps(props, state) {
+    if (props.resetKey !== state.resetKey) {
+      return { error: null, resetKey: props.resetKey };
+    }
+    return null;
   }
 
   componentDidCatch(error, info) {
@@ -36,12 +44,6 @@ export default class ErrorBoundary extends React.Component {
       } catch {
         // sessionStorage nicht verfügbar: Fallback-UI bleibt sichtbar
       }
-    }
-  }
-
-  componentDidUpdate(prevProps) {
-    if (this.state.error && prevProps.resetKey !== this.props.resetKey) {
-      this.setState({ error: null });
     }
   }
 

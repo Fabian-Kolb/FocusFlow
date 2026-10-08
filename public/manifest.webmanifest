@@ -1,0 +1,36 @@
+{
+  "name": "FocusFlow",
+  "short_name": "FocusFlow",
+  "description": "Projekte, Erinnerungen und Gedanken an einem Ort – mit KI-Assistent Fio.",
+  "id": "/",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "lang": "de",
+  "dir": "ltr",
+  "background_color": "#FBF9F9",
+  "theme_color": "#FBF9F9",
+  "categories": ["productivity"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Gedanken einsprechen",
+      "short_name": "Einsprechen",
+      "description": "Öffnet die Gedanken und startet die Spracheingabe",
+      "url": "/?action=voice-thought",
+      "icons": [{ "src": "/icons/shortcut-voice.png", "sizes": "96x96", "type": "image/png" }]
+    },
+    {
+      "name": "Neue Erinnerung",
+      "short_name": "Erinnerung",
+      "description": "Öffnet direkt das Formular für eine neue Erinnerung",
+      "url": "/?action=new-reminder",
+      "icons": [{ "src": "/icons/shortcut-reminder.png", "sizes": "96x96", "type": "image/png" }]
+    }
+  ]
+}

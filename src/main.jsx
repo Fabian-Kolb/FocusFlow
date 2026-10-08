@@ -11,3 +11,12 @@ createRoot(document.getElementById('root')).render(
     </ErrorBoundary>
   </StrictMode>,
 )
+
+// Service Worker nur im Build registrieren (im Dev-Server würde er HMR stören)
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((err) => {
+      console.warn('Service Worker Registrierung fehlgeschlagen:', err);
+    });
+  });
+}
