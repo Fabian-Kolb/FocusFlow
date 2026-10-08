@@ -62,7 +62,7 @@ service cloud.firestore {
           projectId == request.resource.data.id &&
           request.resource.data.keys().hasAll(['id', 'title']) &&
           request.resource.data.keys().hasOnly([
-            'id', 'title', 'description', 'category', 'categoryId', 'phases', 'status', 'progress',
+            'id', 'title', 'description', 'category', 'categoryId', 'sortOrder', 'phases', 'status', 'progress',
             'isPaused', 'inKanban', 'nextStep', 'startDate', 'endDate', 'dateRange', 'daysRemaining',
             'timeElapsed', 'phasesCompleted', 'phasesTotal', 'tasksCompleted', 'tasksTotal',
             'warning', 'notes', 'history', 'createdAt', 'updatedAt', 'deletedAt', '_type', 'tags', 'order',
@@ -80,7 +80,7 @@ service cloud.firestore {
           request.resource.data.id == resource.data.id &&
           request.resource.data.keys().hasAll(['id', 'title']) &&
           request.resource.data.keys().hasOnly([
-            'id', 'title', 'description', 'category', 'categoryId', 'phases', 'status', 'progress',
+            'id', 'title', 'description', 'category', 'categoryId', 'sortOrder', 'phases', 'status', 'progress',
             'isPaused', 'inKanban', 'nextStep', 'startDate', 'endDate', 'dateRange', 'daysRemaining',
             'timeElapsed', 'phasesCompleted', 'phasesTotal', 'tasksCompleted', 'tasksTotal',
             'warning', 'notes', 'history', 'createdAt', 'updatedAt', 'deletedAt', '_type', 'tags', 'order',
@@ -104,7 +104,7 @@ service cloud.firestore {
           reminderId == request.resource.data.id &&
           request.resource.data.keys().hasAll(['id', 'title']) &&
           request.resource.data.keys().hasOnly([
-            'id', 'title', 'description', 'date', 'time', 'category', 'categoryId', 'priority',
+            'id', 'title', 'description', 'date', 'time', 'category', 'categoryId', 'sortOrder', 'priority',
             'status', 'isPaused', 'inKanban', 'completed', 'notes', 'history', 'createdAt',
             'updatedAt', 'deletedAt', '_type', 'tags', 'dateRange', 'daysRemaining', 'timeElapsed', 'order',
             'isPinned', 'startDate', 'endDate', 'lastUpdated', 'isCalendarSynced', 'googleEventId'
@@ -122,7 +122,7 @@ service cloud.firestore {
           request.resource.data.id == resource.data.id &&
           request.resource.data.keys().hasAll(['id', 'title']) &&
           request.resource.data.keys().hasOnly([
-            'id', 'title', 'description', 'date', 'time', 'category', 'categoryId', 'priority',
+            'id', 'title', 'description', 'date', 'time', 'category', 'categoryId', 'sortOrder', 'priority',
             'status', 'isPaused', 'inKanban', 'completed', 'notes', 'history', 'createdAt',
             'updatedAt', 'deletedAt', '_type', 'tags', 'dateRange', 'daysRemaining', 'timeElapsed', 'order',
             'isPinned', 'startDate', 'endDate', 'lastUpdated', 'isCalendarSynced', 'googleEventId'

@@ -24,6 +24,8 @@ const LONG_PRESS_MS = 400;
 const MOUSE_THRESHOLD = 5;
 const TOUCH_SLOP = 8;
 const EXPAND_DELAY_MS = 500;
+// Nach einem Platzwechsel muss der Zeiger sich mindestens so weit bewegen, bevor der nächste greift (verhindert Zittern)
+const SWITCH_DEADZONE = 28;
 const EASE = 'cubic-bezier(0.2, 0.8, 0.2, 1)';
 
 const sectionSel = (id) => `[data-cat-section="${id}"]`;
@@ -36,6 +38,17 @@ const matrixOf = (el) => {
   if (!t || t === 'none') return { x: 0, y: 0 };
   const m = new DOMMatrixReadOnly(t);
   return { x: m.m41, y: m.m42 };
+};
+
+/** Rechteck an der endgültigen Layout-Position (ohne FLIP-Animation von Element und Abschnitt) */
+const layoutRect = (el) => {
+  const r = el.getBoundingClientRect();
+  const t = matrixOf(el);
+  const sec = el.closest('[data-cat-section]');
+  const st = sec && sec !== el ? matrixOf(sec) : { x: 0, y: 0 };
+  const dx = t.x + st.x;
+  const dy = t.y + st.y;
+  return { left: r.left - dx, right: r.right - dx, top: r.top - dy, bottom: r.bottom - dy, width: r.width, height: r.height };
 };
 
 const getScroller = (el) => {
@@ -162,7 +175,7 @@ export function useBoardSort({
       for (let i = 0; i < rest.length; i += 1) {
         const el = root.querySelector(sectionSel(rest[i].id));
         if (!el) continue;
-        const r = el.getBoundingClientRect();
+        const r = layoutRect(el);
         if (r.height === 0) continue;
         if (cy < r.top + r.height / 2) {
           index = i;
@@ -178,7 +191,7 @@ export function useBoardSort({
     L.categories.forEach((c) => {
       const el = root.querySelector(sectionSel(c.id));
       if (!el) return;
-      const r = el.getBoundingClientRect();
+      const r = layoutRect(el);
       if (!r.height) return;
       const d = m.y < r.top ? r.top - m.y : m.y > r.bottom ? m.y - r.bottom : 0;
       if (d < bestD) {
@@ -195,26 +208,38 @@ export function useBoardSort({
     const cards = base.map((i) => secEl?.querySelector(cardSel(i.id))).filter(Boolean);
     if (cards.length === 0) return { catId: best.id, index: 0 };
 
-    let nearest = null;
-    let nearestRect = null;
-    let nd = Infinity;
-    cards.forEach((el) => {
-      const r = el.getBoundingClientRect();
-      const dx = m.x < r.left ? r.left - m.x : m.x > r.right ? m.x - r.right : 0;
-      const dy = m.y < r.top ? r.top - m.y : m.y > r.bottom ? m.y - r.bottom : 0;
-      const d = Math.hypot(dx, dy);
-      if (d < nd) {
-        nd = d;
-        nearest = el;
-        nearestRect = r;
+    // Raster: erst die Zeile unter dem Zeiger bestimmen, dann innerhalb der Zeile nach x einsortieren.
+    // (DOM-Reihenfolge = zeilenweise; Grenze zwischen zwei Zeilen = Mitte der Lücke.)
+    const rects = cards.map(layoutRect);
+    const rows = [];
+    rects.forEach((r, i) => {
+      const row = rows.find((rw) => Math.abs(rw.top - r.top) < r.height * 0.5);
+      if (row) {
+        row.items.push(i);
+        row.bottom = Math.max(row.bottom, r.bottom);
+      } else {
+        rows.push({ top: r.top, bottom: r.bottom, items: [i] });
       }
     });
-    const idx = cards.indexOf(nearest);
-    const cx = nearestRect.left + nearestRect.width / 2;
-    const cy = nearestRect.top + nearestRect.height / 2;
-    const sameRow = Math.abs(m.y - cy) < nearestRect.height / 2;
-    const before = sameRow ? m.x < cx : m.y < cy;
-    return { catId: best.id, index: idx + (before ? 0 : 1) };
+    rows.sort((p, q) => p.top - q.top);
+    let rowIdx = rows.length - 1;
+    for (let k = 0; k < rows.length; k += 1) {
+      const next = rows[k + 1];
+      if (!next || m.y < (rows[k].bottom + next.top) / 2) {
+        rowIdx = k;
+        break;
+      }
+    }
+    const row = rows[rowIdx];
+    let pos = row.items.length;
+    for (let j = 0; j < row.items.length; j += 1) {
+      const r = rects[row.items[j]];
+      if (m.x < r.left + r.width / 2) {
+        pos = j;
+        break;
+      }
+    }
+    return { catId: best.id, index: row.items[0] + pos };
   }, [rootRef]);
 
   // ── FLIP + Nachführen nach jedem Render während des Ziehens ────────────────
@@ -269,6 +294,8 @@ export function useBoardSort({
       origin,
       target: { catId: origin.catId, index: origin.index },
       lastKey: `${origin.catId}:${origin.index}`,
+      switchX: pt.x - SWITCH_DEADZONE * 2, // erster Wechsel sofort erlaubt
+      switchY: pt.y - SWITCH_DEADZONE * 2,
       savedStates: null,
       hoverCat: null,
       hoverTimer: null,
@@ -311,6 +338,10 @@ export function useBoardSort({
 
       const key = `${t.catId}:${t.index}`;
       if (key !== cur.lastKey) {
+        // Zittern vermeiden: nach einem Wechsel erst nach genug Zeigerbewegung wieder wechseln
+        if (Math.hypot(cur.x - cur.switchX, cur.y - cur.switchY) < SWITCH_DEADZONE) return;
+        cur.switchX = cur.x;
+        cur.switchY = cur.y;
         cur.lastKey = key;
         cur.target = { catId: t.catId, index: t.index };
         setDrag((d) => (d ? { ...d, catId: t.catId, index: t.index } : d));
