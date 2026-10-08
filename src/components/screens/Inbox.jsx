@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useModalContext } from '../../context/ModalContext';
 import { ensureBulletPoints } from '../../lib/gemini';
 import { buildThought } from '../../lib/thoughts';
+import { buildDraftSource, initialDraftFromThought } from '../../lib/projectDraft';
+import { useChat } from '../../context/ChatContext';
 import { useSpeechInput } from '../../hooks/useSpeechInput';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
@@ -142,6 +144,7 @@ function ManualMenu({ item, projects, reminders, onConvert, onAttach }) {
 
 const Inbox = ({ setCurrentScreen }) => {
   const { inboxItems, addInboxItem, deleteInboxItem, openModal, projects, mutateProject, reminders, mutateReminder } = useModalContext();
+  const { createDraftSession } = useChat();
   const [inputValue, setInputValue] = useState('');
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [expandedItems, setExpandedItems] = useState({});
@@ -233,6 +236,16 @@ const Inbox = ({ setCurrentScreen }) => {
         prefillDescription: '',
       });
     }
+  };
+
+  // Eigener Chat "Projektanlegung: …"; Fio macht dort den ersten Entwurf
+  const handleElaborateWithFio = (item) => {
+    createDraftSession({
+      title: item.title || 'Neues Projekt',
+      source: buildDraftSource(item),
+      draft: initialDraftFromThought(item),
+    });
+    setCurrentScreen('coach');
   };
 
   // An Bestehendes anhängen: Inhalt wird zur Notiz, der Gedanke wandert in den Papierkorb
@@ -367,6 +380,14 @@ const Inbox = ({ setCurrentScreen }) => {
 
         {/* Weiterverarbeiten */}
         <div className="flex items-center justify-end gap-2 pt-2 border-t border-outline-variant">
+          <button
+            type="button"
+            onClick={() => handleElaborateWithFio(item)}
+            className="h-9 px-3 flex items-center gap-1.5 rounded-lg bg-neutral-900 text-white text-xs font-bold hover:bg-black transition-colors cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[18px]">auto_awesome</span>
+            Mit Fio ausarbeiten
+          </button>
           <ManualMenu
             item={item}
             projects={activeProjects}

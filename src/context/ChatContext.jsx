@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { db } from '../lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -211,6 +211,53 @@ export const ChatProvider = ({ children }) => {
     return newSession;
   }, [activeModel, persistSessions]);
 
+  // Eigener Chat "Projektanlegung: …" mit einem Entwurf, den Hand und Fio gemeinsam bearbeiten
+  const createDraftSession = useCallback(({ title, source, draft }) => {
+    const now = new Date().toISOString();
+    const newSession = {
+      id: `sess_${Date.now()}`,
+      title: `Projektanlegung: ${title}`.slice(0, 60),
+      createdAt: now,
+      updatedAt: now,
+      contextScope: 'draft',
+      contextId: null,
+      contextTitle: 'Entwurf',
+      contextAttachments: [],
+      model: activeModel,
+      draft,
+      draftSource: source,
+      draftStatus: 'open', // 'open' | 'confirmed'
+      draftAwaitingDetail: true, // erst Detailtiefe wählen, dann legt Fio los
+      draftDetail: null, // 'coarse' | 'balanced' | 'fine'
+      draftPendingStart: false,
+      draftVersions: [{ id: `v_${Date.now()}`, label: 'Start', at: now, draft }],
+      messages: []
+    };
+    setSessions((prev) => {
+      const updated = [newSession, ...prev];
+      persistSessions(updated, newSession.id);
+      return updated;
+    });
+    setActiveSessionId(newSession.id);
+    return newSession;
+  }, [activeModel, persistSessions]);
+
+  // Entwurf ändern. `label` legt zusätzlich eine Version an (z. B. nach einem Prompt); Handänderungen überschreiben nur den Stand.
+  const updateSessionDraft = useCallback((sessionId, nextDraft, { label = null, extra = {} } = {}) => {
+    setSessions((prev) => {
+      const now = new Date().toISOString();
+      const updated = prev.map((sess) => {
+        if (sess.id !== sessionId) return sess;
+        const versions = label
+          ? [...(sess.draftVersions || []), { id: `v_${Date.now()}`, label, at: now, draft: nextDraft }].slice(-20)
+          : sess.draftVersions;
+        return { ...sess, draft: nextDraft, draftVersions: versions, updatedAt: now, ...extra };
+      });
+      persistSessions(updated, sessionId);
+      return updated;
+    });
+  }, [persistSessions]);
+
   // Select session
   const selectSession = useCallback((sessionId) => {
     setActiveSessionId(sessionId);
@@ -249,7 +296,7 @@ export const ChatProvider = ({ children }) => {
         if (sess.id === sessionId) {
           const isFirstUserMsg = message.role === 'user' && sess.messages.filter(m => m.role === 'user').length === 0;
           let smartTitle = sess.title;
-          if (isFirstUserMsg && message.content) {
+          if (isFirstUserMsg && message.content && sess.contextScope !== 'draft') {
             const cleanText = message.content.replace(/\n+/g, ' ').trim();
             smartTitle = cleanText.length > 38 ? cleanText.slice(0, 38) + '...' : cleanText;
           }
@@ -373,6 +420,23 @@ export const ChatProvider = ({ children }) => {
     return sessions.find((s) => s.id === activeSessionId) || sessions[0] || createDefaultSession();
   }, [sessions, activeSessionId]);
 
+  // Nachricht, die beim nächsten Öffnen von Fio in einem neuen Gespräch abgeschickt wird
+  // (z. B. aus dem Eingabefeld "Frag Fio …" im Apps-Menü)
+  // Der Text liegt in einer Ref, damit er genau einmal entnommen werden kann (StrictMode führt Effekte doppelt aus);
+  // der State dient nur als Auslöser für den Effekt in Coach.jsx.
+  const queuedPromptRef = useRef(null);
+  const [queuedPrompt, setQueuedPrompt] = useState(null);
+  const queuePrompt = useCallback((text) => {
+    queuedPromptRef.current = text;
+    setQueuedPrompt(text);
+  }, []);
+  const takeQueuedPrompt = useCallback(() => {
+    const text = queuedPromptRef.current;
+    queuedPromptRef.current = null;
+    setQueuedPrompt(null);
+    return text;
+  }, []);
+
   const value = {
     sessions,
     activeSession,
@@ -380,12 +444,17 @@ export const ChatProvider = ({ children }) => {
     activeModel,
     setActiveModel,
     createNewSession,
+    createDraftSession,
+    updateSessionDraft,
     selectSession,
     deleteSession,
     addMessageToSession,
     removeSessionAttachment,
     updateStreamingMessage,
-    getSessionsForScope
+    getSessionsForScope,
+    queuedPrompt,
+    queuePrompt,
+    takeQueuedPrompt
   };
 
   return (

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import FioIcon from '../ui/FioIcon';
 import { useModalContext } from '../../context/ModalContext';
 import { useAuth } from '../../context/AuthContext';
+import { useChat } from '../../context/ChatContext';
 import { useSwipeToClose } from '../../hooks/useSwipeToClose';
 import { countThoughts } from '../../lib/thoughts';
 
@@ -19,8 +20,8 @@ const NAV_ITEMS = [
 const HUB_SCREENS = ['inbox', 'coach', 'board', 'review', 'trash'];
 
 /**
- * Mobile Bottom-Bar (< md): vier Hauptziele + mittlerer Knopf, der alle weiteren Bereiche öffnet
- * (Gedanken, Fio, Board, Wochenrückblick, Papierkorb, Einstellungen & Account).
+ * Mobile Bottom-Bar (< md): vier Hauptziele + mittlerer Knopf, der alle weiteren Bereiche öffnet:
+ * oben "Frag Fio …", darunter Gedanken, Board, Wochenrückblick, Papierkorb, Account.
  */
 const BottomNav = ({ currentScreen, setCurrentScreen }) => {
   const [isHubOpen, setIsHubOpen] = useState(false);
@@ -57,7 +58,7 @@ const BottomNav = ({ currentScreen, setCurrentScreen }) => {
                     isHubActive ? 'bg-black ring-2 ring-offset-2 ring-primary/30' : 'bg-primary'
                   }`}
                 >
-                  <span className={`material-symbols-outlined text-[28px] transition-transform ${isHubOpen ? 'rotate-45' : ''}`}>add</span>
+                  <span className="material-symbols-outlined text-[26px]">{isHubOpen ? 'close' : 'apps'}</span>
                 </button>
               </div>
             );
@@ -108,6 +109,8 @@ const BottomNav = ({ currentScreen, setCurrentScreen }) => {
 function HubSheet({ isOpen, onClose, currentScreen, onNavigate }) {
   const { inboxItems, openModal } = useModalContext();
   const { user } = useAuth();
+  const { queuePrompt } = useChat();
+  const [fioText, setFioText] = useState('');
   const panelRef = useRef(null);
   const { translateY, isDragging, entryAnimActive } = useSwipeToClose({
     isOpen,
@@ -118,6 +121,7 @@ function HubSheet({ isOpen, onClose, currentScreen, onNavigate }) {
 
   useEffect(() => {
     if (!isOpen) return undefined;
+    setFioText('');
     const onKey = (e) => {
       if (e.key === 'Escape') onClose();
     };
@@ -127,10 +131,16 @@ function HubSheet({ isOpen, onClose, currentScreen, onNavigate }) {
 
   if (!isOpen) return null;
 
+  // Ohne Text einfach Fio öffnen, mit Text direkt als erste Nachricht in einem neuen Gespräch senden
+  const askFio = () => {
+    const text = fioText.trim();
+    if (text) queuePrompt(text);
+    onNavigate('coach');
+  };
+
   const thoughtCount = countThoughts(inboxItems);
   const tiles = [
     { id: 'inbox', label: 'Gedanken', icon: 'lightbulb', badge: thoughtCount },
-    { id: 'coach', label: 'Fio', icon: 'fio' },
     { id: 'board', label: 'Board', icon: 'view_kanban' },
     { id: 'review', label: 'Wochenrückblick', icon: 'analytics' },
     { id: 'trash', label: 'Papierkorb', icon: 'delete' },
@@ -157,6 +167,33 @@ function HubSheet({ isOpen, onClose, currentScreen, onNavigate }) {
           <div className="w-12 h-1.5 bg-outline-variant rounded-full" />
         </div>
 
+        {/* Frag Fio: schnellster Weg zum Coach, direkt mit Text */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            askFio();
+          }}
+          className="mx-4 mb-3 flex items-center gap-2 h-12 pl-3 pr-1.5 rounded-2xl border border-outline-variant bg-white focus-within:border-primary transition-colors"
+        >
+          <FioIcon className="w-5 h-5 shrink-0 text-primary" color="currentColor" />
+          <input
+            type="text"
+            value={fioText}
+            onChange={(e) => setFioText(e.target.value)}
+            placeholder="Frag Fio …"
+            aria-label="Frage an Fio"
+            enterKeyHint="send"
+            className="flex-1 min-w-0 h-full bg-transparent border-0 p-0 text-sm focus:ring-0 focus:outline-none placeholder:text-on-surface-variant"
+          />
+          <button
+            type="submit"
+            aria-label={fioText.trim() ? 'An Fio senden' : 'Fio öffnen'}
+            className="shrink-0 w-9 h-9 rounded-xl bg-primary text-white flex items-center justify-center cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[20px]">{fioText.trim() ? 'arrow_upward' : 'arrow_forward'}</span>
+          </button>
+        </form>
+
         <div className="grid grid-cols-3 gap-2 px-4 pb-3">
           {tiles.map((tile) => {
             const active = currentScreen === tile.id;
@@ -170,11 +207,7 @@ function HubSheet({ isOpen, onClose, currentScreen, onNavigate }) {
                   active ? 'bg-primary text-white border-primary' : 'bg-surface-low text-primary border-outline-variant active:border-primary'
                 }`}
               >
-                {tile.icon === 'fio' ? (
-                  <FioIcon className="w-6 h-6" color="currentColor" />
-                ) : (
-                  <span className="material-symbols-outlined text-[24px]">{tile.icon}</span>
-                )}
+                <span className="material-symbols-outlined text-[24px]">{tile.icon}</span>
                 {tile.label}
                 {tile.badge > 0 && (
                   <span className={`absolute top-2 right-2 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center ${

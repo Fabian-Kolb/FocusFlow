@@ -9,10 +9,12 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import FioIcon from '../ui/FioIcon';
 import ModelSelectorDropdown from '../ui/ModelSelectorDropdown';
+import ProjectDraftCard from '../ui/ProjectDraftCard';
+import { reviseDraftWithFio, draftToProjectData, clearNewFlags, DETAIL_LEVELS } from '../../lib/projectDraft';
 
 const Coach = ({ setCurrentScreen }) => {
   const modalContext = useModalContext();
-  const { projects, reminders = [], setSelectedProjectId, setSelectedReminderId, isCalendarConnected, openModal } = modalContext;
+  const { projects, reminders = [], setSelectedProjectId, setSelectedReminderId, isCalendarConnected, openModal, addProject, projectCategories = [] } = modalContext;
   const { user } = useAuth();
   const {
     sessions,
@@ -25,8 +27,16 @@ const Coach = ({ setCurrentScreen }) => {
     deleteSession,
     addMessageToSession,
     removeSessionAttachment,
-    updateStreamingMessage
+    updateStreamingMessage,
+    updateSessionDraft,
+    queuedPrompt,
+    takeQueuedPrompt
   } = useChat();
+
+  // Entwurfs-Chat "Projektanlegung: …"
+  const isDraftSession = activeSession?.contextScope === 'draft';
+  const draftAwaitingDetail = isDraftSession && !!activeSession.draftAwaitingDetail;
+  const draftOpen = isDraftSession && activeSession.draftStatus === 'open' && !draftAwaitingDetail;
 
   const [isHistoryOpen, setIsHistoryOpen] = useState(() => {
     const saved = localStorage.getItem('focusflow_coach_history');
@@ -342,6 +352,14 @@ Regeln für deine Antworten:
 
   // Dynamic quick prompts
   const getQuickPrompts = () => {
+    if (draftAwaitingDetail) return [];
+    if (draftOpen) {
+      return [
+        { id: 'dp_1', label: 'Feiner aufteilen', promptText: 'Teile die Abschnitte feiner in kleinere Aufgaben auf.' },
+        { id: 'dp_2', label: 'Termine vorschlagen', promptText: 'Schlage sinnvolle Termine für die Abschnitte vor.' },
+        { id: 'dp_3', label: 'Kürzer fassen', promptText: 'Fasse den Entwurf auf die wichtigsten Abschnitte und Aufgaben zusammen.' }
+      ];
+    }
     return [
       { id: 'qp_1', label: 'Tagesplan erstellen', promptText: 'Erstelle einen Fokus-Tagesplan aus allen meinen Projekten und Erinnerungen.' },
       { id: 'qp_2', label: 'Engpässe finden', promptText: 'Welche Aufgaben oder Erinnerungen benötigen meine Aufmerksamkeit?' },
@@ -411,9 +429,157 @@ Regeln für deine Antworten:
     }
   }, [updateStreamingMessage]);
 
+  // Vorgemerkte Nachricht (Apps-Menü "Frag Fio …") in einem leeren Gespräch abschicken.
+  // Ist das aktive Gespräch nicht leer, einmalig ein neues anlegen und warten, bis es aktiv ist.
+  const freshSessionRequestedForRef = useRef(null);
+  useEffect(() => {
+    if (!queuedPrompt || loading) return;
+    if (activeSession.messages.length > 0) {
+      if (freshSessionRequestedForRef.current !== activeSession.id) {
+        freshSessionRequestedForRef.current = activeSession.id;
+        createNewSession();
+      }
+      return;
+    }
+    const text = takeQueuedPrompt();
+    if (!text) return;
+    freshSessionRequestedForRef.current = null;
+    handleSendMessage(text);
+    // handleSendMessage ändert sich jeden Render; ausgelöst wird nur durch neue Nachricht bzw. neues Gespräch
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queuedPrompt, activeSession.id, loading]);
+
+  // --- Projekt-Entwurf (Chat "Projektanlegung: …") ---
+  const confirmDraft = async (session = activeSession) => {
+    const draft = session.draft;
+    if (!draft?.title?.trim() || session.draftStatus !== 'open') return;
+    // Sofort sperren, damit ein Doppelklick kein zweites Projekt anlegt
+    updateSessionDraft(session.id, draft, { extra: { draftStatus: 'confirming' } });
+    const newId = await addProject(draftToProjectData(draft, session.draftSource));
+    if (!newId) {
+      updateSessionDraft(session.id, draft, { extra: { draftStatus: 'open' } });
+      return;
+    }
+    updateSessionDraft(session.id, clearNewFlags(draft), { label: 'Angelegt', extra: { draftStatus: 'confirmed' } });
+    const taskTotal = draft.phases.reduce((n, p) => n + p.tasks.length, 0);
+    // Sichtbare Quittung: Aktionskarte mit Link zum neuen Projekt
+    const receiptId = `msg_${Date.now()}_r`;
+    addMessageToSession(session.id, { id: receiptId, role: 'assistant', content: 'Das Projekt ist angelegt.', isStreaming: true });
+    updateStreamingMessage(session.id, receiptId, 'Das Projekt ist angelegt.', false, [{
+      type: 'CREATE_PROJECT',
+      targetType: 'project',
+      targetId: newId,
+      title: draft.title,
+      subtitle: `${draft.phases.length} Abschnitte · ${taskTotal} Aufgaben`
+    }]);
+  };
+
+  const runDraftTurn = async (session, instruction, { showUserMessage = true } = {}) => {
+    const userMsgId = `msg_${Date.now()}_u`;
+    const botMsgId = `msg_${Date.now()}_b`;
+    const generation = generationRef.current + 1;
+    generationRef.current = generation;
+    currentBotMsgIdRef.current = botMsgId;
+    currentBotSessionIdRef.current = session.id;
+
+    if (showUserMessage) {
+      addMessageToSession(session.id, { id: userMsgId, role: 'user', content: instruction });
+    }
+    addMessageToSession(session.id, { id: botMsgId, role: 'assistant', content: '', isStreaming: true });
+    setLoading(true);
+
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
+    try {
+      const result = await reviseDraftWithFio({
+        source: session.draftSource,
+        draft: session.draft,
+        instruction,
+        model: activeModel,
+        projectTitles: projects.filter((p) => !p.deletedAt).map((p) => p.title),
+        detail: session.draftDetail,
+        signal: abortController.signal,
+      });
+      if (!result || generationRef.current !== generation || abortController.signal.aborted) return;
+
+      if (result.draft) {
+        updateSessionDraft(session.id, result.draft, { label: instruction.slice(0, 40) });
+      }
+      updateStreamingMessage(session.id, botMsgId, result.reply, false);
+      if (result.confirm && result.draft) {
+        await confirmDraft({ ...session, draft: result.draft, draftStatus: 'open' });
+      }
+    } catch (err) {
+      if (err.name === 'AbortError' || abortController.signal.aborted) return;
+      console.error('Fio-Entwurf Fehler:', err);
+      updateStreamingMessage(session.id, botMsgId, `⚠️ **KI-Fehler:** ${err?.message || 'Der Entwurf konnte nicht aktualisiert werden.'}`, false);
+    } finally {
+      if (generationRef.current === generation) {
+        abortControllerRef.current = null;
+        currentBotMsgIdRef.current = null;
+        currentBotSessionIdRef.current = null;
+        setLoading(false);
+      }
+    }
+  };
+
+  // Neuer Entwurfs-Chat: Fio macht automatisch den ersten Vorschlag (einmal pro Sitzung, auch im StrictMode)
+  const draftStartedRef = useRef(new Set());
+  useEffect(() => {
+    if (!isDraftSession || !activeSession.draftPendingStart || loading) return undefined;
+    if (draftStartedRef.current.has(activeSession.id)) return undefined;
+    // Verzögert starten: StrictMode räumt den ersten Effektlauf sofort wieder ab (Timer wird verworfen),
+    // sonst bricht der Aufräum-Effekt oben die gerade gestartete Anfrage ab.
+    const session = activeSession;
+    const timer = setTimeout(() => {
+      if (draftStartedRef.current.has(session.id)) return;
+      draftStartedRef.current.add(session.id);
+      updateSessionDraft(session.id, session.draft, { extra: { draftPendingStart: false } });
+      runDraftTurn(
+        { ...session, draftPendingStart: false },
+        `Erstelle einen ersten Entwurf für ein Projekt aus diesem Gedanken. Detailtiefe: ${(DETAIL_LEVELS[session.draftDetail] || DETAIL_LEVELS.balanced).label}.`,
+        { showUserMessage: false }
+      );
+    }, 0);
+    return () => clearTimeout(timer);
+    // runDraftTurn ändert sich jeden Render; ausgelöst wird nur durch ein neues Entwurfs-Gespräch
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDraftSession, activeSession.id, activeSession.draftPendingStart, loading]);
+
+  // Detailtiefe gewählt: jetzt erst legt Fio los (der Start-Effekt übernimmt)
+  const handlePickDetail = (level) => {
+    updateSessionDraft(activeSession.id, activeSession.draft, {
+      extra: { draftDetail: level, draftAwaitingDetail: false, draftPendingStart: true }
+    });
+  };
+
+  const handleDraftEdit = (nextDraft) => {
+    if (!draftOpen) return;
+    updateSessionDraft(activeSession.id, nextDraft);
+  };
+
+  const handleRestoreVersion = (version) => {
+    updateSessionDraft(activeSession.id, clearNewFlags(version.draft), { label: `Wiederhergestellt: ${version.label}`.slice(0, 40) });
+  };
+
   const handleSendMessage = async (textToSend) => {
     const text = textToSend || inputText;
-    if (!text || !text.trim() || loading) return;
+    if (!text || !text.trim() || loading || draftAwaitingDetail) return;
+
+    if (draftOpen) {
+      if (isListening) {
+        isListeningRef.current = false;
+        setIsListening(false);
+        try { recognitionRef.current?.stop(); } catch (e) {}
+      }
+      if (!textToSend) {
+        setInputText('');
+        if (textareaRef.current) textareaRef.current.style.height = 'auto';
+      }
+      await runDraftTurn(activeSession, text.trim());
+      return;
+    }
 
     if (isListening) {
       isListeningRef.current = false;
@@ -531,8 +697,10 @@ Regeln für deine Antworten:
     // Filter by sidebarScopeFilter
     if (sidebarScopeFilter === 'general') {
       filtered = filtered.filter((s) => s.contextScope === 'general' || s.contextScope === 'global');
+    } else if (sidebarScopeFilter === 'drafts') {
+      filtered = filtered.filter((s) => s.contextScope === 'draft');
     } else if (sidebarScopeFilter !== 'all') {
-      filtered = filtered.filter((s) => 
+      filtered = filtered.filter((s) =>
         s.contextId === sidebarScopeFilter || 
         (s.contextAttachments && s.contextAttachments.some(a => a.id === sidebarScopeFilter))
       );
@@ -579,6 +747,7 @@ Regeln für deine Antworten:
   const sidebarScopeLabel = useMemo(() => {
     if (sidebarScopeFilter === 'all') return 'Alle Chats';
     if (sidebarScopeFilter === 'general') return 'Allgemeiner Coach';
+    if (sidebarScopeFilter === 'drafts') return 'Entwürfe';
 
     const p = projects.find(pr => pr.id === sidebarScopeFilter);
     if (p) return `Projekt: ${p.title}`;
@@ -668,6 +837,7 @@ Regeln für deine Antworten:
     const isActive = sess.id === activeSessionId;
     const isProject = sess.contextScope === 'project' || sess.contextScope === 'task' || sess.contextScope === 'section';
     const isReminder = sess.contextScope === 'reminder' || sess.contextScope === 'reminders';
+    const isDraft = sess.contextScope === 'draft';
 
     return (
       <div
@@ -684,12 +854,12 @@ Regeln für deine Antworten:
           <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
             isReminder
               ? 'bg-amber-500/10 text-amber-700 border border-amber-500/20'
-              : isProject
+              : isProject || isDraft
               ? 'bg-primary/10 text-primary border border-primary/20'
               : 'bg-surface-low text-on-surface-variant border border-outline-variant'
           }`}>
             <span className="material-symbols-outlined text-[16px]">
-              {isReminder ? 'notifications' : isProject ? 'folder' : 'psychology'}
+              {isReminder ? 'notifications' : isDraft ? 'edit_note' : isProject ? 'folder' : 'psychology'}
             </span>
           </div>
 
@@ -905,7 +1075,7 @@ Regeln für deine Antworten:
           {/* Message Stream */}
           <div className="flex-grow overflow-y-auto px-4 pb-4 pt-16 sm:pt-16 min-h-0">
             <div className="max-w-2xl mx-auto space-y-6">
-              {messages.length === 0 ? (
+              {messages.length === 0 && isDraftSession ? null : messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full min-h-[40vh] text-center px-4 fade-in">
                   <div className="w-16 h-16 bg-neutral-900 text-white rounded-2xl flex items-center justify-center mb-4 shadow-md p-3.5">
                     <FioIcon className="w-full h-full text-white" color="currentColor" />
@@ -1129,6 +1299,46 @@ Regeln für deine Antworten:
                   );
                 })
               )}
+              {draftAwaitingDetail && (
+                <div className="rounded-2xl border border-primary/40 bg-white p-4 shadow-sm space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[20px] text-primary">tune</span>
+                    <span className="font-bold text-sm">Wie detailliert soll Fio das Projekt aufteilen?</span>
+                  </div>
+                  <p className="text-xs text-on-surface-variant">
+                    Das gibt die Richtung vor. Später kannst du den Entwurf von Hand oder per Prompt anpassen.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {Object.entries(DETAIL_LEVELS).map(([key, level]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => handlePickDetail(key)}
+                        className="flex sm:flex-col items-center sm:items-start gap-2.5 sm:gap-1 p-3 rounded-xl border border-outline-variant bg-surface-low hover:border-primary hover:bg-white text-left transition-all cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-[20px] text-primary">{level.icon}</span>
+                        <span>
+                          <span className="block text-sm font-bold text-on-surface">{level.label}</span>
+                          <span className="block text-[11px] text-on-surface-variant">{level.hint}</span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {isDraftSession && activeSession.draft && !draftAwaitingDetail && (
+                <ProjectDraftCard
+                  draft={activeSession.draft}
+                  status={activeSession.draftStatus}
+                  disabled={loading || activeSession.draftStatus === 'confirming'}
+                  categories={projectCategories}
+                  source={activeSession.draftSource}
+                  versions={activeSession.draftVersions || []}
+                  onChange={handleDraftEdit}
+                  onConfirm={() => confirmDraft()}
+                  onRestore={handleRestoreVersion}
+                />
+              )}
               {/* Bottom Spacer so the latest message always sits comfortably above the floating pill dock */}
               <div className="h-44 sm:h-52 shrink-0 pointer-events-none" />
               <div ref={messagesEndRef} />
@@ -1150,7 +1360,7 @@ Regeln für deine Antworten:
                     <span>Antwort stoppen</span>
                   </button>
                 </div>
-              ) : (
+              ) : dynamicPrompts.length === 0 ? null : (
                 <div className="flex items-center gap-2 no-wrap-scroll text-[11px] font-mono pb-0.5 overflow-x-auto">
                   <span className="text-on-surface-variant font-bold flex-shrink-0">PROMPTS:</span>
                   {dynamicPrompts.map((qp) => (
@@ -1240,11 +1450,15 @@ Regeln für deine Antworten:
                     placeholder={
                       loading
                         ? 'Fio generiert gerade eine Antwort...'
+                        : draftAwaitingDetail
+                        ? 'Wähle oben die Detailtiefe …'
+                        : draftOpen
+                        ? 'Sag Fio, was am Entwurf anders sein soll …'
                         : 'Frage deinen Coach...'
                     }
                     value={inputText}
                     rows={1}
-                    disabled={loading}
+                    disabled={loading || draftAwaitingDetail}
                     style={{ height: 'auto' }}
                     onChange={(e) => {
                       setInputText(e.target.value);
@@ -1391,6 +1605,29 @@ Regeln für deine Antworten:
                     </div>
                   </div>
                   {sidebarScopeFilter === 'general' && (
+                    <span className="material-symbols-outlined text-[18px] text-primary">check</span>
+                  )}
+                </div>
+
+                <div
+                  onClick={() => {
+                    setSidebarScopeFilter('drafts');
+                    setIsSidebarFilterModalOpen(false);
+                  }}
+                  className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                    sidebarScopeFilter === 'drafts'
+                      ? 'bg-primary/5 border-primary shadow-xs'
+                      : 'bg-white border-outline-variant hover:bg-surface-low/50 hover:border-primary/30'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="material-symbols-outlined text-[18px] text-primary">edit_note</span>
+                    <div>
+                      <div className="font-bold text-xs text-on-surface">Entwürfe</div>
+                      <div className="text-[10px] font-mono text-on-surface-variant">Projektanlegung mit fertigen Entwürfen</div>
+                    </div>
+                  </div>
+                  {sidebarScopeFilter === 'drafts' && (
                     <span className="material-symbols-outlined text-[18px] text-primary">check</span>
                   )}
                 </div>
