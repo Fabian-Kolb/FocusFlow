@@ -319,9 +319,12 @@ export const ChatProvider = ({ children }) => {
             } else {
               const pCount = mergedContexts.filter(c => c.type === 'project').length;
               const rCount = mergedContexts.filter(c => c.type === 'reminder').length;
-              if (pCount > 0 && rCount > 0) updatedContextTitle = `${pCount} Proj., ${rCount} Erinn.`;
-              else if (pCount > 0) updatedContextTitle = `${pCount} Projekte`;
-              else updatedContextTitle = `${rCount} Erinnerungen`;
+              const cCount = mergedContexts.filter(c => c.type === 'calendar' || c.type === 'calendar_event').length;
+              const parts = [];
+              if (pCount > 0) parts.push(`${pCount} Proj.`);
+              if (rCount > 0) parts.push(`${rCount} Erinn.`);
+              if (cCount > 0) parts.push('Kalender');
+              updatedContextTitle = parts.length > 0 ? parts.join(', ') : 'Fokus';
             }
           }
 

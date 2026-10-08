@@ -156,7 +156,7 @@ function AppContent() {
             currentScreen === 'coach' 
               ? 'p-0 max-w-none h-full overflow-hidden' 
               : currentScreen === 'calendar'
-              ? 'max-w-none px-2 sm:px-4 md:px-8 py-3 sm:py-6 md:py-8 h-full min-h-0 overflow-hidden md:overflow-visible'
+              ? 'max-w-none p-0 md:px-8 md:py-8 h-full min-h-0 overflow-hidden md:overflow-visible'
               : currentScreen === 'board'
               ? 'max-w-none px-2 sm:px-4 md:px-8 py-3 sm:py-6 md:py-8 h-full min-h-0 overflow-hidden'
               : 'max-w-none px-2 sm:px-4 md:px-8 py-4 sm:py-8 pb-6 sm:pb-8'

@@ -921,6 +921,28 @@ export const DataProvider = ({ children }) => {
     });
   };
 
+  // Element per Drag & Drop platzieren: `orderedIds` ist die endgültige Reihenfolge der Ziel-Kategorie
+  // (inklusive des verschobenen Elements). Geschrieben werden nur Elemente, deren Platz sich ändert.
+  const placeProjectInCategory = (projectId, categoryId, orderedIds) => {
+    orderedIds.forEach((id, index) => {
+      const p = projects.find((item) => item.id === id);
+      if (!p) return;
+      const sameCategory = (p.categoryId || 'allgemein') === categoryId;
+      if (sameCategory && p.sortOrder === index) return;
+      saveProject({ ...p, categoryId: id === projectId ? categoryId : p.categoryId, sortOrder: index });
+    });
+  };
+
+  const placeReminderInCategory = (reminderId, categoryId, orderedIds) => {
+    orderedIds.forEach((id, index) => {
+      const r = reminders.find((item) => item.id === id);
+      if (!r) return;
+      const sameCategory = (r.categoryId || 'allgemein') === categoryId;
+      if (sameCategory && r.sortOrder === index) return;
+      saveReminder({ ...r, categoryId: id === reminderId ? categoryId : r.categoryId, sortOrder: index }).catch(() => {});
+    });
+  };
+
   const addReminderCategory = async (name) => {
     if (!user) return null;
     const id = `rcat_${Date.now()}`;
@@ -1797,6 +1819,8 @@ export const DataProvider = ({ children }) => {
     deleteProjectCategory,
     updateProjectCategory,
     moveProjectToCategory,
+    placeProjectInCategory,
+    placeReminderInCategory,
     reorderProjectCategories,
     moveProjectCategoryOrder,
     collapseAllProjectCategories,

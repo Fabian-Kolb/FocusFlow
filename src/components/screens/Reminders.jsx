@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { useCategoryDrag } from '../ui/useCategoryDrag';
-import { useCardTouchDrag } from '../ui/useCardTouchDrag';
+import React, { useState, useRef } from 'react';
+import { useBoardSort, LIFT_CLASS } from '../ui/useBoardSort';
+import { groupByCategory, sortByOrder } from '../../lib/itemOrder';
 import { useModalContext } from '../../context/ModalContext';
 import Card from '../ui/Card';
 import { ReminderCardContent } from '../ui/ItemCardContent';
@@ -42,40 +42,13 @@ const Reminders = ({ setCurrentScreen }) => {
     toggleReminderCategory,
     deleteReminderCategory,
     updateReminderCategory,
-    moveReminderToCategory,
+    placeReminderInCategory,
     reorderReminderCategories,
     moveReminderCategoryOrder,
     collapseAllReminderCategories,
     expandAllReminderCategories,
     restoreReminderCategoryExpandStates,
   } = useModalContext();
-
-  const handleMoveReminderToCategory = (reminderId, categoryId) => {
-    moveReminderToCategory(reminderId, categoryId);
-    const cat = reminderCategories.find(c => c.id === categoryId);
-    if (cat && !cat.isExpanded) {
-      toggleReminderCategory(categoryId);
-    }
-  };
-
-  const {
-    draggedCardId: touchDraggedReminderId,
-    cardDropTargetId: touchCardDropTargetCatId,
-    startCardDrag: startReminderCardDrag,
-    startCardTouchDrag: startReminderCardTouchDrag,
-    handleHtml5DragStart: handleReminderHtml5DragStart,
-    handleHtml5DragOver: handleReminderHtml5DragOver,
-    handleHtml5DragEnd: handleReminderHtml5DragEnd
-  } = useCardTouchDrag({
-    onMoveItemToCategory: handleMoveReminderToCategory,
-    categoryPrefix: 'rcat-sec-',
-    onHoverExpandCategory: (catId) => {
-      const cat = reminderCategories.find(c => c.id === catId);
-      if (cat && !cat.isExpanded) {
-        toggleReminderCategory(catId);
-      }
-    }
-  });
 
   const handleReminderClick = (reminderId) => {
     setSelectedReminderId(reminderId);
@@ -101,7 +74,6 @@ const Reminders = ({ setCurrentScreen }) => {
 
   const [editingCatId, setEditingCatId] = useState(null);
   const [editingCatName, setEditingCatName] = useState('');
-  const [cardDragOverCatId, setCardDragOverCatId] = useState(null);
 
   // Edit-Mode: saves expand states, collapses all → easy sorting
   const [isEditMode, setIsEditMode] = useState(false);
@@ -122,39 +94,6 @@ const Reminders = ({ setCurrentScreen }) => {
       }
       setEditModeSavedStates(null);
       setIsEditMode(false);
-    }
-  };
-
-  const { draggedCatId, orderedCategories, startDrag } = useCategoryDrag({
-    categories: reminderCategories,
-    reorderCategories: reorderReminderCategories,
-    collapseAll: collapseAllReminderCategories,
-    // In edit mode: stay collapsed after drag. Only "Bearbeiten beenden" restores states.
-    onDragEnd: isEditMode ? collapseAllReminderCategories : restoreReminderCategoryExpandStates,
-    sectionIdPrefix: 'rcat-sec-',
-  });
-
-  const handleCategoryDragOver = (e, categoryId) => {
-    handleReminderHtml5DragOver(e, categoryId);
-    if (!draggedCatId && cardDragOverCatId !== categoryId) {
-      setCardDragOverCatId(categoryId);
-    }
-  };
-
-  const handleCategoryDragLeave = (e, categoryId) => {
-    if (cardDragOverCatId === categoryId && !e.currentTarget.contains(e.relatedTarget)) {
-      setCardDragOverCatId(null);
-    }
-  };
-
-  const handleDrop = (e, categoryId) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setCardDragOverCatId(null);
-    handleReminderHtml5DragEnd();
-    const reminderId = e.dataTransfer.getData('text/plain') || touchDraggedReminderId;
-    if (reminderId) {
-      handleMoveReminderToCategory(reminderId, categoryId);
     }
   };
 
@@ -190,6 +129,31 @@ const Reminders = ({ setCurrentScreen }) => {
   const pinnedReminders = activeReminders.filter(r => r.isPinned);
   const otherReminders = activeReminders.filter(r => !r.isPinned);
 
+  // Kategorien und Karten per Drag & Drop (gleiche Mechanik wie im Fio-Entwurfs-Editor)
+  const boardRef = useRef(null);
+  // Erledigte rutschen ans Ende, damit Offenes oben bleibt
+  const itemsByCategory = groupByCategory(otherReminders, reminderCategories, {
+    sortWithin: (list) => sortByOrder(list).sort((a, b) => (a.status === 'ABGESCHLOSSEN') - (b.status === 'ABGESCHLOSSEN')),
+  });
+  const { drag, view, startCategoryDrag, startItemPress } = useBoardSort({
+    rootRef: boardRef,
+    categories: reminderCategories,
+    itemsByCategory,
+    onReorderCategories: reorderReminderCategories,
+    onMoveItem: (reminderId, categoryId, orderedIds) => {
+      placeReminderInCategory(reminderId, categoryId, orderedIds);
+      const cat = reminderCategories.find((c) => c.id === categoryId);
+      if (cat && !cat.isExpanded) toggleReminderCategory(categoryId);
+    },
+    onCategoryDragStart: collapseAllReminderCategories,
+    // Im Bearbeiten-Modus bleiben die Kategorien eingeklappt, sonst Zustand wiederherstellen
+    onCategoryDragEnd: (saved) => (isEditMode ? collapseAllReminderCategories() : restoreReminderCategoryExpandStates(saved)),
+    onExpandCategory: (catId) => {
+      const cat = reminderCategories.find((c) => c.id === catId);
+      if (cat && !cat.isExpanded) toggleReminderCategory(catId);
+    },
+  });
+
 
 
 
@@ -202,21 +166,19 @@ const Reminders = ({ setCurrentScreen }) => {
     }
   };
 
-  const renderCard = (reminder) => {
-    const isDragged = touchDraggedReminderId === reminder.id;
+  // sortable = Karte lässt sich ziehen (nur in der Kategorie-Ansicht; angepinnte Karten und die Zeit-Ansicht stehen fest)
+  const renderCard = (reminder, sortable = false) => {
+    const isDragged = drag?.kind === 'item' && drag.id === reminder.id;
     return (
       <div
         key={reminder.id}
-        data-card-id={reminder.id}
-        onMouseDown={(e) => startReminderCardDrag(e, reminder.id, reminder.title)}
-        onTouchStart={(e) => startReminderCardTouchDrag(e, reminder.id, reminder.title)}
-        onDragStart={(e) => handleReminderHtml5DragStart(e, reminder.id)}
-        onDragEnd={handleReminderHtml5DragEnd}
-        onDragOver={(e) => handleCategoryDragOver(e, reminder.categoryId || 'allgemein')}
-        onDrop={(e) => handleDrop(e, reminder.categoryId || 'allgemein')}
-        className={`cursor-grab active:cursor-grabbing [-webkit-touch-callout:none] select-none transition-all duration-150 ${
-          isDragged ? 'opacity-30 scale-[0.98] ring-2 ring-primary/40 rounded-xl' : 'opacity-100'
-        }`}
+        {...(sortable ? {
+          'data-card-id': reminder.id,
+          onMouseDown: (e) => startItemPress(e, reminder.id),
+          onTouchStart: (e) => startItemPress(e, reminder.id),
+          onDragStart: (e) => e.preventDefault(),
+        } : {})}
+        className={`${sortable ? 'cursor-grab [-webkit-touch-callout:none] select-none' : ''} ${isDragged ? LIFT_CLASS : ''}`}
       >
       <Card
         interactive
@@ -274,7 +236,7 @@ const Reminders = ({ setCurrentScreen }) => {
             <span className="material-symbols-outlined text-sm">push_pin</span> Angepinnt
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-            {pinnedReminders.map(renderCard)}
+            {pinnedReminders.map((r) => renderCard(r))}
           </div>
         </div>
       )}
@@ -310,7 +272,7 @@ const Reminders = ({ setCurrentScreen }) => {
                 </button>
                 {!collapsed && (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                    {group.items.map(renderCard)}
+                    {group.items.map((r) => renderCard(r))}
                   </div>
                 )}
               </section>
@@ -320,7 +282,7 @@ const Reminders = ({ setCurrentScreen }) => {
       ) : (
       <>
       {/* Categories */}
-      <div className="space-y-6">
+      <div ref={boardRef} className="space-y-6">
         <CategoryToolbar
           count={reminderCategories.length}
           isEditMode={isEditMode}
@@ -330,33 +292,30 @@ const Reminders = ({ setCurrentScreen }) => {
           onExpandAll={expandAllReminderCategories}
         />
 
-        {(orderedCategories || reminderCategories)?.map((cat) => {
-          const catReminders = otherReminders
-            .filter(r => (r.categoryId || 'allgemein') === cat.id)
-            // Erledigte rutschen ans Ende, damit Offenes oben bleibt
-            .sort((a, b) => (a.status === 'ABGESCHLOSSEN') - (b.status === 'ABGESCHLOSSEN'));
-          if (cat.id === 'allgemein' && catReminders.length === 0 && reminderCategories.length > 1 && !touchDraggedReminderId) {
+        {view.categories.map((cat) => {
+          const catReminders = view.itemsByCategory[cat.id] || [];
+          if (cat.id === 'allgemein' && catReminders.length === 0 && reminderCategories.length > 1 && !drag) {
             return null;
           }
 
-          const isBeingDragged = draggedCatId === cat.id;
-          const isCardHoveringThisCat = (cardDragOverCatId === cat.id || touchCardDropTargetCatId === cat.id) && !isBeingDragged;
+          const isBeingDragged = drag?.kind === 'cat' && drag.id === cat.id;
+          const isDraggingItem = drag?.kind === 'item';
+          // Karte schwebt über dieser Kategorie (und stammt nicht aus ihr): Ablage-Hinweis
+          const isCardHoveringThisCat = isDraggingItem && drag.catId === cat.id && drag.originCatId !== cat.id;
 
           return (
             <div 
               key={cat.id}
               id={`rcat-sec-${cat.id}`}
               data-category-id={cat.id}
-              onDragOver={(e) => handleCategoryDragOver(e, cat.id)}
-              onDragLeave={(e) => handleCategoryDragLeave(e, cat.id)}
-              onDrop={(e) => handleDrop(e, cat.id)}
-              className={`rounded-xl transition-all duration-150 border scroll-mt-6 ${
+              data-cat-section={cat.id}
+              className={`rounded-xl border scroll-mt-6 p-2 -m-1 transition-colors duration-150 ${
                 isBeingDragged
-                  ? 'opacity-0 pointer-events-none h-11 my-1 p-0 border-transparent overflow-hidden'
+                  ? `${LIFT_CLASS} z-30 border-transparent`
                   : isCardHoveringThisCat
-                  ? 'border-primary bg-primary/10 ring-2 ring-primary/40 shadow-lg p-2.5 -m-1'
-                  : 'border-transparent p-2 -m-1'
-              }`}
+                  ? 'border-primary bg-primary/10 ring-2 ring-primary/40'
+                  : 'border-transparent'
+              } ${isDraggingItem && drag.catId === cat.id ? 'relative z-30' : ''}`}
             >
               {/* Steam-Like Header */}
               <div 
@@ -372,8 +331,8 @@ const Reminders = ({ setCurrentScreen }) => {
                 }`}>
                   {/* Drag Handle – always visible in edit mode */}
                   <span 
-                    onMouseDown={(e) => startDrag(e, cat.id, catReminders.length)}
-                    onTouchStart={(e) => startDrag(e, cat.id, catReminders.length)}
+                    onMouseDown={(e) => startCategoryDrag(e, cat.id)}
+                    onTouchStart={(e) => startCategoryDrag(e, cat.id)}
                     onClick={(e) => e.stopPropagation()}
                     className={`material-symbols-outlined text-[18px] hover:text-primary cursor-grab active:cursor-grabbing p-1 -m-1 transition-opacity touch-none select-none ${
                       isEditMode ? 'opacity-100 text-primary' : 'hidden md:inline-block opacity-50 group-hover:opacity-100'
@@ -504,10 +463,10 @@ const Reminders = ({ setCurrentScreen }) => {
               </div>
 
               {/* Content grid – hidden in edit mode regardless of isExpanded state */}
-              {cat.isExpanded && !draggedCatId && !isEditMode && (
+              {cat.isExpanded && drag?.kind !== 'cat' && !isEditMode && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                   {catReminders.length > 0 ? (
-                    catReminders.map(renderCard)
+                    catReminders.map((r) => renderCard(r, true))
                   ) : (
                     <div className={`col-span-full py-8 border-2 border-dashed rounded-xl flex items-center justify-center transition-colors ${
                       isCardHoveringThisCat

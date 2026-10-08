@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useSwipeToClose } from '../../hooks/useSwipeToClose';
 import { useAuth } from '../../context/AuthContext';
+import { useModal } from '../../context/ModalContext';
 import { fetchCalendarEvents, deleteCalendarEvent, createCalendarEvent, updateCalendarEvent } from '../../lib/calendarAPI';
-import Card from '../ui/Card';
-import Badge from '../ui/Badge';
 import EventEditForm from './EventEditForm';
 
 const MONTH_NAMES = [
@@ -11,39 +10,73 @@ const MONTH_NAMES = [
   'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'
 ];
 
+const MONTH_NAMES_SHORT = [
+  'Jan.', 'Feb.', 'Mär.', 'Apr.', 'Mai', 'Juni',
+  'Juli', 'Aug.', 'Sept.', 'Okt.', 'Nov.', 'Dez.'
+];
+
+const MONTH_NAMES_HEADER = [
+  'JAN', 'FEB', 'MÄR', 'APR', 'MAI', 'JUN',
+  'JUL', 'AUG', 'SEP', 'OKT', 'NOV', 'DEZ'
+];
+
 const WEEKDAY_NAMES = [
   'Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'
 ];
 
-const HOURS = Array.from({ length: 24 }, (_, i) => i);
-const MOBILE_PX_PER_MIN = 0.75; // 45px pro Stunde auf Mobile (24h = 1080px, in ~2-3 Swipes durchscrollbar)
+const WEEKDAYS = [
+  { short: 'MO.', isSunday: false },
+  { short: 'DI.', isSunday: false },
+  { short: 'MI.', isSunday: false },
+  { short: 'DO.', isSunday: false },
+  { short: 'FR.', isSunday: false },
+  { short: 'SA.', isSunday: false },
+  { short: 'SO.', isSunday: true },
+];
 
-// Offizielle Google Calendar Event Farben (IDs 1-11)
-const GOOGLE_COLORS = {
-  "1": { bg: "#a4bdfc", text: "#1d3573" }, // Lavender
-  "2": { bg: "#7ae7bf", text: "#1c4a38" }, // Sage
-  "3": { bg: "#dbadff", text: "#4c266b" }, // Grape
-  "4": { bg: "#ff887c", text: "#661b14" }, // Flamingo
-  "5": { bg: "#fbd75b", text: "#665315" }, // Banana
-  "6": { bg: "#ffb878", text: "#663b15" }, // Tangerine
-  "7": { bg: "#46d6db", text: "#164d4f" }, // Peacock
-  "8": { bg: "#e1e1e1", text: "#454545" }, // Graphite
-  "9": { bg: "#5484ed", text: "#172d5c" }, // Blueberry
-  "10": { bg: "#51b749", text: "#194215" }, // Basil
-  "11": { bg: "#dc2127", text: "#590d10" }, // Tomato
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
+const MOBILE_PX_PER_MIN = 0.75; // 45px pro Stunde auf Mobile
+
+// Harmonisierte Farbpalette für Termine nach den Screenshot-Vorgaben (Pastell-Hintergrund + solider linker Akzent)
+const EVENT_COLOR_MAP = {
+  // 1: Lavender
+  '1': { bg: '#ede9fe', border: '#8b5cf6', text: '#1e1b4b', accent: '#7c3aed' },
+  // 2: Sage / Minzgrün (Screenshot 1 & 2)
+  '2': { bg: '#dcfce7', border: '#10b981', text: '#064e3b', accent: '#059669' },
+  // 3: Grape / Violett
+  '3': { bg: '#f3e8ff', border: '#a855f7', text: '#3b0764', accent: '#9333ea' },
+  // 4: Flamingo / Koralle
+  '4': { bg: '#ffe4e6', border: '#f43f5e', text: '#4c0519', accent: '#e11d48' },
+  // 5: Banana / Gelb
+  '5': { bg: '#fef9c3', border: '#eab308', text: '#422006', accent: '#ca8a04' },
+  // 6: Tangerine / Orange
+  '6': { bg: '#ffedd5', border: '#f97316', text: '#431407', accent: '#ea580c' },
+  // 7: Peacock / Eisblau (Screenshot 1 & 2)
+  '7': { bg: '#e0f2fe', border: '#06b6d4', text: '#082f49', accent: '#0284c7' },
+  // 8: Graphite / Grau
+  '8': { bg: '#f1f5f9', border: '#64748b', text: '#0f172a', accent: '#475569' },
+  // 9: Blueberry / Hellblau Standard (Screenshot 1 & 2)
+  '9': { bg: '#e0f2fe', border: '#0284c7', text: '#0f172a', accent: '#0284c7' },
+  // 10: Basil / Dunkelgrün
+  '10': { bg: '#dcfce7', border: '#16a34a', text: '#052e16', accent: '#15803d' },
+  // 11: Tomato / Rot
+  '11': { bg: '#fee2e2', border: '#ef4444', text: '#450a0a', accent: '#dc2626' },
 };
 
-// Hilfsfunktion: Berechnet lesbare Dauer (z.B. "1 Std. 30 Min." oder "45 Min.")
-function formatDuration(durationMinutes) {
-  if (!durationMinutes || durationMinutes <= 0) return '';
-  const hours = Math.floor(durationMinutes / 60);
-  const mins = durationMinutes % 60;
-  if (hours > 0 && mins > 0) return `${hours} Std. ${mins} Min.`;
-  if (hours > 0) return `${hours} Std.`;
-  return `${mins} Min.`;
+function getEventColors(colorId) {
+  if (colorId && EVENT_COLOR_MAP[colorId]) {
+    return EVENT_COLOR_MAP[colorId];
+  }
+  // Standard-Himmelblau aus Screenshot 1 & 2
+  return {
+    bg: '#e0f2fe',
+    border: '#0284c7',
+    text: '#0f172a',
+    accent: '#0284c7',
+  };
 }
 
-// Hilfsfunktion: Berechnet Position (top, height) und Spaltenaufteilung bei Überlappungen
+// Hilfsfunktion: Berechnet Layout bei Überlappungen
 function getLayoutedEvents(timedEvents, selectedDate) {
   if (!timedEvents || timedEvents.length === 0) return [];
 
@@ -79,7 +112,6 @@ function getLayoutedEvents(timedEvents, selectedDate) {
 
   parsed.sort((a, b) => a.startMinutes - b.startMinutes || b.duration - a.duration);
 
-  // Cluster bilden für überlappende Intervalle
   const clusters = [];
   let currentCluster = [];
   let clusterEnd = -1;
@@ -101,7 +133,6 @@ function getLayoutedEvents(timedEvents, selectedDate) {
     clusters.push(currentCluster);
   }
 
-  // Spalten innerhalb jedes Clusters zuweisen
   const result = [];
   for (const cluster of clusters) {
     const colEndTimes = [];
@@ -130,43 +161,18 @@ function getLayoutedEvents(timedEvents, selectedDate) {
   return result;
 }
 
-const SkeletonCalendarGrid = () => (
-  <Card padding="none" className="w-full h-full flex-1 flex flex-col overflow-hidden border border-outline-variant rounded-2xl shadow-sm bg-white select-none opacity-60">
-    <div className="grid grid-cols-7 border-b border-outline-variant bg-surface-low/50 flex-shrink-0">
-      {['MO', 'DI', 'MI', 'DO', 'FR', 'SA', 'SO'].map((d, idx) => (
-        <div key={d} className={`py-2 text-center text-xs font-mono font-bold tracking-wider ${idx >= 5 ? 'text-on-surface-variant/70' : 'text-on-surface'}`}>{d}</div>
-      ))}
-    </div>
-    <div className="grid grid-cols-7 grid-rows-5 md:grid-rows-none bg-outline-variant/60 gap-px flex-1 h-full">
-      {Array.from({ length: 35 }).map((_, i) => (
-        <div key={i} className="min-h-0 md:min-h-[100px] lg:min-h-[115px] h-full p-1.5 md:p-2.5 bg-white flex flex-col justify-between">
-          <div className="flex justify-between items-start opacity-40">
-            <span className="w-6 h-6 rounded-full bg-surface-low text-xs font-mono flex items-center justify-center">{(i % 31) + 1}</span>
-          </div>
-          <div className="mt-1 space-y-1">
-             <div className="h-2 bg-outline-variant/40 rounded w-full"></div>
-             <div className="h-2 bg-outline-variant/40 rounded w-2/3"></div>
-          </div>
-        </div>
-      ))}
-    </div>
-  </Card>
-);
-
-// Hilfsfunktion: Berechnet alle Kalendertage für das 7-Spalten-Raster inkl. Vormonat- & Folgemonat-Padding
-// Startet immer mit Montag (0 = MO, ..., 6 = SO)
+// Hilfsfunktion: Berechnet alle Kalendertage für das 7-Spalten-Raster inkl. Padding
 function getCalendarDays(year, monthIndex) {
   const firstDay = new Date(year, monthIndex, 1);
   const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
   const daysInPrevMonth = new Date(year, monthIndex, 0).getDate();
 
-  // In JS: 0 = Sonntag, 1 = Montag, ..., 6 = Samstag.
-  // Für Montag-basierten Wochenstart: 0 = Mo, 1 = Di, ..., 6 = So
+  // In JS: 0 = Sonntag, 1 = Montag... Für Montag-basierten Wochenstart:
   const startDayOfWeek = (firstDay.getDay() + 6) % 7;
 
   const cells = [];
 
-  // 1. Tage des Vormonats als führendes Padding
+  // 1. Tage des Vormonats
   for (let i = startDayOfWeek - 1; i >= 0; i--) {
     const day = daysInPrevMonth - i;
     const dateObj = new Date(year, monthIndex - 1, day);
@@ -194,7 +200,7 @@ function getCalendarDays(year, monthIndex) {
     });
   }
 
-  // 3. Tage des Folgemonats, um volle Zeilen (35 oder 42 Zellen) aufzufüllen
+  // 3. Tage des Folgemonats
   const totalSlots = Math.ceil(cells.length / 7) * 7;
   const nextMonthDaysCount = totalSlots - cells.length;
 
@@ -214,46 +220,90 @@ function getCalendarDays(year, monthIndex) {
   return cells;
 }
 
+function parseEventDate(dateStr, isEnd) {
+  if (!dateStr) return new Date();
+  if (dateStr.includes('T')) return new Date(dateStr);
+  const [y, m, d] = dateStr.split('-');
+  const localDate = new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
+  if (isEnd) return new Date(localDate.getTime() - 1);
+  return localDate;
+}
+
+function isEventOnDate(evt, dateObj) {
+  if (!evt.start || (!evt.start.dateTime && !evt.start.date)) return false;
+  const isAllDay = !!evt.start.date;
+  const eventStart = parseEventDate(evt.start.dateTime || evt.start.date, false);
+  const eventEnd = evt.end ? parseEventDate(evt.end.dateTime || evt.end.date, isAllDay) : eventStart;
+
+  const checkStart = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
+  const checkEnd = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), 23, 59, 59, 999);
+  return eventStart <= checkEnd && eventEnd >= checkStart;
+}
+
+function sortEvents(events) {
+  return events.slice().sort((a, b) => {
+    const isAllDayA = !a.start?.dateTime && !!a.start?.date;
+    const isAllDayB = !b.start?.dateTime && !!b.start?.date;
+    if (isAllDayA && !isAllDayB) return -1;
+    if (!isAllDayA && isAllDayB) return 1;
+    const timeA = a.start?.dateTime ? new Date(a.start.dateTime).getTime() : 0;
+    const timeB = b.start?.dateTime ? new Date(b.start.dateTime).getTime() : 0;
+    return timeA - timeB;
+  });
+}
+
 const Calendar = () => {
-  const { user, isCalendarConnected, linkGoogleCalendar, disconnectGoogleCalendar } = useAuth();
-  
-  const today = new Date();
+  const { user, isCalendarConnected, linkGoogleCalendar } = useAuth();
+  const { openModal } = useModal();
+
+  const today = useMemo(() => new Date(), []);
   const [currentMonthIndex, setCurrentMonthIndex] = useState(today.getMonth());
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [selectedDay, setSelectedDay] = useState(today.getDate());
-  
-  const [events, setEvents] = useState([]);
-  const [eventsCache, setEventsCache] = useState({}); // Cache-Speicher für jeden geladenen Monat (Format: 'YYYY-MM')
-  const [isLoading, setIsLoading] = useState(false);
+
+  // Zentraler Cache für geladene Monate (z. B. '2026-9': [...])
+  const [eventsCache, setEventsCache] = useState({});
+  const eventsCacheRef = useRef({});
+  eventsCacheRef.current = eventsCache;
+  const fetchingKeysRef = useRef(new Set());
   const [error, setError] = useState(null);
-  const [selectedEvent, setSelectedEvent] = useState(null); // Für das Event-Detail Modal
-  const [editingEvent, setEditingEvent] = useState(null); // Für die Vollbild-Bearbeitungsmaske (null = inaktiv, {} = neu, {...} = bearbeiten)
-  
+
+  const [selectedEvent, setSelectedEvent] = useState(null); // Für Detail-Modal
+  const [editingEvent, setEditingEvent] = useState(null); // Für Formular
   const [showMonthPicker, setShowMonthPicker] = useState(false);
   const [pickerYear, setPickerYear] = useState(currentYear);
-  const [isScrollingDown, setIsScrollingDown] = useState(false);
-  const [isMobileDayModalOpen, setIsMobileDayModalOpen] = useState(false);
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  // Mobile Day Drawer – shouldRender/isClosing für saubere Ein-/Aus-Animation (wie TaskDetailDrawer)
+  // Mobile Day Drawer (Screenshot 2)
+  const [isMobileDayModalOpen, setIsMobileDayModalOpen] = useState(false);
   const [mobileDayDrawerRendered, setMobileDayDrawerRendered] = useState(false);
   const [mobileDayDrawerClosing, setMobileDayDrawerClosing] = useState(false);
   const mobileDayDrawerRef = useRef(null);
   const mobileDayScrollRef = useRef(null);
   const lastClosedAtRef = useRef(0);
 
-  // Mobile Day Ansicht: 'timeline' (Zeitstrahl) oder 'list' (Chronologische Liste)
+  // Mobile Day Ansicht: Standardmodus ist 'list' (Listenansicht nach Screenshot 2 Vorgabe!)
   const [mobileDayViewMode, setMobileDayViewMode] = useState(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('focusflow_calendar_mobile_day_view');
-      if (saved === 'timeline' || saved === 'list') return saved;
+      try {
+        const saved = localStorage.getItem('focusflow_calendar_mobile_day_view');
+        if (saved === 'timeline' || saved === 'list') return saved;
+      } catch {
+        // pass
+      }
     }
-    return 'timeline';
+    return 'list'; // Standard ist Liste!
   });
 
   const handleMobileDayViewChange = (mode) => {
     setMobileDayViewMode(mode);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('focusflow_calendar_mobile_day_view', mode);
+      try {
+        localStorage.setItem('focusflow_calendar_mobile_day_view', mode);
+      } catch {
+        // pass
+      }
     }
   };
 
@@ -276,7 +326,11 @@ const Calendar = () => {
     setIsMobileDayModalOpen(false);
   };
 
-  const { drawerStyle: mobileDayDrawerStyle, entryAnimActive: mobileDayEntryAnim, wasSwipedClosed: mobileDayWasSwipedClosed } = useSwipeToClose({
+  const {
+    drawerStyle: mobileDayDrawerStyle,
+    entryAnimActive: mobileDayEntryAnim,
+    wasSwipedClosed: mobileDayWasSwipedClosed
+  } = useSwipeToClose({
     isOpen: isMobileDayModalOpen && mobileDayDrawerRendered,
     onClose: handleCloseMobileDayDrawer,
     drawerRef: mobileDayDrawerRef,
@@ -284,12 +338,48 @@ const Calendar = () => {
     threshold: 120,
   });
 
-  // Desktop/Tablet Layout-Präferenz: 'stacked' (untereinander) oder 'side-by-side' (nebeneinander)
+  // Geste im Day Drawer: Nach rechts wischen öffnet Zeitstrahl, nach links Liste
+  const sheetTouchStartX = useRef(0);
+  const sheetTouchStartY = useRef(0);
+  const sheetIsHorizontal = useRef(false);
+
+  const onSheetTouchStart = (e) => {
+    sheetTouchStartX.current = e.targetTouches[0].clientX;
+    sheetTouchStartY.current = e.targetTouches[0].clientY;
+    sheetIsHorizontal.current = false;
+  };
+
+  const onSheetTouchMove = (e) => {
+    const dx = e.targetTouches[0].clientX - sheetTouchStartX.current;
+    const dy = e.targetTouches[0].clientY - sheetTouchStartY.current;
+    if (!sheetIsHorizontal.current && Math.abs(dx) > 15 && Math.abs(dx) > Math.abs(dy) * 1.3) {
+      sheetIsHorizontal.current = true;
+    }
+  };
+
+  const onSheetTouchEnd = (e) => {
+    if (sheetIsHorizontal.current) {
+      const dx = e.changedTouches[0].clientX - sheetTouchStartX.current;
+      // Nach rechts wischen öffnet Zeitstrahl
+      if (dx > 50 && mobileDayViewMode === 'list') {
+        handleMobileDayViewChange('timeline');
+      } else if (dx < -50 && mobileDayViewMode === 'timeline') {
+        handleMobileDayViewChange('list');
+      }
+    }
+    sheetIsHorizontal.current = false;
+  };
+
+  // Desktop/Tablet Layout: 'stacked' oder 'side-by-side'
   const [desktopLayout, setDesktopLayout] = useState(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('focusflow_calendar_desktop_layout');
-      if (saved === 'stacked' || saved === 'side-by-side') return saved;
-      return window.innerWidth >= 1280 ? 'side-by-side' : 'stacked';
+      try {
+        const saved = localStorage.getItem('focusflow_calendar_desktop_layout');
+        if (saved === 'stacked' || saved === 'side-by-side') return saved;
+        return window.innerWidth >= 1280 ? 'side-by-side' : 'stacked';
+      } catch {
+        // pass
+      }
     }
     return 'stacked';
   });
@@ -297,144 +387,69 @@ const Calendar = () => {
   const handleLayoutChange = (mode) => {
     setDesktopLayout(mode);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('focusflow_calendar_desktop_layout', mode);
-    }
-  };
-
-  // Swipe Gesten für Mobile
-  const [touchStart, setTouchStart] = useState(null);
-  const [touchEnd, setTouchEnd] = useState(null);
-  const [swipeOffset, setSwipeOffset] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
-  const [isAnimating, setIsAnimating] = useState(false);
-  const [isSwapping, setIsSwapping] = useState(false);
-
-  const onTouchStart = (e) => {
-    if (isAnimating) return;
-    setTouchEnd(null);
-    setTouchStart(e.targetTouches[0].clientX);
-    setIsDragging(true);
-    setIsSwapping(false);
-    setSwipeOffset(0);
-  };
-
-  const onTouchMove = (e) => {
-    if (touchStart === null || isAnimating) return;
-    const currentX = e.targetTouches[0].clientX;
-    setTouchEnd(currentX);
-    setSwipeOffset(currentX - touchStart);
-  };
-
-  const onTouchEnd = () => {
-    if (isAnimating || !isDragging) return;
-    setIsDragging(false);
-    if (touchStart === null || touchEnd === null) {
-      setSwipeOffset(0);
-      return;
-    }
-    
-    const distance = touchStart - touchEnd;
-    const isLeftSwipe = distance > 80;
-    const isRightSwipe = distance < -80;
-    
-    if (isLeftSwipe) {
-      setIsAnimating(true);
-      setSwipeOffset(-window.innerWidth);
-      setTimeout(() => {
-        setIsSwapping(true);
-        handleNextMonth();
-        setSwipeOffset(0);
-        setTimeout(() => {
-          setIsSwapping(false);
-          setIsAnimating(false);
-        }, 50);
-      }, 300);
-    } else if (isRightSwipe) {
-      setIsAnimating(true);
-      setSwipeOffset(window.innerWidth);
-      setTimeout(() => {
-        setIsSwapping(true);
-        handlePrevMonth();
-        setSwipeOffset(0);
-        setTimeout(() => {
-          setIsSwapping(false);
-          setIsAnimating(false);
-        }, 50);
-      }, 300);
-    } else {
-      setIsAnimating(true);
-      setSwipeOffset(0);
-      setTimeout(() => setIsAnimating(false), 300);
-    }
-    
-    setTouchStart(null);
-    setTouchEnd(null);
-  };
-
-  // Scroll Listener for mobile FAB
-  useEffect(() => {
-    let lastScrollY = window.scrollY;
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      if (currentScrollY > lastScrollY && currentScrollY > 50) {
-        setIsScrollingDown(true);
-      } else if (currentScrollY < lastScrollY) {
-        setIsScrollingDown(false);
-      }
-      lastScrollY = currentScrollY;
-    };
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  // Hole Events, wenn verbunden ODER sich der Monat ändert
-  useEffect(() => {
-    async function loadEvents() {
-      if (!isCalendarConnected) return;
-      
-      const cacheKey = `${currentYear}-${currentMonthIndex}`;
-      
-      // 1. Prüfen, ob wir diesen Monat schon geladen haben (Caching)
-      if (eventsCache[cacheKey]) {
-        setEvents(eventsCache[cacheKey]);
-        return;
-      }
-      
-      // 2. Falls nicht, laden wir dynamisch für diesen spezifischen Monat
-      setIsLoading(true);
-      setError(null);
       try {
-        const fetchedEvents = await fetchCalendarEvents(currentYear, currentMonthIndex);
-        setEventsCache(prev => ({ ...prev, [cacheKey]: fetchedEvents }));
-        setEvents(fetchedEvents);
-      } catch (err) {
-        console.error("Fehler beim Laden der Kalenderdaten", err);
-        setError("Die Kalenderdaten konnten nicht geladen werden.");
-      } finally {
-        setIsLoading(false);
+        localStorage.setItem('focusflow_calendar_desktop_layout', mode);
+      } catch {
+        // pass
       }
-    }
-    
-    loadEvents();
-  }, [isCalendarConnected, currentMonthIndex, currentYear]);
-
-  const handleConnectCalendar = async () => {
-    if (user?.isGuest) {
-      alert("Hinweis: Die Google Kalender-Synchronisation ist in dieser Vorschauversion nur für freigeschaltete Benutzerkonten verfügbar.");
-      return;
-    }
-    try {
-      await linkGoogleCalendar();
-    } catch (err) {
-      console.error("Verbindung fehlgeschlagen", err);
-      alert("Fehler bei der Verbindung mit Google Kalender: " + (err.message || err));
     }
   };
 
-  // Hilfsfunktion: Berechne, wie viele Tage ein Monat hat
+  // Nachbarmonate für unterbrechungsfreies Vorladen & 3-Slide Carousel
+  const prevMonthIndex = currentMonthIndex === 0 ? 11 : currentMonthIndex - 1;
+  const prevYear = currentMonthIndex === 0 ? currentYear - 1 : currentYear;
+
+  const nextMonthIndex = currentMonthIndex === 11 ? 0 : currentMonthIndex + 1;
+  const nextYear = currentMonthIndex === 11 ? currentYear + 1 : currentYear;
+
+  const daysPrev = useMemo(() => getCalendarDays(prevYear, prevMonthIndex), [prevYear, prevMonthIndex]);
+  const daysCurr = useMemo(() => getCalendarDays(currentYear, currentMonthIndex), [currentYear, currentMonthIndex]);
+  const daysNext = useMemo(() => getCalendarDays(nextYear, nextMonthIndex), [nextYear, nextMonthIndex]);
+
+  // Automatisches paralleles Vorladen des aktuellen, vorherigen und nächsten Monats!
+  useEffect(() => {
+    if (!isCalendarConnected) return;
+
+    const targets = [
+      { year: currentYear, month: currentMonthIndex },
+      { year: prevYear, month: prevMonthIndex },
+      { year: nextYear, month: nextMonthIndex },
+    ];
+
+    targets.forEach(({ year, month }) => {
+      const key = `${year}-${month}`;
+      if (!eventsCacheRef.current[key] && !fetchingKeysRef.current.has(key)) {
+        fetchingKeysRef.current.add(key);
+        fetchCalendarEvents(year, month)
+          .then((fetched) => {
+            setEventsCache((prev) => ({ ...prev, [key]: fetched || [] }));
+          })
+          .catch((err) => {
+            console.warn(`[Calendar] Fehler beim Vorladen von ${key}:`, err);
+            if (year === currentYear && month === currentMonthIndex) {
+              setError('Die Kalenderdaten konnten nicht geladen werden.');
+            }
+          })
+          .finally(() => {
+            fetchingKeysRef.current.delete(key);
+          });
+      }
+    });
+  }, [isCalendarConnected, currentYear, currentMonthIndex, prevYear, prevMonthIndex, nextYear, nextMonthIndex]);
+
+  const currCacheKey = `${currentYear}-${currentMonthIndex}`;
+  const currentMonthEvents = useMemo(() => eventsCache[currCacheKey] || [], [eventsCache, currCacheKey]);
+
+  // Holt alle Termine für ein beliebiges Kalenderdatum aus dem übergreifenden Cache
+  const getEventsForCell = useCallback((dateObj) => {
+    const key = `${dateObj.getFullYear()}-${dateObj.getMonth()}`;
+    const list = eventsCache[key] || [];
+    return list.filter((evt) => isEventOnDate(evt, dateObj));
+  }, [eventsCache]);
+
   const getDaysInMonth = (month, year) => new Date(year, month + 1, 0).getDate();
 
-  const handlePrevMonth = () => {
+  const handlePrevMonth = useCallback(() => {
     let newMonth, newYear;
     if (currentMonthIndex === 0) {
       newMonth = 11;
@@ -446,10 +461,10 @@ const Calendar = () => {
     const maxDays = getDaysInMonth(newMonth, newYear);
     setCurrentMonthIndex(newMonth);
     setCurrentYear(newYear);
-    setSelectedDay(prev => Math.min(prev, maxDays));
-  };
+    setSelectedDay((prev) => Math.min(prev, maxDays));
+  }, [currentMonthIndex, currentYear]);
 
-  const handleNextMonth = () => {
+  const handleNextMonth = useCallback(() => {
     let newMonth, newYear;
     if (currentMonthIndex === 11) {
       newMonth = 0;
@@ -461,35 +476,135 @@ const Calendar = () => {
     const maxDays = getDaysInMonth(newMonth, newYear);
     setCurrentMonthIndex(newMonth);
     setCurrentYear(newYear);
-    setSelectedDay(prev => Math.min(prev, maxDays));
+    setSelectedDay((prev) => Math.min(prev, maxDays));
+  }, [currentMonthIndex, currentYear]);
+
+  // Touch & Drag Swipe Steuerung für das Monats-Karussell (Butterweich & mit vorgerendertem Content)
+  const carouselContainerRef = useRef(null);
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const isAnimatingRef = useRef(false);
+
+  const touchStartXRef = useRef(0);
+  const touchStartYRef = useRef(0);
+  const touchDeltaXRef = useRef(0);
+  const touchStartTimeRef = useRef(0);
+  const isSwipingHorizontalRef = useRef(false);
+
+  const startCarouselDrag = (clientX, clientY) => {
+    if (isAnimatingRef.current) return;
+    touchStartXRef.current = clientX;
+    touchStartYRef.current = clientY;
+    touchDeltaXRef.current = 0;
+    touchStartTimeRef.current = Date.now();
+    isSwipingHorizontalRef.current = false;
+    setIsDragging(true);
   };
 
-  const triggerSwipe = (direction) => {
-    if (isAnimating) return;
-    setIsAnimating(true);
+  const moveCarouselDrag = (clientX, clientY, e) => {
+    if (!isDragging || isAnimatingRef.current) return;
+    const dx = clientX - touchStartXRef.current;
+    const dy = clientY - touchStartYRef.current;
+    touchDeltaXRef.current = dx;
+
+    if (!isSwipingHorizontalRef.current) {
+      if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+        if (Math.abs(dx) > Math.abs(dy)) {
+          isSwipingHorizontalRef.current = true;
+        } else {
+          setIsDragging(false);
+          return;
+        }
+      }
+    }
+
+    if (isSwipingHorizontalRef.current) {
+      if (e && e.cancelable) e.preventDefault();
+      setSwipeOffset(dx);
+    }
+  };
+
+  const endCarouselDrag = () => {
+    if (!isDragging || isAnimatingRef.current) return;
     setIsDragging(false);
-    setIsSwapping(false);
-    
-    setSwipeOffset(direction === 'left' ? -window.innerWidth : window.innerWidth);
-    
-    setTimeout(() => {
-      setIsSwapping(true);
-      if (direction === 'left') handleNextMonth();
-      else handlePrevMonth();
+
+    const dx = touchDeltaXRef.current;
+    const elapsed = Math.max(Date.now() - touchStartTimeRef.current, 1);
+    const velocity = Math.abs(dx) / elapsed;
+    const width = carouselContainerRef.current?.offsetWidth || window.innerWidth;
+    const threshold = Math.min(width * 0.18, 70);
+
+    const isSwipe = isSwipingHorizontalRef.current && (Math.abs(dx) > threshold || (Math.abs(dx) > 30 && velocity > 0.35));
+
+    if (isSwipe) {
+      isAnimatingRef.current = true;
+      setIsAnimating(true);
+      if (dx < 0) {
+        // Nächster Monat: Hineingleiten, dann nahtlos ohne Rückanimation resetten
+        setSwipeOffset(-width);
+        setTimeout(() => {
+          isAnimatingRef.current = false;
+          setIsAnimating(false);
+          setSwipeOffset(0);
+          handleNextMonth();
+        }, 260);
+      } else {
+        // Vorheriger Monat
+        setSwipeOffset(width);
+        setTimeout(() => {
+          isAnimatingRef.current = false;
+          setIsAnimating(false);
+          setSwipeOffset(0);
+          handlePrevMonth();
+        }, 260);
+      }
+    } else {
+      // Zurückfedern
+      isAnimatingRef.current = true;
+      setIsAnimating(true);
       setSwipeOffset(0);
-      
       setTimeout(() => {
-        setIsSwapping(false);
+        isAnimatingRef.current = false;
         setIsAnimating(false);
-      }, 50);
-    }, 300);
+      }, 260);
+    }
+    isSwipingHorizontalRef.current = false;
   };
 
+  const onTouchStart = (e) => {
+    const touch = e.targetTouches[0];
+    startCarouselDrag(touch.clientX, touch.clientY);
+  };
+
+  const onTouchMove = (e) => {
+    const touch = e.targetTouches[0];
+    moveCarouselDrag(touch.clientX, touch.clientY, e);
+  };
+
+  const onTouchEnd = () => {
+    endCarouselDrag();
+  };
+
+  // Button oben rechts in Screenshot 1: Führt zurück auf den heutigen Tag im Kalenderraster!
   const handleResetToday = () => {
     const d = new Date();
     setCurrentMonthIndex(d.getMonth());
     setCurrentYear(d.getFullYear());
     setSelectedDay(d.getDate());
+  };
+
+  const handleConnectCalendar = async () => {
+    if (user?.isGuest) {
+      alert('Hinweis: Google Kalender ist für Gastkonten nicht verfügbar.');
+      return;
+    }
+    try {
+      await linkGoogleCalendar();
+    } catch (err) {
+      console.error('Verbindung fehlgeschlagen', err);
+      alert('Fehler bei der Verbindung mit Google Kalender: ' + (err.message || err));
+    }
   };
 
   const handleSaveEvent = async (eventData, eventId) => {
@@ -499,39 +614,28 @@ const Calendar = () => {
       } else {
         await createCalendarEvent(eventData);
       }
-      const cacheKey = `${currentYear}-${currentMonthIndex}`;
-      const fetchedEvents = await fetchCalendarEvents(currentYear, currentMonthIndex);
-      setEventsCache(prev => ({ ...prev, [cacheKey]: fetchedEvents }));
-      setEvents(fetchedEvents);
+      // Cache für aktuellen Monat neu abrufen
+      const fetched = await fetchCalendarEvents(currentYear, currentMonthIndex);
+      setEventsCache((prev) => ({ ...prev, [currCacheKey]: fetched || [] }));
       setEditingEvent(null);
     } catch (err) {
-      console.error("Fehler beim Speichern", err);
-      alert("Fehler beim Speichern des Termins: " + (err.message || err));
+      console.error('Fehler beim Speichern', err);
+      alert('Fehler beim Speichern des Termins: ' + (err.message || err));
     }
   };
 
   const handleDeleteEvent = async (eventId) => {
-    if (!window.confirm("Diesen Termin wirklich löschen?")) return;
+    if (!window.confirm('Diesen Termin wirklich löschen?')) return;
     try {
       await deleteCalendarEvent(eventId);
-      const cacheKey = `${currentYear}-${currentMonthIndex}`;
-      const fetchedEvents = await fetchCalendarEvents(currentYear, currentMonthIndex);
-      setEventsCache(prev => ({ ...prev, [cacheKey]: fetchedEvents }));
-      setEvents(fetchedEvents);
+      const fetched = await fetchCalendarEvents(currentYear, currentMonthIndex);
+      setEventsCache((prev) => ({ ...prev, [currCacheKey]: fetched || [] }));
       setSelectedEvent(null);
     } catch (err) {
-      console.error("Fehler beim Löschen", err);
-      alert("Fehler beim Löschen des Termins: " + (err.message || err));
+      console.error('Fehler beim Löschen', err);
+      alert('Fehler beim Löschen des Termins: ' + (err.message || err));
     }
   };
-
-  // Berechne das 7-Spalten-Raster für den aktuellen Monat (inkl. Vormonat- & Folgemonat-Padding)
-  const calendarDays = useMemo(() => {
-    return getCalendarDays(currentYear, currentMonthIndex);
-  }, [currentYear, currentMonthIndex]);
-
-  const rowCount = Math.ceil(calendarDays.length / 7);
-  const gridRowsClass = rowCount === 5 ? 'grid-rows-5 md:grid-rows-none' : 'grid-rows-6 md:grid-rows-none';
 
   const isDateToday = (dateObj) => {
     const n = new Date();
@@ -542,11 +646,9 @@ const Calendar = () => {
     );
   };
 
+  // Klick auf Tag ODER Termin im Kalender (UX-Vorgabe: Auf Mobile kein Unterschied!)
   const handleCellClick = (cell) => {
-    // Cooldown-Schutz: Verhindert Ghost-Clicks nach dem Schließen des Drawers
     if (Date.now() - lastClosedAtRef.current < 400) return;
-
-    const isSameDay = cell.isCurrentMonth && cell.day === selectedDay;
 
     if (cell.isPrevMonth) {
       handlePrevMonth();
@@ -557,66 +659,21 @@ const Calendar = () => {
     } else {
       setSelectedDay(cell.day);
     }
+
     if (typeof window !== 'undefined' && window.innerWidth < 768) {
-      if (isSameDay && isMobileDayModalOpen) {
-        handleCloseMobileDayDrawer();
-      } else {
-        setIsMobileDayModalOpen(true);
-      }
+      setIsMobileDayModalOpen(true);
     }
   };
 
-  const handleAddEventOnCell = (e, cell) => {
-    e.stopPropagation();
-    handleCellClick(cell);
-    const startD = new Date(cell.year, cell.monthIndex, cell.day, 10, 0);
-    const endD = new Date(cell.year, cell.monthIndex, cell.day, 11, 0);
-    setEditingEvent({
-      start: { dateTime: startD.toISOString() },
-      end: { dateTime: endD.toISOString() }
-    });
-  };
-  
-  // Hilfsfunktion: Überprüft, ob ein Event an einem bestimmten Datum stattfindet (auch mehrtägig/ganztägig)
-  const isEventOnDate = (evt, dateObj) => {
-    if (!evt.start || (!evt.start.dateTime && !evt.start.date)) return false;
-    const isAllDay = !!evt.start.date;
-    
-    // Parse date correctly avoiding UTC timezone shifting for YYYY-MM-DD
-    const parseDate = (dateStr, isEnd) => {
-      if (dateStr.includes('T')) return new Date(dateStr);
-      const [y, m, d] = dateStr.split('-');
-      const localDate = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
-      if (isEnd) return new Date(localDate.getTime() - 1);
-      return localDate;
-    };
-
-    const eventStart = parseDate(evt.start.dateTime || evt.start.date, false);
-    const eventEnd = evt.end ? parseDate(evt.end.dateTime || evt.end.date, isAllDay) : eventStart;
-
-    const checkStart = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
-    const checkEnd = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), 23, 59, 59, 999);
-    return eventStart <= checkEnd && eventEnd >= checkStart;
-  };
-
-  // Filter Events für den ausgewählten Tag
-  const selectedDateObj = new Date(currentYear, currentMonthIndex, selectedDay);
-  
-  // Synchronous check if data is loading to avoid 1-frame empty flash during animation
-  const currentCacheKey = `${currentYear}-${currentMonthIndex}`;
-  const isDataLoading = isLoading || !eventsCache[currentCacheKey];
-  
-  // If we are currently loading and don't have cached events for this month, fallback to empty array temporarily
-  // to avoid rendering previous month's events in the new month's grid
-  const currentMonthEvents = eventsCache[currentCacheKey] ? events : [];
-  const dayEvents = currentMonthEvents.filter(evt => isEventOnDate(evt, selectedDateObj));
-
-  const allDayEvents = dayEvents.filter(evt => !!evt.start?.date);
-  const timedEvents = dayEvents.filter(evt => !evt.start?.date && !!evt.start?.dateTime);
-  const layoutedTimedEvents = getLayoutedEvents(timedEvents, selectedDateObj);
+  // Termine des ausgewählten Tages filtern
+  const selectedDateObj = useMemo(() => new Date(currentYear, currentMonthIndex, selectedDay), [currentYear, currentMonthIndex, selectedDay]);
+  const dayEvents = useMemo(() => currentMonthEvents.filter(evt => isEventOnDate(evt, selectedDateObj)), [currentMonthEvents, selectedDateObj]);
+  const allDayEvents = useMemo(() => dayEvents.filter(evt => !!evt.start?.date), [dayEvents]);
+  const timedEvents = useMemo(() => dayEvents.filter(evt => !evt.start?.date && !!evt.start?.dateTime), [dayEvents]);
+  const layoutedTimedEvents = useMemo(() => getLayoutedEvents(timedEvents, selectedDateObj), [timedEvents, selectedDateObj]);
   const weekdayName = WEEKDAY_NAMES[selectedDateObj.getDay()];
 
-  const isSelectedToday = 
+  const isSelectedToday =
     today.getDate() === selectedDay &&
     today.getMonth() === currentMonthIndex &&
     today.getFullYear() === currentYear;
@@ -626,7 +683,6 @@ const Calendar = () => {
     return n.getHours() * 60 + n.getMinutes();
   });
 
-  const timeGridScrollRef = useRef(null);
 
   useEffect(() => {
     if (!isSelectedToday) return;
@@ -639,99 +695,160 @@ const Calendar = () => {
     return () => clearInterval(interval);
   }, [isSelectedToday]);
 
-  // Automatischer Scroll im Stundenraster zum passenden Startzeitpunkt
-  useEffect(() => {
-    if (!timeGridScrollRef.current) return;
-    let targetMinutes = 8 * 60; // 08:00 morgens als Standard
-    if (isSelectedToday) {
-      const now = new Date();
-      targetMinutes = Math.max(0, (now.getHours() - 1) * 60);
-    } else if (timedEvents.length > 0) {
-      const earliestHour = Math.min(...timedEvents.map(evt => new Date(evt.start.dateTime).getHours()));
-      targetMinutes = Math.max(0, (earliestHour - 1) * 60);
-    }
-    timeGridScrollRef.current.scrollTop = targetMinutes;
-  }, [selectedDay, currentMonthIndex, currentYear, isSelectedToday, timedEvents.length]);
-
-  // Auto-Scroll für Mobile Day Drawer (Timeline oder Liste)
-  useEffect(() => {
-    if (!isMobileDayModalOpen || !mobileDayScrollRef.current) return;
-
-    if (mobileDayViewMode === 'timeline') {
-      let targetMinutes = 6 * 60; // 06:00 als Standard
-      if (isSelectedToday) {
-        const now = new Date();
-        targetMinutes = Math.max(0, (now.getHours() - 1) * 60);
-      } else if (timedEvents.length > 0) {
-        const earliestHour = Math.min(...timedEvents.map(evt => new Date(evt.start.dateTime).getHours()));
-        targetMinutes = Math.max(0, (earliestHour - 1) * 60);
-      }
-      const timer = setTimeout(() => {
-        if (mobileDayScrollRef.current) {
-          mobileDayScrollRef.current.scrollTop = targetMinutes * MOBILE_PX_PER_MIN;
-        }
-      }, 50);
-      return () => clearTimeout(timer);
-    } else {
-      // In der Listenansicht immer oben starten (frühester Termin ist ganz oben)
-      const timer = setTimeout(() => {
-        if (mobileDayScrollRef.current) {
-          mobileDayScrollRef.current.scrollTop = 0;
-        }
-      }, 50);
-      return () => clearTimeout(timer);
-    }
-  }, [selectedDay, currentMonthIndex, currentYear, isSelectedToday, timedEvents.length, isMobileDayModalOpen, mobileDayViewMode]);
-
-  const handlePrevDay = () => {
-    if (selectedDay > 1) {
-      setSelectedDay(selectedDay - 1);
-    } else {
-      if (currentMonthIndex === 0) {
-        setCurrentMonthIndex(11);
-        setCurrentYear(y => y - 1);
-        setSelectedDay(31);
-      } else {
-        const prevMonthLastDay = new Date(currentYear, currentMonthIndex, 0).getDate();
-        setCurrentMonthIndex(m => m - 1);
-        setSelectedDay(prevMonthLastDay);
+  // Such-Filter über alle vorgeladenen Termine
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const q = searchQuery.toLowerCase();
+    const all = Object.values(eventsCache).flat();
+    const unique = [];
+    const seen = new Set();
+    for (const evt of all) {
+      if (!evt.id || seen.has(evt.id)) continue;
+      seen.add(evt.id);
+      const matchesSum = evt.summary && evt.summary.toLowerCase().includes(q);
+      const matchesDesc = evt.description && evt.description.toLowerCase().includes(q);
+      const matchesLoc = evt.location && evt.location.toLowerCase().includes(q);
+      if (matchesSum || matchesDesc || matchesLoc) {
+        unique.push(evt);
       }
     }
-  };
+    return unique;
+  }, [searchQuery, eventsCache]);
 
-  const handleNextDay = () => {
-    const daysInMonth = getDaysInMonth(currentMonthIndex, currentYear);
-    if (selectedDay < daysInMonth) {
-      setSelectedDay(selectedDay + 1);
-    } else {
-      if (currentMonthIndex === 11) {
-        setCurrentMonthIndex(0);
-        setCurrentYear(y => y + 1);
-        setSelectedDay(1);
-      } else {
-        setCurrentMonthIndex(m => m + 1);
-        setSelectedDay(1);
-      }
-    }
-  };
+  // Renderer für eine Monatsseite im 3-Slide Karussell
+  const renderMonthSlide = (daysList, isCenter) => {
+    const rowCount = Math.ceil(daysList.length / 7);
 
-  const handleSlotClick = (hour) => {
-    const slotStart = new Date(currentYear, currentMonthIndex, selectedDay, hour, 0, 0);
-    const slotEnd = new Date(currentYear, currentMonthIndex, selectedDay, hour + 1, 0, 0);
-    setEditingEvent({
-      start: { dateTime: slotStart.toISOString() },
-      end: { dateTime: slotEnd.toISOString() }
-    });
-  };
+    return (
+      <div className="w-full h-full flex flex-col bg-white">
+        {/* Wochentags-Header (MO. bis SO., Sonntag rot) */}
+        <div className="grid grid-cols-7 border-b border-neutral-100 bg-white flex-shrink-0">
+          {WEEKDAYS.map((wd) => (
+            <div
+              key={wd.short}
+              className={`py-2 text-center text-[11px] md:text-xs font-bold tracking-wider ${
+                wd.isSunday ? 'text-red-500' : 'text-neutral-500'
+              }`}
+            >
+              {wd.short}
+            </div>
+          ))}
+        </div>
 
-  const handleDayClick = (dayNum) => {
-    setSelectedDay(dayNum);
-  };
+        {/* Monatsraster (Gleichmäßige Zeilenhöhe) */}
+        <div
+          className="grid grid-cols-7 flex-1 h-full bg-white divide-y divide-neutral-100"
+          style={{ gridTemplateRows: `repeat(${rowCount}, minmax(0, 1fr))` }}
+        >
+          {daysList.map((cell, cellIdx) => {
+            const isToday = isDateToday(cell.dateObj);
+            const isSelected = isCenter && cell.isCurrentMonth && cell.day === selectedDay;
+            const isSunday = (cellIdx % 7) === 6;
 
-  const handleAddEventOnDay = (e, dayNum) => {
-    e.stopPropagation();
-    setSelectedDay(dayNum);
-    setEditingEvent({});
+            const cellEvents = getEventsForCell(cell.dateObj);
+            const sorted = sortEvents(cellEvents);
+            const count = sorted.length;
+
+            return (
+              <div
+                key={cell.key}
+                onClick={() => handleCellClick(cell)}
+                className={`relative p-1 md:p-1.5 flex flex-col justify-start overflow-hidden cursor-pointer transition-colors border-r border-neutral-100 last:border-r-0 ${
+                  isToday
+                    ? 'border-[1.5px] border-neutral-800 rounded-xl z-10 bg-white shadow-2xs'
+                    : isSelected && !isToday
+                    ? 'bg-neutral-50/80'
+                    : cell.isCurrentMonth
+                    ? 'bg-white hover:bg-neutral-50/50'
+                    : 'bg-neutral-50/30 hover:bg-neutral-50/50'
+                }`}
+              >
+                {/* Tageszahl Header (Zentriert nach Screenshot 1) */}
+                <div className="flex justify-center items-center pt-0.5 pb-1 flex-shrink-0 select-none">
+                  {isToday ? (
+                    <span className="w-[22px] h-[22px] rounded-[6px] bg-black text-white font-bold text-xs flex items-center justify-center shadow-xs">
+                      {cell.day}
+                    </span>
+                  ) : (
+                    <span
+                      className={`text-xs md:text-sm font-semibold leading-none ${
+                        isSunday
+                          ? cell.isCurrentMonth ? 'text-red-500' : 'text-red-300'
+                          : cell.isCurrentMonth ? 'text-neutral-900' : 'text-neutral-300 font-normal'
+                      }`}
+                    >
+                      {cell.day}
+                    </span>
+                  )}
+                </div>
+
+                {/* Termineinträge im Kalendertag */}
+                {count > 0 && (
+                  <div className={`w-full flex-1 flex flex-col gap-1 overflow-hidden ${!cell.isCurrentMonth ? 'opacity-40' : ''}`}>
+                    {/*
+                      Kompakte Terminanzeige nach Referenz (Screenshot 1):
+                      - Termine nehmen nur den für bis zu 2 Textzeilen nötigen Platz ein (h-auto), kein vertikales Strecken
+                      - Maximal 2 Zeilen Text (line-clamp-2 break-all), darüber hinaus abgeschnitten
+                      - Zeitgebundene Termine (timed): keine vollflächige Farbhinterlegung, nur Akzentlinie vorne (border-l-[3px])
+                      - Ganztägige Termine (all-day): dezente Pastell-Pille (backgroundColor: colors.bg, rounded-[4px])
+                      - Bis zu 4 Termine pro Tag sichtbar, bei mehr Terminen +X Indikator
+                    */}
+                    {sorted.slice(0, 4).map((evt) => {
+                      const colors = getEventColors(evt.colorId);
+                      const isFewEvents = count <= 2;
+                      const isAllDay = !evt.start?.dateTime && !!evt.start?.date;
+
+                      return (
+                        <div
+                          key={evt.id}
+                          onClick={(e) => {
+                            if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                              // Mobile: Kein Unterschied zwischen Tag und Termin! Immer das Detailmenü öffnen!
+                              e.stopPropagation();
+                              handleCellClick(cell);
+                            } else {
+                              // Desktop: Tag auswählen und Termin anzeigen
+                              e.stopPropagation();
+                              handleCellClick(cell);
+                              setSelectedEvent(evt);
+                            }
+                          }}
+                          className={`w-full h-auto text-left transition-all active:scale-[0.98] select-none flex flex-col justify-start ${
+                            isAllDay
+                              ? 'rounded-[4px] hover:brightness-95'
+                              : 'border-l-[3px] rounded-r-[4px] hover:bg-neutral-100/60'
+                          } ${
+                            isFewEvents
+                              ? (isAllDay ? 'px-1.5 py-0.5 md:py-1' : 'pl-1.5 pr-0.5 py-0.5 md:py-1') + ' text-[10px] md:text-[11px] leading-tight'
+                              : (isAllDay ? 'px-1 py-0.5' : 'pl-1 pr-0.5 py-0.5') + ' text-[9px] md:text-[10px] leading-tight'
+                          }`}
+                          style={{
+                            ...(isAllDay ? { backgroundColor: colors.bg } : {}),
+                            ...(!isAllDay ? { borderLeftColor: colors.border } : {}),
+                            color: isAllDay ? colors.text : '#171717',
+                          }}
+                          title={evt.summary || '(Ohne Titel)'}
+                        >
+                          <div className="w-full font-medium break-all line-clamp-2">
+                            {evt.summary || '(Ohne Titel)'}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {count > 4 && (
+                      <div className="text-[8.5px] font-bold text-neutral-400 text-center leading-none pt-0.5">
+                        +{count - 4}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
   };
 
   // Render State 1: Nicht verbunden
@@ -745,7 +862,7 @@ const Calendar = () => {
         <p className="text-on-surface-variant max-w-md mb-8">
           Verbinde deinen Google Kalender einmalig, um deine Projekte, Deadlines und Fokus-Zeiten dauerhaft zu synchronisieren.
         </p>
-        <button 
+        <button
           onClick={handleConnectCalendar}
           className="bg-primary text-white px-6 py-3 rounded-xl font-bold hover:bg-black transition-colors flex items-center gap-2"
         >
@@ -756,11 +873,10 @@ const Calendar = () => {
     );
   }
 
-  // Render State 3: Bearbeitungs-Modus (Neu oder Edit)
+  // Render State 3: Bearbeitungs-Modus
   if (editingEvent) {
-    const selectedDateObj = new Date(currentYear, currentMonthIndex, selectedDay);
     return (
-      <EventEditForm 
+      <EventEditForm
         initialEvent={Object.keys(editingEvent).length > 0 ? editingEvent : null}
         selectedDateObj={selectedDateObj}
         onSave={handleSaveEvent}
@@ -769,661 +885,285 @@ const Calendar = () => {
     );
   }
 
-  // Render State 2: Verbunden
   return (
-    <div className="screen-transition flex flex-col flex-1 h-full min-h-0">
-      
-      <div className="mb-2 md:mb-6 flex flex-col md:flex-row items-center justify-between gap-2 md:gap-4 flex-wrap flex-shrink-0">
-        
-        {/* Mobile: Swipe Hint */}
-        <div className="md:hidden text-[10px] text-on-surface-variant w-full text-center uppercase tracking-widest font-bold opacity-50 mb-0.5">
-          Wischen für nächsten Monat
-        </div>
+    <div className="screen-transition flex flex-col flex-1 h-full min-h-0 bg-white">
+      {/* 
+        Kopfzeile (Orientiert an Screenshot 1):
+        - Links: Menü / Sidebar-Toggle
+        - Mitte: Monatsname in Großbuchstaben (z. B. "OKT"), Klick öffnet Monatsauswahl
+        - Rechts: Suche-Icon und der "Heute"-Button (abgerundetes Quadrat mit Tageszahl)
+      */}
+      <div className="px-3 py-2 md:px-6 md:py-3 border-b border-neutral-100 flex items-center justify-between flex-shrink-0 bg-white">
+        {/* Links: Menü / Hamburger */}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => openModal('settings')}
+            className="p-1.5 rounded-lg text-neutral-800 hover:bg-neutral-100 transition-colors flex items-center justify-center"
+            title="Menü öffnen"
+            aria-label="Menü öffnen"
+          >
+            <span className="material-symbols-outlined text-[24px]">menu</span>
+          </button>
 
-        <div className="flex items-center gap-2 md:gap-3 w-full md:w-auto justify-between md:justify-start">
-          {/* Navigations-Steuerung: < Heute > */}
-          <div className="flex items-center gap-1 bg-surface-low border border-outline-variant rounded-xl p-1 shadow-xs">
+          {/* Desktop-Chevrons zur schnellen Maus-Navigation */}
+          <div className="hidden md:flex items-center gap-1 ml-2">
             <button
-              onClick={() => triggerSwipe('right')}
-              className="p-1.5 hover:bg-white rounded-lg transition-colors text-on-surface-variant hover:text-primary active:scale-95 flex items-center justify-center"
+              onClick={handlePrevMonth}
+              className="p-1 rounded-lg text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 transition-colors"
               title="Vorheriger Monat"
             >
               <span className="material-symbols-outlined text-[20px]">chevron_left</span>
             </button>
             <button
-              onClick={handleResetToday}
-              className="px-2.5 py-1 hover:bg-white text-xs font-bold rounded-lg transition-colors text-primary active:scale-95 border border-transparent hover:border-outline-variant shadow-xs"
-              title="Zum heutigen Tag springen"
-            >
-              Heute
-            </button>
-            <button
-              onClick={() => triggerSwipe('left')}
-              className="p-1.5 hover:bg-white rounded-lg transition-colors text-on-surface-variant hover:text-primary active:scale-95 flex items-center justify-center"
+              onClick={handleNextMonth}
+              className="p-1 rounded-lg text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 transition-colors"
               title="Nächster Monat"
             >
               <span className="material-symbols-outlined text-[20px]">chevron_right</span>
             </button>
           </div>
-
-          {/* Monats- & Jahresauswahl Header */}
-          <h2 
-            className="text-xl md:text-2xl font-bold cursor-pointer hover:text-primary transition-colors flex items-center gap-1 select-none whitespace-nowrap pl-1"
-            onClick={() => {
-              setPickerYear(currentYear);
-              setShowMonthPicker(true);
-            }}
-            title="Monat & Jahr wählen"
-          >
-            <span>{MONTH_NAMES[currentMonthIndex]} {currentYear}</span>
-            <span className="material-symbols-outlined text-[20px] text-on-surface-variant">arrow_drop_down</span>
-          </h2>
         </div>
 
-        {/* Rechte Steuerung: Layout-Umschalter & Neuer Termin (Desktop/Tablet ab 768px) */}
-        <div className="hidden md:flex items-center gap-2.5">
-          {/* Layout-Umschalter: Untereinander vs. Nebeneinander */}
-          <div 
-            className="flex items-center bg-surface-low border border-outline-variant rounded-xl p-1 shadow-xs"
-            role="group"
-            aria-label="Kalender-Layout auswählen"
+        {/* Mitte: Monatsname in fetter serifenloser Schrift (Screenshot 1: "OKT") */}
+        <button
+          type="button"
+          onClick={() => {
+            setPickerYear(currentYear);
+            setShowMonthPicker(true);
+          }}
+          className="text-xl md:text-2xl font-black tracking-tight text-neutral-900 hover:opacity-75 transition-opacity px-2 py-1 rounded-lg flex items-center gap-1"
+          title="Monat auswählen"
+        >
+          <span>{MONTH_NAMES_HEADER[currentMonthIndex]}</span>
+          <span className="text-sm font-medium text-neutral-400 hidden sm:inline ml-1">
+            {currentYear}
+          </span>
+        </button>
+
+        {/* Rechts: Suche & Zurück zu Heute (Screenshot 1) */}
+        <div className="flex items-center gap-2 md:gap-3">
+          {/* Suche-Icon Button */}
+          <button
+            type="button"
+            onClick={() => setShowSearchModal(true)}
+            className="p-1.5 rounded-lg text-neutral-800 hover:bg-neutral-100 transition-colors flex items-center justify-center"
+            title="Termine suchen"
+            aria-label="Termine suchen"
           >
+            <span className="material-symbols-outlined text-[22px]">search</span>
+          </button>
+
+          {/* 
+            Heute-Button (Screenshot 1):
+            Abgerundetes Quadrat mit Rahmen und der heutigen Tageszahl inside!
+          */}
+          <button
+            type="button"
+            onClick={handleResetToday}
+            className="w-7 h-7 md:w-8 md:h-8 rounded-lg border-[1.5px] border-neutral-800 hover:bg-neutral-100 active:scale-95 transition-all flex items-center justify-center font-bold text-xs md:text-sm text-neutral-900 shadow-2xs"
+            title="Zurück zu Heute"
+            aria-label="Zurück zu Heute"
+          >
+            {today.getDate()}
+          </button>
+
+          {/* Desktop-Zusatz: Neuer Termin & Layout-Umschalter */}
+          <div className="hidden md:flex items-center gap-2 pl-2 border-l border-neutral-200">
+            <div className="flex items-center bg-neutral-100 p-0.5 rounded-lg">
+              <button
+                type="button"
+                onClick={() => handleLayoutChange('stacked')}
+                className={`p-1 rounded-md transition-all ${
+                  desktopLayout === 'stacked' ? 'bg-white shadow-2xs text-neutral-900' : 'text-neutral-500'
+                }`}
+                title="Unterienander"
+              >
+                <span className="material-symbols-outlined text-[18px]">view_agenda</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLayoutChange('side-by-side')}
+                className={`p-1 rounded-md transition-all ${
+                  desktopLayout === 'side-by-side' ? 'bg-white shadow-2xs text-neutral-900' : 'text-neutral-500'
+                }`}
+                title="Nebeneinander"
+              >
+                <span className="material-symbols-outlined text-[18px]">vertical_split</span>
+              </button>
+            </div>
+
             <button
-              type="button"
-              onClick={() => handleLayoutChange('stacked')}
-              className={`p-1.5 rounded-lg transition-all flex items-center justify-center ${
-                desktopLayout === 'stacked'
-                  ? 'bg-white text-primary font-bold shadow-xs border border-outline-variant/60'
-                  : 'text-on-surface-variant hover:text-on-surface hover:bg-white/50'
-              }`}
-              title="Layout: Monatsraster und Tages-Timeline untereinander"
-              aria-label="Layout: Untereinander"
+              onClick={() => {
+                const startD = new Date(currentYear, currentMonthIndex, selectedDay, 9, 0);
+                const endD = new Date(currentYear, currentMonthIndex, selectedDay, 10, 0);
+                setEditingEvent({
+                  start: { dateTime: startD.toISOString() },
+                  end: { dateTime: endD.toISOString() }
+                });
+              }}
+              className="bg-neutral-900 text-white text-xs px-3 py-1.5 rounded-lg font-bold hover:bg-black transition-all flex items-center gap-1 active:scale-95"
             >
-              <span className="material-symbols-outlined text-[18px]">view_agenda</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleLayoutChange('side-by-side')}
-              className={`p-1.5 rounded-lg transition-all flex items-center justify-center ${
-                desktopLayout === 'side-by-side'
-                  ? 'bg-white text-primary font-bold shadow-xs border border-outline-variant/60'
-                  : 'text-on-surface-variant hover:text-on-surface hover:bg-white/50'
-              }`}
-              title="Layout: Monatsraster und Tages-Timeline nebeneinander"
-              aria-label="Layout: Nebeneinander"
-            >
-              <span className="material-symbols-outlined text-[18px]">vertical_split</span>
+              <span className="material-symbols-outlined text-[16px]">add</span>
+              Termin
             </button>
           </div>
-
-          {/* Neuer Termin Button */}
-          <button 
-            onClick={() => {
-              const startD = new Date(currentYear, currentMonthIndex, selectedDay, 9, 0);
-              const endD = new Date(currentYear, currentMonthIndex, selectedDay, 10, 0);
-              setEditingEvent({
-                start: { dateTime: startD.toISOString() },
-                end: { dateTime: endD.toISOString() }
-              });
-            }}
-            className="w-auto bg-primary text-white text-sm px-4 py-2 rounded-xl font-bold hover:bg-black transition-all active:scale-95 flex items-center justify-center gap-2 shadow-xs whitespace-nowrap flex-shrink-0"
-          >
-            <span className="material-symbols-outlined text-[18px]">add</span>
-            Neuer Termin
-          </button>
         </div>
       </div>
 
-      {/* Token-Ablauf / Fehler-Banner */}
+      {/* Fehler-Banner bei Verbindungsproblemen */}
       {error && (
-        <div className="mb-4 flex items-center gap-3 bg-error/10 border border-error/30 text-error rounded-xl px-4 py-3 text-sm">
-          <span className="material-symbols-outlined text-[20px] flex-shrink-0">warning</span>
+        <div className="mx-3 my-2 flex items-center gap-3 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-2.5 text-xs">
+          <span className="material-symbols-outlined text-[18px] flex-shrink-0">warning</span>
           <span className="flex-1">{error}</span>
           <button
-            onClick={async () => {
+            onClick={() => {
               setError(null);
               setEventsCache({});
-              await handleConnectCalendar();
             }}
-            className="ml-2 font-bold underline whitespace-nowrap hover:opacity-70 transition-opacity"
+            className="font-bold underline hover:opacity-75"
           >
-            Neu verbinden
+            Erneut versuchen
           </button>
         </div>
       )}
 
-      <div className={`flex flex-1 h-full overflow-x-hidden pb-0 md:pb-6 ${
+      {/* Hauptbereich mit Kalender-Karussell */}
+      <div className={`flex flex-1 h-full min-h-0 overflow-hidden ${
         desktopLayout === 'side-by-side'
-          ? 'flex-col md:flex-row md:items-stretch gap-4 md:gap-5'
-          : 'flex-col gap-4 md:gap-8'
+          ? 'flex-col md:flex-row md:items-stretch'
+          : 'flex-col'
       }`}>
-        {/* Kalender Raster (Auf Mobile immer volle Höhe flex-1 h-full, am Desktop je nach Modus) */}
-        <div 
-          className={`w-full flex-1 h-full flex flex-col relative ${
-            desktopLayout === 'side-by-side' ? 'md:min-w-0' : ''
-          }`}
-          style={{
-            transform: `translateX(${swipeOffset}px)`,
-            transition: isDragging || isSwapping ? 'none' : 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)'
-          }}
+        {/* 
+          3-Slide Monats-Karussell:
+          Der Vormonat und Folgemonat sind bereits vollständig vorgeladen und gerendert.
+          Wischen ist butterweich und zeigt zu jedem Zeitpunkt echten Content!
+        */}
+        <div
+          ref={carouselContainerRef}
+          className="w-full flex-1 h-full min-h-0 overflow-hidden relative select-none"
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
+          onMouseDown={(e) => {
+            if (e.button === 0 && !e.target.closest('button') && !e.target.closest('[role="dialog"]')) {
+              startCarouselDrag(e.clientX, e.clientY);
+            }
+          }}
+          onMouseMove={(e) => {
+            moveCarouselDrag(e.clientX, e.clientY, e);
+          }}
+          onMouseUp={endCarouselDrag}
+          onMouseLeave={endCarouselDrag}
         >
-          {/* Previous Month Mockup (visible when dragging right) */}
-          {(isDragging || isAnimating) && swipeOffset > 0 && (
-            <div className="absolute top-0 w-full h-full pointer-events-none" style={{ left: 'calc(-100% - 24px)' }}>
-              <SkeletonCalendarGrid />
-            </div>
-          )}
-
-          {/* Next Month Mockup (visible when dragging left) */}
-          {(isDragging || isAnimating) && swipeOffset < 0 && (
-            <div className="absolute top-0 w-full h-full pointer-events-none" style={{ left: 'calc(100% + 24px)' }}>
-              <SkeletonCalendarGrid />
-            </div>
-          )}
-
-          <Card padding="none" className="w-full h-full flex-1 flex flex-col overflow-hidden border border-outline-variant rounded-2xl shadow-sm bg-white select-none relative z-10">
-            {/* Wochentags-Kopfzeile */}
-            <div className="grid grid-cols-7 border-b border-outline-variant bg-surface-low/50 flex-shrink-0">
-              {['MO', 'DI', 'MI', 'DO', 'FR', 'SA', 'SO'].map((d, idx) => {
-                const isWeekend = idx >= 5;
-                return (
-                  <div
-                    key={d}
-                    className={`py-2.5 text-center text-xs font-mono font-bold tracking-wider ${
-                      isWeekend ? 'text-on-surface-variant/70' : 'text-on-surface'
-                    }`}
-                  >
-                    {d}
-                  </div>
-                );
-              })}
+          <div
+            className="flex w-full h-full"
+            style={{
+              transform: `translateX(calc(-100% + ${swipeOffset}px))`,
+              transition: isAnimating ? 'transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1)' : 'none',
+              willChange: isDragging || isAnimating ? 'transform' : 'auto',
+            }}
+          >
+            {/* Slide 0: Vormonat (Vorgeladen) */}
+            <div className="w-full h-full flex-shrink-0 flex flex-col">
+              {renderMonthSlide(daysPrev, false)}
             </div>
 
-            {/* 7-Spalten Monats-Raster (volles 35- bzw. 42-Tage-Grid) */}
-            <div className={`grid grid-cols-7 bg-outline-variant/60 gap-px flex-1 h-full ${gridRowsClass}`}>
-              {calendarDays.map((cell, cellIdx) => {
-                const isToday = isDateToday(cell.dateObj);
-                const isSelected = cell.isCurrentMonth && cell.day === selectedDay;
-                const isWeekend = (cellIdx % 7) >= 5;
-
-                // Finde Events für diese Zelle und sortiere sie chronologisch (Ganztägig zuerst, dann nach Startzeit)
-                const cellEvents = currentMonthEvents.filter(evt => isEventOnDate(evt, cell.dateObj));
-                const sortedCellEvents = cellEvents.slice().sort((a, b) => {
-                  const isAllDayA = !a.start?.dateTime && !!a.start?.date;
-                  const isAllDayB = !b.start?.dateTime && !!b.start?.date;
-                  if (isAllDayA && !isAllDayB) return -1;
-                  if (!isAllDayA && isAllDayB) return 1;
-                  const timeA = a.start?.dateTime ? new Date(a.start.dateTime).getTime() : 0;
-                  const timeB = b.start?.dateTime ? new Date(b.start.dateTime).getTime() : 0;
-                  return timeA - timeB;
-                });
-
-                let bgClass = "bg-white hover:bg-surface-low/50";
-                if (isSelected) {
-                  bgClass = "bg-surface-low/90 ring-2 ring-inset ring-primary z-10";
-                } else if (isToday) {
-                  bgClass = "bg-primary/[0.03] hover:bg-primary/[0.06]";
-                } else if (!cell.isCurrentMonth) {
-                  bgClass = "bg-surface/50 hover:bg-surface-low/60";
-                } else if (isWeekend) {
-                  bgClass = "bg-[#FCFAFA] hover:bg-surface-low/50";
-                }
-
-                return (
-                  <div
-                    key={cell.key}
-                    className={`min-h-0 md:min-h-[100px] lg:min-h-[115px] h-full p-1.5 md:p-2.5 cursor-pointer flex flex-col justify-between transition-colors group ${bgClass}`}
-                    onClick={() => handleCellClick(cell)}
-                    onDoubleClick={(e) => handleAddEventOnCell(e, cell)}
-                  >
-                    {/* Zellen-Header: Tageszahl & 'Heute'-Badge */}
-                    <div className="flex items-center justify-between">
-                      {isToday ? (
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-6 h-6 md:w-7 md:h-7 rounded-full bg-primary text-white flex items-center justify-center font-bold text-xs md:text-sm shadow-xs ring-2 ring-primary/20">
-                            {cell.day}
-                          </span>
-                          <span className="hidden lg:inline-block text-[9px] font-bold uppercase tracking-wider text-primary bg-primary/10 px-1.5 py-0.5 rounded">
-                            Heute
-                          </span>
-                        </div>
-                      ) : (
-                        <span
-                          className={`w-6 h-6 md:w-7 md:h-7 rounded-full flex items-center justify-center text-xs md:text-sm font-mono ${
-                            isSelected
-                              ? 'font-bold text-primary bg-surface-low border border-outline-variant shadow-xs'
-                              : cell.isCurrentMonth
-                              ? 'text-on-surface font-semibold'
-                              : 'text-on-surface-variant/40 font-normal'
-                          }`}
-                        >
-                          {cell.day}
-                        </span>
-                      )}
-
-                      {/* Desktop Hover-Plus zum schnellen Erstellen */}
-                      {cell.isCurrentMonth && (
-                        <button
-                          onClick={(e) => handleAddEventOnCell(e, cell)}
-                          className="hidden md:group-hover:flex w-5 h-5 items-center justify-center rounded-md hover:bg-primary/10 text-on-surface-variant hover:text-primary transition-colors"
-                          title="Termin an diesem Tag erstellen"
-                        >
-                          <span className="material-symbols-outlined text-[14px]">add</span>
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Ladezustand */}
-                    {isDataLoading ? (
-                      <div className="mt-1 space-y-1 opacity-40">
-                        <div className="h-2 bg-outline-variant/60 rounded w-full animate-pulse"></div>
-                        <div className="h-2 bg-outline-variant/60 rounded w-2/3 animate-pulse"></div>
-                      </div>
-                    ) : sortedCellEvents.length > 0 ? (
-                      /* Termineinträge im Kalender-Raster (Mobile & Desktop, ohne Uhrzeit, klar lesbar mit Umbruch) */
-                      <div className="mt-1 space-y-1 overflow-hidden">
-                        {sortedCellEvents.slice(0, 2).map((evt) => {
-                          const isAllDay = !evt.start?.dateTime && !!evt.start?.date;
-                          const customColor = evt.colorId && GOOGLE_COLORS[evt.colorId] ? GOOGLE_COLORS[evt.colorId] : null;
-                          const bg = customColor
-                            ? (isAllDay ? customColor.bg : `${customColor.bg}25`)
-                            : (isAllDay ? '#1A1A1A' : 'rgba(26, 26, 26, 0.08)');
-                          const text = customColor ? customColor.text : (isAllDay ? '#FFFFFF' : '#1A1A1A');
-                          const border = customColor ? customColor.bg : '#1A1A1A';
-
-                          return (
-                            <div
-                              key={evt.id}
-                              className="px-1.5 py-0.5 md:py-1 rounded-md text-[9.5px] md:text-[11px] font-semibold leading-snug line-clamp-2 break-words cursor-pointer hover:brightness-95 hover:shadow-xs transition-all border border-black/10 flex items-start select-none shadow-2xs"
-                              style={{ backgroundColor: bg, color: text, borderLeftColor: border, borderLeftWidth: '3px' }}
-                              title={evt.summary || '(Ohne Titel)'}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedEvent(evt);
-                              }}
-                            >
-                              <span className="line-clamp-2 break-words w-full">
-                                {evt.summary || '(Ohne Titel)'}
-                              </span>
-                            </div>
-                          );
-                        })}
-                        {sortedCellEvents.length > 2 && (
-                          <div className="text-[8.5px] md:text-[9.5px] font-mono font-bold text-on-surface-variant text-center pt-0.5">
-                            +{sortedCellEvents.length - 2} weitere
-                          </div>
-                        )}
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })}
+            {/* Slide 1: Aktueller Monat */}
+            <div className="w-full h-full flex-shrink-0 flex flex-col">
+              {renderMonthSlide(daysCurr, true)}
             </div>
-          </Card>
+
+            {/* Slide 2: Folgemonat (Vorgeladen) */}
+            <div className="w-full h-full flex-shrink-0 flex flex-col">
+              {renderMonthSlide(daysNext, false)}
+            </div>
+          </div>
         </div>
 
-        {/* Tages-Timeline (Unter oder neben dem Kalender, ab Tablet / 768px sichtbar) */}
-        <div className={`w-full hidden md:block ${
+        {/* Desktop-Tagesansicht (nur ab 768px sichtbar) */}
+        <div className={`hidden md:block border-l border-neutral-100 bg-neutral-50/50 ${
           desktopLayout === 'side-by-side'
-            ? 'md:w-[290px] lg:w-[325px] xl:w-[350px] md:flex-shrink-0 md:flex md:flex-col'
-            : ''
+            ? 'w-[320px] lg:w-[360px] flex-shrink-0 flex flex-col h-full'
+            : 'w-full h-[320px] border-t border-neutral-100 flex flex-col'
         }`}>
-          <Card 
-            padding="none" 
-            className={`w-full border border-outline-variant rounded-2xl shadow-sm bg-white overflow-hidden ${
-              desktopLayout === 'side-by-side' 
-                ? 'h-full flex-1 flex flex-col' 
-                : 'p-4 sm:p-6 space-y-4'
-            }`}
-          >
-            {/* Header mit Tag, Datum, Navigation und Aktionsbutton */}
-            {desktopLayout === 'side-by-side' ? (
-              <div className="p-3 lg:p-3.5 border-b border-outline-variant bg-surface-low/50 flex-shrink-0 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-7 h-7 rounded-lg bg-primary/5 text-primary flex items-center justify-center flex-shrink-0">
-                    <span className="material-symbols-outlined text-[18px]">schedule</span>
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <h3 className="text-xs lg:text-sm font-bold text-on-surface truncate">
-                        {weekdayName}, {selectedDay}. {MONTH_NAMES[currentMonthIndex]}
-                      </h3>
-                      {isSelectedToday && (
-                        <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-primary text-white flex-shrink-0">
-                          Heute
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-on-surface-variant truncate">
-                      {dayEvents.length === 0
-                        ? 'Keine Termine'
-                        : `${dayEvents.length} ${dayEvents.length === 1 ? 'Termin' : 'Termine'}`}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <button
-                    onClick={handlePrevDay}
-                    className="p-1 hover:bg-white rounded-lg transition-colors text-on-surface-variant hover:text-on-surface border border-outline-variant/60 shadow-2xs active:scale-95"
-                    title="Vorheriger Tag"
-                  >
-                    <span className="material-symbols-outlined text-[15px]">chevron_left</span>
-                  </button>
-                  {!isSelectedToday && (
-                    <button
-                      onClick={handleResetToday}
-                      className="px-1.5 py-0.5 text-[10px] font-bold text-primary hover:bg-white rounded-lg transition-colors border border-outline-variant/60 shadow-2xs active:scale-95"
-                    >
-                      Heute
-                    </button>
-                  )}
-                  <button
-                    onClick={handleNextDay}
-                    className="p-1 hover:bg-white rounded-lg transition-colors text-on-surface-variant hover:text-on-surface border border-outline-variant/60 shadow-2xs active:scale-95"
-                    title="Nächster Tag"
-                  >
-                    <span className="material-symbols-outlined text-[15px]">chevron_right</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      const startD = new Date(currentYear, currentMonthIndex, selectedDay, 9, 0);
-                      const endD = new Date(currentYear, currentMonthIndex, selectedDay, 10, 0);
-                      setEditingEvent({
-                        start: { dateTime: startD.toISOString() },
-                        end: { dateTime: endD.toISOString() }
-                      });
-                    }}
-                    className="p-1 bg-primary text-white rounded-lg hover:bg-black active:scale-95 transition-all shadow-2xs ml-0.5 flex items-center justify-center"
-                    title="Termin an diesem Tag erstellen"
-                  >
-                    <span className="material-symbols-outlined text-[15px]">add</span>
-                  </button>
-                </div>
+          <div className="p-4 border-b border-neutral-200/60 bg-white flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-black text-white flex items-center justify-center font-bold text-xs">
+                {selectedDay}
               </div>
-            ) : (
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-outline-variant pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-primary/5 text-primary flex items-center justify-center flex-shrink-0">
-                    <span className="material-symbols-outlined text-[22px]">schedule</span>
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-base md:text-lg font-bold text-on-surface">
-                        {weekdayName}, {selectedDay}. {MONTH_NAMES[currentMonthIndex]} {currentYear}
-                      </h3>
-                      {isSelectedToday && (
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-primary text-white">
-                          Heute
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-on-surface-variant mt-0.5">
-                      {dayEvents.length === 0
-                        ? 'Keine Termine für diesen Tag'
-                        : `${dayEvents.length} ${dayEvents.length === 1 ? 'Termin' : 'Termine'} (${allDayEvents.length} ganztägig, ${timedEvents.length} mit Uhrzeit)`}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Navigation & Neuer Termin Button */}
-                <div className="flex items-center gap-1.5 self-end md:self-auto">
-                  <button
-                    onClick={handlePrevDay}
-                    className="p-1.5 hover:bg-surface-low rounded-lg transition-colors text-on-surface-variant hover:text-on-surface border border-outline-variant/60 shadow-xs active:scale-95"
-                    title="Vorheriger Tag"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">chevron_left</span>
-                  </button>
-                  {!isSelectedToday && (
-                    <button
-                      onClick={handleResetToday}
-                      className="px-2.5 py-1 text-xs font-bold text-primary hover:bg-primary/5 rounded-lg transition-colors border border-outline-variant/60 shadow-xs active:scale-95"
-                    >
-                      Heute
-                    </button>
-                  )}
-                  <button
-                    onClick={handleNextDay}
-                    className="p-1.5 hover:bg-surface-low rounded-lg transition-colors text-on-surface-variant hover:text-on-surface border border-outline-variant/60 shadow-xs active:scale-95"
-                    title="Nächster Tag"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">chevron_right</span>
-                  </button>
-                  <div className="w-px h-5 bg-outline-variant mx-1"></div>
-                  <button
-                    onClick={() => {
-                      const startD = new Date(currentYear, currentMonthIndex, selectedDay, 9, 0);
-                      const endD = new Date(currentYear, currentMonthIndex, selectedDay, 10, 0);
-                      setEditingEvent({
-                        start: { dateTime: startD.toISOString() },
-                        end: { dateTime: endD.toISOString() }
-                      });
-                    }}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-xs font-bold rounded-lg hover:bg-black active:scale-95 transition-all shadow-xs"
-                  >
-                    <span className="material-symbols-outlined text-[16px]">add</span>
-                    Termin
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Ganztägige Termine (falls vorhanden) */}
-            {allDayEvents.length > 0 && (
-              desktopLayout === 'side-by-side' ? (
-                <div className="px-3 py-2 bg-surface-low/30 border-b border-outline-variant flex items-center gap-2 overflow-x-auto no-scrollbar flex-shrink-0">
-                  <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider flex items-center gap-1 flex-shrink-0 select-none">
-                    <span className="material-symbols-outlined text-[13px]">calendar_today</span>
-                    Ganztägig:
-                  </span>
-                  <div className="flex items-center gap-1.5 flex-nowrap">
-                    {allDayEvents.map((evt) => {
-                      const customColor = evt.colorId && GOOGLE_COLORS[evt.colorId] ? GOOGLE_COLORS[evt.colorId] : null;
-                      const bg = customColor ? customColor.bg : 'var(--primary)';
-                      const text = customColor ? customColor.text : '#1A1A1A';
-                      return (
-                        <button
-                          key={evt.id}
-                          onClick={() => setSelectedEvent(evt)}
-                          className="px-2 py-0.5 rounded-md text-[10.5px] font-semibold flex items-center gap-1 hover:brightness-95 transition-all border shadow-2xs flex-shrink-0"
-                          style={{ backgroundColor: `${bg}25`, borderColor: bg, color: text }}
-                          title={evt.summary}
-                        >
-                          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: bg }}></span>
-                          <span className="truncate max-w-[130px]">{evt.summary || '(Ohne Titel)'}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-start gap-2.5 px-3 py-2.5 bg-surface-low/70 rounded-xl border border-outline-variant/60 flex-wrap">
-                  <div className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider flex items-center gap-1 mt-0.5 select-none">
-                    <span className="material-symbols-outlined text-[15px]">calendar_today</span>
-                    Ganztägig:
-                  </div>
-                  <div className="flex flex-wrap gap-1.5 flex-1">
-                    {allDayEvents.map((evt) => {
-                      const customColor = evt.colorId && GOOGLE_COLORS[evt.colorId] ? GOOGLE_COLORS[evt.colorId] : null;
-                      const bg = customColor ? customColor.bg : 'var(--primary)';
-                      const text = customColor ? customColor.text : '#1A1A1A';
-                      return (
-                        <button
-                          key={evt.id}
-                          onClick={() => setSelectedEvent(evt)}
-                          className="px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 hover:brightness-95 hover:shadow-xs transition-all border shadow-xs"
-                          style={{ backgroundColor: `${bg}25`, borderColor: bg, color: text }}
-                          title={evt.summary}
-                        >
-                          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: bg }}></span>
-                          <span className="truncate max-w-[240px]">{evt.summary || '(Ohne Titel)'}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )
-            )}
-
-            {/* Festes Stunden-Raster (Time Grid) */}
-            <div
-              ref={timeGridScrollRef}
-              className={`relative overflow-y-auto no-scrollbar overflow-x-hidden select-none ${
-                desktopLayout === 'side-by-side'
-                  ? 'flex-1 min-h-0 bg-surface/10'
-                  : 'h-[420px] md:h-[560px] border border-outline-variant/60 rounded-xl bg-surface/30'
-              }`}
-            >
-              {isDataLoading && (
-                <div className="absolute inset-0 bg-white/70 backdrop-blur-[1px] z-30 flex items-center justify-center">
-                  <div className="flex items-center gap-2 text-sm text-on-surface-variant font-medium animate-pulse">
-                    <span className="material-symbols-outlined animate-spin text-[20px]">progress_activity</span>
-                    Termine werden geladen...
-                  </div>
-                </div>
-              )}
-
-              {/* 24-Stunden Raster Container (1440px Höhe = 60px pro Stunde = 1px pro Minute) */}
-              <div className="relative flex w-full" style={{ height: 1440 }}>
-                {/* Linke Zeit-Spalte (Time Gutter) */}
-                <div className="w-14 md:w-16 flex-shrink-0 relative border-r border-outline-variant/50 bg-surface/80">
-                  {HOURS.map((h) => (
-                    <div
-                      key={`time-${h}`}
-                      className="absolute right-0 pr-2 md:pr-3 text-[11px] font-mono font-medium text-on-surface-variant/80 select-none"
-                      style={{ top: `${h * 60 - 7}px` }}
-                    >
-                      {String(h).padStart(2, '0')}:00
-                    </div>
-                  ))}
-
-                  {/* Jetzt-Badge auf der Zeitachse */}
-                  {isSelectedToday && (
-                    <span
-                      className="absolute right-1 text-[9px] font-mono font-bold text-white bg-red-500 px-1 py-0.5 rounded shadow-sm z-30 pointer-events-none"
-                      style={{ top: `${nowMinutes - 8}px` }}
-                    >
-                      {String(Math.floor(nowMinutes / 60)).padStart(2, '0')}:{String(nowMinutes % 60).padStart(2, '0')}
-                    </span>
-                  )}
-                </div>
-
-                {/* Rechtes Raster mit Stunden-Zeilen & platzierten Terminen */}
-                <div className="relative flex-1 bg-white">
-                  {/* Stunden-Rasterlinien & Klick-Slots */}
-                  {HOURS.map((h) => (
-                    <div
-                      key={`slot-${h}`}
-                      onClick={() => handleSlotClick(h)}
-                      className="absolute left-0 right-0 border-t border-outline-variant/30 hover:bg-primary/[0.02] cursor-pointer transition-colors group"
-                      style={{ top: `${h * 60}px`, height: '60px' }}
-                      title={`Klicken für neuen Termin um ${String(h).padStart(2, '0')}:00 Uhr`}
-                    >
-                      {/* Feine Halbstunden-Hilfslinie (:30) */}
-                      <div className="absolute left-0 right-0 border-t border-dashed border-outline-variant/20 top-[30px] pointer-events-none" />
-                      
-                      {/* Dezentes Plus-Symbol beim Hovern über freien Slot */}
-                      <span className="hidden group-hover:flex items-center gap-1 text-[10px] text-on-surface-variant/60 font-mono font-medium pl-2 pt-1 pointer-events-none">
-                        <span className="material-symbols-outlined text-[12px]">add</span>
-                        {String(h).padStart(2, '0')}:00
-                      </span>
-                    </div>
-                  ))}
-
-                  {/* "Jetzt"-Linie (Current Time Indicator) */}
-                  {isSelectedToday && (
-                    <div
-                      className="absolute left-0 right-0 h-[2px] bg-red-500 z-20 pointer-events-none flex items-center"
-                      style={{ top: `${nowMinutes}px` }}
-                    >
-                      <div className="w-2.5 h-2.5 bg-red-500 rounded-full -ml-1.5 shadow-sm" />
-                    </div>
-                  )}
-
-                  {/* Platzierte Termine im Stunden-Raster */}
-                  {!isDataLoading && layoutedTimedEvents.map((evt) => {
-                    const customColor = evt.colorId && GOOGLE_COLORS[evt.colorId] ? GOOGLE_COLORS[evt.colorId] : null;
-                    const accentColor = customColor ? customColor.bg : 'var(--primary)';
-                    const textColor = customColor ? customColor.text : 'inherit';
-                    const isShort = evt.duration < 40;
-
-                    return (
-                      <div
-                        key={evt.id}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedEvent(evt);
-                        }}
-                        style={{
-                          top: `${evt.startMinutes}px`,
-                          height: `${Math.max(evt.duration, 26)}px`,
-                          left: `calc(${(evt.col / evt.totalCols) * 100}% + 2px)`,
-                          width: `calc(${(1 / evt.totalCols) * 100}% - 4px)`,
-                          borderLeftColor: accentColor,
-                          backgroundColor: customColor ? `${accentColor}25` : 'rgba(26, 26, 26, 0.08)',
-                        }}
-                        className="absolute z-10 border-l-[3.5px] rounded-r-lg px-2 py-1 cursor-pointer overflow-hidden transition-all duration-150 hover:brightness-95 hover:shadow-md hover:z-30 group select-none shadow-xs"
-                        title={`${evt.summary || '(Ohne Titel)'} (${evt.startFormatted} - ${evt.endFormatted})`}
-                      >
-                        {isShort ? (
-                          <div className="flex items-center gap-1.5 h-full text-[11px] leading-none">
-                            <span className="font-mono font-bold text-[10px] opacity-80 whitespace-nowrap" style={{ color: textColor }}>
-                              {evt.startFormatted}
-                            </span>
-                            <span className="font-semibold truncate" style={{ color: textColor }}>
-                              {evt.summary || '(Ohne Titel)'}
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col h-full justify-between">
-                            <div>
-                              <div className="flex items-center justify-between gap-1 text-[10px] font-mono font-bold opacity-80 mb-0.5 leading-tight" style={{ color: textColor }}>
-                                <span>{evt.startFormatted} – {evt.endFormatted}</span>
-                                {evt.hangoutLink && (
-                                  <span className="material-symbols-outlined text-[13px]">videocam</span>
-                                )}
-                                {evt.location && !evt.hangoutLink && (
-                                  <span className="material-symbols-outlined text-[13px]">location_on</span>
-                                )}
-                              </div>
-                              <div className="font-bold text-xs leading-snug line-clamp-2" style={{ color: textColor }}>
-                                {evt.summary || '(Ohne Titel)'}
-                              </div>
-                            </div>
-                            {evt.duration >= 90 && evt.location && (
-                              <div className="text-[10px] text-on-surface-variant truncate flex items-center gap-1 mt-0.5">
-                                <span className="material-symbols-outlined text-[11px]">pin_drop</span>
-                                <span className="truncate">{evt.location}</span>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+              <div>
+                <h3 className="text-sm font-bold text-neutral-900 leading-tight">
+                  {weekdayName}, {selectedDay}. {MONTH_NAMES_SHORT[currentMonthIndex]}
+                </h3>
+                <p className="text-[11px] text-neutral-500">
+                  {dayEvents.length === 0 ? 'Keine Termine' : `${dayEvents.length} Termine`}
+                </p>
               </div>
             </div>
-          </Card>
+            <button
+              onClick={() => {
+                const startD = new Date(currentYear, currentMonthIndex, selectedDay, 9, 0);
+                const endD = new Date(currentYear, currentMonthIndex, selectedDay, 10, 0);
+                setEditingEvent({
+                  start: { dateTime: startD.toISOString() },
+                  end: { dateTime: endD.toISOString() }
+                });
+              }}
+              className="p-1.5 bg-neutral-900 text-white rounded-lg hover:bg-black transition-colors"
+              title="Termin erstellen"
+            >
+              <span className="material-symbols-outlined text-[16px]">add</span>
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-2 no-scrollbar">
+            {dayEvents.length === 0 ? (
+              <p className="text-center py-8 text-neutral-400 text-xs">Keine Termine für diesen Tag.</p>
+            ) : (
+              dayEvents.map((evt) => {
+                const colors = getEventColors(evt.colorId);
+                const isAllDay = !!evt.start?.date;
+                return (
+                  <div
+                    key={evt.id}
+                    onClick={() => setSelectedEvent(evt)}
+                    className="p-3 rounded-xl border border-neutral-200/70 hover:shadow-2xs cursor-pointer transition-all"
+                    style={{ backgroundColor: colors.bg, borderLeftColor: colors.border, borderLeftWidth: '3px' }}
+                  >
+                    <h4 className="text-xs font-bold text-neutral-900 truncate">{evt.summary || '(Ohne Titel)'}</h4>
+                    <p className="text-[11px] text-neutral-500 mt-0.5">
+                      {isAllDay ? 'Ganztägig' : `${new Date(evt.start.dateTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} - ${evt.end?.dateTime ? new Date(evt.end.dateTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : ''}`}
+                    </p>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
       </div>
 
-
-      {/* Mobile Day Bottom Sheet / Drawer Modal – mit Swipe-to-Close (Regel 07) */}
+      {/* 
+        ========================================================================
+        MOBILE DAY DETAIL SHEET (Exakt nach Screenshot 2!)
+        - Öffnet sich bei Klick auf Tag ODER Termin auf mobilen Geräten
+        - Standardmodus ist 'list'
+        - Zeitstrahl wird über Wischen nach rechts oder Icon-Button geöffnet
+        - Unten angedockter Button: "Am 8. Okt. hinzufüg... +"
+        ========================================================================
+      */}
       {mobileDayDrawerRendered && (
         <div
           className={`md:hidden fixed inset-0 z-[60] flex flex-col justify-end bg-black/60 backdrop-blur-sm transition-opacity duration-200 ${
             mobileDayDrawerClosing ? 'opacity-0 pointer-events-none' : 'opacity-100'
           }`}
           onClick={handleCloseMobileDayDrawer}
+          role="dialog"
+          aria-modal="true"
         >
           <div
             ref={mobileDayDrawerRef}
-            className={`bg-surface border-t border-outline-variant rounded-t-3xl w-full max-h-[88vh] h-[84vh] shadow-2xl flex flex-col overflow-hidden text-primary ${
+            className={`bg-white border-t border-neutral-200/80 rounded-t-[32px] w-full max-h-[90vh] h-[86vh] shadow-2xl flex flex-col overflow-hidden text-neutral-900 ${
               mobileDayDrawerClosing
                 ? (mobileDayWasSwipedClosed ? '' : 'drawer-slide-out-bottom')
                 : mobileDayEntryAnim
@@ -1434,448 +1174,351 @@ const Calendar = () => {
               ...mobileDayDrawerStyle,
               paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))'
             }}
-            onClick={e => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
           >
             {/* Drag Handle */}
-            <div className="pt-3 pb-1 flex justify-center flex-shrink-0">
-              <div className="w-12 h-1.5 bg-outline-variant rounded-full" />
+            <div className="pt-3 pb-1 flex justify-center flex-shrink-0 cursor-grab">
+              <div className="w-12 h-1.5 bg-neutral-300/80 rounded-full" />
             </div>
 
-            {/* Header */}
-            <div className="px-4 py-2.5 border-b border-outline-variant/70 flex items-center justify-between flex-shrink-0 bg-surface-low/70">
-              <div className="flex items-center gap-2 overflow-hidden">
-                <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
-                  <span className="material-symbols-outlined text-[18px]">calendar_today</span>
+            {/* Header (Screenshot 2: Schwarzer Tag-Badge, Wochentag & Zeitstrahl-Umschaltbutton) */}
+            <div className="px-5 py-3 flex items-center justify-between flex-shrink-0 border-b border-neutral-100">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-black text-white flex items-center justify-center font-bold text-lg shadow-sm">
+                  {selectedDay}
                 </div>
-                <div className="truncate">
-                  <div className="flex items-center gap-1.5">
-                    <h3 className="text-sm font-bold text-on-surface truncate">
-                      {weekdayName}, {selectedDay}. {MONTH_NAMES[currentMonthIndex]}
-                    </h3>
-                    {isSelectedToday && (
-                      <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-primary text-white shrink-0">
-                        Heute
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-on-surface-variant truncate">
-                    {dayEvents.length === 0
-                      ? 'Keine Termine'
-                      : `${dayEvents.length} ${dayEvents.length === 1 ? 'Termin' : 'Termine'}`}
-                  </p>
-                </div>
+                <h2 className="text-xl font-bold text-neutral-900">
+                  {weekdayName}
+                </h2>
               </div>
 
-              {/* Nav & Action */}
-              <div className="flex items-center gap-1 shrink-0">
-                <button
-                  onClick={handlePrevDay}
-                  className="p-1.5 hover:bg-surface-low rounded-lg transition-colors text-on-surface-variant"
-                  title="Vorheriger Tag"
-                >
-                  <span className="material-symbols-outlined text-[18px]">chevron_left</span>
-                </button>
-                <button
-                  onClick={handleNextDay}
-                  className="p-1.5 hover:bg-surface-low rounded-lg transition-colors text-on-surface-variant"
-                  title="Nächster Tag"
-                >
-                  <span className="material-symbols-outlined text-[18px]">chevron_right</span>
-                </button>
-                <button
-                  onClick={() => {
-                    handleCloseMobileDayDrawer();
-                    const startD = new Date(currentYear, currentMonthIndex, selectedDay, 9, 0);
-                    const endD = new Date(currentYear, currentMonthIndex, selectedDay, 10, 0);
-                    setEditingEvent({
-                      start: { dateTime: startD.toISOString() },
-                      end: { dateTime: endD.toISOString() }
-                    });
-                  }}
-                  className="p-1.5 bg-primary text-white rounded-lg flex items-center justify-center shadow-xs ml-1 active:scale-95"
-                  title="Neuer Termin"
-                >
-                  <span className="material-symbols-outlined text-[18px]">add</span>
-                </button>
-                <button
-                  onClick={handleCloseMobileDayDrawer}
-                  className="p-1.5 hover:bg-surface-low text-on-surface-variant hover:text-primary rounded-lg transition-colors ml-1"
-                  title="Schließen"
-                >
-                  <span className="material-symbols-outlined text-[20px]">close</span>
-                </button>
-              </div>
+              {/* Umschalter für Zeitstrahl vs. Liste (Icon aus Screenshot 2 oben rechts) */}
+              <button
+                type="button"
+                onClick={() => handleMobileDayViewChange(mobileDayViewMode === 'list' ? 'timeline' : 'list')}
+                className={`p-2 rounded-xl transition-all flex items-center justify-center ${
+                  mobileDayViewMode === 'timeline'
+                    ? 'bg-neutral-900 text-white shadow-xs'
+                    : 'text-neutral-700 hover:bg-neutral-100'
+                }`}
+                title={mobileDayViewMode === 'list' ? 'Zu Zeitstrahl wechseln (oder nach rechts wischen)' : 'Zu Liste wechseln'}
+                aria-label="Ansicht umschalten"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h10M4 18h16" />
+                  <circle cx="18" cy="12" r="3" stroke="currentColor" strokeWidth={2} fill="none" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M18 11v1.5l1 0.5" />
+                </svg>
+              </button>
             </div>
 
-            {/* View Switcher: Zeitstrahl vs. Chronologische Liste */}
-            <div className="px-4 py-2 border-b border-outline-variant/60 flex items-center justify-between gap-2 flex-shrink-0 bg-surface">
-              <div className="inline-flex p-0.5 bg-surface-low rounded-xl border border-outline-variant/50 text-xs font-semibold">
-                <button
-                  type="button"
-                  onClick={() => handleMobileDayViewChange('timeline')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
-                    mobileDayViewMode === 'timeline'
-                      ? 'bg-surface text-on-surface shadow-xs font-bold'
-                      : 'text-on-surface-variant hover:text-on-surface'
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-[16px]">schedule</span>
-                  <span>Zeitstrahl</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleMobileDayViewChange('list')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
-                    mobileDayViewMode === 'list'
-                      ? 'bg-surface text-on-surface shadow-xs font-bold'
-                      : 'text-on-surface-variant hover:text-on-surface'
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-[16px]">format_list_bulleted</span>
-                  <span>Liste</span>
-                  {dayEvents.length > 0 && (
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold leading-none ${
-                      mobileDayViewMode === 'list' ? 'bg-primary/10 text-primary' : 'bg-surface-variant text-on-surface-variant'
-                    }`}>
-                      {dayEvents.length}
-                    </span>
-                  )}
-                </button>
-              </div>
-
-              <div className="text-[11px] text-on-surface-variant font-medium flex items-center gap-1">
-                <span className="material-symbols-outlined text-[14px]">
-                  {mobileDayViewMode === 'timeline' ? 'view_timeline' : 'sort'}
-                </span>
-                <span>{mobileDayViewMode === 'timeline' ? 'Parallele Ansicht' : 'Chronologisch'}</span>
-              </div>
+            {/* Sub-Header (Screenshot 2: "8. Okt." und Smiley-Icon) */}
+            <div className="px-5 py-2 flex items-center justify-between flex-shrink-0 text-sm">
+              <span className="text-neutral-500 font-medium">
+                {selectedDay}. {MONTH_NAMES_SHORT[currentMonthIndex]}
+              </span>
+              <button
+                type="button"
+                className="text-neutral-400 hover:text-neutral-700 p-1 rounded-lg transition-colors"
+                title="Stimmung"
+              >
+                <span className="material-symbols-outlined text-[20px]">sentiment_satisfied</span>
+              </button>
             </div>
 
-            {/* Ganztägige Termine als horizontal scrollbare Chips */}
-            {allDayEvents.length > 0 && (
-              <div className="px-4 py-2 border-b border-outline-variant/40 bg-surface-low/40 flex flex-col gap-1 flex-shrink-0">
-                <div className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider flex items-center gap-1">
-                  <span className="material-symbols-outlined text-[13px]">event</span>
-                  Ganztägig ({allDayEvents.length})
-                </div>
-                <div className="flex gap-2 overflow-x-auto no-scrollbar py-0.5">
-                  {allDayEvents.map((evt) => {
-                    const customColor = evt.colorId && GOOGLE_COLORS[evt.colorId] ? GOOGLE_COLORS[evt.colorId] : null;
-                    const bg = customColor ? customColor.bg : 'var(--primary)';
-                    const text = customColor ? customColor.text : '#1A1A1A';
-                    return (
-                      <button
-                        key={evt.id}
-                        type="button"
-                        onClick={() => setSelectedEvent(evt)}
-                        className="px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 shrink-0 border shadow-2xs hover:brightness-95 active:scale-95 transition-all text-left"
-                        style={{ backgroundColor: `${bg}20`, borderColor: `${bg}50`, color: text }}
-                      >
-                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: bg }} />
-                        <span className="truncate max-w-[200px] font-bold">{evt.summary || '(Ohne Titel)'}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Body – Einziger Scroll-Container für ruckelfreies Scrollen & Schließen */}
-            <div ref={mobileDayScrollRef} className="flex-1 overflow-y-auto overscroll-contain no-scrollbar">
-              {dayEvents.length === 0 ? (
-                /* Empty State */
-                <div className="text-center py-12 px-4">
-                  <div className="w-14 h-14 bg-surface-low rounded-2xl flex items-center justify-center mx-auto mb-3 text-on-surface-variant border border-outline-variant/50">
-                    <span className="material-symbols-outlined text-2xl">event_available</span>
-                  </div>
-                  <h4 className="font-bold text-base text-on-surface">Keine Termine</h4>
-                  <p className="text-xs text-on-surface-variant mt-1 max-w-xs mx-auto">
-                    Für diesen Tag sind keine Ereignisse in deinem Google Kalender eingetragen.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleCloseMobileDayDrawer();
-                      const startD = new Date(currentYear, currentMonthIndex, selectedDay, 9, 0);
-                      const endD = new Date(currentYear, currentMonthIndex, selectedDay, 10, 0);
-                      setEditingEvent({
-                        start: { dateTime: startD.toISOString() },
-                        end: { dateTime: endD.toISOString() }
-                      });
-                    }}
-                    className="mt-4 px-4 py-2 bg-primary text-white text-xs font-bold rounded-xl hover:bg-black transition-colors shadow-xs inline-flex items-center gap-1.5 active:scale-95"
-                  >
-                    <span className="material-symbols-outlined text-[16px]">add</span>
-                    Termin anlegen
-                  </button>
-                </div>
-              ) : mobileDayViewMode === 'list' ? (
-                /* Ansicht 1: Chronologische Liste (Frühester oben, spätester unten, Uhrzeit links) */
-                <div className="p-4 space-y-2.5">
-                  {timedEvents.length === 0 ? (
-                    <div className="text-center py-8 text-on-surface-variant text-xs">
-                      Keine zeitgebundenen Termine für heute (nur ganztägig).
+            {/* Hauptinhalt: Wischbar zwischen Liste und Zeitstrahl */}
+            <div
+              ref={mobileDayScrollRef}
+              onTouchStart={onSheetTouchStart}
+              onTouchMove={onSheetTouchMove}
+              onTouchEnd={onSheetTouchEnd}
+              className="flex-1 overflow-y-auto overscroll-contain px-5 py-2 space-y-3 pb-8 no-scrollbar"
+            >
+              {mobileDayViewMode === 'list' ? (
+                /* LISTEN-ANSICHT (Standard nach Screenshot 2) */
+                <>
+                  {dayEvents.length === 0 ? (
+                    <div className="text-center py-12 text-neutral-400">
+                      <div className="w-12 h-12 rounded-2xl bg-neutral-100 flex items-center justify-center mx-auto mb-2.5 text-neutral-400">
+                        <span className="material-symbols-outlined text-2xl">event_available</span>
+                      </div>
+                      <p className="text-sm font-semibold text-neutral-700">Keine Termine</p>
+                      <p className="text-xs text-neutral-400 mt-0.5">Keine Ereignisse an diesem Tag</p>
                     </div>
                   ) : (
-                    layoutedTimedEvents.map((evt) => {
-                      const customColor = evt.colorId && GOOGLE_COLORS[evt.colorId] ? GOOGLE_COLORS[evt.colorId] : null;
-                      const accentColor = customColor ? customColor.bg : 'var(--primary)';
-                      const durationLabel = formatDuration(evt.duration);
+                    <>
+                      {/* Ganztägige Termine als große Pastell-Karten (Screenshot 2) */}
+                      {allDayEvents.map((evt) => {
+                        const colors = getEventColors(evt.colorId);
+                        return (
+                          <div
+                            key={evt.id}
+                            onClick={() => setSelectedEvent(evt)}
+                            className="rounded-2xl p-4 border transition-all cursor-pointer hover:shadow-xs active:scale-[0.99] flex flex-col gap-1 shadow-2xs"
+                            style={{
+                              backgroundColor: colors.bg,
+                              borderColor: `${colors.border}40`,
+                            }}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <span
+                                className="material-symbols-outlined text-[20px]"
+                                style={{ color: colors.border }}
+                              >
+                                event
+                              </span>
+                              <h3 className="font-bold text-neutral-900 text-sm md:text-base truncate">
+                                {evt.summary || '(Ohne Titel)'}
+                              </h3>
+                            </div>
+                            <p className="text-xs text-neutral-500 pl-7 font-medium">
+                              Ganztägig
+                            </p>
+                          </div>
+                        );
+                      })}
+
+                      {/* Zeitgebundene Termine (Screenshot 2: Startzeit, Akzentbalken, Titel, Zeitspanne) */}
+                      <div className="divide-y divide-neutral-100">
+                        {layoutedTimedEvents.map((evt, idx) => {
+                          const colors = getEventColors(evt.colorId);
+                          const prevEvt = idx > 0 ? layoutedTimedEvents[idx - 1] : null;
+                          const isFirstAtThisTime = !prevEvt || prevEvt.startFormatted !== evt.startFormatted;
+
+                          return (
+                            <div
+                              key={evt.id}
+                              onClick={() => setSelectedEvent(evt)}
+                              className="py-3.5 flex items-center gap-3 cursor-pointer hover:bg-neutral-50/60 rounded-xl px-1.5 transition-colors group"
+                            >
+                              {/* Startzeit in fetter Schrift (nur beim ersten Termin dieses Zeitpunkts wie in Screenshot 2) */}
+                              <div className="w-12 shrink-0 text-sm font-bold text-neutral-900 font-mono">
+                                {isFirstAtThisTime ? evt.startFormatted : ''}
+                              </div>
+
+                              {/* Vertikaler Farb-Akzentbalken */}
+                              <div
+                                className="w-1 h-5 rounded-full shrink-0"
+                                style={{ backgroundColor: colors.border }}
+                              />
+
+                              {/* Titel & Zeitbereich */}
+                              <div className="flex-1 min-w-0">
+                                <h4 className="text-sm font-medium text-neutral-900 truncate">
+                                  {evt.summary || '(Ohne Titel)'}
+                                </h4>
+                                <p className="text-xs text-neutral-400 mt-0.5 font-mono">
+                                  {evt.startFormatted} - {evt.endFormatted}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </>
+              ) : (
+                /* ZEITSTRAHL-ANSICHT (24h Raster) */
+                <div className="relative flex w-full select-none" style={{ height: `${24 * 60 * MOBILE_PX_PER_MIN}px` }}>
+                  {/* Zeitspalte */}
+                  <div className="w-12 flex-shrink-0 relative border-r border-neutral-100">
+                    {HOURS.map((h) => (
+                      <div
+                        key={`mtime-${h}`}
+                        className="absolute right-0 pr-1.5 text-[10px] font-mono font-medium text-neutral-400 leading-none"
+                        style={{ top: `${h * 60 * MOBILE_PX_PER_MIN - 5}px` }}
+                      >
+                        {String(h).padStart(2, '0')}:00
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Rasterfläche */}
+                  <div className="relative flex-1 bg-white">
+                    {HOURS.map((h) => (
+                      <div
+                        key={`mslot-${h}`}
+                        className="absolute left-0 right-0 border-t border-neutral-100/60"
+                        style={{ top: `${h * 60 * MOBILE_PX_PER_MIN}px` }}
+                      />
+                    ))}
+
+                    {/* Jetzt-Linie */}
+                    {isSelectedToday && (
+                      <div
+                        className="absolute left-0 right-0 h-[1.5px] bg-red-500 z-20 pointer-events-none flex items-center"
+                        style={{ top: `${nowMinutes * MOBILE_PX_PER_MIN}px` }}
+                      >
+                        <div className="w-2.5 h-2.5 bg-red-500 rounded-full -ml-1.5 shadow-sm" />
+                      </div>
+                    )}
+
+                    {/* Platzierte Termine */}
+                    {layoutedTimedEvents.map((evt) => {
+                      const colors = getEventColors(evt.colorId);
+                      const topPx = evt.startMinutes * MOBILE_PX_PER_MIN;
+                      const heightPx = Math.max(evt.duration * MOBILE_PX_PER_MIN, 26);
 
                       return (
                         <div
                           key={evt.id}
                           onClick={() => setSelectedEvent(evt)}
-                          className="group bg-surface-low/70 hover:bg-surface-low active:scale-[0.99] border border-outline-variant/60 rounded-2xl p-3.5 transition-all shadow-2xs flex items-center gap-3 cursor-pointer"
+                          style={{
+                            top: `${topPx}px`,
+                            height: `${heightPx}px`,
+                            left: `calc(${(evt.col / evt.totalCols) * 100}% + 2px)`,
+                            width: `calc(${(1 / evt.totalCols) * 100}% - 4px)`,
+                            backgroundColor: colors.bg,
+                            borderLeftColor: colors.border,
+                            color: colors.text,
+                          }}
+                          className="absolute z-10 border-l-[3.5px] rounded-r-lg px-2 overflow-hidden cursor-pointer hover:brightness-95 active:scale-[0.98] transition-all shadow-2xs select-none"
                         >
-                          {/* Linke Spalte: Uhrzeit von wann bis wann + Dauer */}
-                          <div className="w-20 shrink-0 flex flex-col items-start justify-center">
-                            <span className="text-sm font-bold text-on-surface font-mono leading-tight">
-                              {evt.startFormatted}
-                            </span>
-                            <div className="flex items-center gap-1 text-[11px] text-on-surface-variant font-mono leading-tight mt-0.5">
-                              <span className="opacity-60 text-[10px]">bis</span>
-                              <span>{evt.endFormatted}</span>
-                            </div>
-                            {durationLabel && (
-                              <span className="text-[10px] text-primary font-medium mt-1.5 px-1.5 py-0.5 rounded-md bg-primary/10 leading-none">
-                                {durationLabel}
-                              </span>
-                            )}
+                          <div className="text-[10px] font-mono font-bold opacity-80 whitespace-nowrap">
+                            {evt.startFormatted}
                           </div>
-
-                          {/* Farbiger Akzent-Balken */}
-                          <div
-                            className="w-1 self-stretch rounded-full shrink-0 min-h-[36px]"
-                            style={{ backgroundColor: accentColor }}
-                          />
-
-                          {/* Mitte: Termin-Details */}
-                          <div className="flex-1 min-w-0 pr-1">
-                            <h4 className="text-sm font-bold text-on-surface truncate">
-                              {evt.summary || '(Ohne Titel)'}
-                            </h4>
-
-                            {evt.location && (
-                              <p className="text-xs text-on-surface-variant flex items-center gap-1 mt-1 truncate">
-                                <span className="material-symbols-outlined text-[14px] text-primary shrink-0">location_on</span>
-                                <span className="truncate">{evt.location}</span>
-                              </p>
-                            )}
-
-                            {evt.description && (
-                              <p className="text-[11px] text-on-surface-variant/80 line-clamp-1 mt-0.5">
-                                {evt.description}
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Rechts: Pfeil */}
-                          <div className="text-on-surface-variant/50 group-hover:text-primary transition-colors shrink-0">
-                            <span className="material-symbols-outlined text-[20px]">chevron_right</span>
+                          <div className="font-bold text-[11px] truncate leading-tight">
+                            {evt.summary || '(Ohne Titel)'}
                           </div>
                         </div>
                       );
-                    })
-                  )}
+                    })}
+                  </div>
                 </div>
+              )}
+            </div>
+
+            {/* Unten angedockter Pill-Button (Screenshot 2: "Am 8. Okt. hinzufüg... +") */}
+            <div className="p-4 pt-2 border-t border-neutral-100 flex-shrink-0 bg-white">
+              <button
+                type="button"
+                onClick={() => {
+                  handleCloseMobileDayDrawer();
+                  const startD = new Date(currentYear, currentMonthIndex, selectedDay, 9, 0);
+                  const endD = new Date(currentYear, currentMonthIndex, selectedDay, 10, 0);
+                  setEditingEvent({
+                    start: { dateTime: startD.toISOString() },
+                    end: { dateTime: endD.toISOString() }
+                  });
+                }}
+                className="w-full rounded-full bg-neutral-100/90 hover:bg-neutral-200/90 active:scale-[0.99] border border-neutral-200/80 px-5 py-3 flex items-center justify-between text-neutral-500 text-sm shadow-sm transition-all"
+              >
+                <span>Am {selectedDay}. {MONTH_NAMES_SHORT[currentMonthIndex]} hinzufüg...</span>
+                <span className="material-symbols-outlined text-[22px] text-neutral-800">add</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Suche Modal */}
+      {showSearchModal && (
+        <div
+          className="fixed inset-0 z-[80] flex items-start justify-center pt-16 md:pt-24 px-4 bg-black/60 backdrop-blur-sm animate-fadeIn"
+          onClick={() => setShowSearchModal(false)}
+        >
+          <div
+            className="bg-white border border-neutral-200 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden p-4 md:p-6 text-neutral-900"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 border-b border-neutral-100 pb-3">
+              <span className="material-symbols-outlined text-neutral-400">search</span>
+              <input
+                type="text"
+                autoFocus
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Termine suchen (Titel, Ort)..."
+                className="w-full text-base font-medium outline-none bg-transparent placeholder:text-neutral-400"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="text-neutral-400 hover:text-neutral-700 p-1"
+                >
+                  <span className="material-symbols-outlined text-[18px]">close</span>
+                </button>
+              )}
+            </div>
+
+            <div className="mt-3 max-h-80 overflow-y-auto no-scrollbar space-y-2">
+              {searchQuery.trim() === '' ? (
+                <p className="text-center py-6 text-xs text-neutral-400">
+                  Gib einen Suchbegriff ein, um Termine zu finden.
+                </p>
+              ) : searchResults.length === 0 ? (
+                <p className="text-center py-6 text-xs text-neutral-400">
+                  Keine Termine für "{searchQuery}" gefunden.
+                </p>
               ) : (
-                /* Ansicht 2: Zeitstrahl (1080px hoch, 45px/h, 2-3 Swipes scrollbar, parallele Events nebeneinander) */
-                <div className="px-0 py-2">
-                  <div className="relative flex w-full" style={{ height: `${24 * 60 * MOBILE_PX_PER_MIN}px` }}>
-                    {/* Zeit-Spalte links */}
-                    <div className="w-12 flex-shrink-0 relative border-r border-outline-variant/40 bg-surface/60">
-                      {HOURS.map((h) => (
-                        <div
-                          key={`mtime-${h}`}
-                          className="absolute right-0 pr-1.5 text-[10px] font-mono font-medium text-on-surface-variant/70 select-none leading-none"
-                          style={{ top: `${h * 60 * MOBILE_PX_PER_MIN - 5}px` }}
-                        >
-                          {String(h).padStart(2, '0')}:00
-                        </div>
-                      ))}
-
-                      {/* Jetzt-Badge */}
-                      {isSelectedToday && (
-                        <span
-                          className="absolute right-0.5 text-[8.5px] font-mono font-bold text-white bg-red-500 px-1 py-0.5 rounded shadow-sm z-30 pointer-events-none leading-none"
-                          style={{ top: `${nowMinutes * MOBILE_PX_PER_MIN - 7}px` }}
-                        >
-                          {String(Math.floor(nowMinutes / 60)).padStart(2, '0')}:{String(nowMinutes % 60).padStart(2, '0')}
-                        </span>
-                      )}
+                searchResults.map((evt) => {
+                  const colors = getEventColors(evt.colorId);
+                  const dateObj = evt.start?.dateTime ? new Date(evt.start.dateTime) : (evt.start?.date ? new Date(evt.start.date) : new Date());
+                  return (
+                    <div
+                      key={evt.id}
+                      onClick={() => {
+                        setCurrentYear(dateObj.getFullYear());
+                        setCurrentMonthIndex(dateObj.getMonth());
+                        setSelectedDay(dateObj.getDate());
+                        setSelectedEvent(evt);
+                        setShowSearchModal(false);
+                        if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                          setIsMobileDayModalOpen(true);
+                        }
+                      }}
+                      className="p-3 rounded-2xl border border-neutral-100 hover:bg-neutral-50 cursor-pointer flex items-center gap-3 transition-colors"
+                    >
+                      <div
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: colors.border }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-sm font-bold text-neutral-900 truncate">
+                          {evt.summary || '(Ohne Titel)'}
+                        </h4>
+                        <p className="text-xs text-neutral-400 mt-0.5">
+                          {dateObj.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+                          {evt.start?.dateTime && ` • ${new Date(evt.start.dateTime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`}
+                        </p>
+                      </div>
+                      <span className="material-symbols-outlined text-neutral-300 text-[18px]">
+                        chevron_right
+                      </span>
                     </div>
-
-                    {/* Stundenraster-Fläche */}
-                    <div className="relative flex-1 bg-white">
-                      {/* Stunden-Linien */}
-                      {HOURS.map((h) => (
-                        <div
-                          key={`mslot-${h}`}
-                          className="absolute left-0 right-0 border-t border-outline-variant/20"
-                          style={{ top: `${h * 60 * MOBILE_PX_PER_MIN}px` }}
-                        >
-                          {/* Halbstunden-Linie */}
-                          <div
-                            className="absolute left-0 right-0 border-t border-dashed border-outline-variant/10"
-                            style={{ top: `${30 * MOBILE_PX_PER_MIN}px` }}
-                          />
-                        </div>
-                      ))}
-
-                      {/* Jetzt-Linie */}
-                      {isSelectedToday && (
-                        <div
-                          className="absolute left-0 right-0 h-[1.5px] bg-red-500 z-20 pointer-events-none flex items-center"
-                          style={{ top: `${nowMinutes * MOBILE_PX_PER_MIN}px` }}
-                        >
-                          <div className="w-2.5 h-2.5 bg-red-500 rounded-full -ml-1.5 shadow-sm" />
-                        </div>
-                      )}
-
-                      {/* Events absolut platziert */}
-                      {!isDataLoading && layoutedTimedEvents.map((evt) => {
-                        const customColor = evt.colorId && GOOGLE_COLORS[evt.colorId] ? GOOGLE_COLORS[evt.colorId] : null;
-                        const accentColor = customColor ? customColor.bg : 'var(--primary)';
-                        const textColor = customColor ? customColor.text : 'inherit';
-                        const topPx = evt.startMinutes * MOBILE_PX_PER_MIN;
-                        const heightPx = Math.max(evt.duration * MOBILE_PX_PER_MIN, 26);
-                        const isShort = heightPx < 36;
-
-                        return (
-                          <div
-                            key={evt.id}
-                            onClick={(e) => { e.stopPropagation(); setSelectedEvent(evt); }}
-                            style={{
-                              top: `${topPx}px`,
-                              height: `${heightPx}px`,
-                              left: `calc(${(evt.col / evt.totalCols) * 100}% + 2px)`,
-                              width: `calc(${(1 / evt.totalCols) * 100}% - 4px)`,
-                              borderLeftColor: accentColor,
-                              backgroundColor: customColor ? `${accentColor}25` : 'rgba(26,26,26,0.08)',
-                            }}
-                            className="absolute z-10 border-l-[3.5px] rounded-r-lg px-2 overflow-hidden cursor-pointer hover:brightness-95 active:scale-[0.98] transition-all shadow-2xs select-none"
-                            title={`${evt.summary || '(Ohne Titel)'} (${evt.startFormatted}–${evt.endFormatted})`}
-                          >
-                            {isShort ? (
-                              <div className="flex items-center gap-1.5 h-full leading-none">
-                                <span className="font-mono font-bold text-[9px] opacity-80 whitespace-nowrap" style={{ color: textColor }}>
-                                  {evt.startFormatted}
-                                </span>
-                                <span className="font-semibold truncate text-[10px]" style={{ color: textColor }}>
-                                  {evt.summary || '(Ohne Titel)'}
-                                </span>
-                              </div>
-                            ) : (
-                              <div className="flex flex-col h-full justify-start pt-1">
-                                <span className="font-mono font-bold text-[9px] opacity-80 leading-tight whitespace-nowrap" style={{ color: textColor }}>
-                                  {evt.startFormatted} – {evt.endFormatted}
-                                </span>
-                                <span className="font-bold text-[11px] leading-snug line-clamp-2 mt-0.5" style={{ color: textColor }}>
-                                  {evt.summary || '(Ohne Titel)'}
-                                </span>
-                                {heightPx >= 58 && evt.location && (
-                                  <span className="text-[9.5px] opacity-75 truncate flex items-center gap-0.5 mt-0.5" style={{ color: textColor }}>
-                                    <span className="material-symbols-outlined text-[11px]">location_on</span>
-                                    {evt.location}
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
+                  );
+                })
               )}
             </div>
           </div>
         </div>
       )}
 
-
-      {/* Event Detail Modal */}
-      {selectedEvent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn" onClick={() => setSelectedEvent(null)}>
-          <div className="bg-surface border border-border rounded-2xl w-full max-w-md shadow-xl overflow-hidden text-primary" onClick={e => e.stopPropagation()}>
-            <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-surface-low">
-              <div className="flex items-center gap-3 overflow-hidden">
-                {selectedEvent.colorId && GOOGLE_COLORS[selectedEvent.colorId] ? (
-                   <span className="w-3.5 h-3.5 rounded-full flex-shrink-0" style={{ backgroundColor: GOOGLE_COLORS[selectedEvent.colorId].bg }}></span>
-                ) : (
-                   <span className="w-3.5 h-3.5 rounded-full flex-shrink-0 bg-primary"></span>
-                )}
-                <h2 className="text-xl font-bold truncate pr-4 text-primary">{selectedEvent.summary}</h2>
-              </div>
-              <div className="flex items-center gap-1">
-                <button onClick={() => { setSelectedEvent(null); setEditingEvent(selectedEvent); }} className="text-on-surface-variant hover:text-primary transition-colors p-2 rounded-lg hover:bg-surface-variant/50" title="Bearbeiten">
-                  <span className="material-symbols-outlined text-[20px]">edit</span>
-                </button>
-                <button onClick={() => handleDeleteEvent(selectedEvent.id)} className="text-on-surface-variant hover:text-red-500 transition-colors p-2 rounded-lg hover:bg-red-50" title="Löschen">
-                  <span className="material-symbols-outlined text-[20px]">delete</span>
-                </button>
-                <div className="w-px h-6 bg-outline-variant mx-1"></div>
-                <button onClick={() => setSelectedEvent(null)} className="text-on-surface-variant hover:text-primary transition-colors p-2 rounded-lg hover:bg-surface-variant/50" title="Schließen">
-                  <span className="material-symbols-outlined text-[20px]">close</span>
-                </button>
-              </div>
-            </div>
-            <div className="p-6 space-y-6">
-              
-              {/* Zeit/Datum */}
-              <div className="flex items-start gap-3">
-                <span className="material-symbols-outlined text-primary mt-0.5">event</span>
-                <div>
-                  <p className="text-sm font-semibold text-on-surface">Zeitraum</p>
-                  <p className="text-sm text-on-surface-variant mt-0.5">
-                    {!!selectedEvent.start.date ? 'Ganztägig' : new Date(selectedEvent.start.dateTime).toLocaleString('de-DE', { dateStyle: 'long', timeStyle: 'short' })}
-                    {selectedEvent.end && !selectedEvent.end.date && ` - ${new Date(selectedEvent.end.dateTime).toLocaleTimeString('de-DE', { timeStyle: 'short' })}`}
-                  </p>
-                </div>
-              </div>
-
-              {/* Beschreibung */}
-              {selectedEvent.description && (
-                <div className="flex items-start gap-3">
-                  <span className="material-symbols-outlined text-primary mt-0.5">notes</span>
-                  <div>
-                    <p className="text-sm font-semibold text-on-surface">Beschreibung</p>
-                    <p className="text-sm text-on-surface-variant mt-0.5 whitespace-pre-wrap">{selectedEvent.description}</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Kalender-Link */}
-              {selectedEvent.htmlLink && (
-                 <div className="flex justify-end pt-4 border-t border-outline-variant">
-                   <a 
-                     href={selectedEvent.htmlLink} 
-                     target="_blank" 
-                     rel="noopener noreferrer"
-                     className="px-4 py-2 bg-primary/10 text-primary rounded-lg text-sm font-bold hover:bg-primary/20 transition-colors flex items-center gap-2"
-                   >
-                     In Google Kalender öffnen
-                     <span className="material-symbols-outlined text-[16px]">open_in_new</span>
-                   </a>
-                 </div>
-              )}
-
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Month Picker Modal */}
+      {/* Monat & Jahr Picker Modal */}
       {showMonthPicker && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn" onClick={() => setShowMonthPicker(false)}>
-          <div className="bg-surface border border-border rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden p-6" onClick={e => e.stopPropagation()}>
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn"
+          onClick={() => setShowMonthPicker(false)}
+        >
+          <div
+            className="bg-white border border-neutral-200 rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden p-6 text-neutral-900"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between mb-6">
-              <button onClick={() => setPickerYear(y => y - 1)} className="p-2 hover:bg-surface-low rounded-full transition-colors text-on-surface-variant">
+              <button
+                onClick={() => setPickerYear((y) => y - 1)}
+                className="p-2 hover:bg-neutral-100 rounded-full transition-colors text-neutral-600"
+              >
                 <span className="material-symbols-outlined">chevron_left</span>
               </button>
               <h3 className="text-xl font-bold">{pickerYear}</h3>
-              <button onClick={() => setPickerYear(y => y + 1)} className="p-2 hover:bg-surface-low rounded-full transition-colors text-on-surface-variant">
+              <button
+                onClick={() => setPickerYear((y) => y + 1)}
+                className="p-2 hover:bg-neutral-100 rounded-full transition-colors text-neutral-600"
+              >
                 <span className="material-symbols-outlined">chevron_right</span>
               </button>
             </div>
@@ -1890,8 +1533,8 @@ const Calendar = () => {
                   }}
                   className={`py-3 px-2 rounded-xl text-sm font-bold transition-colors ${
                     currentMonthIndex === idx && currentYear === pickerYear
-                      ? 'bg-primary text-white'
-                      : 'bg-surface-low hover:bg-primary/10 text-on-surface hover:text-primary'
+                      ? 'bg-neutral-900 text-white shadow-xs'
+                      : 'bg-neutral-100 hover:bg-neutral-200 text-neutral-800'
                   }`}
                 >
                   {mName.substring(0, 3)}
@@ -1899,12 +1542,12 @@ const Calendar = () => {
               ))}
             </div>
             <div className="mt-6 flex justify-center">
-              <button 
+              <button
                 onClick={() => {
                   handleResetToday();
                   setShowMonthPicker(false);
                 }}
-                className="text-primary font-bold text-sm hover:underline"
+                className="text-neutral-900 font-bold text-sm hover:underline"
               >
                 Zurück zu Heute
               </button>
@@ -1913,17 +1556,114 @@ const Calendar = () => {
         </div>
       )}
 
-      {/* Mobile FAB for New Event */}
-      <button
-        onClick={() => setEditingEvent({})}
-        className={`md:hidden fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] right-5 w-12 h-12 bg-primary text-white rounded-xl shadow-xl flex items-center justify-center z-40 transition-all duration-300 ease-in-out active:scale-90 ${
-          isScrollingDown || isMobileDayModalOpen ? 'translate-y-32 opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'
-        }`}
-        title="Neuer Termin"
-      >
-        <span className="material-symbols-outlined text-[24px]">add</span>
-      </button>
+      {/* Termin-Detail Modal */}
+      {selectedEvent && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn"
+          onClick={() => setSelectedEvent(null)}
+        >
+          <div
+            className="bg-white border border-neutral-200 rounded-2xl w-full max-w-md shadow-xl overflow-hidden text-neutral-900"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-4 border-b border-neutral-100 flex items-center justify-between bg-neutral-50/50">
+              <div className="flex items-center gap-3 overflow-hidden">
+                <span
+                  className="w-3.5 h-3.5 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: getEventColors(selectedEvent.colorId).border }}
+                />
+                <h2 className="text-lg font-bold truncate pr-4 text-neutral-900">
+                  {selectedEvent.summary || '(Ohne Titel)'}
+                </h2>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const evt = selectedEvent;
+                    setSelectedEvent(null);
+                    setEditingEvent(evt);
+                  }}
+                  className="text-neutral-500 hover:text-neutral-900 transition-colors p-2 rounded-lg hover:bg-neutral-100"
+                  title="Bearbeiten"
+                  aria-label="Bearbeiten"
+                >
+                  <span className="material-symbols-outlined text-[20px]">edit</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteEvent(selectedEvent.id)}
+                  className="text-neutral-500 hover:text-red-500 transition-colors p-2 rounded-lg hover:bg-red-50"
+                  title="Löschen"
+                  aria-label="Löschen"
+                >
+                  <span className="material-symbols-outlined text-[20px]">delete</span>
+                </button>
+                <div className="w-px h-6 bg-neutral-200 mx-1" />
+                <button
+                  type="button"
+                  onClick={() => setSelectedEvent(null)}
+                  className="text-neutral-500 hover:text-neutral-900 transition-colors p-2 rounded-lg hover:bg-neutral-100"
+                  title="Schließen"
+                  aria-label="Schließen"
+                >
+                  <span className="material-symbols-outlined text-[20px]">close</span>
+                </button>
+              </div>
+            </div>
+            <div className="p-6 space-y-5">
+              <div className="flex items-start gap-3">
+                <span className="material-symbols-outlined text-neutral-500 mt-0.5">event</span>
+                <div>
+                  <p className="text-xs font-semibold text-neutral-500">Zeitraum</p>
+                  <p className="text-sm text-neutral-900 mt-0.5">
+                    {selectedEvent.start.date
+                      ? 'Ganztägig'
+                      : new Date(selectedEvent.start.dateTime).toLocaleString('de-DE', { dateStyle: 'long', timeStyle: 'short' })}
+                    {selectedEvent.end && !selectedEvent.end.date && ` - ${new Date(selectedEvent.end.dateTime).toLocaleTimeString('de-DE', { timeStyle: 'short' })}`}
+                  </p>
+                </div>
+              </div>
 
+              {selectedEvent.description && (
+                <div className="flex items-start gap-3">
+                  <span className="material-symbols-outlined text-neutral-500 mt-0.5">notes</span>
+                  <div>
+                    <p className="text-xs font-semibold text-neutral-500">Beschreibung</p>
+                    <p className="text-sm text-neutral-900 mt-0.5 whitespace-pre-wrap">{selectedEvent.description}</p>
+                  </div>
+                </div>
+              )}
+
+              {selectedEvent.location && (
+                <div className="flex items-start gap-3">
+                  <span className="material-symbols-outlined text-neutral-500 mt-0.5">location_on</span>
+                  <div>
+                    <p className="text-xs font-semibold text-neutral-500">Ort</p>
+                    <p className="text-sm text-neutral-900 mt-0.5">{selectedEvent.location}</p>
+                  </div>
+                </div>
+              )}
+
+              {selectedEvent.htmlLink && (
+                <div className="flex justify-end pt-3 border-t border-neutral-100">
+                  <a
+                    href={selectedEvent.htmlLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-4 py-2 bg-neutral-100 text-neutral-800 rounded-xl text-xs font-bold hover:bg-neutral-200 transition-colors flex items-center gap-1.5"
+                  >
+                    In Google Kalender öffnen
+                    <span className="material-symbols-outlined text-[15px]">open_in_new</span>
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,23 +1,35 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { draftId, clearNewFlags, countNew } from '../../lib/projectDraft';
 import { useSwipeToClose } from '../../hooks/useSwipeToClose';
 
 // Entwurfskarte für "Projektanlegung": Handänderungen und Fio-Prompts arbeiten am selben Entwurf.
 // Desktop: Editor direkt in der Karte. Handy: Bottom-Drawer (Regel 07, per Portal wegen Regel 04).
-// Reihenfolge ändern: Pfeile oder Ziehen am Griff (Pointer-Events, funktioniert mit Maus und Touch).
+// Reihenfolge ändern: Ziehen am Griff (Pointer-Events, funktioniert mit Maus und Touch; keine Pfeile, spart Platz am Handy).
 
 const inputCls = 'w-full rounded-lg border border-outline-variant bg-white px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent min-h-[32px]';
 const iconBtn = 'w-6 h-6 flex items-center justify-center rounded-md text-on-surface-variant hover:text-primary hover:bg-surface-low disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors shrink-0';
 const dangerBtn = `${iconBtn} hover:!text-red-600 hover:!bg-red-50`;
 const icon = 'material-symbols-outlined text-[16px]';
 
-const move = (list, idx, dir) => {
-  const to = idx + dir;
-  if (to < 0 || to >= list.length) return list;
-  const next = [...list];
-  [next[idx], next[to]] = [next[to], next[idx]];
-  return next;
+/** Verschiebt einen Abschnitt oder eine Aufgabe. target.index = Position in der Liste OHNE das verschobene Element. */
+const moveInDraft = (draft, kind, id, target) => {
+  if (kind === 'phase') {
+    const from = draft.phases.findIndex((p) => p.id === id);
+    if (from === -1) return draft;
+    const list = [...draft.phases];
+    const [item] = list.splice(from, 1);
+    list.splice(Math.min(target.index, list.length), 0, item);
+    return { ...draft, phases: list };
+  }
+  const src = draft.phases.find((p) => p.tasks.some((t) => t.id === id));
+  if (!src) return draft;
+  const task = src.tasks.find((t) => t.id === id);
+  const phases = draft.phases.map((p) => ({ ...p, tasks: p.tasks.filter((t) => t.id !== id) }));
+  const dest = phases.find((p) => p.id === target.phaseId);
+  if (!dest) return draft;
+  dest.tasks.splice(Math.min(target.index, dest.tasks.length), 0, task);
+  return { ...draft, phases };
 };
 
 const useIsDesktop = () => {
@@ -58,8 +70,6 @@ function DragHandle({ onStart, label, disabled }) {
   );
 }
 
-const DropLine = () => <div className="h-0.5 my-0.5 rounded-full bg-primary" aria-hidden="true" />;
-
 const getScroller = (el) => {
   let node = el?.parentElement;
   while (node) {
@@ -95,104 +105,170 @@ function DraftEditor({ draft, categories, source, disabled, onChange, onConfirm,
     });
 
   // --- Ziehen & Ablegen ---
-  const applyMove = (kind, id, target) => {
-    if (kind === 'phase') {
-      const from = draft.phases.findIndex((p) => p.id === id);
-      if (from === -1) return;
-      const list = [...draft.phases];
-      const [item] = list.splice(from, 1);
-      list.splice(target.index > from ? target.index - 1 : target.index, 0, item);
-      set({ phases: list });
-      return;
-    }
-    const srcPhase = draft.phases.find((p) => p.tasks.some((t) => t.id === id));
-    if (!srcPhase) return;
-    const from = srcPhase.tasks.findIndex((t) => t.id === id);
-    const task = srcPhase.tasks[from];
-    const phases = draft.phases.map((p) => ({ ...p, tasks: [...p.tasks] }));
-    phases.find((p) => p.id === srcPhase.id).tasks.splice(from, 1);
-    const dest = phases.find((p) => p.id === target.phaseId);
-    if (!dest) return;
-    const insertAt = target.phaseId === srcPhase.id && target.index > from ? target.index - 1 : target.index;
-    dest.tasks.splice(insertAt, 0, task);
-    set({ phases });
-  };
-  const applyMoveRef = useRef(applyMove);
-  applyMoveRef.current = applyMove;
+  // Das gezogene Element folgt dem Finger (Transform, direkt am DOM für flüssige 60 fps), die übrigen rutschen per
+  // FLIP-Animation zur Seite. Die Vorschau-Reihenfolge lebt nur im lokalen State; erst beim Loslassen wird der Entwurf geändert.
+  const dragMeta = useRef(null); // { kind, id, offY, height, lastY, visualDy, raf }
+  const lastTarget = useRef(null);
+  const prevTops = useRef(new Map());
+  const view = drag?.target ? moveInDraft(draft, drag.kind, drag.id, drag.target) : draft;
 
-  const computeTarget = (kind, y) => {
+  const selectorFor = (kind, id) => (kind === 'phase' ? `[data-phase-id="${id}"]` : `[data-task-id="${id}"]`);
+  const topRel = (el) => el.getBoundingClientRect().top - (rootRef.current?.getBoundingClientRect().top || 0);
+  const currentTranslateY = (el) => {
+    const t = getComputedStyle(el).transform;
+    if (!t || t === 'none') return 0;
+    return new DOMMatrixReadOnly(t).m42;
+  };
+
+  const positionDragged = () => {
+    const m = dragMeta.current;
+    const el = m && rootRef.current?.querySelector(selectorFor(m.kind, m.id));
+    if (!el) return;
+    el.style.transform = 'none';
+    const natural = el.getBoundingClientRect().top;
+    m.visualDy = m.lastY - m.offY - natural;
+    el.style.transform = `translate3d(0, ${m.visualDy}px, 0) scale(1.02)`;
+  };
+
+  const computeTarget = () => {
+    const m = dragMeta.current;
     const root = rootRef.current;
-    if (!root) return null;
+    if (!m || !root) return null;
+    const center = m.lastY - m.offY + m.height / 2;
+    const mid = (el) => {
+      const r = el.getBoundingClientRect();
+      return r.top + r.height / 2;
+    };
     const phaseEls = [...root.querySelectorAll('[data-phase-id]')];
-    if (phaseEls.length === 0) return null;
-    if (kind === 'phase') {
-      const index = phaseEls.filter((el) => {
-        const r = el.getBoundingClientRect();
-        return y > r.top + r.height / 2;
-      }).length;
-      return { index };
+    if (m.kind === 'phase') {
+      const others = phaseEls.filter((el) => el.dataset.phaseId !== m.id);
+      return { index: others.filter((el) => mid(el) < center).length };
     }
+    if (phaseEls.length === 0) return null;
     const distance = (el) => {
       const r = el.getBoundingClientRect();
-      return y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0;
+      return center < r.top ? r.top - center : center > r.bottom ? center - r.bottom : 0;
     };
     const phaseEl = phaseEls.reduce((best, el) => (distance(el) < distance(best) ? el : best), phaseEls[0]);
-    const rows = [...phaseEl.querySelectorAll('[data-task-id]')];
-    const index = rows.filter((el) => {
-      const r = el.getBoundingClientRect();
-      return y > r.top + r.height / 2;
-    }).length;
-    return { phaseId: phaseEl.dataset.phaseId, index };
+    const rows = [...phaseEl.querySelectorAll('[data-task-id]')].filter((el) => el.dataset.taskId !== m.id);
+    return { phaseId: phaseEl.dataset.phaseId, index: rows.filter((el) => mid(el) < center).length };
   };
 
-  const startDrag = (e, kind, id) => {
-    if (disabled || (e.button !== undefined && e.button !== 0)) return;
-    e.preventDefault();
-    let target = null;
-    let lastY = e.clientY;
-    setDrag({ kind, id, target });
+  // Nach jedem Render während des Ziehens: Nachbarn sanft an den neuen Platz gleiten lassen, Gezogenes neu positionieren
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    const m = dragMeta.current;
+    if (!root) return;
+    const next = new Map();
+    if (m) {
+      root.querySelectorAll(`[data-flip-kind="${m.kind}"]`).forEach((el) => {
+        const id = el.dataset.flip;
+        if (id === m.id) return;
+        const cur = currentTranslateY(el);
+        const layoutTop = topRel(el) - cur;
+        next.set(id, layoutTop);
+        const prev = prevTops.current.get(id);
+        if (prev !== undefined && Math.abs(prev - layoutTop) > 1) {
+          el.getAnimations().forEach((a) => a.cancel());
+          el.animate(
+            [{ transform: `translateY(${cur + prev - layoutTop}px)` }, { transform: 'translateY(0)' }],
+            { duration: 220, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' }
+          );
+        }
+      });
+      positionDragged();
+    }
+    prevTops.current = next;
+  });
 
-    const scroller = getScroller(rootRef.current);
-    const update = () => {
-      const next = computeTarget(kind, lastY);
-      const same = JSON.stringify(next) === JSON.stringify(target);
-      if (!same) {
-        target = next;
+  const startDrag = (e, kind, id) => {
+    if (disabled || dragMeta.current || (e.button !== undefined && e.button !== 0)) return;
+    const root = rootRef.current;
+    const el = root?.querySelector(selectorFor(kind, id));
+    if (!el) return;
+    e.preventDefault();
+    const rect = el.getBoundingClientRect();
+    dragMeta.current = { kind, id, offY: e.clientY - rect.top, height: rect.height, lastY: e.clientY, visualDy: 0 };
+    lastTarget.current = null;
+    // Erst-Positionen merken, damit der erste Wechsel animiert wird
+    prevTops.current = new Map();
+    root.querySelectorAll(`[data-flip-kind="${kind}"]`).forEach((n) => {
+      if (n.dataset.flip !== id) prevTops.current.set(n.dataset.flip, topRel(n));
+    });
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'grabbing';
+    if (navigator.vibrate) navigator.vibrate(8);
+    setDrag({ kind, id, target: null });
+    positionDragged();
+
+    const scroller = getScroller(root);
+    const tick = () => {
+      const m = dragMeta.current;
+      if (!m) return;
+      positionDragged();
+      const target = computeTarget();
+      if (JSON.stringify(target) !== JSON.stringify(lastTarget.current)) {
+        lastTarget.current = target;
         setDrag({ kind, id, target });
       }
     };
+    const schedule = tick;
     const onMovePtr = (ev) => {
-      lastY = ev.clientY;
-      update();
+      if (!dragMeta.current) return;
+      dragMeta.current.lastY = ev.clientY;
+      schedule();
     };
     // Am Rand der Liste automatisch scrollen
     const timer = setInterval(() => {
-      if (!scroller) return;
+      if (!scroller || !dragMeta.current) return;
       const r = scroller.getBoundingClientRect();
-      if (lastY < r.top + 40) scroller.scrollTop -= 12;
-      else if (lastY > r.bottom - 40) scroller.scrollTop += 12;
+      const y = dragMeta.current.lastY;
+      if (y < r.top + 48) scroller.scrollTop -= 10;
+      else if (y > r.bottom - 48) scroller.scrollTop += 10;
       else return;
-      update();
+      schedule();
     }, 16);
+
     const finish = (commit) => {
+      const m = dragMeta.current;
+      if (!m) return;
       clearInterval(timer);
       window.removeEventListener('pointermove', onMovePtr);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onCancel);
+      window.removeEventListener('keydown', onKey);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      const dy = m.visualDy || 0;
+      const node = root.querySelector(selectorFor(kind, id));
+      if (node) node.style.transform = '';
+      const final = commit && lastTarget.current ? moveInDraft(draft, kind, id, lastTarget.current) : null;
+      dragMeta.current = null;
+      lastTarget.current = null;
+      prevTops.current = new Map();
       setDrag(null);
-      if (commit && target) applyMoveRef.current(kind, id, target);
+      if (final) onChange(final);
+      // Sanft einrasten: vom Loslass-Punkt zum endgültigen Platz (Knoten kann beim Wechsel des Abschnitts neu entstehen)
+      requestAnimationFrame(() => {
+        const settled = root.querySelector(selectorFor(kind, id));
+        settled?.animate(
+          [{ transform: `translateY(${dy}px) scale(1.02)` }, { transform: 'translateY(0) scale(1)' }],
+          { duration: 200, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' }
+        );
+      });
     };
     const onUp = () => finish(true);
     const onCancel = () => finish(false);
+    const onKey = (ev) => ev.key === 'Escape' && finish(false);
     window.addEventListener('pointermove', onMovePtr);
     window.addEventListener('pointerup', onUp);
     window.addEventListener('pointercancel', onCancel);
+    window.addEventListener('keydown', onKey);
   };
 
   const hl = (isNew) => (isNew ? 'bg-emerald-50 ring-1 ring-emerald-300' : '');
-  const dim = (kind, id) => (drag?.kind === kind && drag.id === id ? 'opacity-40' : '');
-  const phaseLine = (i) => drag?.kind === 'phase' && drag.target?.index === i;
-  const taskLine = (phaseId, i) => drag?.kind === 'task' && drag.target?.phaseId === phaseId && drag.target.index === i;
+  const lift = (kind, id) =>
+    drag?.kind === kind && drag.id === id ? 'relative z-20 !bg-white shadow-xl ring-1 ring-primary/40 cursor-grabbing' : '';
 
   const canConfirm = !disabled && draft.title.trim().length > 0;
   const notes = draft.includeNotes || {};
@@ -272,7 +348,7 @@ function DraftEditor({ draft, categories, source, disabled, onChange, onConfirm,
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-on-surface-variant">
-            Abschnitte ({draft.phases.length})
+            Abschnitte ({view.phases.length})
           </span>
           <button
             type="button"
@@ -285,16 +361,17 @@ function DraftEditor({ draft, categories, source, disabled, onChange, onConfirm,
           </button>
         </div>
 
-        {draft.phases.length === 0 && (
+        {view.phases.length === 0 && (
           <p className="text-xs text-on-surface-variant italic">Noch keine Abschnitte. Bitte Fio darum oder füge einen von Hand hinzu.</p>
         )}
 
-        {draft.phases.map((phase, pi) => (
+        {view.phases.map((phase, pi) => (
           <React.Fragment key={phase.id}>
-            {phaseLine(pi) && <DropLine />}
             <div
               data-phase-id={phase.id}
-              className={`rounded-xl border border-outline-variant bg-surface-low/60 p-1.5 space-y-1 transition-colors ${hl(phase.isNew)} ${dim('phase', phase.id)}`}
+              data-flip={phase.id}
+              data-flip-kind="phase"
+              className={`rounded-xl border border-outline-variant bg-surface-low/60 p-1.5 space-y-1 transition-colors will-change-transform ${hl(phase.isNew)} ${lift('phase', phase.id)}`}
             >
               <div className="flex items-center gap-0.5">
                 <DragHandle label={`Abschnitt ${pi + 1} verschieben`} disabled={disabled} onStart={(e) => startDrag(e, 'phase', phase.id)} />
@@ -310,12 +387,6 @@ function DraftEditor({ draft, categories, source, disabled, onChange, onConfirm,
                 <button type="button" className={`${iconBtn} sm:hidden`} aria-label="Abschnitt-Datum" title="Datum" disabled={disabled} onClick={() => setOpenDates((o) => ({ ...o, [phase.id]: !o[phase.id] }))}>
                   <span className={icon}>calendar_today</span>
                 </button>
-                <button type="button" className={iconBtn} disabled={disabled || pi === 0} aria-label="Abschnitt nach oben" onClick={() => set({ phases: move(draft.phases, pi, -1) })}>
-                  <span className={icon}>arrow_upward</span>
-                </button>
-                <button type="button" className={iconBtn} disabled={disabled || pi === draft.phases.length - 1} aria-label="Abschnitt nach unten" onClick={() => set({ phases: move(draft.phases, pi, 1) })}>
-                  <span className={icon}>arrow_downward</span>
-                </button>
                 <button type="button" className={dangerBtn} disabled={disabled} aria-label="Abschnitt löschen" onClick={() => set({ phases: draft.phases.filter((p) => p.id !== phase.id) })}>
                   <span className={icon}>delete</span>
                 </button>
@@ -325,10 +396,9 @@ function DraftEditor({ draft, categories, source, disabled, onChange, onConfirm,
               )}
 
               <ul className="space-y-0.5 pl-1">
-                {phase.tasks.map((task, ti) => (
+                {phase.tasks.map((task) => (
                   <React.Fragment key={task.id}>
-                    {taskLine(phase.id, ti) && <li><DropLine /></li>}
-                    <li data-task-id={task.id} className={`rounded-lg p-0.5 transition-colors ${hl(task.isNew)} ${dim('task', task.id)}`}>
+                    <li data-task-id={task.id} data-flip={task.id} data-flip-kind="task" className={`rounded-lg p-0.5 transition-colors will-change-transform ${hl(task.isNew)} ${lift('task', task.id)}`}>
                       <div className="flex items-center gap-0.5">
                         <DragHandle label="Aufgabe verschieben" disabled={disabled} onStart={(e) => startDrag(e, 'task', task.id)} />
                         <input
@@ -343,12 +413,6 @@ function DraftEditor({ draft, categories, source, disabled, onChange, onConfirm,
                         <button type="button" className={`${iconBtn} sm:hidden`} aria-label="Aufgaben-Datum" title="Datum" disabled={disabled} onClick={() => setOpenDates((o) => ({ ...o, [task.id]: !o[task.id] }))}>
                           <span className={icon}>calendar_today</span>
                         </button>
-                        <button type="button" className={iconBtn} disabled={disabled || ti === 0} aria-label="Aufgabe nach oben" onClick={() => setPhase(phase.id, { tasks: move(phase.tasks, ti, -1) })}>
-                          <span className={icon}>arrow_upward</span>
-                        </button>
-                        <button type="button" className={iconBtn} disabled={disabled || ti === phase.tasks.length - 1} aria-label="Aufgabe nach unten" onClick={() => setPhase(phase.id, { tasks: move(phase.tasks, ti, 1) })}>
-                          <span className={icon}>arrow_downward</span>
-                        </button>
                         <button type="button" className={dangerBtn} disabled={disabled} aria-label="Aufgabe löschen" onClick={() => setPhase(phase.id, { tasks: phase.tasks.filter((t) => t.id !== task.id) })}>
                           <span className={icon}>close</span>
                         </button>
@@ -359,7 +423,6 @@ function DraftEditor({ draft, categories, source, disabled, onChange, onConfirm,
                     </li>
                   </React.Fragment>
                 ))}
-                {taskLine(phase.id, phase.tasks.length) && <li><DropLine /></li>}
               </ul>
               <button
                 type="button"
@@ -373,7 +436,6 @@ function DraftEditor({ draft, categories, source, disabled, onChange, onConfirm,
             </div>
           </React.Fragment>
         ))}
-        {phaseLine(draft.phases.length) && <DropLine />}
       </div>
 
       {noteOptions.length > 0 && (

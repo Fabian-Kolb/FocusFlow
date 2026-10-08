@@ -56,12 +56,19 @@ const Coach = ({ setCurrentScreen }) => {
   useEffect(() => {
     if (!isCalendarConnected || user?.isGuest) return;
     const now = new Date();
-    fetchCalendarEvents(now.getFullYear(), now.getMonth())
+    // Vorzugsweise gesamte anstehende Terminspanne laden, Fallback auf aktuellen Monat
+    fetchCalendarEvents()
       .then((events) => {
         setCalendarEvents(events || []);
       })
-      .catch((err) => {
-        console.warn('Konnte Kalenderevents für Fio-Kontext nicht laden:', err);
+      .catch(() => {
+        fetchCalendarEvents(now.getFullYear(), now.getMonth())
+          .then((events) => {
+            setCalendarEvents(events || []);
+          })
+          .catch((err) => {
+            console.warn('Konnte Kalenderevents für Fio-Kontext nicht laden:', err);
+          });
       });
   }, [isCalendarConnected, user?.isGuest]);
   
@@ -79,8 +86,11 @@ const Coach = ({ setCurrentScreen }) => {
   const [isGeneralOnlySelected, setIsGeneralOnlySelected] = useState(false);
   const [selectedProjectIds, setSelectedProjectIds] = useState([]);
   const [selectedReminderIds, setSelectedReminderIds] = useState([]);
+  const [isCalendarContextSelected, setIsCalendarContextSelected] = useState(false);
+  const [selectedCalendarEventIds, setSelectedCalendarEventIds] = useState([]);
   const [showAllContextProjects, setShowAllContextProjects] = useState(false);
   const [showAllContextReminders, setShowAllContextReminders] = useState(false);
+  const [showAllContextCalendar, setShowAllContextCalendar] = useState(false);
 
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef(null);
@@ -165,6 +175,13 @@ const Coach = ({ setCurrentScreen }) => {
   const activeAttachments = useMemo(() => {
     if (isGeneralOnlySelected || isAllContextSelected) return [];
     const list = [];
+    if (isCalendarContextSelected) {
+      list.push({ type: 'calendar', id: 'calendar', title: 'Kalender & Termine' });
+    }
+    selectedCalendarEventIds.forEach((eid) => {
+      const evt = (calendarEvents || []).find((item) => item.id === eid);
+      if (evt) list.push({ type: 'calendar_event', id: evt.id, title: evt.summary || 'Termin' });
+    });
     selectedProjectIds.forEach((pid) => {
       const p = projects.find((item) => item.id === pid);
       if (p) list.push({ type: 'project', id: p.id, title: p.title });
@@ -174,16 +191,16 @@ const Coach = ({ setCurrentScreen }) => {
       if (r) list.push({ type: 'reminder', id: r.id, title: r.title });
     });
     return list;
-  }, [isGeneralOnlySelected, isAllContextSelected, selectedProjectIds, selectedReminderIds, projects, reminders]);
+  }, [isGeneralOnlySelected, isAllContextSelected, isCalendarContextSelected, selectedCalendarEventIds, selectedProjectIds, selectedReminderIds, calendarEvents, projects, reminders]);
 
   const hasCustomContext = useMemo(() => {
-    return isGeneralOnlySelected || (!isAllContextSelected && (selectedProjectIds.length > 0 || selectedReminderIds.length > 0));
-  }, [isGeneralOnlySelected, isAllContextSelected, selectedProjectIds, selectedReminderIds]);
+    return isGeneralOnlySelected || (!isAllContextSelected && (selectedProjectIds.length > 0 || selectedReminderIds.length > 0 || isCalendarContextSelected || selectedCalendarEventIds.length > 0));
+  }, [isGeneralOnlySelected, isAllContextSelected, selectedProjectIds, selectedReminderIds, isCalendarContextSelected, selectedCalendarEventIds]);
 
   const totalActiveCustomCount = useMemo(() => {
     if (isGeneralOnlySelected) return 1;
-    return selectedProjectIds.length + selectedReminderIds.length;
-  }, [isGeneralOnlySelected, selectedProjectIds, selectedReminderIds]);
+    return selectedProjectIds.length + selectedReminderIds.length + (isCalendarContextSelected ? 1 : selectedCalendarEventIds.length);
+  }, [isGeneralOnlySelected, selectedProjectIds, selectedReminderIds, isCalendarContextSelected, selectedCalendarEventIds]);
 
   // Build Multi-Context Grounded System Instruction for Gemini
   const buildSystemInstruction = (specificAttachments) => {
@@ -191,8 +208,45 @@ const Coach = ({ setCurrentScreen }) => {
     const dateStr = now.toLocaleDateString('de-DE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
     const timeStr = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 
-    let contextData = {
-      heutigesDatum: `${dateStr}, ${timeStr} Uhr`
+    const pad2 = (n) => String(n).padStart(2, '0');
+    const todayKey = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+    const tomorrowDate = new Date(now.getTime() + 86400000);
+    const tomorrowKey = `${tomorrowDate.getFullYear()}-${pad2(tomorrowDate.getMonth() + 1)}-${pad2(tomorrowDate.getDate())}`;
+
+    // Kalendertermine formatieren und nach Tagen aufteilen
+    const formatEventItem = (e) => {
+      const rawStart = e.start?.dateTime || e.start?.date || '';
+      const rawEnd = e.end?.dateTime || e.end?.date || '';
+      const isAllDay = !e.start?.dateTime && Boolean(e.start?.date);
+
+      let eventDateKey = '';
+      let timeFormatted = isAllDay ? 'Ganztägig' : '';
+
+      if (rawStart) {
+        if (rawStart.includes('T')) {
+          const d = new Date(rawStart);
+          eventDateKey = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+          timeFormatted = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+          if (rawEnd && rawEnd.includes('T')) {
+            const endD = new Date(rawEnd);
+            timeFormatted += ` - ${endD.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`;
+          } else {
+            timeFormatted += ' Uhr';
+          }
+        } else {
+          eventDateKey = rawStart; // YYYY-MM-DD
+        }
+      }
+
+      return {
+        id: e.id,
+        titel: e.summary || e.title || 'Unbenannter Termin',
+        beschreibung: e.description || '',
+        uhrzeit: timeFormatted,
+        datum: eventDateKey,
+        istHeute: eventDateKey === todayKey,
+        istMorgen: eventDateKey === tomorrowKey
+      };
     };
 
     const sessionContexts = activeSession?.contextAttachments || [];
@@ -204,37 +258,86 @@ const Coach = ({ setCurrentScreen }) => {
       }
     });
 
+    const hasCalendarInContext = allContexts.some(a => a.type === 'calendar' || a.type === 'calendar_event');
+    const specificCalIds = allContexts.filter(a => a.type === 'calendar_event').map(a => a.id);
+    const projIds = allContexts.filter(a => a.type === 'project').map(a => a.id);
+    const remIds = allContexts.filter(a => a.type === 'reminder').map(a => a.id);
+
+    const relevantCalendarEvents = (allContexts.length > 0 && !hasCalendarInContext && (projIds.length > 0 || remIds.length > 0))
+      ? []
+      : (specificCalIds.length > 0 ? (calendarEvents || []).filter(e => specificCalIds.includes(e.id)) : (calendarEvents || []));
+
+    const parsedCalendarEvents = relevantCalendarEvents.map(formatEventItem);
+    const termineHeute = parsedCalendarEvents.filter(e => e.istHeute);
+    const termineMorgen = parsedCalendarEvents.filter(e => e.istMorgen);
+    const weitereTermine = parsedCalendarEvents.filter(e => !e.istHeute && !e.istMorgen).slice(0, 5);
+
+    // Erinnerungen formatieren und Fälligkeiten prüfen
+    const formatReminderItem = (r) => {
+      let isToday = false;
+      let isTomorrow = false;
+      let isOverdue = false;
+      if (r.date) {
+        let rKey = r.date;
+        if (r.date.includes('.')) {
+          const parts = r.date.split('.');
+          if (parts.length === 3) {
+            const yr = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
+            rKey = `${yr}-${pad2(parts[1])}-${pad2(parts[0])}`;
+          }
+        }
+        if (rKey === todayKey) isToday = true;
+        else if (rKey === tomorrowKey) isTomorrow = true;
+        else if (rKey < todayKey && r.status === 'AKTIV') isOverdue = true;
+      }
+      return {
+        id: r.id,
+        titel: r.title,
+        beschreibung: r.description || '',
+        datum: r.date || 'Kein Termin',
+        uhrzeit: r.time ? `${r.time} Uhr` : '',
+        prioritaet: r.priority || 'mittel',
+        status: r.status || 'AKTIV',
+        istHeute: isToday,
+        istMorgen: isTomorrow,
+        istUeberfaellig: isOverdue,
+        notizen: (r.notes || []).map(n => ({ id: n.id, titel: n.title, inhalt: n.content }))
+      };
+    };
+
+    let contextData = {
+      heutigesDatum: `${dateStr}, ${timeStr} Uhr`,
+      datumHeuteIso: todayKey,
+      datumMorgenIso: tomorrowKey
+    };
+
     let contextMetaGuidance = '';
 
     if (allContexts.length > 0) {
-      const projIds = allContexts.filter(a => a.type === 'project').map(a => a.id);
-      const remIds = allContexts.filter(a => a.type === 'reminder').map(a => a.id);
-
       const chosenProjects = projects.filter((p) => projIds.includes(p.id));
       const chosenReminders = reminders.filter((r) => remIds.includes(r.id));
-      const focusTitles = [...chosenProjects.map(p => p.title), ...chosenReminders.map(r => r.title)].join(', ');
+      const focusTitles = [
+        ...chosenProjects.map(p => p.title),
+        ...chosenReminders.map(r => r.title),
+        ...(hasCalendarInContext ? ['Kalender & Termine'] : [])
+      ].join(', ');
 
       contextMetaGuidance = `
 HINTERGRUNDWISSEN ZUM AKTIVEN KONTEXT:
-Der Nutzer hat für dieses Gespräch gezielt einen spezifischen Fokus auf folgende Elemente gelegt: [${focusTitles}].
-Er möchte sich in dieser Konversation fokussiert genau auf diese Projekte bzw. Erinnerungen konzentrieren.
-
-WICHTIGE ANWEISUNG FÜR DEINE TONALITÄT & FORMULIERUNGEN:
-- Sprich diese Einschränkung NICHT mechanisch oder belehrend an (sage z. B. NIE: "Ich sehe, du hast das Projekt X ausgewählt" oder "Da du nur Projekt Y übergeben hast...").
-- Nutze dieses Hintergrundwissen ganz natürlich im Kopf, um deine Formulierungen, Ratschläge, Priorisierungen und Teilschritte direkt auf diese Themen zuzuschneiden.
-- Antworte sofort präzise auf den Punkt, ohne überflüssiges Vorgeplänkel, und beziehe dich ganz selbstverständlich auf die Aufgaben, Phasen und Termine dieser Elemente.
+Der Nutzer hat für dieses Gespräch gezielt folgenden Fokus gewählt: [${focusTitles || 'Spezifischer Fokus'}].
+Er möchte sich in dieser Konversation besonders auf diese Themen konzentrieren.
+- Antworte sofort präzise auf den Punkt, ohne Floskeln wie „Ich sehe, du hast X gewählt“.
+- Verknüpfe diese Elemente mit dem heutigen Tag und der Zeitplanung.
 `;
 
       contextData = {
         ...contextData,
-        fokus: 'Spezifisch an diese Konversation angehängte Projekte und Erinnerungen',
+        fokus: 'Spezifisch ausgewählte Elemente',
         projekte: chosenProjects.map((p) => ({
           id: p.id,
           titel: p.title,
           beschreibung: p.description || '',
           zeitraum: `${p.startDate || 'Start offen'} bis ${p.endDate || 'Ende offen'}`,
-          startDate: p.startDate || '',
-          endDate: p.endDate || '',
           fortschritt: `${p.progress || 0}%`,
           notizen: (p.notes || []).map(n => ({ id: n.id, titel: n.title, inhalt: n.content })),
           abschnitte: (p.phases || []).map((ph) => ({
@@ -251,44 +354,32 @@ WICHTIGE ANWEISUNG FÜR DEINE TONALITÄT & FORMULIERUNGEN:
             }))
           }))
         })),
-        erinnerungen: chosenReminders.map((r) => ({
-          id: r.id,
-          titel: r.title,
-          beschreibung: r.description || '',
-          datum: r.date || 'Kein Termin',
-          uhrzeit: r.time || '',
-          prioritaet: r.priority || 'mittel',
-          status: r.status || 'AKTIV',
-          notizen: (r.notes || []).map(n => ({ id: n.id, titel: n.title, inhalt: n.content }))
-        }))
+        erinnerungen: chosenReminders.map(formatReminderItem)
       };
     } else if (isGeneralOnlySelected) {
       contextMetaGuidance = `
 HINTERGRUNDWISSEN ZUM AKTIVEN KONTEXT:
 Der Nutzer hat den allgemeinen Coach-Modus gewählt (ohne spezifische Projektdaten).
-Antworte als erfahrener Produktivitätsberater, Zeitmanagement-Experte und Motivator mit bewährten Methoden (z. B. Eisenhower, Pomodoro, Time-Blocking).
+Antworte als erfahrener Produktivitätsberater und Zeitmanagement-Experte mit bewährten Methoden.
 `;
       contextData = {
         ...contextData,
-        fokus: 'Allgemeiner Coach (Keine spezifischen Projektdaten aktiv)'
+        fokus: 'Allgemeiner Coach (Freies Gespräch)'
       };
     } else {
       contextMetaGuidance = `
 HINTERGRUNDWISSEN ZUM AKTIVEN KONTEXT:
-Der Nutzer hat dir den vollen Überblick über alle seine Projekte und Erinnerungen zur Verfügung gestellt.
-Du kannst projektübergreifend planen, Prioritäten abwägen, Engpässe identifizieren und den gesamten Arbeitsbereich berücksichtigen.
+Der Nutzer hat dir den vollen Überblick über seinen gesamten Arbeitsbereich zur Verfügung gestellt (Kalender, Erinnerungen & Projekte).
+Nutze diesen 360-Grad-Blick für ganzheitliche, harmonische Empfehlungen.
 `;
-      // Default: All Projects & All Reminders
       contextData = {
         ...contextData,
-        fokus: 'Alle Projekte & Erinnerungen',
+        fokus: 'Alle Daten (Kalender, Erinnerungen & Projekte)',
         projekte: projects.map((p) => ({
           id: p.id,
           titel: p.title,
           beschreibung: p.description || '',
           zeitraum: `${p.startDate || 'Start offen'} bis ${p.endDate || 'Ende offen'}`,
-          startDate: p.startDate || '',
-          endDate: p.endDate || '',
           fortschritt: `${p.progress || 0}%`,
           notizen: (p.notes || []).map(n => ({ id: n.id, titel: n.title, inhalt: n.content })),
           abschnitte: (p.phases || []).map((ph) => ({
@@ -305,48 +396,85 @@ Du kannst projektübergreifend planen, Prioritäten abwägen, Engpässe identifi
             }))
           }))
         })),
-        erinnerungen: reminders.map((r) => ({
-          id: r.id,
-          titel: r.title,
-          beschreibung: r.description || '',
-          datum: r.date || 'Kein Termin',
-          uhrzeit: r.time || '',
-          prioritaet: r.priority || 'mittel',
-          status: r.status || 'AKTIV',
-          notizen: (r.notes || []).map(n => ({ id: n.id, titel: n.title, inhalt: n.content }))
-        }))
+        erinnerungen: reminders.map(formatReminderItem)
       };
     }
 
-    contextData.kalender = {
-      verbunden: !!isCalendarConnected,
-      gastmodus: !!user?.isGuest,
-      heutigesDatum: new Date().toISOString().split('T')[0],
-      termine: (calendarEvents || []).map(e => ({
-        id: e.id,
-        titel: e.summary || 'Termin',
-        beschreibung: e.description || '',
-        start: e.start?.dateTime || e.start?.date || '',
-        ende: e.end?.dateTime || e.end?.date || ''
-      }))
+    // Die Drei Säulen kompakt zusammengefasst für schnelle, präzise Antworten
+    const allFormattedReminders = reminders.map(formatReminderItem);
+    const activeProjects = projects.filter(p => !p.deletedAt && p.status === 'AKTIV');
+
+    contextData.dreiSaeulen = {
+      kalender: {
+        verbunden: !!isCalendarConnected,
+        gastmodus: !!user?.isGuest,
+        termineHeute: termineHeute.map(t => ({ titel: t.titel, zeit: t.uhrzeit, details: t.beschreibung })),
+        termineMorgen: termineMorgen.map(t => ({ titel: t.titel, zeit: t.uhrzeit, details: t.beschreibung })),
+        weitereTermineDieseWoche: weitereTermine.map(t => ({ datum: t.datum, titel: t.titel, zeit: t.uhrzeit })),
+        morgigerVorbereitungsCheck: termineMorgen.length > 0
+          ? `WICHTIGER HINWEIS: Morgen stehen ${termineMorgen.length} Termin(e) im Kalender: ${termineMorgen.map(t => `"${t.titel}" (${t.uhrzeit})`).join(', ')}. Prüfe aktiv, ob dazu bereits Aufgaben existieren oder ob noch Vorbereitung nötig ist!`
+          : 'Keine Kalendertermine für morgen eingetragen.'
+      },
+      erinnerungen: {
+        heuteFaellig: allFormattedReminders.filter(r => r.istHeute && r.status === 'AKTIV').map(r => ({ id: r.id, titel: r.titel, zeit: r.uhrzeit, prio: r.prioritaet })),
+        ueberfaellig: allFormattedReminders.filter(r => r.istUeberfaellig).map(r => ({ id: r.id, titel: r.titel, datum: r.datum })),
+        morgenFaellig: allFormattedReminders.filter(r => r.istMorgen && r.status === 'AKTIV').map(r => ({ id: r.id, titel: r.titel, zeit: r.uhrzeit }))
+      },
+      aktiveProjekte: activeProjects.map(p => {
+        // Nächste unerledigte Aufgaben finden
+        const pendingTasks = [];
+        (p.phases || []).forEach(ph => {
+          (ph.tasks || []).forEach(t => {
+            if (!t.completed && pendingTasks.length < 3) {
+              pendingTasks.push({ aufgabe: t.title, abschnitt: ph.title, termin: t.date || '' });
+            }
+          });
+        });
+        return {
+          id: p.id,
+          titel: p.title,
+          fortschritt: `${p.progress || 0}%`,
+          naechsteSchritte: pendingTasks
+        };
+      })
     };
 
     return `
-Du bist der FocusFlow AI Coach (Fio), ein hochkompetenter, motivierender und pragmatischer Produktivitäts-Assistent.
-Deine Aufgabe ist es, dem Nutzer zu helfen, seine Aufgaben, Projekte und Erinnerungen fokussiert, strukturiert und erfolgreich abzuarbeiten.
+Du bist der FocusFlow AI Coach (Fio), ein hochkompetenter, empathischer und pragmatischer Produktivitäts-Assistent.
+Deine Mission ist es, dem Nutzer zu helfen, seinen Tag mit maximalem Fokus, Klarheit und ohne Stress zu meistern.
+
+DAS DREI-SÄULEN-SYSTEM VON FOCUSFLOW:
+FocusFlow basiert auf DREI gleichwertigen, zentralen Säulen:
+1. 📅 KALENDER: Feste Termine, feste Uhrzeiten heute und Vorbereitung für anstehende Termine morgen.
+2. 🔔 ERINNERUNGEN: Zeitkritische To-Dos, Fristen und Prioritäten für den heutigen Tag.
+3. 🎯 PROJEKTE: Strategischer Fortschritt – welcher konkrete nächste Schritt im wichtigsten Vorhaben bringt den größten Hebel?
+
+WICHTIGE VERHALTENSREGELN FÜR TAGESFRAGEN (z. B. „Was sollte ich heute noch machen?“, „Was steht an?“, „Tagesplan“):
+1. PRÄZISION STATT REIZÜBERFLUTUNG (WENIGER IST MEHR):
+   - Wenn der Nutzer nach seinem Tag oder nach Empfehlungen fragt: Schütte ihn NIEMALS mit einer endlosen Liste aller Projekte und Aufgaben zu! Keine Textwüsten.
+   - Gib WENIGER, aber dafür PRÄZISER aus: Wähle maximal 2 bis 3 konkrete, hochrelevante Fokus-Punkte für heute aus.
+   - Strukturiere übersichtlich, ansprechend und sofort scannbar mit Emojis:
+     • 📅 Kalender-Check: Heutige feste Termine + kurzer Blick auf morgen (insb. wenn Vorbereitung nötig ist).
+     • 🔔 Fokus-Erinnerung: Maximal 1 (höchstens 2) überfällige oder heute fällige Erinnerungen.
+     • 🎯 Projekt-Fokus: Genau 1 wichtigster nächster Schritt aus dem aktivsten bzw. wichtigsten Projekt (nicht 5 Projekte gleichzeitig).
+
+2. PROAKTIVER KALENDER- & MORGIGER VORBEREITUNGS-CHECK:
+   - Der Kalender ist genauso wichtig wie Projekte und Erinnerungen – beziehe ihn immer aktiv ein!
+   - Termine heute: Berücksichtige feste Uhrzeiten für die Tagesstruktur.
+   - Termine morgen: Untersuche ganz gezielt, ob morgen Termine im Kalender stehen (z. B. Meeting, Präsentation, Kundentermin, Arzt, Deadline, Abgabe).
+   - Vorbereitungs-Check: Prüfe, ob in den Projekten oder Erinnerungen bereits Aufgaben dazu vorbereitet wurden oder ob noch gar nichts dazu gemacht wurde.
+   - Wenn für einen morgigen Termin noch nichts vorbereitet wurde: Weise den Nutzer kurz und aufmerksam darauf hin (z. B.: „📅 Kalender-Hinweis für morgen: Du hast um 10:00 Uhr ‚Meeting X‘. Da dazu noch keine Vorbereitung hinterlegt ist: Sollen wir heute 20 Minuten einplanen, um die Unterlagen vorzubereiten?“).
+
+3. IMMER MIT EINER PROAKTIVEN RÜCKFRAGE ABSCHLIESSEN:
+   - Beende deine Antwort IMMER mit genau EINER konkreten, motivierenden Rückfrage bezüglich des vorgeschlagenen Projekts, des nächsten Schritts oder des Kalendertermins (z. B.: „Möchtest du, dass wir direkt mit [Aufgabe X] im Projekt [Y] starten, oder soll ich dir dafür noch Teilaufgaben anlegen?“ oder „Sollen wir für den morgigen Termin [Z] eine kurze Vorbereitungs-Erinnerung einstellen?“).
+   - So kann der Nutzer im Chat direkt antworten und mit dir ins Detail gehen, ohne überlegen zu müssen.
 
 ${contextMetaGuidance}
 
 ${ACTION_ENGINE_SYSTEM_PROMPT}
 
-Hier sind die aktuellen Daten und Details der FocusFlow App:
+AKTUELLE DATEN AUS FOCUSFLOW:
 ${JSON.stringify(contextData, null, 2)}
-
-Regeln für deine Antworten:
-1. Reagiere direkt, empathisch und professionell auf die Anfrage des Nutzers.
-2. Beziehe dich bei konkreten Fragen auf die relevanten Daten (Aufgaben, Phasen, Termine, Notizen).
-3. Verwende saubere Markdown-Formatierung (Listen, Fettdruck, Absätze), um Antworten leicht scannbar zu machen.
-4. Halte deine Antworten fokussiert, umsetzungsstark und ohne überflüssige Floskeln.
 `;
   };
 
@@ -361,9 +489,9 @@ Regeln für deine Antworten:
       ];
     }
     return [
-      { id: 'qp_1', label: 'Tagesplan erstellen', promptText: 'Erstelle einen Fokus-Tagesplan aus allen meinen Projekten und Erinnerungen.' },
-      { id: 'qp_2', label: 'Engpässe finden', promptText: 'Welche Aufgaben oder Erinnerungen benötigen meine Aufmerksamkeit?' },
-      { id: 'qp_3', label: 'Ziele priorisieren', promptText: 'Was ist das wichtigste Ziel für diese Woche?' }
+      { id: 'qp_1', label: 'Was heute tun?', promptText: 'Was sollte ich heute noch machen? Gib mir einen kurzen, präzisen Fokus aus Kalender, Erinnerungen und Projekten.' },
+      { id: 'qp_2', label: 'Engpässe & Termine', promptText: 'Welche anstehenden Termine (heute & morgen), Erinnerungen oder Aufgaben benötigen meine Aufmerksamkeit?' },
+      { id: 'qp_3', label: 'Ziele priorisieren', promptText: 'Was ist der wichtigste nächste Schritt für heute?' }
     ];
   };
 
@@ -699,6 +827,11 @@ Regeln für deine Antworten:
       filtered = filtered.filter((s) => s.contextScope === 'general' || s.contextScope === 'global');
     } else if (sidebarScopeFilter === 'drafts') {
       filtered = filtered.filter((s) => s.contextScope === 'draft');
+    } else if (sidebarScopeFilter === 'calendar') {
+      filtered = filtered.filter((s) =>
+        s.contextScope === 'calendar' || 
+        (s.contextAttachments && s.contextAttachments.some(a => a.type === 'calendar' || a.type === 'calendar_event'))
+      );
     } else if (sidebarScopeFilter !== 'all') {
       filtered = filtered.filter((s) =>
         s.contextId === sidebarScopeFilter || 
@@ -748,6 +881,7 @@ Regeln für deine Antworten:
     if (sidebarScopeFilter === 'all') return 'Alle Chats';
     if (sidebarScopeFilter === 'general') return 'Allgemeiner Coach';
     if (sidebarScopeFilter === 'drafts') return 'Entwürfe';
+    if (sidebarScopeFilter === 'calendar') return 'Kalender';
 
     const p = projects.find(pr => pr.id === sidebarScopeFilter);
     if (p) return `Projekt: ${p.title}`;
@@ -773,14 +907,16 @@ Regeln für deine Antworten:
   // Filtered lists for Context Attachments Modal
   const contextModalFilteredItems = useMemo(() => {
     const q = contextModalSearch.trim().toLowerCase();
-    let filteredProjects = projects;
-    let filteredReminders = reminders;
+    let filteredProjects = projects.filter((p) => !p.deletedAt);
+    let filteredReminders = reminders.filter((r) => !r.deletedAt);
+    let filteredEvents = calendarEvents || [];
     if (q) {
-      filteredProjects = projects.filter((p) => p.title.toLowerCase().includes(q));
-      filteredReminders = reminders.filter((r) => r.title.toLowerCase().includes(q));
+      filteredProjects = filteredProjects.filter((p) => (p.title || '').toLowerCase().includes(q));
+      filteredReminders = filteredReminders.filter((r) => (r.title || '').toLowerCase().includes(q));
+      filteredEvents = filteredEvents.filter((e) => (e.summary || e.title || e.description || '').toLowerCase().includes(q));
     }
-    return { projects: filteredProjects, reminders: filteredReminders };
-  }, [projects, reminders, contextModalSearch]);
+    return { projects: filteredProjects, reminders: filteredReminders, calendarEvents: filteredEvents };
+  }, [projects, reminders, calendarEvents, contextModalSearch]);
 
   // Toggle Context Attachment helpers
   const toggleProjectContext = (pId) => {
@@ -807,11 +943,35 @@ Regeln für deine Antworten:
     );
   };
 
+  const toggleCalendarContext = () => {
+    setIsAllContextSelected(false);
+    setIsGeneralOnlySelected(false);
+    const isInSession = (activeSession?.contextAttachments || []).some(a => a.type === 'calendar');
+    if (isInSession) {
+      removeSessionAttachment(activeSession.id, 'calendar', 'calendar');
+    }
+    setIsCalendarContextSelected((prev) => !prev);
+  };
+
+  const toggleCalendarEventContext = (eId) => {
+    setIsAllContextSelected(false);
+    setIsGeneralOnlySelected(false);
+    const isInSession = (activeSession?.contextAttachments || []).some(a => a.id === eId && a.type === 'calendar_event');
+    if (isInSession) {
+      removeSessionAttachment(activeSession.id, eId, 'calendar_event');
+    }
+    setSelectedCalendarEventIds((prev) => 
+      prev.includes(eId) ? prev.filter(id => id !== eId) : (isInSession ? prev : [...prev, eId])
+    );
+  };
+
   const selectAllContext = () => {
     setIsAllContextSelected(true);
     setIsGeneralOnlySelected(false);
     setSelectedProjectIds([]);
     setSelectedReminderIds([]);
+    setSelectedCalendarEventIds([]);
+    setIsCalendarContextSelected(false);
     setIsContextModalOpen(false);
   };
 
@@ -820,6 +980,8 @@ Regeln für deine Antworten:
     setIsAllContextSelected(false);
     setSelectedProjectIds([]);
     setSelectedReminderIds([]);
+    setSelectedCalendarEventIds([]);
+    setIsCalendarContextSelected(false);
     setIsContextModalOpen(false);
   };
 
@@ -1084,7 +1246,7 @@ Regeln für deine Antworten:
                     Hallo{user?.displayName ? ` ${user.displayName.split(' ')[0]}` : ''}, ich bin Fio
                   </h2>
                   <p className="text-sm text-on-surface-variant max-w-md leading-relaxed">
-                    Dein persönlicher KI-Coach. Wie kann ich dich heute bei deinen Projekten, Aufgaben und Erinnerungen unterstützen?
+                    Dein persönlicher KI-Coach. Wie kann ich dich heute bei deinen Projekten, Aufgaben, Erinnerungen und Terminen unterstützen?
                   </p>
                   <button
                     type="button"
@@ -1273,8 +1435,10 @@ Regeln für deine Antworten:
                               key={`${att.type}_${att.id}`}
                               className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-outline-variant rounded-lg text-[11px] font-mono text-on-surface shadow-2xs"
                             >
-                              <span className={`material-symbols-outlined text-[14px] ${att.type === 'project' ? 'text-primary' : 'text-amber-700'}`}>
-                                {att.type === 'project' ? 'folder' : 'notifications'}
+                              <span className={`material-symbols-outlined text-[14px] ${
+                                att.type === 'project' ? 'text-primary' : att.type === 'reminder' ? 'text-amber-700' : 'text-blue-600'
+                              }`}>
+                                {att.type === 'project' ? 'folder' : att.type === 'reminder' ? 'notifications' : 'calendar_month'}
                               </span>
                               <span className="truncate max-w-[150px] font-medium">{att.title}</span>
                             </div>
@@ -1385,15 +1549,19 @@ Regeln für deine Antworten:
                         key={`${att.type}_${att.id}`}
                         className="flex items-center gap-1.5 px-2.5 py-1 bg-surface-low border border-outline-variant rounded-lg text-xs font-mono font-medium shadow-2xs group hover:bg-white transition-colors"
                       >
-                        <span className={`material-symbols-outlined text-[15px] ${att.type === 'project' ? 'text-primary' : 'text-amber-700'}`}>
-                          {att.type === 'project' ? 'folder' : 'notifications'}
+                        <span className={`material-symbols-outlined text-[15px] ${
+                          att.type === 'project' ? 'text-primary' : att.type === 'reminder' ? 'text-amber-700' : 'text-blue-600'
+                        }`}>
+                          {att.type === 'project' ? 'folder' : att.type === 'reminder' ? 'notifications' : 'calendar_month'}
                         </span>
                         <span className="truncate max-w-[160px] text-on-surface">{att.title}</span>
                         <button
                           type="button"
                           onClick={() => {
                             if (att.type === 'project') toggleProjectContext(att.id);
-                            else toggleReminderContext(att.id);
+                            else if (att.type === 'reminder') toggleReminderContext(att.id);
+                            else if (att.type === 'calendar') toggleCalendarContext();
+                            else if (att.type === 'calendar_event') toggleCalendarEventContext(att.id);
                           }}
                           className="text-on-surface-variant hover:text-red-600 transition-colors ml-0.5 cursor-pointer flex items-center justify-center"
                           title={`${att.title} entfernen`}
@@ -1429,7 +1597,7 @@ Regeln für deine Antworten:
                         ? isGeneralOnlySelected
                           ? 'KI-Kontext: Allgemeiner Coach (aktiv)'
                           : `KI-Kontext: ${totalActiveCustomCount} Element(e) ausgewählt (aktiv)`
-                        : 'Kontext & Daten für Fio wählen (Alle Projekte & Erinnerungen)'
+                        : 'Kontext & Daten für Fio wählen (Kalender, Projekte & Erinnerungen)'
                     }
                   >
                     <span className={`material-symbols-outlined text-[20px] ${hasCustomContext ? 'font-bold text-primary' : ''}`}>tune</span>
@@ -1546,7 +1714,7 @@ Regeln für deine Antworten:
                   autoFocus
                   value={sidebarSearchQuery}
                   onChange={(e) => setSidebarSearchQuery(e.target.value)}
-                  placeholder="Projekte oder Erinnerungen filtern..."
+                  placeholder="Kalender, Projekte oder Erinnerungen filtern..."
                   className="w-full text-xs bg-transparent border-none outline-none focus:ring-0 p-0 text-on-surface"
                 />
                 {sidebarSearchQuery && (
@@ -1583,6 +1751,29 @@ Regeln für deine Antworten:
                   </div>
                   {sidebarScopeFilter === 'all' && (
                     <span className="material-symbols-outlined text-[18px] text-primary">check</span>
+                  )}
+                </div>
+
+                <div
+                  onClick={() => {
+                    setSidebarScopeFilter('calendar');
+                    setIsSidebarFilterModalOpen(false);
+                  }}
+                  className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                    sidebarScopeFilter === 'calendar'
+                      ? 'bg-blue-500/10 border-blue-500/40 shadow-xs'
+                      : 'bg-white border-outline-variant hover:bg-surface-low/50 hover:border-blue-400/30'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="material-symbols-outlined text-[18px] text-blue-600">calendar_month</span>
+                    <div>
+                      <div className="font-bold text-xs text-on-surface">Kalender & Termine</div>
+                      <div className="text-[10px] font-mono text-on-surface-variant">Chats mit Kalender- und Terminbezug</div>
+                    </div>
+                  </div>
+                  {sidebarScopeFilter === 'calendar' && (
+                    <span className="material-symbols-outlined text-[18px] text-blue-600">check</span>
                   )}
                 </div>
 
@@ -1785,7 +1976,7 @@ Regeln für deine Antworten:
                   autoFocus
                   value={contextModalSearch}
                   onChange={(e) => setContextModalSearch(e.target.value)}
-                  placeholder="Projekte oder Erinnerungen für Fio suchen..."
+                  placeholder="Kalender, Projekte oder Erinnerungen für Fio suchen..."
                   className="w-full text-xs bg-transparent border-none outline-none focus:ring-0 p-0 text-on-surface"
                 />
                 {contextModalSearch && (
@@ -1816,8 +2007,8 @@ Regeln für deine Antworten:
                   <div className="flex items-center gap-2.5">
                     <span className="material-symbols-outlined text-[18px] text-primary">forum</span>
                     <div>
-                      <div className="font-bold text-xs text-on-surface">Alle Projektdaten & Erinnerungen übergeben</div>
-                      <div className="text-[10px] font-mono text-on-surface-variant">Voller Zugriff auf den gesamten Arbeitsbereich</div>
+                      <div className="font-bold text-xs text-on-surface">Alle Daten übergeben (Kalender, Projekte & Erinnerungen)</div>
+                      <div className="text-[10px] font-mono text-on-surface-variant">Voller Zugriff auf alle Termine, Projekte und Erinnerungen</div>
                     </div>
                   </div>
                   <div className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all ${
@@ -1850,6 +2041,108 @@ Regeln für deine Antworten:
                   </div>
                 </div>
               </div>
+
+              {/* Kalender & Termine Multi-Select Section */}
+              {(contextModalFilteredItems.calendarEvents.length > 0 || isCalendarConnected) && (() => {
+                const isSearching = !!contextModalSearch.trim();
+                const visibleEvents = isSearching || showAllContextCalendar
+                  ? contextModalFilteredItems.calendarEvents
+                  : contextModalFilteredItems.calendarEvents.slice(0, 3);
+                const hasMoreEvents = !isSearching && contextModalFilteredItems.calendarEvents.length > 3;
+                const isMasterCalChecked = isCalendarContextSelected || (activeSession?.contextAttachments || []).some(a => a.type === 'calendar');
+
+                return (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-[10px] font-mono font-bold text-on-surface-variant/70 uppercase tracking-wider">
+                        Kalender ({contextModalFilteredItems.calendarEvents.length} Termine)
+                      </span>
+                    </div>
+
+                    {/* Master Calendar Option */}
+                    <div
+                      onClick={toggleCalendarContext}
+                      className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                        isMasterCalChecked
+                          ? 'bg-blue-500/10 border-blue-500/40 shadow-xs'
+                          : 'bg-white border-outline-variant hover:bg-surface-low/50 hover:border-blue-400/30'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="material-symbols-outlined text-[18px] text-blue-600 shrink-0">calendar_month</span>
+                        <div className="min-w-0">
+                          <div className="font-bold text-xs text-on-surface truncate">Gesamter Kalender</div>
+                          <div className="text-[10px] font-mono text-on-surface-variant">
+                            {isCalendarConnected ? `${calendarEvents.length} Termine geladen • Google Kalender aktiv` : (user?.isGuest ? 'Gastmodus (kein Google Kalender)' : 'Kalender nicht verknüpft')}
+                          </div>
+                        </div>
+                      </div>
+                      <div className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all shrink-0 ml-2 ${
+                        isMasterCalChecked ? 'bg-blue-600 border-blue-600 text-white' : 'border-outline-variant bg-white'
+                      }`}>
+                        {isMasterCalChecked && <span className="material-symbols-outlined text-[14px]">check</span>}
+                      </div>
+                    </div>
+
+                    {/* Individual Events */}
+                    {visibleEvents.map((evt) => {
+                      const isChecked = isMasterCalChecked || selectedCalendarEventIds.includes(evt.id) || (activeSession?.contextAttachments || []).some(a => a.id === evt.id && a.type === 'calendar_event');
+                      const rawStart = evt.start?.dateTime || evt.start?.date || '';
+                      let timeDisplay = '';
+                      if (rawStart) {
+                        try {
+                          const d = new Date(rawStart);
+                          timeDisplay = d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
+                          if (rawStart.includes('T')) {
+                            timeDisplay += ` • ${d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`;
+                          }
+                        } catch {
+                          timeDisplay = rawStart;
+                        }
+                      }
+                      return (
+                        <div
+                          key={evt.id}
+                          onClick={() => toggleCalendarEventContext(evt.id)}
+                          className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                            isChecked
+                              ? 'bg-blue-50/70 border-blue-400/40 shadow-xs'
+                              : 'bg-white border-outline-variant hover:bg-surface-low/50 hover:border-blue-400/30'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="material-symbols-outlined text-[16px] text-blue-500 shrink-0">event</span>
+                            <div className="min-w-0">
+                              <div className="font-bold text-xs text-on-surface truncate">{evt.summary || evt.title || 'Termin'}</div>
+                              <div className="text-[10px] font-mono text-on-surface-variant">
+                                {timeDisplay || 'Termin'}
+                              </div>
+                            </div>
+                          </div>
+                          <div className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all shrink-0 ml-2 ${
+                            isChecked ? 'bg-blue-600 border-blue-600 text-white' : 'border-outline-variant bg-white'
+                          }`}>
+                            {isChecked && <span className="material-symbols-outlined text-[14px]">check</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {hasMoreEvents && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAllContextCalendar(!showAllContextCalendar)}
+                        className="w-full py-2 px-3 text-[11px] font-mono font-bold text-primary bg-surface-low hover:bg-white border border-outline-variant/60 hover:border-primary/40 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs hover:shadow-xs mt-1"
+                      >
+                        <span>{showAllContextCalendar ? 'Weniger anzeigen' : `Mehr anzeigen (${contextModalFilteredItems.calendarEvents.length - 3} weitere)`}</span>
+                        <span className="material-symbols-outlined text-[15px]">
+                          {showAllContextCalendar ? 'expand_less' : 'expand_more'}
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Projects Multi-Select Section */}
               {contextModalFilteredItems.projects.length > 0 && (() => {
@@ -1975,9 +2268,9 @@ Regeln für deine Antworten:
                 );
               })()}
 
-              {contextModalFilteredItems.projects.length === 0 && contextModalFilteredItems.reminders.length === 0 && (
+              {contextModalFilteredItems.projects.length === 0 && contextModalFilteredItems.reminders.length === 0 && contextModalFilteredItems.calendarEvents.length === 0 && (
                 <div className="p-8 text-center text-xs text-on-surface-variant italic">
-                  Keine Projekte oder Erinnerungen für „{contextModalSearch}“ gefunden.
+                  Keine Termine, Projekte oder Erinnerungen für „{contextModalSearch}“ gefunden.
                 </div>
               )}
             </div>

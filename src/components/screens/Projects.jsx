@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { useCategoryDrag } from '../ui/useCategoryDrag';
-import { useCardTouchDrag } from '../ui/useCardTouchDrag';
+import React, { useState, useRef } from 'react';
+import { useBoardSort, LIFT_CLASS } from '../ui/useBoardSort';
+import { groupByCategory } from '../../lib/itemOrder';
 import { useModalContext } from '../../context/ModalContext';
 import Card from '../ui/Card';
 import { ProjectCardContent } from '../ui/ItemCardContent';
@@ -24,40 +24,13 @@ const Projects = ({ setCurrentScreen }) => {
     toggleProjectCategory,
     deleteProjectCategory,
     updateProjectCategory,
-    moveProjectToCategory,
+    placeProjectInCategory,
     reorderProjectCategories,
     moveProjectCategoryOrder,
     collapseAllProjectCategories,
     expandAllProjectCategories,
     restoreProjectCategoryExpandStates,
   } = useModalContext();
-
-  const handleMoveProjectToCategory = (projectId, categoryId) => {
-    moveProjectToCategory(projectId, categoryId);
-    const cat = projectCategories.find(c => c.id === categoryId);
-    if (cat && !cat.isExpanded) {
-      toggleProjectCategory(categoryId);
-    }
-  };
-
-  const {
-    draggedCardId: touchDraggedProjectId,
-    cardDropTargetId: touchCardDropTargetCatId,
-    startCardDrag: startProjectCardDrag,
-    startCardTouchDrag: startProjectCardTouchDrag,
-    handleHtml5DragStart: handleProjectHtml5DragStart,
-    handleHtml5DragOver: handleProjectHtml5DragOver,
-    handleHtml5DragEnd: handleProjectHtml5DragEnd
-  } = useCardTouchDrag({
-    onMoveItemToCategory: handleMoveProjectToCategory,
-    categoryPrefix: 'cat-sec-',
-    onHoverExpandCategory: (catId) => {
-      const cat = projectCategories.find(c => c.id === catId);
-      if (cat && !cat.isExpanded) {
-        toggleProjectCategory(catId);
-      }
-    }
-  });
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -99,7 +72,6 @@ const Projects = ({ setCurrentScreen }) => {
 
   const [editingCatId, setEditingCatId] = useState(null);
   const [editingCatName, setEditingCatName] = useState('');
-  const [cardDragOverCatId, setCardDragOverCatId] = useState(null);
 
   // Edit-Mode: saves expand states, collapses all → easy sorting
   const [isEditMode, setIsEditMode] = useState(false);
@@ -121,38 +93,27 @@ const Projects = ({ setCurrentScreen }) => {
     }
   };
 
-  const { draggedCatId, orderedCategories, startDrag } = useCategoryDrag({
+  // Kategorien und Karten per Drag & Drop (gleiche Mechanik wie im Fio-Entwurfs-Editor)
+  const boardRef = useRef(null);
+  const itemsByCategory = groupByCategory(otherProjects, projectCategories);
+  const { drag, view, startCategoryDrag, startItemPress } = useBoardSort({
+    rootRef: boardRef,
     categories: projectCategories,
-    reorderCategories: reorderProjectCategories,
-    collapseAll: collapseAllProjectCategories,
-    // In edit mode: stay collapsed after drag. Only "Bearbeiten beenden" restores states.
-    onDragEnd: isEditMode ? collapseAllProjectCategories : restoreProjectCategoryExpandStates,
-    sectionIdPrefix: 'cat-sec-',
+    itemsByCategory,
+    onReorderCategories: reorderProjectCategories,
+    onMoveItem: (projectId, categoryId, orderedIds) => {
+      placeProjectInCategory(projectId, categoryId, orderedIds);
+      const cat = projectCategories.find((c) => c.id === categoryId);
+      if (cat && !cat.isExpanded) toggleProjectCategory(categoryId);
+    },
+    onCategoryDragStart: collapseAllProjectCategories,
+    // Im Bearbeiten-Modus bleiben die Kategorien eingeklappt, sonst Zustand wiederherstellen
+    onCategoryDragEnd: (saved) => (isEditMode ? collapseAllProjectCategories() : restoreProjectCategoryExpandStates(saved)),
+    onExpandCategory: (catId) => {
+      const cat = projectCategories.find((c) => c.id === catId);
+      if (cat && !cat.isExpanded) toggleProjectCategory(catId);
+    },
   });
-
-  const handleCategoryDragOver = (e, categoryId) => {
-    handleProjectHtml5DragOver(e, categoryId);
-    if (!draggedCatId && cardDragOverCatId !== categoryId) {
-      setCardDragOverCatId(categoryId);
-    }
-  };
-
-  const handleCategoryDragLeave = (e, categoryId) => {
-    if (cardDragOverCatId === categoryId && !e.currentTarget.contains(e.relatedTarget)) {
-      setCardDragOverCatId(null);
-    }
-  };
-
-  const handleDrop = (e, categoryId) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setCardDragOverCatId(null);
-    handleProjectHtml5DragEnd();
-    const projectId = e.dataTransfer.getData('text/plain') || touchDraggedProjectId;
-    if (projectId) {
-      handleMoveProjectToCategory(projectId, categoryId);
-    }
-  };
 
   const saveEditCategory = (catId) => {
     if (editingCatName.trim()) {
@@ -169,21 +130,19 @@ const Projects = ({ setCurrentScreen }) => {
     }
   };
 
-  const renderCard = (project) => {
-    const isDragged = touchDraggedProjectId === project.id;
+  // sortable = Karte lässt sich ziehen (nur in Kategorien; angepinnte Karten stehen fest)
+  const renderCard = (project, sortable = true) => {
+    const isDragged = drag?.kind === 'item' && drag.id === project.id;
     return (
       <div
         key={project.id}
-        data-card-id={project.id}
-        onMouseDown={(e) => startProjectCardDrag(e, project.id, project.title)}
-        onTouchStart={(e) => startProjectCardTouchDrag(e, project.id, project.title)}
-        onDragStart={(e) => handleProjectHtml5DragStart(e, project.id)}
-        onDragEnd={handleProjectHtml5DragEnd}
-        onDragOver={(e) => handleCategoryDragOver(e, project.categoryId || 'allgemein')}
-        onDrop={(e) => handleDrop(e, project.categoryId || 'allgemein')}
-        className={`cursor-grab active:cursor-grabbing [-webkit-touch-callout:none] select-none transition-all duration-150 ${
-          isDragged ? 'opacity-30 scale-[0.98] ring-2 ring-primary/40 rounded-xl' : 'opacity-100'
-        }`}
+        {...(sortable ? {
+          'data-card-id': project.id,
+          onMouseDown: (e) => startItemPress(e, project.id),
+          onTouchStart: (e) => startItemPress(e, project.id),
+          onDragStart: (e) => e.preventDefault(),
+        } : {})}
+        className={`${sortable ? 'cursor-grab [-webkit-touch-callout:none] select-none' : ''} ${isDragged ? LIFT_CLASS : ''}`}
       >
       <Card
         interactive
@@ -244,13 +203,13 @@ const Projects = ({ setCurrentScreen }) => {
             <span className="material-symbols-outlined text-sm">push_pin</span> Angepinnt
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-            {pinnedProjects.map(renderCard)}
+            {pinnedProjects.map((p) => renderCard(p, false))}
           </div>
         </div>
       )}
 
       {/* Categories */}
-      <div className="space-y-6">
+      <div ref={boardRef} className="space-y-6">
         <CategoryToolbar
           count={projectCategories.length}
           isEditMode={isEditMode}
@@ -260,30 +219,30 @@ const Projects = ({ setCurrentScreen }) => {
           onExpandAll={expandAllProjectCategories}
         />
 
-        {(orderedCategories || projectCategories)?.map((cat) => {
-          const catProjects = otherProjects.filter(p => (p.categoryId || 'allgemein') === cat.id);
-          if (cat.id === 'allgemein' && catProjects.length === 0 && projectCategories.length > 1 && !touchDraggedProjectId) {
+        {view.categories.map((cat) => {
+          const catProjects = view.itemsByCategory[cat.id] || [];
+          if (cat.id === 'allgemein' && catProjects.length === 0 && projectCategories.length > 1 && !drag) {
             return null;
           }
 
-          const isBeingDragged = draggedCatId === cat.id;
-          const isCardHoveringThisCat = (cardDragOverCatId === cat.id || touchCardDropTargetCatId === cat.id) && !isBeingDragged;
+          const isBeingDragged = drag?.kind === 'cat' && drag.id === cat.id;
+          const isDraggingItem = drag?.kind === 'item';
+          // Karte schwebt über dieser Kategorie (und stammt nicht aus ihr): Ablage-Hinweis
+          const isCardHoveringThisCat = isDraggingItem && drag.catId === cat.id && drag.originCatId !== cat.id;
 
           return (
             <div 
               key={cat.id}
               id={`cat-sec-${cat.id}`}
               data-category-id={cat.id}
-              onDragOver={(e) => handleCategoryDragOver(e, cat.id)}
-              onDragLeave={(e) => handleCategoryDragLeave(e, cat.id)}
-              onDrop={(e) => handleDrop(e, cat.id)}
-              className={`rounded-xl transition-all duration-150 border scroll-mt-6 ${
+              data-cat-section={cat.id}
+              className={`rounded-xl border scroll-mt-6 p-2 -m-1 transition-colors duration-150 ${
                 isBeingDragged
-                  ? 'opacity-0 pointer-events-none h-11 my-1 p-0 border-transparent overflow-hidden'
+                  ? `${LIFT_CLASS} z-30 border-transparent`
                   : isCardHoveringThisCat
-                  ? 'border-primary bg-primary/10 ring-2 ring-primary/40 shadow-lg p-2.5 -m-1'
-                  : 'border-transparent p-2 -m-1'
-              }`}
+                  ? 'border-primary bg-primary/10 ring-2 ring-primary/40'
+                  : 'border-transparent'
+              } ${isDraggingItem && drag.catId === cat.id ? 'relative z-30' : ''}`}
             >
               {/* Steam-Like Header */}
               <div 
@@ -299,8 +258,8 @@ const Projects = ({ setCurrentScreen }) => {
                 }`}>
                   {/* Drag Handle – always visible in edit mode */}
                   <span 
-                    onMouseDown={(e) => startDrag(e, cat.id, catProjects.length)}
-                    onTouchStart={(e) => startDrag(e, cat.id, catProjects.length)}
+                    onMouseDown={(e) => startCategoryDrag(e, cat.id)}
+                    onTouchStart={(e) => startCategoryDrag(e, cat.id)}
                     onClick={(e) => e.stopPropagation()}
                     className={`material-symbols-outlined text-[18px] hover:text-primary cursor-grab active:cursor-grabbing p-1 -m-1 transition-opacity touch-none select-none ${
                       isEditMode ? 'opacity-100 text-primary' : 'hidden md:inline-block opacity-50 group-hover:opacity-100'
@@ -431,10 +390,10 @@ const Projects = ({ setCurrentScreen }) => {
                 </div>
 
                 {/* Content grid – hidden in edit mode regardless of isExpanded state */}
-                {cat.isExpanded && !draggedCatId && !isEditMode && (
+                {cat.isExpanded && drag?.kind !== 'cat' && !isEditMode && (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                     {catProjects.length > 0 ? (
-                      catProjects.map(renderCard)
+                      catProjects.map((p) => renderCard(p))
                     ) : (
                       <div className={`col-span-full py-8 border-2 border-dashed rounded-xl flex items-center justify-center transition-colors ${
                         isCardHoveringThisCat
