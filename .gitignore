@@ -31,3 +31,19 @@ dist-ssr
 .agents
 .gemini
 docs
+
+# Lokale Claude-Konfiguration
+CLAUDE.md
+.claude/
+
+# 3D-Entwicklung (nur das Ergebnis wird hochgeladen)
+logo_paths.json
+prototype-3d.html
+prototype_standalone.html
+test_logo.svg
+src/prototype3d/
+src/prototype3d_points.js
+scripts/__pycache__/
+scripts/*.py
+scripts/*.png
+scripts/*.mjs

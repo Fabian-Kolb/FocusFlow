@@ -3,6 +3,21 @@ import { useAuth } from '../../context/AuthContext';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
+import WordmarkWord from '../brand/WordmarkWord';
+
+const THEME_STORAGE_KEY = 'focusflow_theme';
+
+function readStoredTheme() {
+  try {
+    const value = localStorage.getItem(THEME_STORAGE_KEY);
+    if (value === 'light' || value === 'dark') return value;
+  } catch {
+    // Storage gesperrt (z. B. Private Browsing) – Systemeinstellung nutzen
+  }
+  return null;
+}
+
+const systemTheme = () => (window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 
 function Login() {
   const [email, setEmail] = useState('');
@@ -12,6 +27,29 @@ function Login() {
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const { loginWithEmail, loginWithGoogle, loginAsGuest, resetPassword } = useAuth();
   const [resetSuccess, setResetSuccess] = useState('');
+  const [storedTheme, setStoredTheme] = useState(readStoredTheme);
+  const [osTheme, setOsTheme] = useState(systemTheme);
+  const theme = storedTheme || osTheme;
+  const isDark = theme === 'dark';
+
+  // Ohne eigene Wahl folgt der Login-Screen dem System-Design
+  useEffect(() => {
+    const media = window.matchMedia?.('(prefers-color-scheme: dark)');
+    if (!media) return undefined;
+    const onChange = (e) => setOsTheme(e.matches ? 'dark' : 'light');
+    media.addEventListener('change', onChange);
+    return () => media.removeEventListener('change', onChange);
+  }, []);
+
+  const toggleTheme = () => {
+    const next = isDark ? 'light' : 'dark';
+    setStoredTheme(next);
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, next);
+    } catch {
+      // Wahl gilt dann nur für diese Sitzung
+    }
+  };
 
   useEffect(() => {
     const handleAuthError = (e) => {
@@ -73,11 +111,33 @@ function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-surface px-4 py-8">
-      <Card padding="large" className="w-full max-w-md space-y-6 bg-surface/50 backdrop-blur-sm border-outline-variant">
+    <div className={isDark ? 'dark' : ''}>
+    <div className="relative min-h-screen overflow-x-hidden bg-surface dark:bg-[#090a0f] transition-colors duration-300 motion-reduce:transition-none px-4 pt-16 pb-8 lg:py-8 flex flex-col items-center justify-center gap-6 lg:flex-row lg:gap-10 xl:gap-14">
+      {/* Blaues Leuchten hinter der Wortmarke (nur im dunklen Design) */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 opacity-0 dark:opacity-100 transition-opacity duration-300 motion-reduce:transition-none bg-[radial-gradient(ellipse_at_center,rgba(0,82,255,0.28),transparent_65%)]"
+      />
+
+      <button
+        type="button"
+        onClick={toggleTheme}
+        aria-label={isDark ? 'Helles Design aktivieren' : 'Dunkles Design aktivieren'}
+        title={isDark ? 'Helles Design' : 'Dunkles Design'}
+        className="touch-target absolute top-4 right-4 z-10 flex items-center justify-center rounded-full border border-outline-variant bg-surface-card text-primary hover:border-primary dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:border-white/40 transition-colors"
+      >
+        <span className="material-symbols-outlined text-[20px]">{isDark ? 'light_mode' : 'dark_mode'}</span>
+      </button>
+
+      {/* Wortmarke: Mobil/Tablet zweizeilig über der Karte, Desktop FOCUS | Karte | FLOW */}
+      <WordmarkWord word="FOCUS" theme={theme} className="order-1 w-full max-w-[17rem] sm:max-w-xs lg:max-w-[22rem] lg:flex-1 -mb-8 lg:mb-0" />
+      <WordmarkWord word="FLOW" theme={theme} className="order-2 lg:order-3 w-full max-w-[17rem] sm:max-w-xs lg:max-w-[22rem] lg:flex-1" />
+
+      <Card padding="large" className="relative order-3 lg:order-2 w-full max-w-md shrink-0 space-y-6 bg-surface/50 backdrop-blur-sm border-outline-variant dark:bg-[#12131a] dark:border-white/10">
         <div className="text-center">
-          <h2 className="text-3xl font-bold tracking-tight text-primary">FocusFlow</h2>
-          <p className="mt-2 text-sm text-on-surface-variant">
+          {/* Sichtbar übernimmt die 3D-Wortmarke den Titel, für Screenreader bleibt er erhalten */}
+          <h1 className="sr-only">FocusFlow</h1>
+          <p className="text-sm text-on-surface-variant dark:text-neutral-400">
             Dein intelligentes System für Fokus, Projekte & Workflows
           </p>
         </div>
@@ -95,8 +155,8 @@ function Login() {
         )}
 
         {/* 1-Klick Gast-Zugang */}
-        <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 text-center space-y-2">
-          <p className="text-xs text-on-surface-variant">
+        <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 text-center space-y-2 dark:bg-white/5 dark:border-white/15">
+          <p className="text-xs text-on-surface-variant dark:text-neutral-400">
             Möchtest du FocusFlow direkt ohne Registrierung ausprobieren?
           </p>
           <Button
@@ -104,7 +164,7 @@ function Login() {
             fullWidth
             onClick={handleGuestLogin}
             disabled={loading}
-            className="gap-2 border-primary text-primary font-semibold hover:bg-primary hover:text-white transition-all shadow-sm"
+            className="gap-2 border-primary text-primary font-semibold hover:bg-primary hover:text-white transition-all shadow-sm dark:border-white dark:text-white dark:hover:bg-white dark:hover:text-black"
           >
             <span className="material-symbols-outlined text-[18px]">explore</span>
             Als Gast ausprobieren (Demo)
@@ -113,20 +173,21 @@ function Login() {
 
         <div className="relative">
           <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-outline-variant" />
+            <div className="w-full border-t border-outline-variant dark:border-white/10" />
           </div>
           <div className="relative flex justify-center text-xs uppercase tracking-wider">
-            <span className="px-3 bg-surface text-on-surface-variant font-medium">Mit Konto anmelden</span>
+            <span className="px-3 bg-surface text-on-surface-variant font-medium dark:bg-[#12131a] dark:text-neutral-400">Mit Konto anmelden</span>
           </div>
         </div>
 
         <form className="space-y-4" onSubmit={handleEmailLogin}>
           <div className="space-y-3">
             <div>
-              <label className="block text-xs font-bold text-primary mb-1">E-Mail</label>
+              <label className="block text-xs font-bold text-primary mb-1 dark:text-white">E-Mail</label>
               <Input
                 type="email"
                 required
+                className="dark:bg-white/5 dark:border-white/10 dark:text-white dark:placeholder:text-neutral-500 dark:focus:ring-white/60"
                 placeholder="deine.email@beispiel.de"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -134,11 +195,11 @@ function Login() {
             </div>
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-bold text-primary">Passwort</label>
+                <label className="block text-xs font-bold text-primary dark:text-white">Passwort</label>
                 <button
                   type="button"
                   onClick={handleResetPassword}
-                  className="text-xs text-primary hover:underline font-medium"
+                  className="text-xs text-primary hover:underline font-medium dark:text-neutral-300"
                 >
                   Passwort vergessen?
                 </button>
@@ -146,6 +207,7 @@ function Login() {
               <Input
                 type="password"
                 required
+                className="dark:bg-white/5 dark:border-white/10 dark:text-white dark:placeholder:text-neutral-500 dark:focus:ring-white/60"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -158,6 +220,7 @@ function Login() {
               type="submit"
               disabled={loading}
               fullWidth
+              className="dark:bg-white dark:text-black dark:hover:bg-neutral-200 dark:focus:ring-white/60 dark:focus:ring-offset-[#12131a]"
             >
               {loading ? 'Lädt...' : 'Mit E-Mail anmelden'}
             </Button>
@@ -170,7 +233,7 @@ function Login() {
             fullWidth
             onClick={handleGoogleLogin}
             disabled={loading}
-            className="gap-3 text-xs"
+            className="gap-3 text-xs dark:bg-white/5 dark:text-white dark:border-white/10 dark:hover:border-white/40"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24">
               <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -183,11 +246,11 @@ function Login() {
         </div>
 
         {/* Datenschutz & Nutzungshinweise Footer */}
-        <div className="pt-2 text-center border-t border-outline-variant/30">
+        <div className="pt-2 text-center border-t border-outline-variant/30 dark:border-white/10">
           <button
             type="button"
             onClick={() => setShowPrivacyModal(true)}
-            className="text-[11px] text-on-surface-variant/80 hover:text-primary transition-colors underline"
+            className="text-[11px] text-on-surface-variant/80 hover:text-primary transition-colors underline dark:text-neutral-400 dark:hover:text-white"
           >
             Datenschutz & Nutzungshinweise
           </button>
@@ -197,22 +260,22 @@ function Login() {
       {/* Modal: Datenschutz & Nutzungshinweise */}
       {showPrivacyModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
-          <div className="bg-surface border border-outline-variant rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-outline-variant pb-3">
-              <h3 className="text-base font-bold text-primary flex items-center gap-2">
+          <div className="bg-surface border border-outline-variant rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto dark:bg-[#12131a] dark:border-white/10">
+            <div className="flex items-center justify-between border-b border-outline-variant pb-3 dark:border-white/10">
+              <h3 className="text-base font-bold text-primary flex items-center gap-2 dark:text-white">
                 <span className="material-symbols-outlined text-[20px]">shield</span>
                 Datenschutz & Nutzungshinweise
               </h3>
               <button
                 type="button"
                 onClick={() => setShowPrivacyModal(false)}
-                className="text-on-surface-variant hover:text-primary p-1 rounded-lg"
+                className="text-on-surface-variant hover:text-primary p-1 rounded-lg dark:text-neutral-400 dark:hover:text-white"
               >
                 <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
             </div>
 
-            <div className="space-y-3 text-xs text-on-surface-variant leading-relaxed">
+            <div className="space-y-3 text-xs text-on-surface-variant leading-relaxed dark:text-neutral-400">
               <p>
                 <strong>1. Bereitstellung („Wie besehen“):</strong> FocusFlow wird als webbasierte Anwendung zur Workflow- und Aufgabenorganisation zur Verfügung gestellt. Die Nutzung aller Funktionen erfolgt stets auf eigenes Risiko und in eigener Verantwortung.
               </p>
@@ -225,15 +288,16 @@ function Login() {
               <p>
                 <strong>4. Schnittstellen & Drittanbieter:</strong> Für die ständige Erreichbarkeit und fehlerfreie Funktion von angebundenen Drittanbieter-Diensten (z. B. Google Kalender oder externe Cloud-Dienste) sowie für etwaige Datenübertragungsfehler wird keine Haftung übernommen.
               </p>
-              <p className="pt-1 font-semibold text-primary">
+              <p className="pt-1 font-semibold text-primary dark:text-white">
                 <strong>5. Eigenverantwortung:</strong> Das Betreten und Ausprobieren dieser App geschieht vollkommen auf eigene Gefahr und in reiner Selbstverantwortung – es gibt hier weder Sicherheiten noch Garantien.
               </p>
             </div>
 
-            <div className="pt-3 border-t border-outline-variant flex justify-end">
+            <div className="pt-3 border-t border-outline-variant flex justify-end dark:border-white/10">
               <Button
                 variant="primary"
                 onClick={() => setShowPrivacyModal(false)}
+                className="dark:bg-white dark:text-black dark:hover:bg-neutral-200"
               >
                 Verstanden
               </Button>
@@ -241,6 +305,7 @@ function Login() {
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 }

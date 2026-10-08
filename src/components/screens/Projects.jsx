@@ -3,6 +3,7 @@ import { useCategoryDrag } from '../ui/useCategoryDrag';
 import { useCardTouchDrag } from '../ui/useCardTouchDrag';
 import { useModalContext } from '../../context/ModalContext';
 import Card from '../ui/Card';
+import { ProjectCardContent } from '../ui/ItemCardContent';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import Badge from '../ui/Badge';
@@ -103,15 +104,6 @@ const Projects = ({ setCurrentScreen }) => {
     </button>
   );
 
-  const getStatusStyle = (status) => {
-    if (status === 'GEPLANT') {
-      return 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200';
-    }
-    if (status === 'ABGESCHLOSSEN') {
-      return 'bg-neutral-100 text-neutral-800 border-neutral-300 hover:bg-neutral-200';
-    }
-    return 'bg-emerald-100 text-emerald-900 border-emerald-300 hover:bg-emerald-200';
-  };
 
   const [newCategoryName, setNewCategoryName] = useState('');
   const [isAddingCategory, setIsAddingCategory] = useState(false);
@@ -206,26 +198,18 @@ const Projects = ({ setCurrentScreen }) => {
       >
       <Card
         interactive
-        className={`flex flex-col justify-between min-h-[250px] sm:min-h-[300px] transition-all h-full ${
-          project.isPaused 
-            ? '!bg-blue-100 !border-blue-300 ring-1 ring-blue-300/40' 
+        padding="small"
+        className={`flex flex-col h-full transition-all ${
+          project.isPaused
+            ? '!bg-blue-100 !border-blue-300 ring-1 ring-blue-300/40'
             : ''
         }`}
         onClick={() => handleProjectClick(project.id)}
       >
-        {project.inKanban === false && (
-          <div 
-            className="absolute top-2 right-2 w-2.5 h-2.5 bg-purple-500 rounded-full ring-2 ring-white z-10 shadow-sm"
-            title="Nicht im Kanban-Board"
-          />
-        )}
-        <div>
-          <div className="flex items-start justify-between gap-2 mb-1">
-            <div className="marquee-wrapper flex-1">
-              <h3 className="text-base sm:text-lg font-bold hover:underline leading-snug marquee-content">
-                {project.title}
-              </h3>
-            </div>
+        <ProjectCardContent
+          project={project}
+          onToggleStatus={() => toggleProjectStatus(project.id)}
+          menu={
             <CardContextMenu
               isPaused={project.isPaused}
               onTogglePause={() => toggleProjectPause(project.id)}
@@ -237,67 +221,8 @@ const Projects = ({ setCurrentScreen }) => {
               currentCategoryId={project.categoryId}
               itemStatus={project.status}
             />
-          </div>
-          <div className="flex justify-between items-center gap-2 mb-2">
-            <p className="text-[10px] sm:text-xs text-on-surface-variant font-mono truncate">
-              {project.dateRange} <span className="font-bold text-primary">({project.daysRemaining})</span>
-            </p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-1 sm:gap-2 my-1 p-1.5 sm:p-2 bg-surface-low border border-outline-variant rounded-lg text-[9px] sm:text-[11px] font-mono">
-          <div>
-            <span className="text-on-surface-variant block text-[8px] sm:text-[10px] uppercase">Phasen</span>
-            <span className="font-bold text-primary">{project.phasesCompleted} / {project.phasesTotal} Erledigt</span>
-          </div>
-          <div>
-            <span className="text-on-surface-variant block text-[8px] sm:text-[10px] uppercase">Unterpunkte</span>
-            <span className="font-bold text-primary">{project.tasksCompleted} / {project.tasksTotal} Tasks</span>
-          </div>
-        </div>
-
-        <div className="space-y-2 sm:space-y-3 border-t border-outline-variant pt-2 sm:pt-3 mt-auto">
-          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-            {project.status && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleProjectStatus(project.id);
-                }}
-                className={`px-2 py-0.5 sm:px-3 sm:py-1 rounded-lg border text-[9px] sm:text-xs font-mono font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer ${getStatusStyle(project.status)}`}
-                title="Klicken um Status zu wechseln"
-              >
-                {project.status === 'LAUFEND' ? 'AKTIV' : project.status === 'ABGESCHLOSSEN' ? 'ERLEDIGT' : project.status}
-              </button>
-            )}
-
-            {project.warning && (
-              <span className="px-2 py-0.5 sm:px-3 sm:py-1 rounded-lg border bg-amber-100 text-amber-900 border-amber-300 text-[9px] sm:text-xs font-mono font-bold uppercase tracking-wider">
-                {project.warning}
-              </span>
-            )}
-          </div>
-
-          <div>
-            <div className="flex justify-between items-center text-[9px] sm:text-[11px] mono font-bold mb-1">
-              <span>FORTSCHRITT</span>
-              <span>{project.progress}%</span>
-            </div>
-            <div className="w-full bg-surface-low h-1.5 sm:h-2 border border-outline-variant rounded-full overflow-hidden">
-              <div className="bg-primary h-full rounded-full" style={{ width: `${project.progress}%` }}></div>
-            </div>
-          </div>
-
-          <div>
-            <div className="flex justify-between items-center text-[8px] sm:text-[10px] mono text-on-surface-variant mb-1">
-              <span>VERSTRICHENE ZEIT</span>
-              <span>{project.timeElapsed}%</span>
-            </div>
-            <div className="w-full bg-surface-low h-1.5 sm:h-2 border border-outline-variant rounded-full overflow-hidden">
-              <div className="bg-primary h-full rounded-full" style={{ width: `${project.timeElapsed}%` }}></div>
-            </div>
-          </div>
-        </div>
+          }
+        />
       </Card>
     </div>
   );
