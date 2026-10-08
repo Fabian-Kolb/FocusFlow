@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useBoardSort, LIFT_CLASS } from '../ui/useBoardSort';
-import { groupByCategory } from '../../lib/itemOrder';
+import { groupByCategory, sortItems, PROJECT_SORT_OPTIONS } from '../../lib/itemOrder';
+import { usePersistedChoice } from '../../hooks/usePersistedChoice';
 import { useModalContext } from '../../context/ModalContext';
 import Card from '../ui/Card';
 import { ProjectCardContent } from '../ui/ItemCardContent';
@@ -95,13 +96,23 @@ const Projects = ({ setCurrentScreen }) => {
 
   // Kategorien und Karten per Drag & Drop (gleiche Mechanik wie im Fio-Entwurfs-Editor)
   const boardRef = useRef(null);
-  const itemsByCategory = groupByCategory(otherProjects, projectCategories);
+  const [sortMode, setSortMode] = usePersistedChoice('focusflow_projects_sort', PROJECT_SORT_OPTIONS.map((o) => o.value), 'custom');
+  const itemsByCategory = groupByCategory(otherProjects, projectCategories, { sortWithin: (list) => sortItems(list, sortMode) });
+  // Erste manuelle Änderung in einer automatischen Sortierung: aktuelle Reihenfolge einfrieren und auf "Benutzerdefiniert" wechseln
+  const switchToCustom = () => {
+    if (sortMode === 'custom') return;
+    Object.entries(itemsByCategory).forEach(([catId, list]) => {
+      if (list.length) placeProjectInCategory(list[0].id, catId, list.map((i) => i.id));
+    });
+    setSortMode('custom');
+  };
   const { drag, view, startCategoryDrag, startItemPress } = useBoardSort({
     rootRef: boardRef,
     categories: projectCategories,
     itemsByCategory,
     onReorderCategories: reorderProjectCategories,
     onMoveItem: (projectId, categoryId, orderedIds) => {
+      switchToCustom();
       placeProjectInCategory(projectId, categoryId, orderedIds);
       const cat = projectCategories.find((c) => c.id === categoryId);
       if (cat && !cat.isExpanded) toggleProjectCategory(categoryId);
@@ -217,6 +228,9 @@ const Projects = ({ setCurrentScreen }) => {
           anyExpanded={projectCategories.some((c) => c.isExpanded)}
           onCollapseAll={collapseAllProjectCategories}
           onExpandAll={expandAllProjectCategories}
+          sortValue={sortMode}
+          sortOptions={PROJECT_SORT_OPTIONS}
+          onSortChange={(mode) => (mode === 'custom' ? switchToCustom() : setSortMode(mode))}
         />
 
         {view.categories.map((cat) => {

@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useBoardSort, LIFT_CLASS } from '../ui/useBoardSort';
-import { groupByCategory, sortByOrder } from '../../lib/itemOrder';
+import { groupByCategory, sortItems, REMINDER_SORT_OPTIONS } from '../../lib/itemOrder';
+import { usePersistedChoice } from '../../hooks/usePersistedChoice';
 import { useModalContext } from '../../context/ModalContext';
 import Card from '../ui/Card';
 import { ReminderCardContent } from '../ui/ItemCardContent';
@@ -9,7 +10,7 @@ import Button from '../ui/Button';
 import Input from '../ui/Input';
 import CardContextMenu from '../ui/CardContextMenu';
 import { ListToolbar, ViewToggle, CategoryToolbar } from '../ui/ListToolbar';
-import { groupRemindersByTime } from '../../lib/reminderDates';
+import { groupRemindersByTime, compareReminderDue } from '../../lib/reminderDates';
 
 const VIEW_STORAGE_KEY = 'focusflow_reminders_view';
 const VIEW_OPTIONS = [
@@ -132,15 +133,26 @@ const Reminders = ({ setCurrentScreen }) => {
   // Kategorien und Karten per Drag & Drop (gleiche Mechanik wie im Fio-Entwurfs-Editor)
   const boardRef = useRef(null);
   // Erledigte rutschen ans Ende, damit Offenes oben bleibt
+  const [sortMode, setSortMode] = usePersistedChoice('focusflow_reminders_sort', REMINDER_SORT_OPTIONS.map((o) => o.value), 'custom');
   const itemsByCategory = groupByCategory(otherReminders, reminderCategories, {
-    sortWithin: (list) => sortByOrder(list).sort((a, b) => (a.status === 'ABGESCHLOSSEN') - (b.status === 'ABGESCHLOSSEN')),
+    sortWithin: (list) => sortItems(list, sortMode, { compareDue: compareReminderDue })
+      .sort((a, b) => (a.status === 'ABGESCHLOSSEN') - (b.status === 'ABGESCHLOSSEN')),
   });
+  // Erste manuelle Änderung in einer automatischen Sortierung: aktuelle Reihenfolge einfrieren und auf "Benutzerdefiniert" wechseln
+  const switchToCustom = () => {
+    if (sortMode === 'custom') return;
+    Object.entries(itemsByCategory).forEach(([catId, list]) => {
+      if (list.length) placeReminderInCategory(list[0].id, catId, list.map((i) => i.id));
+    });
+    setSortMode('custom');
+  };
   const { drag, view, startCategoryDrag, startItemPress } = useBoardSort({
     rootRef: boardRef,
     categories: reminderCategories,
     itemsByCategory,
     onReorderCategories: reorderReminderCategories,
     onMoveItem: (reminderId, categoryId, orderedIds) => {
+      switchToCustom();
       placeReminderInCategory(reminderId, categoryId, orderedIds);
       const cat = reminderCategories.find((c) => c.id === categoryId);
       if (cat && !cat.isExpanded) toggleReminderCategory(categoryId);
@@ -290,6 +302,9 @@ const Reminders = ({ setCurrentScreen }) => {
           anyExpanded={reminderCategories.some((c) => c.isExpanded)}
           onCollapseAll={collapseAllReminderCategories}
           onExpandAll={expandAllReminderCategories}
+          sortValue={sortMode}
+          sortOptions={REMINDER_SORT_OPTIONS}
+          onSortChange={(mode) => (mode === 'custom' ? switchToCustom() : setSortMode(mode))}
         />
 
         {view.categories.map((cat) => {

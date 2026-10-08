@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 // Gemeinsame, kompakte Werkzeugleisten für die Übersichten "Projekte" und "Erinnerungen" (Regel 02: Parität).
 
@@ -125,13 +125,80 @@ export function ViewToggle({ value, onChange, options }) {
   );
 }
 
-/** Kopfzeile über den Kategorien: Anzahl links, rechts Ein-/Ausklappen und Bearbeiten als Icons */
-export function CategoryToolbar({ count, isEditMode, onToggleEdit, anyExpanded, onCollapseAll, onExpandAll }) {
+/** Sortier-Menü für die Elemente innerhalb der Kategorien (inkl. "Benutzerdefiniert" für manuelles Ziehen) */
+export function SortMenu({ value, options, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const active = options.find((o) => o.value === value) || options[0];
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDown = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    const onKey = (e) => e.key === 'Escape' && setOpen(false);
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('touchstart', onDown);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('touchstart', onDown);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`Sortierung: ${active.label}`}
+        title={`Sortierung: ${active.label}`}
+        className="h-10 md:h-9 px-2.5 flex items-center gap-1 rounded-lg border border-transparent text-on-surface-variant hover:text-primary hover:bg-surface-low text-xs font-bold transition-colors cursor-pointer"
+      >
+        <span className="material-symbols-outlined text-[20px]">swap_vert</span>
+        <span className="hidden sm:inline">{active.label}</span>
+      </button>
+      {open && (
+        <div role="menu" className="absolute right-0 top-full mt-1 z-30 w-56 bg-white border border-outline-variant rounded-xl shadow-xl p-1.5">
+          <p className="px-3 pt-1 pb-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-on-surface-variant">Sortierung in Kategorien</p>
+          {options.map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              role="menuitemradio"
+              aria-checked={o.value === value}
+              onClick={() => { onChange(o.value); setOpen(false); }}
+              className={`w-full min-h-[40px] px-3 py-2 flex items-center gap-2.5 rounded-lg text-sm text-left transition-colors cursor-pointer ${
+                o.value === value ? 'bg-primary/10 text-primary font-bold' : 'text-primary hover:bg-surface-low font-semibold'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[18px]">{o.icon}</span>
+              <span className="flex-1">{o.label}</span>
+              {o.value === value && <span className="material-symbols-outlined text-[18px]">check</span>}
+            </button>
+          ))}
+          {value !== 'custom' && (
+            <p className="px-3 pt-1.5 pb-1 text-[11px] text-on-surface-variant leading-snug">
+              Beim Ziehen einer Karte wechselt die Sortierung auf „Benutzerdefiniert“.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Kopfzeile über den Kategorien: Anzahl links, rechts Sortierung, Ein-/Ausklappen und Bearbeiten als Icons */
+export function CategoryToolbar({ count, isEditMode, onToggleEdit, anyExpanded, onCollapseAll, onExpandAll, sortValue, sortOptions, onSortChange }) {
   return (
     <div className="flex items-center gap-1 pb-1.5 border-b border-outline-variant/40">
       <span className="flex-1 text-xs font-bold text-on-surface-variant uppercase tracking-wider">
         Kategorien ({count})
       </span>
+      {!isEditMode && sortOptions && <SortMenu value={sortValue} options={sortOptions} onChange={onSortChange} />}
       {!isEditMode && (
         <button
           type="button"
