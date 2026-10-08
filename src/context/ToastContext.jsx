@@ -72,7 +72,7 @@ function ToastViewport({ toast, onDismiss }) {
           {toast.icon && (
             <span className="material-symbols-outlined text-[18px] opacity-80 shrink-0">{toast.icon}</span>
           )}
-          <span className="flex-1 min-w-0 text-sm truncate py-2">{toast.message}</span>
+          <span className="flex-1 min-w-0 text-sm leading-snug line-clamp-2 py-2">{toast.message}</span>
           {toast.actionLabel && (
             <button
               type="button"

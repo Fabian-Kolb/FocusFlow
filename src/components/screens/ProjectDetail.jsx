@@ -6,6 +6,26 @@ import SectionDetailDrawer from '../ui/SectionDetailDrawer';
 import GlobalChatDrawer from '../ui/GlobalChatDrawer';
 import FioIcon from '../ui/FioIcon';
 import { canFitDrawersSideBySide } from '../../lib/breakpoints';
+import {
+  getProjectStats,
+  getProjectTimeline,
+  getPhaseStats,
+  normalizeProjectStatus,
+  formatTaskDate
+} from '../../lib/projectProgress';
+
+const HISTORY_LIMIT = 100;
+
+/** Zeitstempel im selben Format wie die Verlaufs-Einträge aus dem DataContext */
+const historyTimestamp = () => {
+  const now = new Date();
+  const day = now.toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
+  const time = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  return `${day} • ${time} Uhr`;
+};
+
+const withHistory = (prev, entry) =>
+  [{ id: `h_${Date.now()}`, timestamp: historyTimestamp(), ...entry }, ...(prev.history || [])].slice(0, HISTORY_LIMIT);
 
 const ProjectDetail = ({ setCurrentScreen }) => {
   const { 
@@ -24,10 +44,14 @@ const ProjectDetail = ({ setCurrentScreen }) => {
     isCalendarConnected,
     batchSyncPhaseTasks
   } = useModalContext();
-  const selectedProject = contextProjects.find(p => p.id === selectedProjectId) || (trashItems && trashItems.find(p => p.id === selectedProjectId)) || contextProjects[0];
-  
+  // Kein Rückfall auf ein anderes Projekt: Ohne Treffer zeigt der Screen "Projekt nicht gefunden"
+  const selectedProject = contextProjects.find(p => p.id === selectedProjectId) || (trashItems && trashItems.find(p => p.id === selectedProjectId));
+
   const projectData = selectedProject || {};
+  const projectPhases = projectData.phases || [];
   const isTrashed = !!projectData.deletedAt;
+  const stats = getProjectStats(projectData);
+  const { timeline } = stats;
 
   const categoryObj = (projectCategories || []).find(c => c.id === (projectData.categoryId || 'allgemein')) || { id: 'allgemein', name: 'Allgemein' };
 
@@ -143,25 +167,15 @@ const ProjectDetail = ({ setCurrentScreen }) => {
   // Removed unneeded inline edit functions
 
   const handleSaveDates = () => {
-    const startStr = editStartDate ? new Date(editStartDate).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '01.08.24';
-    const endStr = editEndDate ? new Date(editEndDate).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '31.12.24';
-    
-    let timeElapsed = 0;
-    if (editStartDate && editEndDate) {
-      const start = new Date(editStartDate).getTime();
-      const end = new Date(editEndDate).getTime();
-      const now = Date.now();
-      if (now >= end) timeElapsed = 100;
-      else if (now <= start) timeElapsed = 0;
-      else timeElapsed = Math.round(((now - start) / (end - start)) * 100);
-    }
-    
+    // Die Anzeige rechnet live; die gespeicherten Textfelder bleiben nur für ältere Karten-Ansichten
+    const saved = getProjectTimeline({ ...projectData, startDate: editStartDate, endDate: editEndDate });
     setProjectData(prev => ({
       ...prev,
       startDate: editStartDate,
       endDate: editEndDate,
-      dateRange: `${startStr} – ${endStr}`,
-      timeElapsed
+      dateRange: saved.dateRange,
+      daysRemaining: saved.deadlineLabel,
+      timeElapsed: saved.timeElapsed ?? 0
     }));
     setIsEditingDates(false);
   };
@@ -254,17 +268,12 @@ const ProjectDetail = ({ setCurrentScreen }) => {
         phasesTotal: updatedPhases.length,
         phases: updatedPhases,
         notes: updatedNotes,
-        history: [
-          {
-            id: `h_${Date.now()}`,
-            timestamp: 'HEUTE • gerade eben',
-            text: `Neuer Abschnitt aus Notiz erstellt: '${newPhase.title}'`,
-            phase: 'Projekt-Fortschritt',
-            icon: 'note_add',
-            iconStyle: 'bg-primary/10 text-primary border border-primary/20'
-          },
-          ...(prev.history || [])
-        ]
+        history: withHistory(prev, {
+          text: `Neuer Abschnitt aus Notiz erstellt: '${newPhase.title}'`,
+          phase: 'Projekt-Fortschritt',
+          icon: 'note_add',
+          iconStyle: 'bg-primary/10 text-primary border border-primary/20'
+        })
       };
     });
   };
@@ -280,7 +289,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
           title: note.title || 'Aus Notiz erstellt',
           note: note.content || '',
           completed: false,
-          date: 'Geplant: Demnächst',
+          date: '',
           links: []
         };
         const updatedTasks = [...(phase.tasks || []), newTask];
@@ -308,17 +317,12 @@ const ProjectDetail = ({ setCurrentScreen }) => {
         tasksCompleted: completedTasks,
         progress: progressPct,
         tasksCountText: `(${completedTasks} / ${totalTasks} Tasks)`,
-        history: [
-          {
-            id: `h_${Date.now()}`,
-            timestamp: 'HEUTE • gerade eben',
-            text: `Neue Aufgabe aus Notiz erstellt: '${note.title}'`,
-            phase: 'Projekt-Fortschritt',
-            icon: 'add_task',
-            iconStyle: 'bg-primary/10 text-primary border border-primary/20'
-          },
-          ...(prev.history || [])
-        ]
+        history: withHistory(prev, {
+          text: `Neue Aufgabe aus Notiz erstellt: '${note.title}'`,
+          phase: 'Projekt-Fortschritt',
+          icon: 'add_task',
+          iconStyle: 'bg-primary/10 text-primary border border-primary/20'
+        })
       };
     });
   };
@@ -368,17 +372,12 @@ const ProjectDetail = ({ setCurrentScreen }) => {
       return {
         ...prev,
         phases: updatedPhases,
-        history: [
-          {
-            id: `h_${Date.now()}`,
-            timestamp: 'HEUTE • gerade eben',
-            text: `Notiz '${note.title}' verknüpft`,
-            phase: 'Wissensmanagement',
-            icon: 'link',
-            iconStyle: 'bg-surface-low text-primary border border-outline-variant'
-          },
-          ...(prev.history || [])
-        ]
+        history: withHistory(prev, {
+          text: `Notiz '${note.title}' verknüpft`,
+          phase: 'Wissensmanagement',
+          icon: 'link',
+          iconStyle: 'bg-surface-low text-primary border border-outline-variant'
+        })
       };
     });
   };
@@ -402,15 +401,15 @@ const ProjectDetail = ({ setCurrentScreen }) => {
   };
 
   // Collapse / Expand All Phases
-  const isAllCollapsed = projectData.phases.length > 0 && 
-    projectData.phases.every((p) => collapsedPhases[p.id]);
+  const isAllCollapsed = projectPhases.length > 0 &&
+    projectPhases.every((p) => collapsedPhases[p.id]);
 
   const toggleAllPhases = () => {
     if (isAllCollapsed) {
       setCollapsedPhases({});
     } else {
       const newCollapsed = {};
-      projectData.phases.forEach((p) => {
+      projectPhases.forEach((p) => {
         newCollapsed[p.id] = true;
       });
       setCollapsedPhases(newCollapsed);
@@ -426,6 +425,9 @@ const ProjectDetail = ({ setCurrentScreen }) => {
   const toggleTaskCompletion = (phaseId, taskId) => {
     setProjectData((prev) => {
       let updatedCompletedCount = 0;
+      let toggledTitle = '';
+      let toggledPhaseTitle = '';
+      let isNowCompleted = false;
       const updatedPhases = (prev.phases || []).map((phase) => {
         if (phase.id !== phaseId) {
           const cInPhase = phase.tasks ? phase.tasks.filter((t) => t.completed).length : 0;
@@ -439,10 +441,12 @@ const ProjectDetail = ({ setCurrentScreen }) => {
           };
         }
 
+        toggledPhaseTitle = phase.title;
         const updatedTasks = (phase.tasks || []).map((task) => {
           if (task.id !== taskId) return task;
-          const nextCompleted = !task.completed;
-          return { ...task, completed: nextCompleted };
+          toggledTitle = task.title;
+          isNowCompleted = !task.completed;
+          return { ...task, completed: isNowCompleted };
         });
 
         const completedInPhase = updatedTasks.filter((t) => t.completed).length;
@@ -469,16 +473,6 @@ const ProjectDetail = ({ setCurrentScreen }) => {
         newStatus = 'AKTIV';
       }
 
-      // Add to history
-      const newHistoryItem = {
-        id: `h_${Date.now()}`,
-        timestamp: 'HEUTE • gerade eben',
-        text: `Task Status geändert`,
-        phase: `Phase ID: ${phaseId}`,
-        icon: 'check',
-        iconStyle: 'bg-emerald-100 border border-emerald-300 text-emerald-800'
-      };
-
       return {
         ...prev,
         status: newStatus,
@@ -488,7 +482,15 @@ const ProjectDetail = ({ setCurrentScreen }) => {
         phasesTotal: updatedPhases.length,
         progress: progressPct,
         tasksCountText: `(${updatedCompletedCount} / ${totalTasks} Tasks)`,
-        history: [newHistoryItem, ...(prev.history || [])],
+        // Nur Erledigtes landet im Verlauf, sonst füllt jedes Hin- und Herklicken die Liste
+        history: isNowCompleted
+          ? withHistory(prev, {
+              text: `Aufgabe erledigt: '${toggledTitle}'`,
+              phase: toggledPhaseTitle,
+              icon: 'check',
+              iconStyle: 'bg-emerald-100 border border-emerald-300 text-emerald-800'
+            })
+          : prev.history || [],
         phases: updatedPhases
       };
     });
@@ -506,7 +508,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
       id: newPhaseId,
       phaseNum: '',
       title: newPhaseTitle.trim(),
-      badgeText: '0/0 ERLEDIGT',
+      description: newPhaseDesc.trim(),
       completed: false,
       materials: [],
       tasks: []
@@ -520,17 +522,12 @@ const ProjectDetail = ({ setCurrentScreen }) => {
         ...prev,
         phasesTotal: updatedPhases.length,
         phasesCompleted: completedPhasesCount,
-        history: [
-          {
-            id: `h_${Date.now()}`,
-            timestamp: 'HEUTE • gerade eben',
-            text: `Neuer Abschnitt angelegt: '${newPhaseTitle.trim()}'`,
-            phase: 'Projekt-Fortschritt',
-            icon: 'flag',
-            iconStyle: 'bg-surface-low border border-outline-variant rounded-lg text-primary'
-          },
-          ...(prev.history || [])
-        ],
+        history: withHistory(prev, {
+          text: `Neuer Abschnitt angelegt: '${newPhaseTitle.trim()}'`,
+          phase: 'Projekt-Fortschritt',
+          icon: 'flag',
+          iconStyle: 'bg-surface-low border border-outline-variant rounded-lg text-primary'
+        }),
         phases: updatedPhases
       };
     });
@@ -549,7 +546,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
     const newTask = {
       id: newTaskId,
       title: newTaskTitle.trim(),
-      date: newTaskDate.trim() || 'Geplant: Demnächst',
+      date: newTaskDate, // YYYY-MM-DD aus dem Datumsfeld oder leer
       completed: false,
       note: newTaskNote.trim(),
       links: []
@@ -651,17 +648,12 @@ const ProjectDetail = ({ setCurrentScreen }) => {
         });
         return {
           ...prev,
-          history: [
-            {
-              id: `h_${Date.now()}`,
-              timestamp: 'HEUTE • gerade eben',
-              text: `Neues Material hinzugefügt: '${name}'`,
-              phase: `Abschnitt Material`,
-              icon: 'attach_file',
-              iconStyle: 'bg-surface-low border border-outline-variant rounded-lg text-primary'
-            },
-            ...(prev.history || [])
-          ],
+          history: withHistory(prev, {
+            text: `Neues Material hinzugefügt: '${name}'`,
+            phase: 'Abschnitt-Material',
+            icon: 'attach_file',
+            iconStyle: 'bg-surface-low border border-outline-variant rounded-lg text-primary'
+          }),
           phases: updatedPhases
         };
       });
@@ -766,17 +758,12 @@ const ProjectDetail = ({ setCurrentScreen }) => {
         phasesTotal: updatedPhases.length,
         progress: progressPct,
         tasksCountText: `(${completedTasks} / ${totalTasks} Tasks)`,
-        history: [
-          {
-            id: `h_${Date.now()}`,
-            timestamp: 'HEUTE • gerade eben',
-            text: `Abschnitt gelöscht: '${phaseToDelete?.title}'`,
-            phase: 'Projekt-Fortschritt',
-            icon: 'delete',
-            iconStyle: 'bg-red-50 text-red-600 border border-red-200'
-          },
-          ...(prev.history || [])
-        ],
+        history: withHistory(prev, {
+          text: `Abschnitt gelöscht: '${phaseToDelete?.title}'`,
+          phase: 'Projekt-Fortschritt',
+          icon: 'delete',
+          iconStyle: 'bg-red-50 text-red-600 border border-red-200'
+        }),
         phases: updatedPhases
       };
     });
@@ -825,9 +812,9 @@ const ProjectDetail = ({ setCurrentScreen }) => {
   }
 
   // Filter phases logic
-  const filteredPhases = (projectData.phases || []).filter((phase) => {
-    if (filterType === 'open') return !phase.completed;
-    if (filterType === 'completed') return phase.completed;
+  const filteredPhases = projectPhases.filter((phase) => {
+    if (filterType === 'open') return !getPhaseStats(phase).isDone;
+    if (filterType === 'completed') return getPhaseStats(phase).isDone;
     return true;
   });
 
@@ -1101,7 +1088,10 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                 ) : (
                   <div className="flex items-center gap-2">
                     <div className="no-wrap-scroll text-[11px] sm:text-xs mono font-bold text-primary">
-                      <span>{projectData.dateRange} ({projectData.daysRemaining})</span>
+                      <span>{timeline.dateRange || 'Kein Zeitraum'}</span>
+                      {timeline.deadlineLabel && (
+                        <span className={timeline.isOverdue ? 'text-rose-600' : ''}> ({timeline.deadlineLabel})</span>
+                      )}
                     </div>
                     <button onClick={() => setIsEditingDates(true)} className="text-on-surface-variant hover:text-primary transition-colors flex items-center justify-center p-0.5" title="Datum bearbeiten">
                       <span className="material-symbols-outlined text-[14px]">edit</span>
@@ -1114,23 +1104,32 @@ const ProjectDetail = ({ setCurrentScreen }) => {
             <div className="space-y-2">
               <div>
                 <div className="flex justify-between text-[11px] sm:text-xs mono font-bold mb-1 flex-wrap gap-1">
-                  <span>AUFGABEN-FORTSCHRITT: {projectData.progress}%</span>
-                  <span className="text-on-surface-variant font-normal">{projectData.tasksCountText}</span>
+                  <span>AUFGABEN-FORTSCHRITT: {stats.progress}%</span>
+                  <span className="text-on-surface-variant font-normal">({stats.tasksCompleted} / {stats.tasksTotal} Aufgaben)</span>
                 </div>
                 <div className="w-full bg-surface-low h-2 border border-outline-variant rounded-full overflow-hidden">
-                  <div className="bg-primary h-full rounded-full transition-all duration-300" style={{ width: `${projectData.progress}%` }}></div>
+                  <div className="bg-primary h-full rounded-full transition-all duration-300" style={{ width: `${stats.progress}%` }}></div>
                 </div>
               </div>
 
-              <div>
-                <div className="flex justify-between text-[10px] sm:text-[11px] mono text-on-surface-variant mb-1 flex-wrap gap-1">
-                  <span>VERSTRICHENE ZEIT: {projectData.timeElapsed}%</span>
-                  <span>{projectData.daysCountText}</span>
+              {timeline.timeElapsed !== null ? (
+                <div>
+                  <div className="flex justify-between text-[10px] sm:text-[11px] mono text-on-surface-variant mb-1 flex-wrap gap-1">
+                    <span>VERSTRICHENE ZEIT: {timeline.timeElapsed}%</span>
+                    <span>{timeline.dayLabel}</span>
+                  </div>
+                  <div className="w-full bg-surface-low h-2 border border-outline-variant rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-300 ${timeline.isOverdue ? 'bg-rose-500' : 'bg-primary'}`}
+                      style={{ width: `${timeline.timeElapsed}%` }}
+                    ></div>
+                  </div>
                 </div>
-                <div className="w-full bg-surface-low h-2 border border-outline-variant rounded-full overflow-hidden">
-                  <div className="bg-primary h-full rounded-full transition-all duration-300" style={{ width: `${projectData.timeElapsed}%` }}></div>
-                </div>
-              </div>
+              ) : (
+                <p className="text-[10px] sm:text-[11px] mono text-on-surface-variant">
+                  Start- und Enddatum festlegen, um die verstrichene Zeit zu sehen.
+                </p>
+              )}
             </div>
           </div>
 
@@ -1146,7 +1145,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
               {/* Segmented Control for Status */}
               <div className="flex items-center justify-center gap-1.5 sm:gap-2 w-full h-full">
                 {['GEPLANT', 'AKTIV', 'ABGESCHLOSSEN'].map((s) => {
-                  const isActive = projectData.status === s;
+                  const isActive = normalizeProjectStatus(projectData.status) === s;
                   return (
                     <button
                       key={s}
@@ -1191,7 +1190,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                 <div className="min-w-0">
                   <span className="text-on-surface-variant text-[9px] sm:text-[10px] uppercase block truncate">ABSCHNITTE</span>
                   <span className="font-bold text-primary truncate block">
-                    {projectData.phasesCompleted} / {projectData.phasesTotal} Erledigt
+                    {stats.phasesCompleted} / {stats.phasesTotal} Erledigt
                   </span>
                 </div>
               </div>
@@ -1202,7 +1201,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                 <div className="min-w-0">
                   <span className="text-on-surface-variant text-[9px] sm:text-[10px] uppercase block truncate">AUFGABEN</span>
                   <span className="font-bold text-primary truncate block">
-                    {projectData.tasksCompleted} / {projectData.tasksTotal} Tasks
+                    {stats.tasksCompleted} / {stats.tasksTotal} Aufgaben
                   </span>
                 </div>
               </div>
@@ -1247,9 +1246,8 @@ const ProjectDetail = ({ setCurrentScreen }) => {
               </div>
             )}
           </div>
-        </div>
 
-        <NotesSection 
+        <NotesSection
           notes={projectData.notes || []}
           phases={projectData.phases || []}
           activeNote={activeNoteModal}
@@ -1354,7 +1352,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                   
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-mono font-bold text-on-surface-variant bg-surface-low px-2.5 py-1 rounded-lg border border-outline-variant">
-                      {phase.badgeText || '0/0 ERLEDIGT'}
+                      {getPhaseStats(phase).label}
                     </span>
                     <button
                       type="button"
@@ -1430,7 +1428,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
                           )}
                           {task.date && task.date !== 'Geplant: Demnächst' && (
                             <span className="text-[10px] font-mono text-on-surface-variant bg-surface-low px-2 py-0.5 rounded-lg border border-outline-variant flex-shrink-0 hidden sm:inline">
-                              📅 {task.date}
+                              📅 {formatTaskDate(task.date)}
                             </span>
                           )}
                           {((task.note) || (task.links && task.links.length > 0)) && (
@@ -1475,6 +1473,9 @@ const ProjectDetail = ({ setCurrentScreen }) => {
             ORGANISIEREN
           </span>
         </div>
+        {/* End of Read-Only Wrapper: umfasst Kopf, Notizen, Abschnitte und Aufgaben */}
+        </div>
+        </div>
       </div>
 
       {/* --- MODALS --- */}
@@ -1502,17 +1503,18 @@ const ProjectDetail = ({ setCurrentScreen }) => {
               {projectData.history && projectData.history.length > 0 ? (
                 projectData.history.map((item) => (
                   <div key={item.id} className="flex items-start gap-3">
+                    {/* Einträge aus dem DataContext heißen date/title/category/badgeBg, eigene timestamp/text/phase/iconStyle */}
                     <div
-                      className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${item.iconStyle}`}
+                      className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${item.iconStyle || item.badgeBg || ''}`}
                     >
                       <span className="material-symbols-outlined text-[14px]">{item.icon}</span>
                     </div>
                     <div>
                       <span className="text-[10px] sm:text-xs font-mono font-bold text-primary block">
-                        {item.timestamp}
+                        {item.timestamp || item.date}
                       </span>
-                      <p className="text-xs sm:text-sm font-medium">{item.text}</p>
-                      <span className="text-[10px] font-mono text-on-surface-variant">{item.phase}</span>
+                      <p className="text-xs sm:text-sm font-medium">{item.text || item.title}</p>
+                      <span className="text-[10px] font-mono text-on-surface-variant">{item.phase || item.category}</span>
                     </div>
                   </div>
                 ))
@@ -1627,15 +1629,16 @@ const ProjectDetail = ({ setCurrentScreen }) => {
               </div>
 
               <div>
-                <label className="block text-xs font-mono font-bold text-primary mb-1 uppercase">
-                  GEPLANTES DATUM / ZEITRAUM
+                <label htmlFor="new-task-date" className="block text-xs font-mono font-bold text-primary mb-1 uppercase">
+                  FÄLLIG AM (OPTIONAL)
                 </label>
+                {/* Echtes Datum (YYYY-MM-DD): nur so erscheint die Aufgabe auf Home und lässt sich mit dem Kalender abgleichen */}
                 <input
-                  type="text"
+                  id="new-task-date"
+                  type="date"
                   value={newTaskDate}
                   onChange={(e) => setNewTaskDate(e.target.value)}
                   className="w-full border border-outline-variant px-3 py-2 text-xs font-mono focus:border-primary outline-none"
-                  placeholder="z.B. Freitag, 17. Mai"
                 />
               </div>
 
@@ -1765,8 +1768,6 @@ const ProjectDetail = ({ setCurrentScreen }) => {
           </div>
         </div>
       )}
-      {/* End of Read-Only Wrapper */}
-      </div>
 
       {/* Detail Drawers */}
       <TaskDetailDrawer

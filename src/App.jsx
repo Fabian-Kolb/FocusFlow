@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import Sidebar from './components/layout/Sidebar';
 import BottomNav from './components/layout/BottomNav';
 import { ModalProvider, useModal } from './context/ModalContext';
@@ -20,6 +20,10 @@ import ReminderModal from './components/modals/ReminderModal';
 import MoveCategoryModal from './components/modals/MoveCategoryModal';
 import MoveStatusModal from './components/modals/MoveStatusModal';
 import GuestWelcomeModal from './components/modals/GuestWelcomeModal';
+import CommandPalette from './components/ui/CommandPalette';
+import QuickCaptureDialog from './components/ui/QuickCaptureDialog';
+import ShortcutsHelp from './components/ui/ShortcutsHelp';
+import { useGlobalShortcuts } from './hooks/useGlobalShortcuts';
 
 // Screens
 import Dashboard from './components/screens/Dashboard';
@@ -85,8 +89,31 @@ function AppContent() {
   };
 
   const { user } = useAuth();
-  const { firestoreError, clearFirestoreError } = useData();
-  const { openModal } = useModal();
+  const { firestoreError, clearFirestoreError, setSelectedProjectId, setSelectedReminderId } = useData();
+  const { openModal, activeModal } = useModal();
+
+  // Befehlsleiste, Schnellerfassung & Kürzel-Übersicht (PC)
+  const [overlay, setOverlay] = useState(null); // 'palette' | 'capture' | 'shortcuts' | null
+  const closeOverlay = useCallback(() => setOverlay(null), []);
+  const navigateTo = useCallback((screen) => setCurrentScreen(screen), []);
+  const openProject = useCallback((id) => {
+    setSelectedProjectId(id);
+    setCurrentScreen('project-detail');
+  }, [setSelectedProjectId]);
+  const openReminder = useCallback((id) => {
+    setSelectedReminderId(id);
+    setCurrentScreen('reminder-detail');
+  }, [setSelectedReminderId]);
+  const runAction = useCallback((action) => {
+    if (action === 'new-thought') setOverlay('capture');
+    else if (action === 'new-reminder') openModal('reminder');
+    else if (action === 'new-project') openModal('project');
+    else if (action === 'settings') openModal('settings');
+    else if (action === 'shortcuts') setOverlay('shortcuts');
+    // openModal ist nicht memoisiert; Aktionen lesen immer den aktuellen Stand
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
 
   // App-Kurzbefehle (Manifest „shortcuts“): Aktion aus der Start-URL lesen und nach dem Login ausführen
   const [launchAction, setLaunchAction] = useState(() => consumeLaunchAction());
@@ -104,6 +131,14 @@ function AppContent() {
     }
     setLaunchAction(null);
   }, [launchAction, isReady]);
+
+  useGlobalShortcuts({
+    enabled: isReady,
+    isBlocked: () => Boolean(overlay || activeModal || document.querySelector('[aria-modal="true"]')),
+    onOpenPalette: () => setOverlay('palette'),
+    onNavigate: navigateTo,
+    onAction: runAction,
+  });
 
   // Responsive resize handler with rAF throttling and state preservation
   useEffect(() => {
@@ -235,6 +270,20 @@ function AppContent() {
       <MoveCategoryModal />
       <MoveStatusModal />
       <GuestWelcomeModal />
+      <CommandPalette
+        open={overlay === 'palette'}
+        onClose={closeOverlay}
+        onNavigate={navigateTo}
+        onAction={runAction}
+        onOpenProject={openProject}
+        onOpenReminder={openReminder}
+      />
+      <QuickCaptureDialog
+        open={overlay === 'capture'}
+        onClose={closeOverlay}
+        onOpenThoughts={() => setCurrentScreen('inbox')}
+      />
+      <ShortcutsHelp open={overlay === 'shortcuts'} onClose={closeOverlay} />
     </div>
   );
 }

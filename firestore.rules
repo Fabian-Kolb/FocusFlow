@@ -107,8 +107,11 @@ service cloud.firestore {
             'id', 'title', 'description', 'date', 'time', 'category', 'categoryId', 'sortOrder', 'priority',
             'status', 'isPaused', 'inKanban', 'completed', 'notes', 'history', 'createdAt',
             'updatedAt', 'deletedAt', '_type', 'tags', 'dateRange', 'daysRemaining', 'timeElapsed', 'order',
-            'isPinned', 'startDate', 'endDate', 'lastUpdated', 'isCalendarSynced', 'googleEventId'
+            'isPinned', 'startDate', 'endDate', 'lastUpdated', 'isCalendarSynced', 'googleEventId',
+            'recurrence', 'lastCompletedAt'
           ]) &&
+          (!('recurrence' in request.resource.data) || request.resource.data.recurrence == null || (request.resource.data.recurrence is map && request.resource.data.recurrence.size() <= 5)) &&
+          (!('lastCompletedAt' in request.resource.data) || request.resource.data.lastCompletedAt is number) &&
           request.resource.data.title is string &&
           request.resource.data.title.size() > 0 &&
           request.resource.data.title.size() <= 300 &&
@@ -125,8 +128,11 @@ service cloud.firestore {
             'id', 'title', 'description', 'date', 'time', 'category', 'categoryId', 'sortOrder', 'priority',
             'status', 'isPaused', 'inKanban', 'completed', 'notes', 'history', 'createdAt',
             'updatedAt', 'deletedAt', '_type', 'tags', 'dateRange', 'daysRemaining', 'timeElapsed', 'order',
-            'isPinned', 'startDate', 'endDate', 'lastUpdated', 'isCalendarSynced', 'googleEventId'
+            'isPinned', 'startDate', 'endDate', 'lastUpdated', 'isCalendarSynced', 'googleEventId',
+            'recurrence', 'lastCompletedAt'
           ]) &&
+          (!('recurrence' in request.resource.data) || request.resource.data.recurrence == null || (request.resource.data.recurrence is map && request.resource.data.recurrence.size() <= 5)) &&
+          (!('lastCompletedAt' in request.resource.data) || request.resource.data.lastCompletedAt is number) &&
           request.resource.data.title is string &&
           request.resource.data.title.size() > 0 &&
           request.resource.data.title.size() <= 300 &&

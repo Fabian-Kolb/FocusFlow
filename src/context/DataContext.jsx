@@ -3,6 +3,7 @@ import { collection, doc, onSnapshot, setDoc, deleteDoc, writeBatch } from 'fire
 import { db } from '../lib/firebase';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
+import { advanceRecurringReminder, normalizeRecurrence, formatShortDate } from '../lib/recurrence';
 import {
   syncEntityToGoogle,
   desyncEntityFromGoogle,
@@ -884,6 +885,21 @@ export const DataProvider = ({ children }) => {
     if (before) showUndoToast(message, () => saveReminder(before).catch(() => {}), icon);
   };
 
+  // Wiederkehrende Erinnerung erledigen: statt „erledigt“ auf den nächsten Termin springen
+  const completeRecurringReminder = (before) => {
+    const next = before ? advanceRecurringReminder(before) : null;
+    if (!next) return false;
+    mutateReminder(before.id, (rem) => ({
+      ...rem,
+      date: next.date,
+      recurrence: next.recurrence,
+      status: rem.status === 'GEPLANT' ? 'GEPLANT' : 'AKTIV',
+      lastCompletedAt: Date.now()
+    }));
+    offerReminderUndo(before, `Erledigt · nächstes Mal ${formatShortDate(next.date)}`, 'event_repeat');
+    return true;
+  };
+
   const toggleProjectStatus = (projectId) => {
     const before = projects.find(p => p.id === projectId);
     mutateProject(projectId, (proj) => {
@@ -1244,7 +1260,10 @@ export const DataProvider = ({ children }) => {
     if (!user) return null;
     const newId = `r_${Date.now()}`;
     const shouldSyncWithCalendar = Boolean(reminderData.syncWithCalendar || options?.syncWithCalendar);
+    const recurrence = normalizeRecurrence(reminderData.recurrence);
     const newReminder = {
+      // Feld nur setzen, wenn eine Wiederholung gewählt ist
+      ...(recurrence ? { recurrence } : {}),
       id: newId,
       title: reminderData.title,
       description: reminderData.description || '',
@@ -1602,6 +1621,7 @@ export const DataProvider = ({ children }) => {
 
   const toggleReminderStatus = (reminderId) => {
     const before = reminders.find(r => r.id === reminderId);
+    if (before?.status === 'AKTIV' && completeRecurringReminder(before)) return;
     if (before?.status === 'AKTIV') offerReminderUndo(before, 'Erinnerung erledigt');
     mutateReminder(reminderId, (rem) => {
       let nextStatus = 'GEPLANT';
@@ -1613,6 +1633,7 @@ export const DataProvider = ({ children }) => {
 
   const setReminderStatus = (reminderId, newStatus) => {
     const before = reminders.find(r => r.id === reminderId);
+    if (newStatus === 'ABGESCHLOSSEN' && before?.status !== 'ABGESCHLOSSEN' && completeRecurringReminder(before)) return;
     mutateReminder(reminderId, (rem) => ({ ...rem, status: newStatus }));
     if (newStatus === 'ABGESCHLOSSEN' && before?.status !== 'ABGESCHLOSSEN') {
       offerReminderUndo(before, 'Erinnerung erledigt');

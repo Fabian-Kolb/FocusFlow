@@ -4,6 +4,7 @@ import { useModalContext } from '../../context/ModalContext';
 import Card from '../ui/Card';
 import Badge from '../ui/Badge';
 import FioIcon from '../ui/FioIcon';
+import { getProjectStats } from '../../lib/projectProgress';
 
 const FIO_PROMPTS = [
   'Wie kann ich dir helfen?',
@@ -18,27 +19,19 @@ const Dashboard = ({ setCurrentScreen }) => {
   const {
     projects,
     reminders,
-    toggleReminderStatus,
+    setReminderStatus,
     setSelectedReminderId,
     toggleTask,
     setSelectedProjectId,
     openModal
   } = useModalContext();
 
-  // Fio Speech Bubble Animation & Cycling Prompts
+  // Wechselnde Fio-Fragen im Teaser
   const [promptIndex, setPromptIndex] = useState(0);
-  const [isBubbleVisible, setIsBubbleVisible] = useState(true);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      // 1. Weich ausblenden & zum Icon zusammenziehen (500ms)
-      setIsBubbleVisible(false);
-
-      // 2. Text wechseln und danach wieder weich aus dem Icon heraus expandieren
-      setTimeout(() => {
-        setPromptIndex((prev) => (prev + 1) % FIO_PROMPTS.length);
-        setIsBubbleVisible(true);
-      }, 500);
+      setPromptIndex((prev) => (prev + 1) % FIO_PROMPTS.length);
     }, 5500);
 
     return () => clearInterval(interval);
@@ -62,7 +55,7 @@ const Dashboard = ({ setCurrentScreen }) => {
     ? user.displayName.split(' ')[0]
     : user?.email
     ? user.email.split('@')[0]
-    : 'Fabian';
+    : '';
 
   const formattedDate = now.toLocaleDateString('de-DE', {
     weekday: 'long',
@@ -71,7 +64,8 @@ const Dashboard = ({ setCurrentScreen }) => {
     year: 'numeric'
   });
 
-  const todayIso = now.toISOString().split('T')[0];
+  // Lokaler Kalendertag; toISOString() wäre UTC und zeigte kurz nach Mitternacht noch "gestern"
+  const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const todayDe = now.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
   const todayDeShort = now.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
 
@@ -203,6 +197,9 @@ const Dashboard = ({ setCurrentScreen }) => {
     );
   }, [projects]);
 
+  // Live statt gespeicherter Werte (progress/nextStep veralten)
+  const activeProjectStats = activeProject ? getProjectStats(activeProject) : null;
+
   // Focus Score Calculation
   const focusScore = useMemo(() => {
     if (totalCount === 0 && projects.length === 0) return 84; // Fallback score
@@ -216,7 +213,8 @@ const Dashboard = ({ setCurrentScreen }) => {
   // Handlers
   const handleToggleItem = (item) => {
     if (item.sourceType === 'reminder') {
-      toggleReminderStatus(item.id);
+      // Direkt erledigen bzw. wieder öffnen (nicht Geplant → Aktiv durchschalten); Wiederholungen springen weiter
+      setReminderStatus(item.id, item.completed ? 'AKTIV' : 'ABGESCHLOSSEN');
     } else if (item.sourceType === 'project-task') {
       toggleTask(item.projectId, item.phaseId, item.id);
     }
@@ -242,7 +240,7 @@ const Dashboard = ({ setCurrentScreen }) => {
             {formattedDate} • Fokus-Modus
           </span>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold leading-tight">
-            {greeting}, {userName}
+            {greeting}{userName ? `, ${userName}` : ''}
           </h1>
         </div>
 
@@ -456,16 +454,18 @@ const Dashboard = ({ setCurrentScreen }) => {
               </h3>
               <p className="text-base font-bold mb-1 truncate">{activeProject.title}</p>
               <p className="text-xs text-on-surface-variant mb-3 truncate">
-                {activeProject.nextStep || 'Projektübersicht öffnen'}
+                {activeProjectStats.nextTask
+                  ? `Als Nächstes: ${activeProjectStats.nextTask.task.title}`
+                  : 'Projektübersicht öffnen'}
               </p>
               <div className="flex justify-between text-xs mono mb-1.5 font-bold">
                 <span>Fortschritt</span>
-                <span>{activeProject.progress || 0}%</span>
+                <span>{activeProjectStats.progress}%</span>
               </div>
               <div className="w-full bg-surface-low h-2 border border-outline-variant rounded-full overflow-hidden">
                 <div
                   className="bg-primary h-full rounded-full transition-all duration-500"
-                  style={{ width: `${activeProject.progress || 0}%` }}
+                  style={{ width: `${activeProjectStats.progress}%` }}
                 ></div>
               </div>
             </Card>

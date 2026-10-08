@@ -18,7 +18,10 @@ export default defineConfig({
       'tests/reminder_dates.test.js',
       'tests/calendar_ui.test.jsx',
       'tests/calendar_utils.test.js',
-      'tests/calendar_events_hook.test.jsx'
+      'tests/calendar_events_hook.test.jsx',
+      'tests/recurrence.test.js',
+      'tests/command_search.test.js',
+      'tests/project_progress.test.js'
     ]
   }
 });

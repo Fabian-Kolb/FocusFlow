@@ -4,6 +4,7 @@ import NotesSection from '../ui/NotesSection';
 import GlobalChatDrawer from '../ui/GlobalChatDrawer';
 import FioIcon from '../ui/FioIcon';
 import CalendarDesyncModal from '../modals/CalendarDesyncModal';
+import { RECURRENCE_OPTIONS, getRecurrenceOptionId, formatRecurrence, toIsoDate } from '../../lib/recurrence';
 
 const ReminderDetail = ({ setCurrentScreen }) => {
   const {
@@ -72,6 +73,18 @@ const ReminderDetail = ({ setCurrentScreen }) => {
       }));
     }
     setIsEditingDates(false);
+  };
+
+  const handleRecurrenceChange = (optionId) => {
+    if (!mutateReminder || !reminder || optionId === 'custom') return;
+    const value = RECURRENCE_OPTIONS.find((o) => o.id === optionId)?.value || null;
+    mutateReminder(reminder.id, (rem) => {
+      // Feld ganz entfernen statt null speichern (setDoc ersetzt das Dokument)
+      const { recurrence: _old, ...rest } = rem;
+      if (!value) return rest;
+      const hasFixedDate = /^\d{4}-\d{2}-\d{2}$/.test(rem.date || '');
+      return { ...rest, recurrence: value, date: hasFixedDate ? rem.date : toIsoDate(new Date()) };
+    });
   };
 
   const isSyncing = Boolean(reminder && isEntitySyncing && isEntitySyncing(reminder.id));
@@ -407,6 +420,27 @@ const ReminderDetail = ({ setCurrentScreen }) => {
                 )}
               </div>
             </div>
+
+            {!isTrashed && (() => {
+              const optionId = getRecurrenceOptionId(reminder.recurrence);
+              return (
+                <label className="flex items-center gap-2 text-xs text-on-surface-variant">
+                  <span className="material-symbols-outlined text-[16px]">event_repeat</span>
+                  <span className="font-mono font-bold uppercase text-primary">Wiederholen</span>
+                  <select
+                    aria-label="Wiederholung"
+                    className="ml-auto border border-outline-variant rounded-lg px-2 py-1 text-xs bg-white outline-none focus:border-primary cursor-pointer"
+                    value={optionId ?? 'custom'}
+                    onChange={(e) => handleRecurrenceChange(e.target.value)}
+                  >
+                    {optionId === null && <option value="custom">{formatRecurrence(reminder.recurrence)}</option>}
+                    {RECURRENCE_OPTIONS.map((o) => (
+                      <option key={o.id} value={o.id}>{o.label}</option>
+                    ))}
+                  </select>
+                </label>
+              );
+            })()}
 
             <div className="space-y-2">
               <div>

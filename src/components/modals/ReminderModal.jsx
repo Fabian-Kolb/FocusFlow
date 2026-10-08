@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { RECURRENCE_OPTIONS, getRecurrenceOptionId, toIsoDate } from '../../lib/recurrence';
 import { useModalContext } from '../../context/ModalContext';
 import { generateReminderStructure } from '../../lib/gemini';
 import FioIcon from '../ui/FioIcon';
@@ -13,6 +14,7 @@ const ReminderModal = ({ setCurrentScreen }) => {
   const [description, setDescription] = useState('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
+  const [recurrenceId, setRecurrenceId] = useState('none');
   const [status, setStatus] = useState('GEPLANT');
   const [syncWithCalendar, setSyncWithCalendar] = useState(false);
   const [categoryId, setCategoryId] = useState('allgemein');
@@ -26,6 +28,7 @@ const ReminderModal = ({ setCurrentScreen }) => {
       setDescription(modalPayload.prefillDescription || '');
       setDate(modalPayload.date || '');
       setTime(modalPayload.time || '');
+      setRecurrenceId(getRecurrenceOptionId(modalPayload.recurrence) || 'none');
       setStatus(modalPayload.status || 'GEPLANT');
       setSyncWithCalendar(false);
       setKeepThought(false);
@@ -59,8 +62,10 @@ const ReminderModal = ({ setCurrentScreen }) => {
     addReminder({
       title: title.trim(),
       description: description.trim(),
-      date,
+      // Wiederholung ohne Datum beginnt heute
+      date: date || (recurrenceId !== 'none' ? toIsoDate(new Date()) : ''),
       time,
+      recurrence: RECURRENCE_OPTIONS.find((o) => o.id === recurrenceId)?.value || null,
       status,
       categoryId,
       inboxItemId: modalPayload.inboxItemId,
@@ -199,6 +204,27 @@ const ReminderModal = ({ setCurrentScreen }) => {
                   value={time}
                   onChange={(e) => setTime(e.target.value)}
                 />
+              </div>
+              <div className="sm:col-span-2">
+                <label htmlFor="reminder-recurrence" className="block text-xs font-mono font-bold text-primary mb-1.5 uppercase tracking-wide">
+                  Wiederholen
+                </label>
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant pointer-events-none">event_repeat</span>
+                  <select
+                    id="reminder-recurrence"
+                    className="w-full border-2 border-outline-variant rounded-xl pl-10 pr-4 py-2.5 text-sm focus:border-primary outline-none transition-colors bg-white cursor-pointer"
+                    value={recurrenceId}
+                    onChange={(e) => setRecurrenceId(e.target.value)}
+                  >
+                    {RECURRENCE_OPTIONS.map((o) => (
+                      <option key={o.id} value={o.id}>{o.label}</option>
+                    ))}
+                  </select>
+                </div>
+                {recurrenceId !== 'none' && !date && (
+                  <p className="mt-1.5 text-[11px] text-on-surface-variant">Ohne Datum beginnt die Wiederholung heute.</p>
+                )}
               </div>
             </div>
 

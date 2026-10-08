@@ -162,7 +162,8 @@ const ProjectAiChat = ({
           aufgabeTitel: contextData.task?.title,
           erledigt: !!contextData.task?.completed,
           termin: contextData.task?.date || 'Kein Termin',
-          details: contextData.task?.notes || contextData.task?.description || ''
+          // Aufgaben speichern ihre Notiz im Feld `note`
+          details: contextData.task?.note || contextData.task?.notes || contextData.task?.description || ''
         };
       } else if (contextScope === 'section' && contextData) {
         contextSummary.aktiverFokus = {
@@ -523,9 +524,11 @@ REGELN:
             <span className="font-bold text-on-surface truncate">
               {contextScope === 'reminder'
                 ? `Erinnerung: ${contextData?.title || 'Aktive Erinnerung'}`
-                : contextScope === 'task' 
-                ? `Aufgabe: ${contextData?.task?.title || 'Aktive Aufgabe'}` 
-                : `Abschnitt: ${contextData?.title || 'Aktiver Abschnitt'}`}
+                : contextScope === 'task'
+                ? `Aufgabe: ${contextData?.task?.title || 'Aktive Aufgabe'}`
+                : contextScope === 'section'
+                ? `Abschnitt: ${contextData?.title || 'Aktiver Abschnitt'}`
+                : `Projekt: ${projectData?.title || 'Aktives Projekt'}`}
             </span>
           </div>
           <span className="text-[10px] text-primary/80 uppercase font-bold tracking-wider shrink-0 bg-primary/5 px-2 py-0.5 rounded border border-primary/20">

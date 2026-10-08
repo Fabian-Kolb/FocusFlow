@@ -54,3 +54,56 @@
 - Dev-Server (Vite) verpasst auf Windows teils Dateiänderungen: Datei `touch`en oder neu starten.
 - React-StrictMode bricht beim Start Anfragen ab (Cleanup in `Coach.jsx`): Entwurfs-Start läuft verzögert per `setTimeout`.
 - `useCategoryDrag` bleibt im Repo (Tests lesen die Quelle), `useCardTouchDrag` nutzt weiter das Status-Kanban-Board.
+
+---
+
+## Nachtrag 2026-10-09 (Claude Code): Release-Vorbereitung & UX-Paket
+
+**Kontext:** Die App ist nur auf Einladung nutzbar: Fabian plus Freunde, die er per Whitelist in Firebase freischaltet. Keine öffentliche Registrierung. Push-Benachrichtigungen sind bewusst zurückgestellt.
+
+### Getan
+- **Stabilität & Recht:** Error Boundary (App + Screen-Bereich), Impressum/Datenschutz unter `/impressum` und `/datenschutz` (Betreiberdaten in `src/lib/legal.js` sind noch Platzhalter), „Konto löschen“ in Einstellungen → Mein Account (`deleteAccount` in `AuthContext`).
+- **Performance:** Code-Splitting der großen Screens in `App.jsx` (`lazy` + `Suspense`).
+- **PWA & Offline:** `public/manifest.webmanifest`, `public/sw.js` (nur im Build), Icons in `public/icons/` (Platzhalter „FF“), Firestore `persistentLocalCache`. App-Kurzbefehle „Gedanken einsprechen“ und „Neue Erinnerung“ (`src/lib/launchAction.js`).
+- **Rückgängig-Toast:** `src/context/ToastContext.jsx`; `DataContext` bietet Rückgängig bei Löschen, Erledigen und Kategorie verschieben. Die `confirm()`-Rückfragen in den Karten-Menüs sind entfernt.
+- **Wischgesten:** `src/components/ui/SwipeableCard.jsx` in `Reminders.jsx` und `Projects.jsx` (rechts erledigt, links Papierkorb).
+- **Wiederkehrende Erinnerungen:** `src/lib/recurrence.js`, Auswahl im `ReminderModal` und in `ReminderDetail`, Symbol auf der Karte; beim Erledigen geht es auf den nächsten Termin. `firestore.rules` erlaubt jetzt `recurrence` und `lastCompletedAt`.
+- **PC:** Befehlsleiste (`Strg+K` / `/`), Tastenkürzel (`n`, `e`, `p`, `,`, `?`, `g`+Buchstabe), Schnellerfassung. Siehe `src/lib/appCommands.js`, `src/hooks/useGlobalShortcuts.js`, `src/components/ui/{CommandPalette,QuickCaptureDialog,ShortcutsHelp}.jsx`.
+
+### Tests & Build
+- `npx vitest run`: 149/150. Rot ist nur der zeitabhängig wackelige `tests/calendar_events_hook.test.jsx`, jedes Mal ein anderer Fall; einzeln dreimal grün. Neu: `tests/recurrence.test.js` (12), `tests/command_search.test.js` (6).
+- `node tests/firestore_security.test.js` 16/16, `node tests/calendar_security.test.js` 20/20, `node scripts/run-e2e-tests.js` 141/142. Rot ist T2-CAL-04: Der Test erwartet `p-4`/`sm:p-6` in `Calendar.jsx`, das ist seit dem Kalender-Refactor weg.
+- `vite build` ok. Im Browser geprüft (Gast-Modus, Dev und `vite preview`): Service Worker aktiv, Offline-Start, beide Kurzbefehle, Toast + Rückgängig (Desktop + Handy), Wischen (simulierte Touch-Events), Wiederholung, Befehlsleiste, Kürzel, Schnellerfassung.
+
+### Offen / Next Steps
+1. **[Prio 1] `npm run deploy:rules`.** Ohne den Deploy scheitert das Speichern wiederkehrender Erinnerungen für angemeldete Nutzer.
+2. Echte Betreiberangaben in `src/lib/legal.js`.
+3. Am echten Android-Handy testen: PWA installieren, Kurzbefehle, Wischgesten, Mikrofon-Start per Kurzbefehl (ohne Nutzergeste kann der Browser das Mikrofon verweigern; dann bleibt das Eingabefeld fokussiert).
+4. Push-Benachrichtigungen (später): Empfehlung kostenloser externer Cron (cron-job.org) → Vercel-Endpunkt → Web-Push, der Service Worker ist dafür schon da.
+5. Fio kennt `recurrence` noch nicht; T2-CAL-04 anpassen; wackeligen Kalender-Hook-Test stabilisieren.
+
+### Fallstricke
+- Neue Felder an Firestore-Dokumenten nur setzen, wenn sie einen Wert haben. `firestore.rules` arbeitet mit `hasOnly`, unbekannte Schlüssel (auch mit `null`) werden abgelehnt, solange die Regeln nicht deployt sind.
+- Rückgängig bei gelöschten Elementen nicht über `mutateProject`/`mutateReminder`: Die finden gelöschte Einträge nicht mehr (sie liegen in `trashed…`). Den gemerkten Stand per `saveProject`/`saveReminder` zurückschreiben.
+- Der Service Worker läuft nur im Build. Zum Testen die Launch-Konfiguration „preview“ nutzen (`vite preview`, Port 4173).
+
+---
+
+## Nachtrag 2026-10-09 (Claude Code, Sitzung „UI/UX Verbesserung Produktivitäts-Tabs“): UX-Plan + Phase 1 Bugfixes
+
+### Getan
+- **UX-Plan für alle Tabs** (7 Phasen + „Zum Besprechen“) liegt außerhalb des Repos in `~/.claude/plans/delegated-stargazing-garden.md`. Leitplanke des Nutzers: Bestehendes ausbauen; Fokus-Timer, Push und externe Dienste nur nach Rücksprache.
+- **Live-Kennzahlen für Projekte:** neu `src/lib/projectProgress.js`. `ProjectDetail.jsx` und das Home-Widget lesen keine gespeicherten `badgeText`/`progress`/`timeElapsed`/`daysRemaining`/`nextStep` mehr (zeigten „0/0 ERLEDIGT“, 25 % verstrichene Zeit bei abgelaufenem Projekt).
+- **`ProjectDetail.jsx`:** Papierkorb-Schreibschutz umfasst die ganze Arbeitsfläche, kein Rückfall auf `contextProjects[0]`, Abschnitt-Beschreibung gespeichert, keine Fantasie-Daten, „IN ARBEIT“ = AKTIV, Aufgaben-Datum als `type="date"`, Verlauf mit echtem Zeitstempel (max. 100, nur Erledigtes), Verlaufsfenster liest beide Eintragsformate.
+- **`Dashboard.jsx`:** Häkchen nutzt `setReminderStatus` (vorher Geplant→Aktiv), lokales `todayIso`, totes Sprechblasen-Intervall entfernt, kein „Fabian“-Fallback.
+- **`Inbox.jsx`:** Speichern mit `try/finally` + Fehler-Toast (Feld blieb nach Fehler gesperrt).
+- **`ProjectAiChat.jsx`:** Aufgaben-Notiz (`note`) geht an Fio; Kopfzeile zeigt im Projekt-Fokus „Projekt: …“.
+
+### Tests & Build
+- `npx vitest run`: 13 Dateien, 165 Tests grün (neu: `tests/project_progress.test.js`, in `vitest.config.js` eingetragen). `vite build` ok, `oxlint` ohne neue Warnungen.
+- Browser (Gast, 400 px): Abschnitt-Zähler, Frist „9 TAGE ÜBERFÄLLIG“, Status-Markierung, Home-Häkchen mit Undo-Toast geprüft.
+
+### Next Steps
+1. Projekt-Karten (`ItemCardContent.jsx`) auf `getProjectStats` umstellen, sobald die Parallel-Sitzung ihre Änderungen dort committet hat.
+2. Erinnerungs-Beschreibung in `ReminderDetail.jsx` anzeigen (gleicher Grund).
+3. Weiter mit Plan Phase 2 (Fundament: Tailwind-Klassen, Datums-Helfer, Checkbox/EmptyState/Dialog-Bausteine).

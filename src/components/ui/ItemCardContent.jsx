@@ -1,6 +1,7 @@
 import React from 'react';
 import { SectionIcon, TaskIcon } from './ItemIcons';
 import { getReminderDateInfo } from '../../lib/reminderDates';
+import { formatRecurrence } from '../../lib/recurrence';
 
 // Gemeinsamer Karteninhalt für Projekte und Erinnerungen.
 // Wird in der Projekt-/Erinnerungsübersicht und im Kanban-Board genutzt, damit alle drei Stellen
@@ -181,6 +182,7 @@ export function ReminderCardContent({ reminder, menu, onToggleStatus, onToggleDo
   const done = reminder.status === 'ABGESCHLOSSEN';
   const info = getReminderDateInfo(reminder);
   const elapsed = info.timeElapsed ?? 0;
+  const recurrenceLabel = formatRecurrence(reminder.recurrence);
   return (
     <>
       <CardHeader
@@ -189,6 +191,11 @@ export function ReminderCardContent({ reminder, menu, onToggleStatus, onToggleDo
         done={done}
         dateContent={
           <>
+            {recurrenceLabel && (
+              <span className="material-symbols-outlined text-[13px] shrink-0" title={`Wiederholt sich: ${recurrenceLabel}`} aria-label={`Wiederholt sich: ${recurrenceLabel}`}>
+                event_repeat
+              </span>
+            )}
             <span className="truncate">{info.dateLabel}</span>
             {info.relativeLabel && !done && (
               <span className={`shrink-0 px-1.5 rounded border font-bold ${URGENCY_STYLES[info.urgency]}`}>

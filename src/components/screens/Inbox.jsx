@@ -4,6 +4,7 @@ import { ensureBulletPoints } from '../../lib/gemini';
 import { buildThought } from '../../lib/thoughts';
 import { buildDraftSource, initialDraftFromThought } from '../../lib/projectDraft';
 import { useChat } from '../../context/ChatContext';
+import { useToast } from '../../context/ToastContext';
 import { useSpeechInput } from '../../hooks/useSpeechInput';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
@@ -145,6 +146,7 @@ function ManualMenu({ item, projects, reminders, onConvert, onAttach }) {
 const Inbox = ({ setCurrentScreen, autoStartVoice = false, onAutoStartConsumed }) => {
   const { inboxItems, addInboxItem, deleteInboxItem, openModal, projects, mutateProject, reminders, mutateReminder } = useModalContext();
   const { createDraftSession } = useChat();
+  const { showToast } = useToast();
   const [inputValue, setInputValue] = useState('');
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [expandedItems, setExpandedItems] = useState({});
@@ -209,10 +211,18 @@ const Inbox = ({ setCurrentScreen, autoStartVoice = false, onAutoStartConsumed }
     if (!text || isSummarizing) return;
     stopListening();
     setIsSummarizing(true);
-    const thought = await buildThought(text, { summarize: isSummaryEnabled, model: activeModel, length: summaryLength });
-    await addInboxItem(thought);
-    setIsSummarizing(false);
-    setInputValue('');
+    try {
+      const thought = await buildThought(text, { summarize: isSummaryEnabled, model: activeModel, length: summaryLength });
+      await addInboxItem(thought);
+      setInputValue('');
+    } catch (err) {
+      console.error('Gedanke konnte nicht gespeichert werden:', err);
+      // Text bleibt im Feld, damit nichts verloren geht
+      showToast({ message: 'Gedanke konnte nicht gespeichert werden. Dein Text ist noch da.', icon: 'error' });
+    } finally {
+      // Sonst bliebe das Feld nach einem Fehler dauerhaft gesperrt
+      setIsSummarizing(false);
+    }
   };
 
   const handleKeyDown = (e) => {
