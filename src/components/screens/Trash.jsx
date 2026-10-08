@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useModalContext } from '../../context/ModalContext';
 import Card from '../ui/Card';
 import Input from '../ui/Input';
+import { useConfirm } from '../../context/ConfirmContext';
 
 const Trash = ({ setCurrentScreen }) => {
   const { 
@@ -12,6 +13,7 @@ const Trash = ({ setCurrentScreen }) => {
     setSelectedReminderId
   } = useModalContext();
 
+  const confirm = useConfirm();
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredItems = trashItems.filter(item => 
@@ -122,11 +124,15 @@ const Trash = ({ setCurrentScreen }) => {
                     Wiederherstellen
                   </button>
                   <button
-                    onClick={(e) => {
+                    onClick={async (e) => {
                       e.stopPropagation();
-                      if (window.confirm('Dieses Element wird unwiderruflich gelöscht. Fortfahren?')) {
-                        permanentlyDeleteItem(item.id, item._type);
-                      }
+                      const ok = await confirm({
+                        title: 'Endgültig löschen?',
+                        message: 'Dieses Element wird unwiderruflich gelöscht.',
+                        confirmLabel: 'Endgültig löschen',
+                        destructive: true,
+                      });
+                      if (ok) permanentlyDeleteItem(item.id, item._type);
                     }}
                     className="inline-flex items-center justify-center w-9 h-9 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg transition-colors cursor-pointer"
                     title="Endgültig löschen"

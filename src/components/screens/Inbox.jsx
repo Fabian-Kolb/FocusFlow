@@ -3,20 +3,29 @@ import { useModalContext } from '../../context/ModalContext';
 import { ensureBulletPoints } from '../../lib/gemini';
 import { buildThought } from '../../lib/thoughts';
 import { buildDraftSource, initialDraftFromThought } from '../../lib/projectDraft';
+import { areaOf } from '../../lib/areas';
 import { useChat } from '../../context/ChatContext';
 import { useToast } from '../../context/ToastContext';
 import { useSpeechInput } from '../../hooks/useSpeechInput';
+import { usePersistedChoice } from '../../hooks/usePersistedChoice';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import Card from '../ui/Card';
+import Badge from '../ui/Badge';
 import Button from '../ui/Button';
-import ModelSelectorDropdown from '../ui/ModelSelectorDropdown';
-import SummaryLengthDropdown from '../ui/SummaryLengthDropdown';
+import EmptyState from '../ui/EmptyState';
+import SwipeableCard from '../ui/SwipeableCard';
+import ThoughtAiChip from '../ui/ThoughtAiChip';
+import { AI_MODELS } from '../ui/ModelSelectorDropdown';
+import { SUMMARY_LENGTH_OPTIONS } from '../ui/SummaryLengthDropdown';
 
 // Gedanken (intern weiterhin "inbox" / Firestore-Collection `inboxItems`):
 // schnell festhalten ohne Zuordnung, später manuell oder mit Fio in Projekte/Erinnerungen überführen.
+// Aufbau: Die Eingabe ist das Wichtigste. Am Handy sitzt sie fest unten in der Daumenzone (sticky),
+// am Desktop steht sie oben. Löschen: Wischen (Handy), Hover-Icon / Rechtsklick / Entf (Desktop),
+// Mehrfachauswahl per Langdruck bzw. Menü. Alles rückholbar über den Rückgängig-Toast.
 
 const escapeHtml = (text) => text
   .replace(/&/g, '&amp;')
@@ -24,6 +33,9 @@ const escapeHtml = (text) => text
   .replace(/>/g, '&gt;')
   .replace(/"/g, '&quot;')
   .replace(/'/g, '&#039;');
+
+const LONG_PRESS_MS = 480;
+const LONG_PRESS_MOVE_PX = 8;
 
 /** Notiz-Inhalt aus einem Gedanken (Zusammenfassung + Originaltext), für "An … anhängen" */
 function thoughtToNote(item) {
@@ -43,19 +55,19 @@ function thoughtToNote(item) {
   };
 }
 
-/** "Manuell ▾": Gedanke von Hand umwandeln oder an Bestehendes anhängen */
-function ManualMenu({ item, projects, reminders, onConvert, onAttach }) {
-  const [open, setOpen] = useState(false);
+/** Eine Aktion pro Karte: „Weiterverarbeiten“ öffnet dieses Menü (auch per Rechtsklick auf die Karte) */
+function ThoughtMenu({ item, open, onOpenChange, projects, reminders, onElaborate, onConvert, onAttach, onSelect, onDelete }) {
   const [view, setView] = useState('main'); // 'main' | 'project' | 'reminder'
   const menuRef = useRef(null);
 
   useEffect(() => {
     if (!open) return undefined;
+    setView('main');
     const onDown = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) setOpen(false);
+      if (menuRef.current && !menuRef.current.contains(e.target)) onOpenChange(false);
     };
     const onKey = (e) => {
-      if (e.key === 'Escape') setOpen(false);
+      if (e.key === 'Escape') onOpenChange(false);
     };
     document.addEventListener('mousedown', onDown);
     document.addEventListener('touchstart', onDown);
@@ -67,34 +79,36 @@ function ManualMenu({ item, projects, reminders, onConvert, onAttach }) {
     };
   }, [open]);
 
-  const row = 'w-full min-h-[40px] px-3 py-2 flex items-center gap-2.5 rounded-lg text-sm font-semibold text-left text-primary hover:bg-surface-low transition-colors cursor-pointer';
+  const row = 'w-full min-h-[44px] sm:min-h-[40px] px-3 py-2 flex items-center gap-2.5 rounded-lg text-sm font-medium text-left text-primary hover:bg-surface-low transition-colors cursor-pointer';
   const targets = view === 'project' ? projects : reminders;
+  const close = () => onOpenChange(false);
 
   return (
     <div ref={menuRef} className="relative">
-      <button
-        type="button"
-        onClick={() => {
-          setOpen((o) => !o);
-          setView('main');
-        }}
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={() => onOpenChange(!open)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="h-9 px-3 flex items-center gap-1 rounded-lg border border-outline-variant bg-white text-xs font-bold text-primary hover:border-primary transition-colors cursor-pointer"
       >
-        Manuell
-        <span className="material-symbols-outlined text-[18px]">expand_more</span>
-      </button>
+        Weiterverarbeiten
+        <span className="material-symbols-outlined text-[18px]" aria-hidden="true">expand_more</span>
+      </Button>
 
       {open && (
-        <div role="menu" className="absolute right-0 top-full mt-1 z-30 w-64 max-h-80 overflow-y-auto bg-white border border-outline-variant rounded-xl shadow-xl p-1.5">
+        <div role="menu" className="absolute right-0 top-full mt-1 z-30 w-72 max-h-80 overflow-y-auto bg-white border border-outline-variant rounded-xl shadow-raised p-1.5">
           {view === 'main' ? (
             <>
-              <button type="button" role="menuitem" className={row} onClick={() => { setOpen(false); onConvert(item, 'reminder'); }}>
+              <button type="button" role="menuitem" className={`${row} font-semibold`} onClick={() => { close(); onElaborate(item); }}>
+                <span className="material-symbols-outlined text-[20px]">auto_awesome</span>
+                Mit Fio ausarbeiten
+              </button>
+              <button type="button" role="menuitem" className={row} onClick={() => { close(); onConvert(item, 'reminder'); }}>
                 <span className="material-symbols-outlined text-[20px]">notifications</span>
                 Als neue Erinnerung
               </button>
-              <button type="button" role="menuitem" className={row} onClick={() => { setOpen(false); onConvert(item, 'project'); }}>
+              <button type="button" role="menuitem" className={row} onClick={() => { close(); onConvert(item, 'project'); }}>
                 <span className="material-symbols-outlined text-[20px]">create_new_folder</span>
                 Als neues Projekt
               </button>
@@ -108,6 +122,15 @@ function ManualMenu({ item, projects, reminders, onConvert, onAttach }) {
                 <span className="material-symbols-outlined text-[20px]">add_alert</span>
                 <span className="flex-1">An Erinnerung anhängen</span>
                 <span className="material-symbols-outlined text-[18px] text-on-surface-variant">chevron_right</span>
+              </button>
+              <div className="h-px bg-outline-variant my-1" />
+              <button type="button" role="menuitem" className={row} onClick={() => { close(); onSelect(item.id); }}>
+                <span className="material-symbols-outlined text-[20px]">check_circle</span>
+                Auswählen
+              </button>
+              <button type="button" role="menuitem" className={`${row} text-danger hover:bg-danger-soft`} onClick={() => { close(); onDelete(item.id); }}>
+                <span className="material-symbols-outlined text-[20px]">delete</span>
+                In den Papierkorb
               </button>
             </>
           ) : (
@@ -127,7 +150,7 @@ function ManualMenu({ item, projects, reminders, onConvert, onAttach }) {
                   role="menuitem"
                   className={row}
                   onClick={() => {
-                    setOpen(false);
+                    close();
                     onAttach(item, view, t.id);
                   }}
                 >
@@ -143,19 +166,56 @@ function ManualMenu({ item, projects, reminders, onConvert, onAttach }) {
   );
 }
 
+// Zum Vergleichen: Markdown-Zeichen und Leerraum entfernen
+const flat = (text) => String(text || '').replace(/[-*+#_`]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+
+const stripMd = (text) => String(text || '')
+  .replace(/^\s*(?:[-*+]\s+|#{1,6}\s*)/, '')
+  .replace(/[*_`]/g, '')
+  .trim();
+
+/**
+ * Titel und Inhalt eines Gedankens trennen: Der Titel ist das Wichtigste und steht groß oben,
+ * der Rest der Zusammenfassung darunter. Ist die erste Zeile der Zusammenfassung nur der Titel
+ * (Überschrift oder gleicher Text), wird sie nicht doppelt gezeigt.
+ */
+function splitThought(item) {
+  const summary = ensureBulletPoints(item.summary || item.title || '');
+  const lines = String(summary).split('\n');
+  const firstRaw = lines[0] || '';
+  const first = stripMd(firstRaw);
+  const rawTitle = stripMd(item.title) || first || 'Gedanke';
+  const isHeading = /^\s*#{1,6}\s/.test(firstRaw);
+  const a = first.toLowerCase();
+  const b = rawTitle.toLowerCase();
+  const same = Boolean(first) && (isHeading || a.startsWith(b.slice(0, 30)) || b.startsWith(a.slice(0, 30)));
+  const body = (same ? lines.slice(1) : lines).join('\n').trim();
+  // Wurde der Titel bei 40 Zeichen abgeschnitten, ist die ganze erste Zeile der bessere Titel
+  const title = same && !isHeading && first.length > rawTitle.length ? first : rawTitle;
+  return { title, body };
+}
+
 const Inbox = ({ setCurrentScreen, autoStartVoice = false, onAutoStartConsumed }) => {
-  const { inboxItems, addInboxItem, deleteInboxItem, openModal, projects, mutateProject, reminders, mutateReminder } = useModalContext();
+  const { inboxItems, addInboxItem, deleteInboxItem, deleteInboxItems, openModal, projects, mutateProject, reminders, mutateReminder } = useModalContext();
   const { createDraftSession } = useChat();
   const { showToast } = useToast();
+  const area = areaOf('inbox');
+
   const [inputValue, setInputValue] = useState('');
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [expandedItems, setExpandedItems] = useState({});
-  const [activeModel, setActiveModel] = useState('eco');
-  const [summaryLength, setSummaryLength] = useState('normal');
-  const [isSummaryEnabled, setIsSummaryEnabled] = useState(true);
   const [showAllOlder, setShowAllOlder] = useState(false);
-  const [isDeleteMode, setIsDeleteMode] = useState(false);
   const [isOlderExpandedManually, setIsOlderExpandedManually] = useState(null);
+  const [menuFor, setMenuFor] = useState(null);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
+
+  // KI-Einstellungen werden gemerkt, damit man sie nicht bei jedem Gedanken neu wählt
+  const [summaryFlag, setSummaryFlag] = usePersistedChoice('focusflow_thought_ai', ['on', 'off'], 'on');
+  const [summaryLength, setSummaryLength] = usePersistedChoice('focusflow_thought_length', SUMMARY_LENGTH_OPTIONS.map((o) => o.id), 'normal');
+  const [activeModel, setActiveModel] = usePersistedChoice('focusflow_thought_model', AI_MODELS.map((m) => m.id), 'eco');
+  const isSummaryEnabled = summaryFlag === 'on';
+
   const { isListening, toggle: toggleListening, stop: stopListening } = useSpeechInput(inputValue, setInputValue);
 
   const activeProjects = projects.filter((p) => !p.deletedAt);
@@ -186,7 +246,7 @@ const Inbox = ({ setCurrentScreen, autoStartVoice = false, onAutoStartConsumed }
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 250)}px`;
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
     }
   }, [inputValue]);
 
@@ -200,6 +260,16 @@ const Inbox = ({ setCurrentScreen, autoStartVoice = false, onAutoStartConsumed }
     textareaRef.current?.focus();
     if (!isListening) toggleListening();
   }, [autoStartVoice]);
+
+  // Esc beendet die Mehrfachauswahl
+  useEffect(() => {
+    if (!selectMode) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape') exitSelectMode();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectMode]);
 
   const toggleExpand = (id) => {
     setExpandedItems((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -280,8 +350,55 @@ const Inbox = ({ setCurrentScreen, autoStartVoice = false, onAutoStartConsumed }
     deleteInboxItem(item.id);
   };
 
+  // --- Mehrfachauswahl ---
+  const enterSelectMode = (id) => {
+    setSelectMode(true);
+    setSelectedIds(id ? [id] : []);
+  };
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setSelectedIds([]);
+  };
+  const toggleSelected = (id) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+  const deleteSelected = async () => {
+    const ids = selectedIds;
+    exitSelectMode();
+    await deleteInboxItems(ids);
+  };
+
+  // Langdruck startet am Handy die Mehrfachauswahl (Bewegung > 8 px = Wischen, kein Langdruck)
+  const pressRef = useRef({ timer: null, x: 0, y: 0 });
+  const startPress = (e, id) => {
+    if (selectMode) return;
+    const t = e.touches[0];
+    pressRef.current.x = t.clientX;
+    pressRef.current.y = t.clientY;
+    clearTimeout(pressRef.current.timer);
+    pressRef.current.timer = setTimeout(() => {
+      navigator.vibrate?.(15);
+      enterSelectMode(id);
+    }, LONG_PRESS_MS);
+  };
+  const movePress = (e) => {
+    const t = e.touches[0];
+    if (Math.hypot(t.clientX - pressRef.current.x, t.clientY - pressRef.current.y) > LONG_PRESS_MOVE_PX) {
+      clearTimeout(pressRef.current.timer);
+    }
+  };
+  const endPress = () => clearTimeout(pressRef.current.timer);
+
   const renderItemCard = (item, isOlder = false) => {
     const isExpanded = !!expandedItems[item.id];
+    const isSelected = selectedIds.includes(item.id);
+    const { title, body } = splitThought(item);
+    // Original nur anbieten, wenn es sich vom Gezeigten unterscheidet
+    const hasOriginal = Boolean(item.cleanText)
+      || Boolean(item.originalText && flat(item.originalText) !== flat(item.summary) && flat(item.originalText) !== flat(item.title));
+    const longBody = body.length > 170 || body.split('\n').length > 4;
+    const titleLong = title.length > 90;
+    const canExpand = longBody || hasOriginal || titleLong;
 
     const createdTimestamp = item.createdAt || parseInt((item.id || '').replace('i_', '')) || Date.now();
     const createdDateObj = new Date(createdTimestamp);
@@ -321,298 +438,347 @@ const Inbox = ({ setCurrentScreen, autoStartVoice = false, onAutoStartConsumed }
     }
 
     return (
-      <Card
+      <SwipeableCard
         key={item.id}
-        padding="small"
-        className={`flex flex-col gap-2 group hover:border-primary transition-all ${isOlder ? 'opacity-85' : ''}`}
+        className="mb-3 break-inside-avoid"
+        disabled={selectMode}
+        left={{ label: 'Papierkorb', icon: 'delete', className: 'bg-danger', dismiss: true, onCommit: () => deleteInboxItem(item.id) }}
       >
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-grow space-y-1.5 min-w-0">
-            <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono text-on-surface-variant">
-              <span className="bg-surface-low border border-outline-variant rounded-md px-2 py-0.5 flex items-center gap-1">
-                <span className="material-symbols-outlined text-[13px]">schedule</span>
-                {dayLabel}, {createdFormattedStr}
-              </span>
-              {targetBadgeLabel && (
-                <span className="bg-primary/10 text-primary border border-primary/20 rounded-md px-2 py-0.5 font-bold flex items-center gap-1">
-                  <span className="material-symbols-outlined text-[13px]">{targetBadgeIcon}</span>
-                  {targetBadgeLabel}
-                </span>
+        <Card
+          padding="none"
+          tabIndex={0}
+          data-thought-id={item.id}
+          className={`group h-full flex flex-col transition-[box-shadow,border-color,opacity] duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+            isOlder ? 'opacity-90' : ''
+          } ${isSelected ? 'border-accent ring-2 ring-accent/30' : 'hover:border-primary/30'}`}
+          onClick={selectMode ? () => toggleSelected(item.id) : undefined}
+          onContextMenu={(e) => {
+            if (selectMode) return;
+            e.preventDefault();
+            setMenuFor(item.id);
+          }}
+          onKeyDown={(e) => {
+            if (e.target !== e.currentTarget) return;
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+              e.preventDefault();
+              if (selectMode && selectedIds.length) deleteSelected();
+              else deleteInboxItem(item.id);
+            } else if (selectMode && (e.key === ' ' || e.key === 'Enter')) {
+              e.preventDefault();
+              toggleSelected(item.id);
+            }
+          }}
+          onTouchStart={(e) => startPress(e, item.id)}
+          onTouchMove={movePress}
+          onTouchEnd={endPress}
+          onTouchCancel={endPress}
+        >
+          {/* Kopf + Inhalt: Der Titel ist das Wichtigste */}
+          <div className="relative flex-1 flex flex-col gap-2 px-4 pt-3.5 pb-3">
+            {/* Auswahl (in der Mehrfachauswahl immer, am Desktop beim Darüberfahren) und Papierkorb */}
+            <div className="absolute top-3 right-3 flex items-center gap-1">
+              <button
+                type="button"
+                role="checkbox"
+                aria-checked={isSelected}
+                aria-label="Gedanke auswählen"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!selectMode) enterSelectMode(item.id);
+                  else toggleSelected(item.id);
+                }}
+                className={`${selectMode ? 'flex' : 'hidden md:flex md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100'} w-6 h-6 rounded-md border-2 items-center justify-center transition-colors cursor-pointer ${
+                  isSelected ? 'bg-accent border-accent text-white' : 'border-outline-variant bg-white text-transparent hover:border-primary'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[16px]" aria-hidden="true">check</span>
+              </button>
+              {!selectMode && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); deleteInboxItem(item.id); }}
+                  className="hidden md:flex w-7 h-7 items-center justify-center rounded-md text-on-surface-variant opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-danger hover:bg-danger-soft transition-[opacity,color,background-color] cursor-pointer"
+                  title="In den Papierkorb"
+                  aria-label="Gedanke in den Papierkorb"
+                >
+                  <span className="material-symbols-outlined text-[18px]">delete</span>
+                </button>
               )}
             </div>
 
-            <div className="text-xs sm:text-sm font-medium leading-snug">
-              <div className="markdown-body markdown-compact">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {ensureBulletPoints(item.summary || item.title)}
-                </ReactMarkdown>
+            <h3 className={`text-base font-bold leading-snug text-primary pr-8 md:pr-16 ${isExpanded ? '' : 'line-clamp-2'}`}>{title}</h3>
+
+            {body && (
+              <div
+                className={`text-sm leading-snug text-on-surface-variant ${
+                  !isExpanded && longBody ? 'max-h-[5.75rem] overflow-hidden [mask-image:linear-gradient(to_bottom,black_60%,transparent)]' : ''
+                }`}
+              >
+                <div className="markdown-body markdown-compact">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
+                </div>
               </div>
-            </div>
-          </div>
+            )}
 
-          {isDeleteMode && (
-            <button
-              type="button"
-              className="shrink-0 p-1.5 bg-red-50 hover:bg-red-600 text-red-600 hover:text-white border border-red-200 hover:border-red-600 rounded-lg transition-all flex items-center justify-center cursor-pointer shadow-sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                deleteInboxItem(item.id);
-              }}
-              title="In den Papierkorb"
-              aria-label="Gedanke in den Papierkorb"
-            >
-              <span className="material-symbols-outlined text-[18px]">delete</span>
-            </button>
-          )}
-        </div>
+            {targetBadgeLabel && (
+              <div>
+                <Badge variant="default">
+                  <span className="material-symbols-outlined text-[14px]" aria-hidden="true">{targetBadgeIcon}</span>
+                  {targetBadgeLabel}
+                </Badge>
+              </div>
+            )}
 
-        {(item.cleanText || item.originalText) && (
-          <div className="border border-outline-variant rounded-xl overflow-hidden bg-surface-low">
-            <button
-              type="button"
-              className="w-full flex items-center justify-between p-2.5 hover:bg-surface-variant/30 transition-colors text-left cursor-pointer"
-              onClick={() => toggleExpand(item.id)}
-              aria-expanded={isExpanded}
-            >
-              <span className="text-[11px] font-mono font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-[14px]">auto_fix_high</span>
-                {item.cleanText ? 'Bereinigter Fließtext' : 'Original-Transkript'}
-              </span>
-              <span className="material-symbols-outlined text-[16px] text-primary">
-                {isExpanded ? 'keyboard_arrow_up' : 'keyboard_arrow_down'}
-              </span>
-            </button>
-
-            {isExpanded && (
-              <div className="px-3 pb-3 pt-1 text-sm text-primary leading-relaxed space-y-2">
-                <div className="text-primary font-normal">{item.cleanText || item.originalText}</div>
+            {isExpanded && hasOriginal && (
+              <div className="rounded-lg bg-surface-low px-3 py-2.5 text-sm leading-relaxed space-y-2">
+                <p className="text-xs font-semibold text-on-surface-variant">{item.cleanText ? 'Bereinigter Text' : 'Original-Transkript'}</p>
+                <div>{item.cleanText || item.originalText}</div>
                 {item.cleanText && item.originalText && item.cleanText !== item.originalText && (
-                  <details className="text-xs text-primary pt-2 border-t border-outline-variant">
-                    <summary className="cursor-pointer font-mono text-[11px] uppercase font-bold text-primary hover:text-black transition-colors">
+                  <details className="text-xs pt-2 border-t border-outline-variant">
+                    <summary className="cursor-pointer font-semibold text-on-surface-variant hover:text-primary transition-colors">
                       Roh-Transkript anzeigen
                     </summary>
-                    <div className="mt-2 text-sm text-primary leading-relaxed">{item.originalText}</div>
+                    <div className="mt-2 text-sm leading-relaxed">{item.originalText}</div>
                   </details>
                 )}
               </div>
             )}
-          </div>
-        )}
 
-        {/* Weiterverarbeiten */}
-        <div className="flex items-center justify-end gap-2 pt-2 border-t border-outline-variant">
-          <button
-            type="button"
-            onClick={() => handleElaborateWithFio(item)}
-            className="h-9 px-3 flex items-center gap-1.5 rounded-lg bg-neutral-900 text-white text-xs font-bold hover:bg-black transition-colors cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-[18px]">auto_awesome</span>
-            Mit Fio ausarbeiten
-          </button>
-          <ManualMenu
-            item={item}
-            projects={activeProjects}
-            reminders={activeReminders}
-            onConvert={handleConvert}
-            onAttach={handleAttach}
-          />
-        </div>
-      </Card>
-    );
-  };
-
-  const deleteModeButton = (extraClass = '') => (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation();
-        setIsDeleteMode((prev) => !prev);
-      }}
-      className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer text-xs font-mono font-bold ${extraClass} ${
-        isDeleteMode
-          ? 'bg-red-600 text-white border border-red-600 shadow-sm'
-          : 'text-on-surface-variant hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200'
-      }`}
-      title={isDeleteMode ? 'Löschmodus beenden' : 'Löschmodus aktivieren'}
-    >
-      <span className="material-symbols-outlined text-[16px]">{isDeleteMode ? 'check' : 'delete'}</span>
-      <span>{isDeleteMode ? 'Fertig' : 'Löschen'}</span>
-    </button>
-  );
-
-  return (
-    <div className="screen-transition">
-      <div className="w-full mx-auto space-y-6 sm:space-y-8">
-        <Card className="border-primary flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <label htmlFor="thought-input" className="text-xs font-mono block uppercase tracking-wider text-on-surface-variant">
-              Was geht dir durch den Kopf?
-            </label>
-            <button
-              type="button"
-              onClick={() => setCurrentScreen('trash')}
-              className="flex items-center justify-center p-1.5 text-on-surface-variant hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-200"
-              title="Papierkorb öffnen"
-              aria-label="Papierkorb öffnen"
-            >
-              <span className="material-symbols-outlined text-[20px]">delete</span>
-            </button>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 items-start sm:items-end">
-            <div className="flex-grow flex items-end gap-2 w-full">
-              <textarea
-                id="thought-input"
-                ref={textareaRef}
-                disabled={isSummarizing}
-                placeholder={
-                  isSummarizing
-                    ? 'KI fasst deinen Gedanken zusammen …'
-                    : isListening
-                    ? 'Zuhören aktiv … sprich so lange du möchtest'
-                    : 'Neuer Gedanke, Idee oder Notiz …'
-                }
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={handleKeyDown}
-                rows={1}
-                className="flex w-full rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all disabled:cursor-not-allowed disabled:opacity-50 placeholder:text-on-surface-variant resize-none overflow-y-auto min-h-[42px]"
-              />
+            {canExpand && (
               <button
                 type="button"
-                disabled={isSummarizing}
-                className={`w-[42px] h-[42px] rounded-lg border transition-colors flex items-center justify-center flex-shrink-0 cursor-pointer ${
-                  isListening
-                    ? 'bg-red-600 text-white border-red-600'
-                    : 'bg-surface-low text-primary border-outline-variant hover:border-primary'
-                }`}
-                title={isListening ? 'Spracheingabe stoppen' : 'Spracheingabe starten'}
-                aria-label={isListening ? 'Spracheingabe stoppen' : 'Spracheingabe starten'}
-                aria-pressed={isListening}
-                onClick={toggleListening}
+                className="self-start inline-flex items-center gap-1 text-xs font-semibold text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
+                onClick={(e) => { e.stopPropagation(); toggleExpand(item.id); }}
+                aria-expanded={isExpanded}
               >
-                <span className="material-symbols-outlined text-[20px]">mic</span>
+                <span className="material-symbols-outlined text-[16px]" aria-hidden="true">{isExpanded ? 'expand_less' : 'expand_more'}</span>
+                {isExpanded ? 'Weniger anzeigen' : 'Mehr anzeigen'}
               </button>
-            </div>
-            <Button
-              disabled={isSummarizing}
-              onClick={handleAdd}
-              className="gap-2 w-full sm:w-auto h-[42px] flex-shrink-0"
-            >
-              {isSummarizing ? (
-                <>
-                  <span className="material-symbols-outlined text-[18px] animate-spin">sync</span>
-                  <span>Fasse zusammen …</span>
-                </>
-              ) : (
-                'Speichern'
-              )}
-            </Button>
+            )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-1 border-t border-outline-variant pt-3">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={isSummaryEnabled}
-                onChange={(e) => setIsSummaryEnabled(e.target.checked)}
-                className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4"
-              />
-              <span className="text-xs font-medium text-on-surface-variant">KI-Zusammenfassung</span>
-            </label>
-
-            {isSummaryEnabled && (
-              <div className="flex flex-wrap items-center gap-2.5">
-                <ModelSelectorDropdown activeModel={activeModel} onSelectModel={setActiveModel} showEco={true} />
-                <SummaryLengthDropdown value={summaryLength} onChange={setSummaryLength} />
+          {/* Fußzeile: Zeit und Aktion, leicht getönt gibt der Karte Struktur */}
+          <div className="flex items-center justify-between gap-2 px-4 py-2 bg-surface-low border-t border-outline-variant/70 rounded-b-xl">
+            <span className="inline-flex items-center gap-1 text-xs text-on-surface-variant">
+              <span className="material-symbols-outlined text-[14px]" aria-hidden="true">schedule</span>
+              {dayLabel}, {createdFormattedStr}
+            </span>
+            {!selectMode && (
+              <div onClick={(e) => e.stopPropagation()}>
+                <ThoughtMenu
+                  item={item}
+                  open={menuFor === item.id}
+                  onOpenChange={(v) => setMenuFor(v ? item.id : null)}
+                  projects={activeProjects}
+                  reminders={activeReminders}
+                  onElaborate={handleElaborateWithFio}
+                  onConvert={handleConvert}
+                  onAttach={handleAttach}
+                  onSelect={enterSelectMode}
+                  onDelete={deleteInboxItem}
+                />
               </div>
             )}
           </div>
         </Card>
+      </SwipeableCard>
+    );
+  };
 
-        {!hasCurrentNotes && sortedOlderNotes.length === 0 ? (
-          <div className="text-center py-10 px-4 bg-surface-low border border-dashed border-outline-variant rounded-2xl text-on-surface-variant text-xs font-mono space-y-2">
-            <span className="material-symbols-outlined text-[32px] block opacity-40">lightbulb</span>
-            <p>Noch keine Gedanken. Schreib oder sprich einfach drauflos.</p>
+  const hasText = inputValue.trim().length > 0;
+  const totalCount = currentNotes.length + sortedOlderNotes.length;
+
+  return (
+    <div className="screen-transition flex-1 flex flex-col gap-5 sm:gap-6 w-full mx-auto">
+      {/* Kopfzeile: Titel oder – in der Mehrfachauswahl – die Aktionsleiste */}
+      {selectMode ? (
+        <header className="flex items-center justify-between gap-3 min-h-[44px] px-3 py-1.5 bg-white border border-outline-variant shadow-card rounded-xl">
+          <div className="flex items-center gap-2 min-w-0">
+            <button type="button" onClick={exitSelectMode} aria-label="Auswahl beenden" className="w-9 h-9 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-low cursor-pointer">
+              <span className="material-symbols-outlined text-[20px]">close</span>
+            </button>
+            <span className="text-sm font-semibold truncate" aria-live="polite">
+              {selectedIds.length === 0 ? 'Gedanken auswählen' : `${selectedIds.length} ausgewählt`}
+            </span>
           </div>
-        ) : (
-          <div className="space-y-6">
-            {hasCurrentNotes && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between py-1.5 border-b border-outline-variant/60">
-                  <div className="flex items-center gap-2 select-none">
-                    <span className="material-symbols-outlined text-[20px] text-primary">schedule</span>
-                    <h2 className="text-sm font-bold text-on-surface flex items-center gap-1.5">
-                      <span>Heute</span>
-                      <span className="text-on-surface-variant font-medium">({currentNotes.length})</span>
-                    </h2>
-                  </div>
-                  {deleteModeButton()}
-                </div>
-                <div className="space-y-3">
-                  {currentNotes.map((item) => renderItemCard(item, false))}
-                </div>
-              </div>
-            )}
+          <Button variant="destructive" size="sm" onClick={deleteSelected} disabled={selectedIds.length === 0}>
+            <span className="material-symbols-outlined text-[18px]" aria-hidden="true">delete</span>
+            Löschen
+          </Button>
+        </header>
+      ) : (
+        <header className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <span className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${area.chip}`} aria-hidden="true">
+              <span className="material-symbols-outlined text-[22px]">lightbulb</span>
+            </span>
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold leading-tight">Gedanken</h1>
+              {totalCount > 0 && <p className="text-xs text-on-surface-variant">{totalCount} {totalCount === 1 ? 'Gedanke' : 'Gedanken'}</p>}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCurrentScreen('trash')}
+            className="w-10 h-10 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-danger hover:bg-danger-soft transition-colors cursor-pointer"
+            title="Papierkorb öffnen"
+            aria-label="Papierkorb öffnen"
+          >
+            <span className="material-symbols-outlined text-[22px]">delete</span>
+          </button>
+        </header>
+      )}
 
-            {/* Ältere Gedanken: ohne heutige automatisch offen (die letzten 3), sonst zugeklappt */}
-            {sortedOlderNotes.length > 0 && (
-              <div className="space-y-3 pt-1">
-                <div
-                  className="flex items-center justify-between py-1.5 border-b border-outline-variant/60 cursor-pointer select-none group"
-                  onClick={toggleOlderSection}
+      {/* Eingabe: Desktop oben, Handy fest unten (Daumenzone) */}
+      <section
+        aria-label="Neuer Gedanke"
+        className="order-last md:order-none sticky bottom-2 md:static z-10 md:z-auto"
+      >
+        <div className="bg-white rounded-xl border border-outline-variant shadow-raised md:shadow-card focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/20 transition-shadow">
+          <div className="flex items-end gap-2 p-1.5 pl-4 md:p-2 md:pl-4">
+            <label htmlFor="thought-input" className="sr-only">Was geht dir durch den Kopf?</label>
+            <textarea
+              id="thought-input"
+              ref={textareaRef}
+              disabled={isSummarizing}
+              placeholder={
+                isSummarizing
+                  ? 'KI fasst deinen Gedanken zusammen …'
+                  : isListening
+                  ? 'Zuhören aktiv … sprich so lange du möchtest'
+                  : 'Was geht dir durch den Kopf?'
+              }
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              rows={1}
+              className="flex-1 min-w-0 border-0 bg-transparent px-0 py-2.5 text-base placeholder:text-on-surface-variant focus:ring-0 focus:outline-none resize-none overflow-y-auto min-h-[44px] md:min-h-[52px] disabled:cursor-not-allowed disabled:opacity-60"
+            />
+            <div className="md:hidden">
+              <ThoughtAiChip
+                variant="icon"
+                enabled={isSummaryEnabled}
+                onEnabledChange={(on) => setSummaryFlag(on ? 'on' : 'off')}
+                length={summaryLength}
+                onLengthChange={setSummaryLength}
+                model={activeModel}
+                onModelChange={setActiveModel}
+              />
+            </div>
+            {(!hasText || isListening) ? (
+              <button
+                type="button"
+                disabled={isSummarizing}
+                onClick={toggleListening}
+                className={`w-11 h-11 shrink-0 rounded-lg flex items-center justify-center transition-colors cursor-pointer disabled:opacity-50 ${
+                  isListening ? 'bg-danger text-white animate-pulse motion-reduce:animate-none' : 'bg-accent text-white hover:bg-accent-hover'
+                }`}
+                title={isListening ? 'Spracheingabe stoppen' : 'Spracheingabe starten'}
+                aria-label={isListening ? 'Spracheingabe stoppen' : 'Spracheingabe starten'}
+                aria-pressed={isListening}
+              >
+                <span className="material-symbols-outlined text-[22px]">{isListening ? 'stop' : 'mic'}</span>
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  disabled={isSummarizing}
+                  onClick={toggleListening}
+                  className="w-11 h-11 shrink-0 rounded-lg flex items-center justify-center border border-outline-variant text-on-surface-variant hover:text-primary hover:border-primary transition-colors cursor-pointer disabled:opacity-50"
+                  title="Spracheingabe starten"
+                  aria-label="Spracheingabe starten"
                 >
-                  <div className="flex items-center gap-2 flex-grow">
-                    <span className={`material-symbols-outlined text-[20px] text-on-surface-variant group-hover:text-primary transition-transform duration-200 ${
-                      isOlderOpen ? 'rotate-90 text-primary' : ''
-                    }`}>
-                      chevron_right
-                    </span>
-                    <h2 className="text-sm font-bold text-on-surface group-hover:text-primary transition-colors flex items-center gap-1.5">
-                      <span>Ältere Gedanken</span>
-                      <span className="text-on-surface-variant font-medium">({sortedOlderNotes.length})</span>
-                    </h2>
-                  </div>
-                  {!hasCurrentNotes && deleteModeButton('mr-2')}
-                  <span className="text-xs font-mono font-bold text-primary group-hover:underline flex items-center gap-1">
-                    {isOlderOpen ? 'Zuklappen' : 'Aufklappen'}
-                  </span>
-                </div>
-
-                {isOlderOpen && (
-                  <div className="space-y-3 animate-fadeIn">
-                    {visibleOlderNotes.map((item) => renderItemCard(item, true))}
-
-                    {sortedOlderNotes.length > 3 && (
-                      <div className="flex justify-center pt-2">
-                        {showAllOlder ? (
-                          <button
-                            type="button"
-                            onClick={() => setShowAllOlder(false)}
-                            className="flex items-center gap-2 px-4 py-2 bg-surface-low hover:bg-white border border-outline-variant hover:border-primary text-xs font-mono font-bold text-on-surface-variant hover:text-primary rounded-xl transition-all cursor-pointer"
-                          >
-                            <span className="material-symbols-outlined text-[18px]">expand_less</span>
-                            <span>Weniger anzeigen (nur die letzten 3)</span>
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setShowAllOlder(true)}
-                            className="w-full py-3 px-4 bg-surface-low/80 hover:bg-white border border-dashed border-outline-variant hover:border-primary text-xs font-mono font-bold text-primary rounded-2xl transition-all cursor-pointer flex items-center justify-center gap-2"
-                          >
-                            <span className="material-symbols-outlined text-[18px]">expand_more</span>
-                            <span>Mehr anzeigen ({sortedOlderNotes.length - 3} weitere)</span>
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+                  <span className="material-symbols-outlined text-[22px]">mic</span>
+                </button>
+                <Button onClick={handleAdd} loading={isSummarizing} size="icon" className="w-11 h-11 shrink-0" aria-label="Speichern" title="Speichern (Enter)">
+                  {!isSummarizing && <span className="material-symbols-outlined text-[22px]">arrow_upward</span>}
+                </Button>
+              </>
             )}
           </div>
-        )}
-      </div>
+          <div className="hidden md:flex items-center justify-between gap-2 px-3 pb-2.5">
+            <ThoughtAiChip
+              variant="chip"
+              enabled={isSummaryEnabled}
+              onEnabledChange={(on) => setSummaryFlag(on ? 'on' : 'off')}
+              length={summaryLength}
+              onLengthChange={setSummaryLength}
+              model={activeModel}
+              onModelChange={setActiveModel}
+            />
+            <span className="text-xs text-on-surface-variant">Enter speichert · Shift+Enter neue Zeile</span>
+          </div>
+        </div>
+      </section>
+
+      {/* Liste */}
+      {!hasCurrentNotes && sortedOlderNotes.length === 0 ? (
+        <EmptyState className="flex-1 md:flex-none flex flex-col justify-center" icon="lightbulb" title="Halte deinen ersten Gedanken fest">
+          Schreib oder sprich einfach drauflos. Sortiert wird später.
+        </EmptyState>
+      ) : (
+        <div className="space-y-6 flex-1 md:flex-none">
+          {hasCurrentNotes && (
+            <section className="space-y-3" aria-label="Heute">
+              <h2 className="text-sm font-bold text-primary flex items-center gap-1.5">
+                <span>Heute</span>
+                <span className="text-on-surface-variant font-medium">({currentNotes.length})</span>
+              </h2>
+              <div className="md:columns-2 2xl:columns-3 md:gap-3">
+                {currentNotes.map((item) => renderItemCard(item, false))}
+              </div>
+            </section>
+          )}
+
+          {/* Ältere Gedanken: ohne heutige automatisch offen (die letzten 3), sonst zugeklappt */}
+          {sortedOlderNotes.length > 0 && (
+            <section className="space-y-3" aria-label="Ältere Gedanken">
+              <button
+                type="button"
+                className="w-full flex items-center justify-between gap-2 py-1 text-left select-none group cursor-pointer"
+                onClick={toggleOlderSection}
+                aria-expanded={isOlderOpen}
+              >
+                <span className="flex items-center gap-1.5">
+                  <span className={`material-symbols-outlined text-[20px] text-on-surface-variant group-hover:text-primary transition-transform duration-fast ${isOlderOpen ? 'rotate-90' : ''}`} aria-hidden="true">
+                    chevron_right
+                  </span>
+                  <span className="text-sm font-bold text-primary">Ältere Gedanken</span>
+                  <span className="text-sm text-on-surface-variant font-medium">({sortedOlderNotes.length})</span>
+                </span>
+                <span className="text-xs font-semibold text-on-surface-variant group-hover:text-primary">
+                  {isOlderOpen ? 'Zuklappen' : 'Aufklappen'}
+                </span>
+              </button>
+
+              {isOlderOpen && (
+                <div className="space-y-3 animate-fadeIn">
+                  <div className="md:columns-2 2xl:columns-3 md:gap-3">
+                    {visibleOlderNotes.map((item) => renderItemCard(item, true))}
+                  </div>
+
+                  {sortedOlderNotes.length > 3 && (
+                    <div className="flex justify-center pt-1">
+                      {showAllOlder ? (
+                        <Button variant="secondary" size="sm" onClick={() => setShowAllOlder(false)}>
+                          <span className="material-symbols-outlined text-[18px]" aria-hidden="true">expand_less</span>
+                          Weniger anzeigen (nur die letzten 3)
+                        </Button>
+                      ) : (
+                        <Button variant="secondary" fullWidth onClick={() => setShowAllOlder(true)}>
+                          <span className="material-symbols-outlined text-[18px]" aria-hidden="true">expand_more</span>
+                          Mehr anzeigen ({sortedOlderNotes.length - 3} weitere)
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
+          )}
+        </div>
+      )}
     </div>
   );
 };

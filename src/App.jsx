@@ -6,6 +6,8 @@ import { DataProvider, useData } from './context/DataContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ChatProvider } from './context/ChatContext';
 import { ToastProvider } from './context/ToastContext';
+import { ConfirmProvider } from './context/ConfirmContext';
+import { SkeletonList } from './components/ui/Skeleton';
 import FirestoreErrorBanner from './components/ui/FirestoreErrorBanner';
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -53,8 +55,8 @@ const LegalPage = lazy(() => import('./components/screens/LegalPage'));
 
 function ScreenFallback() {
   return (
-    <div className="flex-1 flex items-center justify-center min-h-[40vh]" aria-busy="true" aria-label="Wird geladen">
-      <span className="w-6 h-6 rounded-full border-2 border-on-surface-variant/30 border-t-primary animate-spin" />
+    <div className="flex-1 min-h-[40vh] w-full" aria-busy="true">
+      <SkeletonList count={3} />
     </div>
   );
 }
@@ -302,13 +304,15 @@ function App() {
   return (
     <AuthProvider>
       <ToastProvider>
-        <DataProvider>
-          <ModalProvider>
-            <ChatProvider>
-              <AppContent />
-            </ChatProvider>
-          </ModalProvider>
-        </DataProvider>
+        <ConfirmProvider>
+          <DataProvider>
+            <ModalProvider>
+              <ChatProvider>
+                <AppContent />
+              </ChatProvider>
+            </ModalProvider>
+          </DataProvider>
+        </ConfirmProvider>
       </ToastProvider>
     </AuthProvider>
   );

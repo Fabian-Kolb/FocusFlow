@@ -21,6 +21,7 @@ export default defineConfig({
       'tests/calendar_events_hook.test.jsx',
       'tests/recurrence.test.js',
       'tests/command_search.test.js',
+      'tests/dashboard_agenda.test.js',
       'tests/project_progress.test.js'
     ]
   }

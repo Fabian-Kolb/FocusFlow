@@ -254,9 +254,9 @@ export function registerTier1Tests(runner) {
       assert(sidebarSrc.includes('review') || sidebarSrc.includes('Wochenrückblick'), 'Sidebar navigation must include review screen route');
     });
 
-    runner.test('T1-REV-04: Dashboard exposes Focus Score metric widget', () => {
+    runner.test('T1-REV-04: Dashboard zeigt die Tagesübersicht (Heute, Überfällig, Nächste 7 Tage)', () => {
       const dashSrc = context.getComponentSource('src/components/screens/Dashboard.jsx');
-      assert(dashSrc.includes('FOKUS SCORE') || dashSrc.includes('84'), 'Dashboard widget must render Focus Score metric');
+      assert(dashSrc.includes('Nächste 7 Tage') && dashSrc.includes('Überfällig') && dashSrc.includes('title="Heute"'), 'Dashboard must render Heute, Überfällig and the 7-day strip');
     });
 
     runner.test('T1-REV-05: Review component uses standard screen transition container', () => {

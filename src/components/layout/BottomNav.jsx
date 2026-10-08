@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
 import { useSwipeToClose } from '../../hooks/useSwipeToClose';
 import { countThoughts } from '../../lib/thoughts';
+import { areaOf } from '../../lib/areas';
 
 // Hauptziele am Handy. Projekte umfasst auch Detailansicht und Kanban-Board (Umschalter "Liste | Board").
 const NAV_ITEMS = [
@@ -54,7 +55,7 @@ const BottomNav = ({ currentScreen, setCurrentScreen }) => {
                   aria-label="Weitere Bereiche"
                   aria-haspopup="dialog"
                   aria-expanded={isHubOpen}
-                  className={`w-12 h-12 -mt-3 rounded-full text-white shadow-lg shadow-primary/25 flex items-center justify-center active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary cursor-pointer ${
+                  className={`w-12 h-12 -mt-3 rounded-full text-white shadow-lg shadow-primary/25 flex items-center justify-center active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-accent cursor-pointer ${
                     isHubActive ? 'bg-black ring-2 ring-offset-2 ring-primary/30' : 'bg-primary'
                   }`}
                 >
@@ -65,6 +66,7 @@ const BottomNav = ({ currentScreen, setCurrentScreen }) => {
           }
 
           const isActive = item.screens.includes(currentScreen);
+          const area = areaOf(item.id);
           return (
             <button
               key={item.id}
@@ -72,7 +74,7 @@ const BottomNav = ({ currentScreen, setCurrentScreen }) => {
               onClick={() => setCurrentScreen(item.id)}
               aria-current={isActive ? 'page' : undefined}
               className={`group relative flex flex-col items-center justify-center flex-1 h-full min-h-[48px] py-1.5 min-w-0 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-xl cursor-pointer ${
-                isActive ? 'text-primary font-bold' : 'text-on-surface-variant hover:text-primary'
+                isActive ? `${area.activeText} font-bold` : 'text-on-surface-variant hover:text-primary'
               }`}
             >
               <div className="relative">
@@ -80,11 +82,11 @@ const BottomNav = ({ currentScreen, setCurrentScreen }) => {
                   {item.icon}
                 </span>
                 {isActive && (
-                  <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-primary rounded-full" />
+                  <span className={`absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full ${area.dot}`} />
                 )}
               </div>
               <span className={`text-[10px] sm:text-[11px] font-sans mt-0.5 tracking-tight truncate max-w-[72px] ${
-                isActive ? 'font-bold text-primary' : 'font-medium text-on-surface-variant'
+                isActive ? `font-bold ${area.activeText}` : 'font-medium text-on-surface-variant'
               }`}>
                 {item.label}
               </span>

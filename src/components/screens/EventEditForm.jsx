@@ -17,6 +17,7 @@ const GOOGLE_COLORS = [
 
 const EventEditForm = ({ initialEvent, selectedDateObj, onSave, onCancel }) => {
   const [title, setTitle] = useState('');
+  const [titleError, setTitleError] = useState('');
   const [isAllDay, setIsAllDay] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [startTime, setStartTime] = useState('');
@@ -80,7 +81,10 @@ const EventEditForm = ({ initialEvent, selectedDateObj, onSave, onCancel }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!title.trim()) return alert("Titel darf nicht leer sein.");
+    if (!title.trim()) {
+      setTitleError('Gib dem Termin einen Titel.');
+      return;
+    }
 
     const eventData = {
       title,
@@ -132,10 +136,13 @@ const EventEditForm = ({ initialEvent, selectedDateObj, onSave, onCancel }) => {
               type="text" 
               placeholder="Titel hinzufügen"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => { setTitle(e.target.value); if (titleError) setTitleError(''); }}
+              aria-invalid={Boolean(titleError)}
+              aria-describedby={titleError ? 'event-title-error' : undefined}
               className="w-full text-3xl font-bold bg-transparent border-b-2 border-transparent hover:border-outline-variant focus:border-primary outline-none py-2 transition-colors placeholder:text-on-surface-variant/50"
               autoFocus
             />
+            {titleError && <p id="event-title-error" role="alert" className="mt-1 text-sm text-danger">{titleError}</p>}
           </div>
 
           {/* Zeitraum */}

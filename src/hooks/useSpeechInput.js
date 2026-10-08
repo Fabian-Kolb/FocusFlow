@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { notify } from '../lib/notify';
 
 /**
  * Diktat per Web Speech API (de-DE). Hängt das Gesprochene an den Text an, der beim Start im Feld stand,
@@ -26,7 +27,7 @@ export function useSpeechInput(value, setValue) {
   const start = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert('Spracheingabe wird in diesem Browser leider nicht unterstützt. Bitte benutze Chrome, Edge oder Safari.');
+      notify('Spracheingabe wird in diesem Browser nicht unterstützt. Nutze Chrome, Edge oder Safari.', 'mic_off');
       return;
     }
     try {

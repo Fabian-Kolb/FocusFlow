@@ -1745,6 +1745,28 @@ export const DataProvider = ({ children }) => {
     }, 'delete');
   };
 
+  // Mehrere Gedanken auf einmal in den Papierkorb (Mehrfachauswahl) – ein gemeinsamer Rückgängig-Toast
+  const deleteInboxItems = async (ids) => {
+    if (!user || !Array.isArray(ids) || ids.length === 0) return;
+    const targets = Object.values(inboxItems).flat().filter((i) => ids.includes(i.id));
+    if (targets.length === 0) return;
+    const stamp = new Date().toISOString();
+    const writeAll = async (items) => {
+      if (user.isGuest) {
+        const byId = new Map(items.map((i) => [i.id, i]));
+        applyGuestInbox(readGuestInbox().map((i) => byId.get(i.id) || i));
+        return;
+      }
+      await Promise.all(items.map((i) => setDoc(doc(db, 'users', user.uid, 'inboxItems', i.id), i)));
+    };
+    await writeAll(targets.map((i) => ({ ...i, deletedAt: stamp })));
+    showUndoToast(
+      targets.length === 1 ? 'Gedanke in den Papierkorb verschoben' : `${targets.length} Gedanken in den Papierkorb verschoben`,
+      () => { writeAll(targets).catch((err) => handleFirestoreError('inboxItems', err)); },
+      'delete'
+    );
+  };
+
   const trashItems = [...trashedProjects, ...trashedReminders, ...trashedInboxItems];
 
   const permanentlyDeleteItem = async (id, type) => {
@@ -1934,6 +1956,7 @@ export const DataProvider = ({ children }) => {
     addInboxItem,
     updateInboxItem,
     deleteInboxItem,
+    deleteInboxItems,
     addReminder,
     mutateProject,
     mutateReminder,

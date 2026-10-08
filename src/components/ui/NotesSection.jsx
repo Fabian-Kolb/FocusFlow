@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 import DOMPurify from 'dompurify';
+import { useConfirm } from '../../context/ConfirmContext';
 
 const NotesSection = ({ 
   notes = [], 
@@ -15,6 +16,7 @@ const NotesSection = ({
   onConvertNoteToTask,
   onLinkNote
 }) => {
+  const confirm = useConfirm();
   const [selectedNote, setSelectedNote] = useState(null);
   const [openedFromDrawer, setOpenedFromDrawer] = useState(false);
 
@@ -135,8 +137,14 @@ const NotesSection = ({
     setIsEditing(false);
   };
 
-  const handleDelete = () => {
-    if (window.confirm('Möchtest du diese Notiz wirklich löschen?')) {
+  const handleDelete = async () => {
+    const ok = await confirm({
+      title: 'Notiz löschen?',
+      message: 'Die Notiz wird gelöscht.',
+      confirmLabel: 'Löschen',
+      destructive: true,
+    });
+    if (ok) {
       if (!selectedNote.isNew) {
         onDeleteNote(selectedNote.id);
       }

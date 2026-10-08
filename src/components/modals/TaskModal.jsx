@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useModalContext } from '../../context/ModalContext';
+import { useToast } from '../../context/ToastContext';
 
 const TaskModal = () => {
   const { activeModal, modalPayload, closeModal, addTask, projects, selectedProjectId } = useModalContext();
+  const { showToast } = useToast();
   const isOpen = activeModal === 'task';
 
   const [title, setTitle] = useState('');
@@ -44,7 +46,7 @@ const TaskModal = () => {
 
     const phaseIdToUse = targetPhaseId || (currentProject?.phases[0]?.id);
     if (!phaseIdToUse) {
-      alert('Bitte erst eine Phase für dieses Projekt anlegen.');
+      showToast({ message: 'Lege zuerst einen Abschnitt für dieses Projekt an.', icon: 'info' });
       return;
     }
 

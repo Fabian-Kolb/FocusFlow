@@ -50,9 +50,9 @@ export function registerTier4Tests(runner) {
       const env = context.createAppEnvironment('dashboard', 1024);
       assertEqual(env.currentScreen, 'dashboard');
 
-      // Step 2: Check Must-Win main outcome task
+      // Step 2: Tagesübersicht prüfen (Heute-Liste)
       const dashSrc = context.getComponentSource('src/components/screens/Dashboard.jsx');
-      assert(dashSrc.includes('HAUPT-ERGEBNIS HEUTE'), 'Must-Win task section must be rendered');
+      assert(dashSrc.includes('title="Heute"'), 'Heute section must be rendered');
 
       // Step 3: Blocked on task -> click AI Coach callout banner on Dashboard
       env.switchScreen('coach');
@@ -91,11 +91,11 @@ export function registerTier4Tests(runner) {
       const env = context.createAppEnvironment('review', 1280);
       assertEqual(env.currentScreen, 'review');
 
-      // Step 2: User analyzes focus score widget on Dashboard
+      // Step 2: User prüft die kommende Woche auf dem Dashboard
       env.switchScreen('dashboard');
       assertEqual(env.currentScreen, 'dashboard');
       const dashSrc = context.getComponentSource('src/components/screens/Dashboard.jsx');
-      assert(dashSrc.includes('FOKUS SCORE'), 'Focus score widget must be visible for weekly review');
+      assert(dashSrc.includes('Nächste 7 Tage'), 'Week strip must be visible for weekly review');
 
       // Step 3: User opens Projects to plan upcoming week's projects
       env.switchScreen('projects');

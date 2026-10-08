@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useModal } from '../../context/ModalContext';
 import FioIcon from '../ui/FioIcon';
 import { BREAKPOINTS } from '../../lib/breakpoints';
+import { areaOf } from '../../lib/areas';
 
 const Sidebar = ({ currentScreen, setCurrentScreen, collapsed, setCollapsed }) => {
   const { user } = useAuth();
@@ -147,6 +148,7 @@ const Sidebar = ({ currentScreen, setCurrentScreen, collapsed, setCollapsed }) =
           >
             {navItems.map((item) => {
               const isActive = currentScreen === item.id || (item.id === 'projects' && currentScreen === 'project-detail');
+              const area = areaOf(item.id);
               return (
                 <button
                   key={item.id}
@@ -157,7 +159,7 @@ const Sidebar = ({ currentScreen, setCurrentScreen, collapsed, setCollapsed }) =
                   aria-label={item.label}
                   className={`group w-full h-11 flex items-center rounded-xl transition-[background-color,color] duration-150 motion-reduce:transition-none relative select-none flex-shrink-0 cursor-pointer p-0 text-left ${
                     isActive
-                      ? 'text-primary bg-primary/10 font-bold'
+                      ? `${area.activeText} ${area.activeBg} font-bold`
                       : 'text-on-surface-variant hover:bg-surface-low hover:text-primary'
                   }`}
                 >

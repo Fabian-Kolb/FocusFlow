@@ -5,6 +5,7 @@ import { useChat } from '../../context/ChatContext';
 import { askGeminiCoach } from '../../lib/gemini';
 import { ACTION_ENGINE_SYSTEM_PROMPT, parseAiActions, executeAiActions, parseIntentChoice } from '../../lib/aiActionEngine';
 import { fetchCalendarEvents } from '../../lib/calendarAPI';
+import { notify } from '../../lib/notify';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import FioIcon from '../ui/FioIcon';
@@ -105,7 +106,7 @@ const Coach = ({ setCurrentScreen }) => {
   const handleToggleListening = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert('Spracheingabe wird in diesem Browser leider nicht unterstützt. Bitte benutze Chrome, Edge oder Safari.');
+      notify('Spracheingabe wird in diesem Browser nicht unterstützt. Nutze Chrome, Edge oder Safari.', 'mic_off');
       return;
     }
 

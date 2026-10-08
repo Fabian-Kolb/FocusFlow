@@ -198,14 +198,14 @@ export function registerTier2Tests(runner) {
   // Feature 6: Weekly Review View Boundaries (≥5 tests)
   // ---------------------------------------------------------------------------
   runner.describe(TIER, 'Weekly Review View', () => {
-    runner.test('T2-REV-01: Focus score metric handles boundary values (0 to 100)', () => {
+    runner.test('T2-REV-01: Dashboard-Wochenleiste deckt genau 7 Tage ab', () => {
       const dashSrc = context.getComponentSource('src/components/screens/Dashboard.jsx');
-      assert(dashSrc.includes('84') && dashSrc.includes('100'), 'Focus score widget must present numeric metric out of 100');
+      assert(dashSrc.includes('days: 7'), 'Dashboard agenda must cover 7 days');
     });
 
-    runner.test('T2-REV-02: Focus score progress bar width is specified as percentage style inline or tailwind', () => {
+    runner.test('T2-REV-02: Dashboard nutzt die gemeinsame Agenda-Logik statt eigener Datums-Parser', () => {
       const dashSrc = context.getComponentSource('src/components/screens/Dashboard.jsx');
-      assert(dashSrc.includes("width: '84%'") || dashSrc.includes('84%'), 'Focus score progress bar must apply exact percentage width style');
+      assert(dashSrc.includes('buildAgenda'), 'Dashboard must derive its lists from buildAgenda');
     });
 
     runner.test('T2-REV-03: Review view handles zero-activity week gracefully', () => {
@@ -378,11 +378,11 @@ export function registerTier2Tests(runner) {
     });
 
     // Inbox UI & Collapse Logic
-    runner.test('T2-INBOX-01: Inbox uses SummaryLengthDropdown matching ModelSelectorDropdown style', () => {
+    runner.test('T2-INBOX-01: Inbox bündelt die KI-Einstellungen im ThoughtAiChip statt in Checkbox + Dropdowns', () => {
       const inboxSrc = context.getComponentSource('src/components/screens/Inbox.jsx');
-      assert(inboxSrc.includes("import SummaryLengthDropdown from '../ui/SummaryLengthDropdown'"), 'Inbox must import SummaryLengthDropdown');
-      assert(inboxSrc.includes('<SummaryLengthDropdown'), 'Inbox must render SummaryLengthDropdown component');
-      assert(!inboxSrc.includes('<select') || !inboxSrc.includes('title="Zusammenfassungs-Länge"'), 'Inbox must not use raw select for summary length');
+      assert(inboxSrc.includes("import ThoughtAiChip from '../ui/ThoughtAiChip'"), 'Inbox must import ThoughtAiChip');
+      assert(inboxSrc.includes('<ThoughtAiChip'), 'Inbox must render ThoughtAiChip');
+      assert(!inboxSrc.includes('<SummaryLengthDropdown'), 'Inbox must not render the old inline dropdowns');
     });
 
     runner.test('T2-INBOX-02: Inbox partitions items into current and older items, showing last 3 older items when current is empty', () => {

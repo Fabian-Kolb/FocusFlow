@@ -1,24 +1,173 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useModalContext } from '../../context/ModalContext';
+import { useToast } from '../../context/ToastContext';
+import { useCalendarEvents } from '../../hooks/useCalendarEvents';
+import { usePersistedChoice } from '../../hooks/usePersistedChoice';
+import { buildThought } from '../../lib/thoughts';
+import { getProjectStats } from '../../lib/projectProgress';
+import { buildAgenda, getNextTimed, formatMinutes } from '../../lib/dashboardAgenda';
+import { areaOf } from '../../lib/areas';
 import Card from '../ui/Card';
 import Badge from '../ui/Badge';
+import Button from '../ui/Button';
 import FioIcon from '../ui/FioIcon';
-import { getProjectStats } from '../../lib/projectProgress';
+import { Skeleton } from '../ui/Skeleton';
+import { AI_MODELS } from '../ui/ModelSelectorDropdown';
+import { SUMMARY_LENGTH_OPTIONS } from '../ui/SummaryLengthDropdown';
 
-const FIO_PROMPTS = [
-  'Wie kann ich dir helfen?',
-  'Kann ich dir irgendwie helfen?',
-  'Brauchst du Fokus-Tipps für heute?',
-  'Sollen wir deinen Tag strukturieren?',
-  'Bereit für dein Haupt-Ziel heute?'
-];
+// Dashboard = Tagesübersicht: Was steht heute an, was kommt die nächsten Tage, was ist überfällig.
+// Aufbau (Desktop): links Überfällig + Heute, rechts die nächsten 7 Tage, Projekt, letzte Gedanken.
+// Am Handy ein Stapel in fester Wichtigkeitsreihenfolge (Eingabe, Überfällig, Woche, Heute, Rest).
+
+const KIND_META = {
+  event: { icon: 'event', area: 'calendar', label: 'Termin' },
+  reminder: { icon: 'notifications', area: 'reminders', label: 'Erinnerung' },
+  task: { icon: 'task_alt', area: 'projects', label: 'Aufgabe' },
+};
+
+const WEEKDAY_SHORT = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+const HINT_KEY = 'focusflow_dashboard_calendar_hint_dismissed';
+
+const readHintDismissed = () => {
+  try {
+    return localStorage.getItem(HINT_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
+
+function greetingFor(hour) {
+  if (hour >= 5 && hour < 12) return 'Guten Morgen';
+  if (hour >= 12 && hour < 18) return 'Guten Tag';
+  if (hour >= 18 && hour < 23) return 'Guten Abend';
+  return 'Gute Nacht';
+}
+
+/** Eingabezeile: Gedanke direkt vom Dashboard festhalten (nutzt die KI-Einstellungen der Gedanken-Ansicht) */
+function QuickThought({ onOpenThoughts }) {
+  const { addInboxItem } = useModalContext();
+  const { user } = useAuth();
+  const { showToast } = useToast();
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [aiFlag] = usePersistedChoice('focusflow_thought_ai', ['on', 'off'], 'on');
+  const [length] = usePersistedChoice('focusflow_thought_length', SUMMARY_LENGTH_OPTIONS.map((o) => o.id), 'normal');
+  const [model] = usePersistedChoice('focusflow_thought_model', AI_MODELS.map((m) => m.id), 'eco');
+
+  const save = async () => {
+    const value = text.trim();
+    if (!value || busy) return;
+    setBusy(true);
+    try {
+      const thought = await buildThought(value, { summarize: aiFlag === 'on' && !user?.isGuest, model, length });
+      await addInboxItem(thought);
+      setText('');
+      showToast({ message: 'Gedanke gespeichert', icon: 'lightbulb', actionLabel: 'Ansehen', onAction: onOpenThoughts });
+    } catch (err) {
+      console.error('Gedanke konnte nicht gespeichert werden:', err);
+      showToast({ message: 'Gedanke konnte nicht gespeichert werden. Dein Text ist noch da.', icon: 'error' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form
+      onSubmit={(e) => { e.preventDefault(); save(); }}
+      className="flex items-center gap-2 bg-white rounded-xl border border-outline-variant shadow-card pl-4 pr-2 py-2 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/20 transition-shadow"
+      aria-label="Gedanken festhalten"
+    >
+      <span className={`material-symbols-outlined text-[22px] shrink-0 ${areaOf('inbox').chip.split(' ')[1]}`} aria-hidden="true">lightbulb</span>
+      <label htmlFor="dashboard-thought" className="sr-only">Was geht dir durch den Kopf?</label>
+      <input
+        id="dashboard-thought"
+        type="text"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        disabled={busy}
+        placeholder="Was geht dir durch den Kopf?"
+        enterKeyHint="send"
+        className="flex-1 min-w-0 border-0 bg-transparent px-0 py-2 text-base placeholder:text-on-surface-variant focus:ring-0 focus:outline-none disabled:opacity-60"
+      />
+      <Button type="submit" size="icon" loading={busy} className="shrink-0" aria-label="Gedanke speichern">
+        {!busy && <span className="material-symbols-outlined text-[22px]">arrow_upward</span>}
+      </Button>
+    </form>
+  );
+}
+
+/** Eine Zeile in Heute / Überfällig / Tagesdetail */
+function AgendaRow({ item, onToggle, onOpen, now, highlight }) {
+  const meta = KIND_META[item.kind];
+  const chip = areaOf(meta.area).chip;
+  const canToggle = item.kind !== 'event';
+  const past = item.startAt && item.startAt < now && !item.completed && item.kind === 'event';
+
+  return (
+    <li className={`flex items-center gap-3 py-2 ${highlight ? 'bg-surface-low -mx-3 px-3 rounded-lg' : ''}`}>
+      <span className={`w-14 shrink-0 text-xs font-semibold tabular-nums text-right ${item.dueLabel ? 'text-danger' : 'text-on-surface-variant'}`}>
+        {item.allDay ? 'Ganztägig' : item.timeLabel || item.dueLabel || ''}
+      </span>
+      {canToggle ? (
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={item.completed}
+          aria-label={`${item.title} abhaken`}
+          onClick={() => onToggle(item)}
+          className={`w-6 h-6 shrink-0 rounded-md border-2 flex items-center justify-center transition-colors cursor-pointer ${
+            item.completed ? 'bg-success border-success text-white' : 'border-outline-variant bg-white text-transparent hover:border-primary'
+          }`}
+        >
+          <span className="material-symbols-outlined text-[16px]" aria-hidden="true">check</span>
+        </button>
+      ) : (
+        <span className={`w-6 h-6 shrink-0 rounded-md flex items-center justify-center ${chip}`} aria-hidden="true">
+          <span className="material-symbols-outlined text-[15px]">{meta.icon}</span>
+        </span>
+      )}
+      <button
+        type="button"
+        onClick={() => onOpen(item)}
+        className="flex-1 min-w-0 text-left cursor-pointer rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      >
+        <span className={`block text-sm font-semibold leading-snug truncate ${item.completed ? 'line-through text-on-surface-variant' : past ? 'text-on-surface-variant' : 'text-primary'}`}>
+          {item.title}
+        </span>
+        {item.subtitle && <span className="block text-xs text-on-surface-variant truncate">{item.subtitle}</span>}
+      </button>
+      {highlight && <Badge variant="default" className="shrink-0">{highlight}</Badge>}
+    </li>
+  );
+}
+
+function SectionCard({ title, icon, areaId, count, children, className = '', tone = 'default', action }) {
+  const area = areaOf(areaId);
+  const border = tone === 'danger' ? 'border-danger-border' : '';
+  return (
+    <Card padding="none" className={`${border} ${className}`}>
+      <div className="flex items-center justify-between gap-2 px-4 sm:px-5 pt-4 pb-1">
+        <h2 className="flex items-center gap-2 text-base font-bold">
+          <span className={`w-7 h-7 rounded-lg flex items-center justify-center ${tone === 'danger' ? 'bg-danger-soft text-danger' : area.chip}`} aria-hidden="true">
+            <span className="material-symbols-outlined text-[18px]">{icon}</span>
+          </span>
+          {title}
+          {count != null && <span className="text-sm font-medium text-on-surface-variant">{count}</span>}
+        </h2>
+        {action}
+      </div>
+      <div className="px-4 sm:px-5 pb-4 pt-1">{children}</div>
+    </Card>
+  );
+}
 
 const Dashboard = ({ setCurrentScreen }) => {
-  const { user } = useAuth();
+  const { user, isCalendarConnected } = useAuth();
   const {
     projects,
     reminders,
+    inboxItems,
     setReminderStatus,
     setSelectedReminderId,
     toggleTask,
@@ -26,30 +175,54 @@ const Dashboard = ({ setCurrentScreen }) => {
     openModal
   } = useModalContext();
 
-  // Wechselnde Fio-Fragen im Teaser
-  const [promptIndex, setPromptIndex] = useState(0);
-
+  // Jede Minute neu rechnen: „in 25 Min“, Tageswechsel
+  const [now, setNow] = useState(() => new Date());
   useEffect(() => {
-    const interval = setInterval(() => {
-      setPromptIndex((prev) => (prev + 1) % FIO_PROMPTS.length);
-    }, 5500);
-
-    return () => clearInterval(interval);
+    const id = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(id);
   }, []);
 
-  // Time & Greeting
-  const now = new Date();
-  const currentHour = now.getHours();
-  let greeting = 'Guten Tag';
-  if (currentHour >= 5 && currentHour < 12) {
-    greeting = 'Guten Morgen';
-  } else if (currentHour >= 12 && currentHour < 18) {
-    greeting = 'Guten Tag';
-  } else if (currentHour >= 18 && currentHour < 23) {
-    greeting = 'Guten Abend';
-  } else {
-    greeting = 'Gute Nacht';
-  }
+  const [selectedDayKey, setSelectedDayKey] = useState(null);
+  const [hintDismissed, setHintDismissed] = useState(readHintDismissed);
+
+  const month = now.getMonth();
+  const year = now.getFullYear();
+  const { eventsCache, isLoading: eventsLoading } = useCalendarEvents({
+    enabled: Boolean(isCalendarConnected),
+    year,
+    month,
+    prevYear: month === 0 ? year - 1 : year,
+    prevMonth: month === 0 ? 11 : month - 1,
+    nextYear: month === 11 ? year + 1 : year,
+    nextMonth: month === 11 ? 0 : month + 1,
+  });
+
+  const agenda = useMemo(
+    () => buildAgenda({ reminders, projects, eventsByMonth: eventsCache, now, days: 7 }),
+    [reminders, projects, eventsCache, now]
+  );
+
+  const todayItems = agenda.days[0].items;
+  const allDayToday = todayItems.filter((i) => i.allDay);
+  const timedToday = todayItems.filter((i) => !i.allDay && i.startAt);
+  const untimedToday = todayItems.filter((i) => !i.allDay && !i.startAt);
+  const openToday = todayItems.filter((i) => !i.completed).length;
+  const next = getNextTimed(timedToday, now);
+
+  const selectedDay = selectedDayKey ? agenda.days.find((d) => d.key === selectedDayKey) : null;
+
+  const activeProject = useMemo(() => (
+    projects.find((p) => !p.deletedAt && !p.isPaused && (p.status === 'IN ARBEIT' || p.status === 'AKTIV')) ||
+    projects.find((p) => !p.deletedAt && !p.isPaused && p.status !== 'ABGESCHLOSSEN') ||
+    null
+  ), [projects]);
+  const activeProjectStats = activeProject ? getProjectStats(activeProject) : null;
+
+  const recentThoughts = useMemo(() => {
+    const all = Object.values(inboxItems || {}).flat().filter((i) => !i.deletedAt);
+    const timeOf = (i) => i.createdAt || (i.id && i.id.includes('_') ? parseInt(i.id.split('_')[1]) : 0);
+    return all.sort((a, b) => timeOf(b) - timeOf(a)).slice(0, 3);
+  }, [inboxItems]);
 
   const userName = user?.displayName
     ? user.displayName.split(' ')[0]
@@ -57,435 +230,287 @@ const Dashboard = ({ setCurrentScreen }) => {
     ? user.email.split('@')[0]
     : '';
 
-  const formattedDate = now.toLocaleDateString('de-DE', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  });
+  const formattedDate = now.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
 
-  // Lokaler Kalendertag; toISOString() wäre UTC und zeigte kurz nach Mitternacht noch "gestern"
-  const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  const todayDe = now.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
-  const todayDeShort = now.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
-
-  // Date Check Helpers
-  const isDateToday = (dateStr) => {
-    if (!dateStr || dateStr === 'Demnächst') return false;
-    if (dateStr === todayIso || dateStr === todayDe || dateStr.startsWith(todayDeShort)) return true;
-    const d = new Date(dateStr);
-    if (!isNaN(d.getTime())) {
-      return (
-        d.getFullYear() === now.getFullYear() &&
-        d.getMonth() === now.getMonth() &&
-        d.getDate() === now.getDate()
-      );
-    }
-    return false;
-  };
-
-  const isDateOverdue = (dateStr, isCompleted) => {
-    if (isCompleted || !dateStr || dateStr === 'Demnächst') return false;
-    const d = new Date(dateStr);
-    if (!isNaN(d.getTime())) {
-      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-      return d.getTime() < startOfToday;
-    }
-    return false;
-  };
-
-  // Aggregated "Today" Items from Reminders and Projects
-  const todayItems = useMemo(() => {
-    const items = [];
-
-    // 1. Reminders
-    reminders.forEach((rem) => {
-      const isToday = isDateToday(rem.date);
-      const isOver = isDateOverdue(rem.date, rem.status === 'ABGESCHLOSSEN');
-      
-      if (isToday || isOver || (rem.status !== 'ABGESCHLOSSEN' && rem.priority === 'hoch')) {
-        items.push({
-          id: rem.id,
-          sourceType: 'reminder',
-          title: rem.title,
-          subtitle: rem.description || 'Erinnerung',
-          parentTitle: 'Erinnerung',
-          time: rem.time ? `${rem.time} Uhr` : rem.date !== 'Demnächst' ? rem.date : 'Heute',
-          priority: rem.priority || 'mittel',
-          completed: rem.status === 'ABGESCHLOSSEN',
-          isOverdue: isOver,
-          rawItem: rem
-        });
-      }
-    });
-
-    // 2. Project Tasks
-    projects.forEach((proj) => {
-      if (proj.status === 'ABGESCHLOSSEN' || proj.isPaused) return;
-      if (proj.phases && proj.phases.length > 0) {
-        proj.phases.forEach((phase) => {
-          if (phase.tasks && phase.tasks.length > 0) {
-            phase.tasks.forEach((task) => {
-              const isToday = isDateToday(task.date);
-              const isOver = isDateOverdue(task.date, task.completed);
-              if (isToday || isOver) {
-                items.push({
-                  id: task.id,
-                  sourceType: 'project-task',
-                  projectId: proj.id,
-                  phaseId: phase.id,
-                  title: task.title,
-                  subtitle: task.note || phase.title,
-                  parentTitle: proj.title,
-                  time: task.date || 'Heute',
-                  priority: 'mittel',
-                  completed: !!task.completed,
-                  isOverdue: isOver,
-                  rawItem: task
-                });
-              }
-            });
-          }
-        });
-      }
-    });
-
-    // Fallback: If no items match specifically "today", show the first active reminders/tasks
-    if (items.length === 0) {
-      reminders
-        .filter((r) => r.status !== 'ABGESCHLOSSEN')
-        .slice(0, 4)
-        .forEach((rem) => {
-          items.push({
-            id: rem.id,
-            sourceType: 'reminder',
-            title: rem.title,
-            subtitle: rem.description || 'Erinnerung',
-            parentTitle: 'Erinnerung',
-            time: rem.time ? `${rem.time} Uhr` : 'Demnächst',
-            priority: rem.priority || 'mittel',
-            completed: false,
-            isOverdue: false,
-            rawItem: rem
-          });
-        });
-    }
-
-    return items;
-  }, [reminders, projects]);
-
-  const completedCount = todayItems.filter((i) => i.completed).length;
-  const totalCount = todayItems.length;
-
-  // Must-Win Task: Priority 1 item or top incomplete item
-  const mustWinItem = useMemo(() => {
-    const highPrio = todayItems.find((i) => !i.completed && i.priority === 'hoch');
-    if (highPrio) return highPrio;
-    const firstIncomplete = todayItems.find((i) => !i.completed);
-    if (firstIncomplete) return firstIncomplete;
-    if (todayItems.length > 0) return todayItems[0];
-    return null;
-  }, [todayItems]);
-
-  // Active Project for the Widget
-  const activeProject = useMemo(() => {
-    return (
-      projects.find((p) => !p.isPaused && (p.status === 'IN ARBEIT' || p.status === 'AKTIV')) ||
-      projects.find((p) => !p.isPaused && p.status !== 'ABGESCHLOSSEN') ||
-      projects[0] ||
-      null
-    );
-  }, [projects]);
-
-  // Live statt gespeicherter Werte (progress/nextStep veralten)
-  const activeProjectStats = activeProject ? getProjectStats(activeProject) : null;
-
-  // Focus Score Calculation
-  const focusScore = useMemo(() => {
-    if (totalCount === 0 && projects.length === 0) return 84; // Fallback score
-    const completionRate = totalCount > 0 ? completedCount / totalCount : 0.5;
-    const activeProjectsCount = projects.filter((p) => !p.isPaused && p.status !== 'ABGESCHLOSSEN').length;
-    const base = 50;
-    const score = Math.min(100, Math.max(20, Math.round(base + completionRate * 40 + Math.min(activeProjectsCount * 5, 10))));
-    return score;
-  }, [totalCount, completedCount, projects]);
-
-  // Handlers
-  const handleToggleItem = (item) => {
-    if (item.sourceType === 'reminder') {
-      // Direkt erledigen bzw. wieder öffnen (nicht Geplant → Aktiv durchschalten); Wiederholungen springen weiter
+  const handleToggle = (item) => {
+    if (item.kind === 'reminder') {
+      // Direkt erledigen bzw. wieder öffnen; Wiederholungen springen weiter
       setReminderStatus(item.id, item.completed ? 'AKTIV' : 'ABGESCHLOSSEN');
-    } else if (item.sourceType === 'project-task') {
+    } else if (item.kind === 'task') {
       toggleTask(item.projectId, item.phaseId, item.id);
     }
   };
 
-  const handleItemClick = (item) => {
-    if (item.sourceType === 'reminder') {
+  const handleOpen = (item) => {
+    if (item.kind === 'reminder') {
       setSelectedReminderId(item.id);
       setCurrentScreen('reminder-detail');
-    } else if (item.sourceType === 'project-task') {
+    } else if (item.kind === 'task') {
       setSelectedProjectId(item.projectId);
       setCurrentScreen('project-detail');
+    } else {
+      setCurrentScreen('calendar');
     }
   };
 
+  const dismissHint = () => {
+    setHintDismissed(true);
+    try {
+      localStorage.setItem(HINT_KEY, '1');
+    } catch {
+      // gilt dann nur für diese Sitzung
+    }
+  };
+
+  const showCalendarHint = !isCalendarConnected && !user?.isGuest && !hintDismissed;
+
   return (
-    <div className="screen-transition">
-      {/* Header mit 2-Zeilen-Hierarchie */}
-      <header className="mb-6 sm:mb-8 border-b border-outline-variant pb-5 sm:pb-6">
-        {/* Zeile 1: Datum & Begrüßung */}
-        <div>
-          <span className="text-xs text-on-surface-variant mb-1 block mono uppercase">
-            {formattedDate} • Fokus-Modus
-          </span>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold leading-tight">
-            {greeting}{userName ? `, ${userName}` : ''}
+    <div className="screen-transition flex flex-col gap-5 sm:gap-6">
+      {/* Begrüßung + Fio */}
+      <header className="flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm text-on-surface-variant capitalize">{formattedDate}</p>
+          <h1 className="text-2xl sm:text-3xl font-bold leading-tight truncate">
+            {greetingFor(now.getHours())}{userName ? `, ${userName}` : ''}
           </h1>
         </div>
-
-        {/* Zeile 2: Fio Assistant Teaser als primäre Fio-Aktion auf Mobile */}
-        <div className="mt-3.5 sm:mt-4">
-          <button
-            onClick={() => setCurrentScreen('coach')}
-            type="button"
-            aria-label={`Fio KI-Coach öffnen: ${FIO_PROMPTS[promptIndex]}`}
-            className="w-full sm:w-auto flex items-center gap-3 p-3 px-4 rounded-2xl bg-white border border-outline-variant hover:border-primary transition-all shadow-sm group text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          >
-            <div className="w-8 h-8 rounded-xl bg-primary text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-              <FioIcon className="w-4 h-4 text-white" color="currentColor" />
-            </div>
-            <div className="flex-grow min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-bold font-mono text-primary uppercase tracking-wider">Fio KI-Coach</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              </div>
-              <p className="text-sm font-medium text-primary group-hover:text-accent-blue transition-colors truncate">
-                {FIO_PROMPTS[promptIndex]}
-              </p>
-            </div>
-            <span className="material-symbols-outlined text-on-surface-variant text-[18px] shrink-0 group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
-          </button>
-        </div>
+        <Button
+          variant="secondary"
+          onClick={() => setCurrentScreen('coach')}
+          aria-label="Fio KI-Coach öffnen"
+          className="shrink-0 min-w-0"
+        >
+          <FioIcon className="w-4 h-4" color="currentColor" />
+          <span className="hidden sm:inline">Fio fragen</span>
+        </Button>
       </header>
 
-      {/* Haupt-Ergebnis heute (The Main Outcome / Must-Win) */}
-      <Card className="border-2 border-primary mb-6 sm:mb-8 shadow-sm">
-        <div className="flex items-center justify-between gap-2 mb-2">
-          <span className="text-[11px] sm:text-xs font-mono font-bold text-primary uppercase tracking-wider flex items-center gap-1.5 truncate">
-            <span className="material-symbols-outlined text-[16px] sm:text-[18px] flex-shrink-0 text-amber-500">stars</span>
-            <span className="truncate">HAUPT-ERGEBNIS HEUTE (MUST-WIN)</span>
-          </span>
-          <Badge variant={mustWinItem?.completed ? 'outline' : 'default'}>
-            {mustWinItem?.completed ? 'ERLEDIGT 🎉' : 'PRIO 1'}
-          </Badge>
+      <QuickThought onOpenThoughts={() => setCurrentScreen('inbox')} />
+
+      <div className="flex flex-col gap-5 sm:gap-6 lg:grid lg:grid-cols-12 lg:items-start">
+        {/* Linke Spalte (Desktop): Überfällig + Heute */}
+        <div className="contents lg:flex lg:flex-col lg:gap-6 lg:col-span-7">
+          {agenda.overdue.length > 0 && (
+            <SectionCard
+              title="Überfällig"
+              icon="error"
+              areaId="reminders"
+              tone="danger"
+              count={agenda.overdue.length}
+              className="order-1 lg:order-none"
+            >
+              <ul className="divide-y divide-outline-variant/60">
+                {agenda.overdue.map((item) => (
+                  <AgendaRow key={item.key} item={item} onToggle={handleToggle} onOpen={handleOpen} now={now} />
+                ))}
+              </ul>
+            </SectionCard>
+          )}
+
+          <SectionCard
+            title="Heute"
+            icon="today"
+            areaId="dashboard"
+            count={openToday > 0 ? `${openToday} offen` : null}
+            className="order-3 lg:order-none"
+          >
+            {allDayToday.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pb-2" aria-label="Ganztägige Termine">
+                {allDayToday.map((item) => (
+                  <Badge key={item.key} variant="default" className="max-w-full">
+                    <span className="material-symbols-outlined text-[14px]" aria-hidden="true">event</span>
+                    <span className="truncate">{item.title}</span>
+                  </Badge>
+                ))}
+              </div>
+            )}
+
+            {eventsLoading && timedToday.length === 0 && (
+              <div className="space-y-3 py-2" role="status" aria-label="Termine werden geladen">
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-4 w-1/2" />
+              </div>
+            )}
+
+            {timedToday.length > 0 && (
+              <ul className="divide-y divide-outline-variant/60">
+                {timedToday.map((item) => {
+                  const isNext = next && next.item.key === item.key;
+                  const label = isNext ? (next.state === 'running' ? 'läuft' : next.minutes <= 180 ? formatMinutes(next.minutes) : null) : null;
+                  return <AgendaRow key={item.key} item={item} onToggle={handleToggle} onOpen={handleOpen} now={now} highlight={label} />;
+                })}
+              </ul>
+            )}
+
+            {untimedToday.length > 0 && (
+              <div className={timedToday.length > 0 ? 'mt-3 pt-3 border-t border-outline-variant' : ''}>
+                {timedToday.length > 0 && <h3 className="text-xs font-semibold text-on-surface-variant mb-1">Ohne Uhrzeit</h3>}
+                <ul className="divide-y divide-outline-variant/60">
+                  {untimedToday.map((item) => (
+                    <AgendaRow key={item.key} item={item} onToggle={handleToggle} onOpen={handleOpen} now={now} />
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {todayItems.length === 0 && !eventsLoading && (
+              <div className="text-center py-6">
+                <span className="material-symbols-outlined text-[32px] text-on-surface-variant/60" aria-hidden="true">event_available</span>
+                <p className="text-sm font-semibold mt-1">Heute ist nichts geplant</p>
+                <p className="text-sm text-on-surface-variant mt-0.5">Zeit für Fokus oder die nächste Idee.</p>
+                <Button size="sm" className="mt-3" onClick={() => openModal('reminder')}>
+                  Erinnerung erstellen
+                </Button>
+              </div>
+            )}
+          </SectionCard>
         </div>
 
-        {mustWinItem ? (
-          <div className="flex items-start gap-2 sm:gap-3 mt-2">
-            {/* 44x44px Touch Target Container for Checkbox */}
-            <label className="min-w-[44px] min-h-[44px] flex items-center justify-center -ml-2 shrink-0 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={mustWinItem.completed}
-                onChange={() => handleToggleItem(mustWinItem)}
-                className="w-5 h-5 border-2 border-outline-variant text-primary rounded focus:ring-primary cursor-pointer"
-                aria-label="Must-Win abhaken"
-              />
-            </label>
-            <div className="flex-grow min-w-0 pt-2 pb-1">
-              <p className={`text-base sm:text-lg font-bold leading-snug line-clamp-2 sm:line-clamp-none ${mustWinItem.completed ? 'line-through opacity-60' : ''}`}>
-                {mustWinItem.title}
-              </p>
-              <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
-                {mustWinItem.subtitle || 'Dieses eine konkrete Ergebnis macht deinen heutigen Tag zum vollen Erfolg.'}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="py-3">
-            <p className="text-sm font-medium text-on-surface-variant">
-              Noch kein Haupt-Ergebnis für heute definiert. Füge eine wichtige Aufgabe hinzu!
-            </p>
-          </div>
-        )}
-      </Card>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Hauptliste "Heute" */}
-        <div className="lg:col-span-8 space-y-6">
-          <div className="flex items-center justify-between gap-2 border-b border-outline-variant pb-2">
-            <div className="flex items-center gap-2 sm:gap-3 flex-wrap sm:flex-nowrap">
-              <h2 className="text-lg sm:text-xl font-bold">Heute</h2>
-              <span title="Optimales Tageslimit für maximale Fokus-Qualität">
-                <Badge variant="outline">
-                  KAPAZITÄT: {totalCount} / MAX 5 ({totalCount <= 5 ? 'OPTIMAL' : 'HOCH'})
-                </Badge>
-              </span>
-            </div>
-            <span className="text-xs text-on-surface-variant mono whitespace-nowrap">
-              {completedCount}/{totalCount} Erledigt
-            </span>
-          </div>
-
-          {/* Task List */}
-          <div className="space-y-3">
-            {todayItems.length > 0 ? (
-              todayItems.map((item) => (
-                <Card
-                  key={`${item.sourceType}-${item.id}`}
-                  interactive
-                  padding="small"
-                  className={`flex items-start gap-1 sm:gap-2 transition-all rounded-2xl ${
-                    item.completed ? 'opacity-60 bg-surface-low/50' : ''
-                  }`}
-                >
-                  {/* 44x44px Touch Target for Task Checkbox */}
-                  <label 
-                    onClick={(e) => e.stopPropagation()} 
-                    className="min-w-[44px] min-h-[44px] flex items-center justify-center -ml-1 shrink-0 cursor-pointer"
+        {/* Rechte Spalte (Desktop): Woche, Projekt, Gedanken */}
+        <div className="contents lg:flex lg:flex-col lg:gap-6 lg:col-span-5">
+          <SectionCard
+            title="Nächste 7 Tage"
+            icon="date_range"
+            areaId="calendar"
+            className="order-2 lg:order-none"
+            action={(
+              <button
+                type="button"
+                onClick={() => setCurrentScreen('calendar')}
+                className="text-xs font-semibold text-on-surface-variant hover:text-primary hover:underline cursor-pointer"
+              >
+                Kalender
+              </button>
+            )}
+          >
+            <div className="grid grid-cols-7 gap-1" role="group" aria-label="Wochenübersicht">
+              {agenda.days.map((day) => {
+                const kinds = [...new Set(day.items.map((i) => i.kind))];
+                const open = day.items.filter((i) => !i.completed).length;
+                const isSelected = selectedDayKey === day.key;
+                return (
+                  <button
+                    key={day.key}
+                    type="button"
+                    aria-pressed={isSelected}
+                    aria-label={`${WEEKDAY_SHORT[day.date.getDay()]} ${day.date.getDate()}., ${open} offene Einträge`}
+                    onClick={() => setSelectedDayKey(isSelected ? null : day.key)}
+                    className={`flex flex-col items-center gap-1 py-2 rounded-lg border transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                      isSelected
+                        ? 'bg-surface-low border-primary/40'
+                        : day.isToday
+                        ? 'border-outline-variant bg-white'
+                        : 'border-transparent hover:bg-surface-low'
+                    }`}
                   >
-                    <input
-                      type="checkbox"
-                      checked={item.completed}
-                      onChange={() => handleToggleItem(item)}
-                      className="w-5 h-5 border-2 border-outline-variant text-primary rounded focus:ring-primary cursor-pointer"
-                      aria-label={`Aufgabe ${item.title} abhaken`}
-                    />
-                  </label>
-
-                  <div
-                    className="flex-grow min-w-0 cursor-pointer pt-2 pb-1"
-                    onClick={() => handleItemClick(item)}
-                  >
-                    <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-mono text-on-surface-variant mb-1 flex-wrap">
-                      <span className="font-bold text-primary">
-                        {item.parentTitle}
-                      </span>
-                      <span>›</span>
-                      <span>{item.subtitle}</span>
-                    </div>
-
-                    <p
-                      className={`text-sm sm:text-base font-semibold leading-snug line-clamp-2 sm:line-clamp-none ${
-                        item.completed ? 'line-through text-on-surface-variant' : 'text-primary'
-                      }`}
-                    >
-                      {item.title}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 flex-shrink-0 pt-2.5 pr-1">
-                    {item.isOverdue && !item.completed && (
-                      <span className="text-[10px] text-rose-600 font-mono font-bold bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
-                        Überfällig
-                      </span>
-                    )}
-                    <span className="text-[11px] sm:text-xs text-on-surface-variant mono whitespace-nowrap">
-                      {item.time}
+                    <span className="text-xs text-on-surface-variant">{day.isToday ? 'Heute' : WEEKDAY_SHORT[day.date.getDay()]}</span>
+                    <span className={`w-8 h-8 rounded-md flex items-center justify-center text-sm font-bold ${day.isToday ? 'bg-primary text-white' : 'text-primary'}`}>
+                      {day.date.getDate()}
                     </span>
-                  </div>
-                </Card>
-              ))
-            ) : (
-              <div className="text-center py-10 border border-dashed border-outline-variant rounded-2xl p-6 bg-surface-low/30">
-                <span className="material-symbols-outlined text-4xl text-on-surface-variant mb-2 block">
-                  task_alt
-                </span>
-                <p className="text-sm font-bold mb-1">Alles erledigt für heute!</p>
-                <p className="text-xs text-on-surface-variant mb-4">
-                  Keine offenen Aufgaben für heute. Gönn dir eine Pause oder plane deinen nächsten Tag.
-                </p>
-                <button
-                  onClick={() => openModal('reminder')}
-                  className="px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:bg-neutral-800 transition-colors cursor-pointer"
-                >
-                  + Neue Erinnerung erstellen
+                    <span className="flex gap-0.5 h-1.5" aria-hidden="true">
+                      {kinds.slice(0, 3).map((k) => (
+                        <span key={k} className={`w-1.5 h-1.5 rounded-full ${areaOf(KIND_META[k].area).dot}`} />
+                      ))}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {selectedDay && (
+              <div className="mt-3 pt-3 border-t border-outline-variant">
+                <h3 className="text-xs font-semibold text-on-surface-variant mb-1">
+                  {selectedDay.date.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}
+                </h3>
+                {selectedDay.items.length === 0 ? (
+                  <p className="text-sm text-on-surface-variant py-2">Nichts geplant.</p>
+                ) : (
+                  <ul className="divide-y divide-outline-variant/60">
+                    {selectedDay.items.slice(0, 4).map((item) => (
+                      <AgendaRow key={item.key} item={item} onToggle={handleToggle} onOpen={handleOpen} now={now} />
+                    ))}
+                  </ul>
+                )}
+                {selectedDay.items.length > 4 && (
+                  <button type="button" onClick={() => setCurrentScreen('calendar')} className="mt-1 text-xs font-semibold text-on-surface-variant hover:text-primary hover:underline cursor-pointer">
+                    Alle {selectedDay.items.length} im Kalender anzeigen
+                  </button>
+                )}
+              </div>
+            )}
+
+            {showCalendarHint && (
+              <div className="mt-3 flex items-center gap-2 rounded-xl bg-surface-low px-3 py-2 text-xs text-on-surface-variant">
+                <span className="flex-1">Mit Google Kalender siehst du hier auch deine Termine.</span>
+                <button type="button" onClick={() => setCurrentScreen('calendar')} className="font-semibold text-primary hover:underline cursor-pointer">Verbinden</button>
+                <button type="button" onClick={dismissHint} aria-label="Hinweis ausblenden" className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-white cursor-pointer">
+                  <span className="material-symbols-outlined text-[16px]">close</span>
                 </button>
               </div>
             )}
-          </div>
-        </div>
+          </SectionCard>
 
-        {/* Sidebar Widgets */}
-        <div className="lg:col-span-4 space-y-6">
-          {/* Fokus Score Widget */}
-          <Card padding="normal" className="bg-surface-low border border-outline-variant/60">
-            <div className="flex items-center justify-between border-b border-outline-variant pb-2 mb-3">
-              <h3 className="text-xs font-mono text-on-surface-variant uppercase tracking-wider">
-                FOKUS SCORE
-              </h3>
-              <span className="text-[11px] font-mono text-on-surface-variant">
-                {completedCount}/{totalCount} Erledigt
-              </span>
-            </div>
-            <div className="flex items-end gap-2 mb-3">
-              <span className="text-3xl sm:text-4xl font-bold leading-none">{focusScore || 84}</span>
-              <span className="text-xs text-on-surface-variant mb-1 mono">/100</span>
-            </div>
-            <div className="w-full bg-outline-variant h-2 rounded-full overflow-hidden">
-              <div
-                className="bg-primary h-full rounded-full transition-all duration-500"
-                style={{ width: `${focusScore || 84}%` }}
-              ></div>
-            </div>
-            {/* 84% Benchmark */}
-            <p className="text-[11px] text-on-surface-variant mt-3 mono">
-              {focusScore >= 80
-                ? '🔥 Exzellente Tages-Fokussierung!'
-                : focusScore >= 50
-                ? '⚡ Solider Fortschritt, bleib dran.'
-                : '🎯 Starte mit deinem Must-Win Ziel.'}
-            </p>
-          </Card>
-
-          {/* Nächstes Projekt Widget */}
-          {activeProject ? (
+          {activeProject && (
             <Card
               interactive
               padding="normal"
+              className="order-4 lg:order-none"
+              role="button"
+              tabIndex={0}
               onClick={() => {
                 setSelectedProjectId(activeProject.id);
                 setCurrentScreen('project-detail');
               }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setSelectedProjectId(activeProject.id);
+                  setCurrentScreen('project-detail');
+                }
+              }}
             >
-              <h3 className="text-xs font-mono text-on-surface-variant mb-3 border-b border-outline-variant pb-2 uppercase tracking-wider">
-                NÄCHSTES PROJEKT
-              </h3>
-              <p className="text-base font-bold mb-1 truncate">{activeProject.title}</p>
-              <p className="text-xs text-on-surface-variant mb-3 truncate">
-                {activeProjectStats.nextTask
-                  ? `Als Nächstes: ${activeProjectStats.nextTask.task.title}`
-                  : 'Projektübersicht öffnen'}
+              <div className="flex items-center gap-2 mb-3">
+                <span className={`w-7 h-7 rounded-lg flex items-center justify-center ${areaOf('projects').chip}`} aria-hidden="true">
+                  <span className="material-symbols-outlined text-[18px]">folder</span>
+                </span>
+                <h2 className="text-base font-bold">Aktives Projekt</h2>
+              </div>
+              <p className="text-base font-semibold truncate">{activeProject.title}</p>
+              <p className="text-sm text-on-surface-variant mt-0.5 mb-3 truncate">
+                {activeProjectStats.nextTask ? `Als Nächstes: ${activeProjectStats.nextTask.task.title}` : 'Projektübersicht öffnen'}
               </p>
-              <div className="flex justify-between text-xs mono mb-1.5 font-bold">
-                <span>Fortschritt</span>
+              <div className="flex justify-between text-xs font-semibold mb-1.5">
+                <span className="text-on-surface-variant">Fortschritt</span>
                 <span>{activeProjectStats.progress}%</span>
               </div>
-              <div className="w-full bg-surface-low h-2 border border-outline-variant rounded-full overflow-hidden">
-                <div
-                  className="bg-primary h-full rounded-full transition-all duration-500"
-                  style={{ width: `${activeProjectStats.progress}%` }}
-                ></div>
+              <div className="w-full bg-surface-low h-2 rounded-full overflow-hidden" role="progressbar" aria-valuenow={activeProjectStats.progress} aria-valuemin={0} aria-valuemax={100}>
+                <div className="bg-primary h-full rounded-full transition-all duration-panel" style={{ width: `${activeProjectStats.progress}%` }} />
               </div>
             </Card>
-          ) : (
-            <Card
-              interactive
-              padding="normal"
-              onClick={() => openModal('project')}
+          )}
+
+          {recentThoughts.length > 0 && (
+            <SectionCard
+              title="Letzte Gedanken"
+              icon="lightbulb"
+              areaId="inbox"
+              className="order-5 lg:order-none"
+              action={(
+                <button type="button" onClick={() => setCurrentScreen('inbox')} className="text-xs font-semibold text-on-surface-variant hover:text-primary hover:underline cursor-pointer">
+                  Alle ansehen
+                </button>
+              )}
             >
-              <h3 className="text-xs font-mono text-on-surface-variant mb-3 border-b border-outline-variant pb-2 uppercase tracking-wider">
-                NÄCHSTES PROJEKT
-              </h3>
-              <p className="text-sm font-bold mb-1">Kein aktives Projekt</p>
-              <p className="text-xs text-on-surface-variant mb-3">
-                Erstelle dein erstes Projekt, um Meilensteine strukturiert umzusetzen.
-              </p>
-              <span className="text-xs font-bold text-primary flex items-center gap-1">
-                + Neues Projekt anlegen
-              </span>
-            </Card>
+              <ul className="divide-y divide-outline-variant/60">
+                {recentThoughts.map((t) => (
+                  <li key={t.id}>
+                    <button type="button" onClick={() => setCurrentScreen('inbox')} className="w-full text-left py-2 text-sm font-medium truncate hover:underline cursor-pointer">
+                      {t.title || t.summary}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </SectionCard>
           )}
         </div>
       </div>

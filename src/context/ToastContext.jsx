@@ -31,6 +31,13 @@ export function ToastProvider({ children }) {
 
   useEffect(() => () => clearTimeout(timerRef.current), []);
 
+  // Meldungen aus Code ohne React-Kontext (lib/notify.js)
+  useEffect(() => {
+    const onNotify = (e) => showToast({ message: e.detail?.message, icon: e.detail?.icon });
+    window.addEventListener('focusflow:notify', onNotify);
+    return () => window.removeEventListener('focusflow:notify', onNotify);
+  }, [showToast]);
+
   return (
     <ToastContext.Provider value={{ showToast, showUndoToast, dismissToast }}>
       {children}
@@ -80,7 +87,7 @@ function ToastViewport({ toast, onDismiss }) {
                 toast.onAction?.();
                 onDismiss();
               }}
-              className="shrink-0 min-h-[40px] px-3 rounded-lg text-sm font-bold text-[#7FB3FF] hover:bg-white/10 transition-colors cursor-pointer"
+              className="shrink-0 min-h-[40px] px-3 rounded-lg text-sm font-bold text-[#9DBDFF] hover:bg-white/10 transition-colors cursor-pointer"
             >
               {toast.actionLabel}
             </button>

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useModal } from '../../context/ModalContext';
+import { useToast } from '../../context/ToastContext';
+import { useConfirm } from '../../context/ConfirmContext';
 import { deleteCalendarEvent, createCalendarEvent, updateCalendarEvent } from '../../lib/calendarAPI';
 import {
   WEEKDAY_NAMES,
@@ -30,6 +32,8 @@ const isMobileViewport = () => typeof window !== 'undefined' && window.innerWidt
 const Calendar = () => {
   const { user, isCalendarConnected, linkGoogleCalendar } = useAuth();
   const { openModal } = useModal();
+  const { showToast } = useToast();
+  const confirm = useConfirm();
 
   const today = useMemo(() => new Date(), []);
   const [currentMonthIndex, setCurrentMonthIndex] = useState(today.getMonth());
@@ -131,20 +135,20 @@ const Calendar = () => {
 
   const handleConnectCalendar = async () => {
     if (user?.isGuest) {
-      alert('Hinweis: Google Kalender ist für Gastkonten nicht verfügbar.');
+      showToast({ message: 'Google Kalender ist für Gastkonten nicht verfügbar.', icon: 'info' });
       return;
     }
     try {
       await linkGoogleCalendar();
     } catch (err) {
       console.error('Verbindung fehlgeschlagen', err);
-      alert('Fehler bei der Verbindung mit Google Kalender: ' + (err.message || err));
+      showToast({ message: 'Die Verbindung zu Google Kalender hat nicht geklappt. Versuch es noch einmal.', icon: 'error' });
     }
   };
 
   const handleSaveEvent = async (eventData, eventId) => {
     if (isOffline) {
-      alert('Du bist offline. Der Termin kann erst mit Internetverbindung gespeichert werden.');
+      showToast({ message: 'Du bist offline. Speichern geht erst mit Internetverbindung.', icon: 'cloud_off' });
       return;
     }
     try {
@@ -154,23 +158,29 @@ const Calendar = () => {
       setEditingEvent(null);
     } catch (err) {
       console.error('Fehler beim Speichern', err);
-      alert('Fehler beim Speichern des Termins: ' + (err.message || err));
+      showToast({ message: 'Der Termin konnte nicht gespeichert werden. Versuch es noch einmal.', icon: 'error' });
     }
   };
 
   const handleDeleteEvent = async (eventId) => {
     if (isOffline) {
-      alert('Du bist offline. Der Termin kann erst mit Internetverbindung gelöscht werden.');
+      showToast({ message: 'Du bist offline. Löschen geht erst mit Internetverbindung.', icon: 'cloud_off' });
       return;
     }
-    if (!window.confirm('Diesen Termin wirklich löschen?')) return;
+    const ok = await confirm({
+      title: 'Termin löschen?',
+      message: 'Der Termin wird auch in Google Kalender entfernt.',
+      confirmLabel: 'Löschen',
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await deleteCalendarEvent(eventId);
       await reloadMonth(currentYear, currentMonthIndex);
       setSelectedEvent(null);
     } catch (err) {
       console.error('Fehler beim Löschen', err);
-      alert('Fehler beim Löschen des Termins: ' + (err.message || err));
+      showToast({ message: 'Der Termin konnte nicht gelöscht werden. Versuch es noch einmal.', icon: 'error' });
     }
   };
 

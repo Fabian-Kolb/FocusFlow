@@ -3,6 +3,8 @@
 // Authenticates every request with Firebase Auth ID-Token.
 // NEVER exposes API keys in the client bundle or Network tab.
 
+import { notify } from './notify';
+
 import { auth } from './firebase';
 
 export function ensureBulletPoints(rawText) {
@@ -178,7 +180,7 @@ export async function summarizeVoiceNote(text, aiModel = 'eco', lengthMode = 'no
 
     if (response.status === 429) {
       const err = await response.json();
-      alert(err.error || 'Anfrage-Limit erreicht: Aus Sicherheitsgründen sind maximal 15 KI-Anfragen pro 10 Minuten erlaubt.');
+      notify(err.error || 'Anfrage-Limit erreicht: maximal 15 KI-Anfragen pro 10 Minuten.', 'speed');
       return null;
     }
 
@@ -219,7 +221,7 @@ export async function generateProjectStructure(text, options = {}, aiModel = 'ec
 
     if (response.status === 429) {
       const err = await response.json();
-      alert(err.error || 'Anfrage-Limit erreicht: Aus Sicherheitsgründen sind maximal 15 KI-Anfragen pro 10 Minuten erlaubt.');
+      notify(err.error || 'Anfrage-Limit erreicht: maximal 15 KI-Anfragen pro 10 Minuten.', 'speed');
       return null;
     }
 
@@ -251,7 +253,7 @@ export async function generateReminderStructure(text, aiModel = 'eco') {
 
     if (response.status === 429) {
       const err = await response.json();
-      alert(err.error || 'Anfrage-Limit erreicht: Aus Sicherheitsgründen sind maximal 15 KI-Anfragen pro 10 Minuten erlaubt.');
+      notify(err.error || 'Anfrage-Limit erreicht: maximal 15 KI-Anfragen pro 10 Minuten.', 'speed');
       return null;
     }
 

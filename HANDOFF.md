@@ -107,3 +107,31 @@
 1. Projekt-Karten (`ItemCardContent.jsx`) auf `getProjectStats` umstellen, sobald die Parallel-Sitzung ihre Änderungen dort committet hat.
 2. Erinnerungs-Beschreibung in `ReminderDetail.jsx` anzeigen (gleicher Grund).
 3. Weiter mit Plan Phase 2 (Fundament: Tailwind-Klassen, Datums-Helfer, Checkbox/EmptyState/Dialog-Bausteine).
+
+---
+
+## Nachtrag 2026-10-09 (Claude Code): UI-Überarbeitung (Tokens, Gedanken, Dashboard, Overlay-System)
+
+### Getan
+- **Regel 01** `.agents/rules/01-ui-guidelines.md` ist jetzt die einzige UI-Regel (Farbe = Bedeutung, eckige Formen, 11-px-Minimum, z-Tokens, Overlay-System; ersetzt die früheren Regeln 04 und 09).
+- **Tokens** in `tailwind.config.js`: `accent` (Kobaltblau, nur Hinzufügen/Speichern/Interaktion), `success`/`info`/`warning`/`danger`, gedämpfte `area-*` (nur Icon-Chip + aktiver Nav-Punkt, `src/lib/areas.js`), Schatten, z-Ebenen, `text-caption`. `Button`/`Card`/`Badge`/`Input` angepasst (eckig, `Button` mit `loading`, `danger-ghost`). Neu: `Skeleton`, `EmptyState`.
+- **Overlay-System:** `src/components/ui/Overlay.jsx` (`Sheet`: Desktop Seitenpanel, Handy Bottom Sheet mit `useSwipeToClose`; `Dialog`), `src/context/ConfirmContext.jsx` (`useConfirm`, ersetzt `window.confirm`), `src/lib/notify.js` (Toast aus Code ohne React-Kontext). Alle `alert()`/`confirm()` ersetzt (Calendar, TaskModal, EventEditForm, Trash, NotesSection, Coach, `useSpeechInput`, `gemini.js`).
+- **Aufräumen (2026-10-09):** Agenten-Archiv (`.agents/orchestrator`, `worker_*`, `reviewer_*` …, `ORIGINAL_REQUEST.md`) und 22 nicht benötigte Skills gelöscht. Es bleiben `firebase-basics`, `-auth-basics`, `-firestore`, `-hosting-basics`, `-security-rules-auditor`, `google-ai-models`, `secure-api-proxy-architecture`. Regeln: 04 und 09 in `01-ui-guidelines.md` aufgegangen, `02` und `07` an den Ist-Stand angepasst (`useBoardSort`, `Sheet`), `05` ohne Overlay-Doppelung. Sicherung des Gelöschten nur lokal im Session-Scratchpad (`agents-backup-2026-10-09.zip`), `ORIGINAL_REQUEST.md` steht im Git-Verlauf.
+- **Gedanken** (`Inbox.jsx`, `ThoughtAiChip.jsx`): Karten mit fettem Titel, getönter Fußzeile und Spaltenlayout am Desktop; schwebende Eingabe am Handy, KI-Chip statt Checkbox + Dropdowns, schlanke Karten, kein Löschmodus mehr (Wischen / Hover-Papierkorb / Rechtsklick-Menü / `Entf` / Mehrfachauswahl, `deleteInboxItems`).
+- **Dashboard** (`Dashboard.jsx`, `src/lib/dashboardAgenda.js`): Tagesübersicht mit Überfällig, Heute (Uhrzeiten), Nächste 7 Tage, Projekt, letzte Gedanken. Fokus-Score, Kapazität, Must-Win und rotierende Fio-Fragen entfernt.
+- Navigation färbt den aktiven Punkt nach Bereich; der mittlere Hub-Knopf bleibt schwarz.
+
+### Tests & Build
+- `npx vitest run`: 180/180 grün (neu: `tests/dashboard_agenda.test.js`, 15 Tests; in `vitest.config.js` eingetragen).
+- `node scripts/run-e2e-tests.js`: 141/142, rot ist nur das alte T2-CAL-04 (wie vorher). Sechs Quelltext-Tests wurden an das neue Dashboard/Gedanken angepasst (Fokus-Score, Must-Win, Inbox-Dropdowns).
+- `vite build` ok. Im Browser (Gast) geprüft: Dashboard und Gedanken auf Desktop und 375 px, Popover liegt im Bild, Speichern, `Entf` + Rückgängig. Nicht geprüft: Wischen und Langdruck auf echtem Touch, Kalendertermine im Dashboard (Gast kann Kalender nicht verbinden), Mehrfachauswahl visuell.
+
+### Offen / Next Steps
+1. Alte Modals (`ProjectModal`, `TaskModal`, `ReminderModal`, `MaterialModal` …) und Drawer auf `Sheet`/`Dialog` umstellen; freie `z-[..]`-Werte auf Tokens.
+2. Rohe `red-*`/`emerald-*`/`amber-*`-Klassen und `text-[9px]`/`[10px]` in Bestandsscreens auf Tokens migrieren; Primärbuttons (`bg-neutral-900 text-white`) auf `<Button>` (blau = Hinzufügen) umstellen.
+3. Skeletons in Projekt-/Erinnerungslisten einbauen; Löschen in Erinnerungen/Projekten ebenfalls ohne Rückfrage-Modus prüfen.
+4. Optional: Fokus-Aufgabe auf dem Dashboard selbst markieren; Dashboard-Rangfolge am echten Gerät prüfen.
+
+### Fallstricke
+- Der Kalender-Cache nummeriert Monate ab 0 (`2026-10` = November); `dashboardAgenda.js` folgt dieser Konvention.
+- Python-Heredocs mit gemischten Anführungszeichen scheiterten im Shell-Tool; Skripte als Datei schreiben.
