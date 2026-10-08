@@ -135,3 +135,9 @@
 ### Fallstricke
 - Der Kalender-Cache nummeriert Monate ab 0 (`2026-10` = November); `dashboardAgenda.js` folgt dieser Konvention.
 - Python-Heredocs mit gemischten Anführungszeichen scheiterten im Shell-Tool; Skripte als Datei schreiben.
+
+### Dev-Account zum Testen (2026-10-09)
+- Nur `npm run dev`: Login-Screen zeigt „Mit Test-Konto anmelden (nur Entwicklung)“. Zugangsdaten in `.env.development.local` (Git-ignoriert, nicht im Build, hier nicht wiederholen). Code: `src/lib/devAccount.js`, `src/lib/devSeed.js`, `AuthContext.jsx`, `Login.jsx`.
+- Wirkt wie ein normales Konto (kein Gast-Hinweis, Name „Test-Konto“), speichert aber nur im Browser (`focusflow_guest_*`). Beispieldaten sind relativ zu heute; zurücksetzen mit `ffDev.reset()` in der Konsole.
+- Grenzen: kein Firebase-Token, also keine Fio/Gemini-Antworten, kein Google Kalender, keine Firestore-Regeln. Gegen das echte Firebase wird nicht angemeldet; es wurde kein Firebase-Konto angelegt oder freigeschaltet.
+- `Button` kennt jetzt `variant="outline"` (Login-Gastknopf nutzte es, sonst wäre er blau geworden).

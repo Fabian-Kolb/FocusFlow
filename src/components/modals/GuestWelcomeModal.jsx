@@ -7,7 +7,7 @@ function GuestWelcomeModal() {
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
-    if (user?.isGuest) {
+    if (user?.isGuest && !user?.isDevAccount) {
       const acknowledged = sessionStorage.getItem('ff_guest_welcome_shown');
       if (!acknowledged) {
         setIsOpen(true);
@@ -22,7 +22,7 @@ function GuestWelcomeModal() {
     setIsOpen(false);
   };
 
-  if (!isOpen || !user?.isGuest) return null;
+  if (!isOpen || !user?.isGuest || user?.isDevAccount) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 sm:p-6 animate-fadeIn">

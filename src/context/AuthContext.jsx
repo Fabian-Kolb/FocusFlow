@@ -23,6 +23,13 @@ import {
   clearCalendarTokens,
   disconnectGoogleCalendar as disconnectCalendarApi 
 } from '../lib/calendarAPI';
+import {
+  DEV_ACCOUNT_FLAG,
+  getDevUser,
+  isDevSessionActive,
+  matchesDevCredentials,
+} from '../lib/devAccount';
+import { seedDevAccountDataOnce, resetDevAccountData } from '../lib/devSeed';
 
 const AuthContext = createContext();
 
@@ -31,6 +38,16 @@ export function useAuth() {
 }
 
 const GUEST_STORAGE_FLAG = 'focusflow_is_guest';
+
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+  // Nur Entwicklung: `ffDev.reset()` spielt die Beispieldaten des Dev-Accounts neu ein und lädt die Seite neu
+  window.ffDev = {
+    reset: () => {
+      resetDevAccountData();
+      window.location.reload();
+    },
+  };
+}
 
 // Alle Nutzer-Subcollections unter users/{uid} (siehe firestore.rules)
 export const USER_DATA_COLLECTIONS = [
@@ -78,6 +95,8 @@ const GUEST_USER_OBJ = {
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
+    // Nur Entwicklung: lokaler Dev-Account (siehe src/lib/devAccount.js)
+    if (isDevSessionActive()) return getDevUser();
     try {
       if (localStorage.getItem(GUEST_STORAGE_FLAG) === 'true') {
         return GUEST_USER_OBJ;
@@ -140,7 +159,12 @@ export function AuthProvider({ children }) {
           }));
         }
       } else {
-        // Kein Firebase-User: Prüfen ob Gast-Sitzung im localStorage aktiv ist
+        // Kein Firebase-User: Dev-Account (nur Entwicklung) oder Gast-Sitzung im localStorage?
+        if (isDevSessionActive()) {
+          setUser(getDevUser());
+          setLoading(false);
+          return;
+        }
         let isGuest = false;
         try {
           isGuest = localStorage.getItem(GUEST_STORAGE_FLAG) === 'true';
@@ -161,8 +185,19 @@ export function AuthProvider({ children }) {
   }, []);
 
   const loginWithEmail = (email, password) => {
+    // Nur Entwicklung: Anmeldung am lokalen Dev-Account, ohne Netzwerk
+    if (matchesDevCredentials(email, password)) {
+      try {
+        localStorage.removeItem(GUEST_STORAGE_FLAG);
+        localStorage.setItem(DEV_ACCOUNT_FLAG, 'true');
+      } catch (e) {}
+      seedDevAccountDataOnce();
+      setUser(getDevUser());
+      return Promise.resolve({ user: getDevUser() });
+    }
     try {
       localStorage.removeItem(GUEST_STORAGE_FLAG);
+      localStorage.removeItem(DEV_ACCOUNT_FLAG);
     } catch (e) {}
     const cleanEmail = email ? email.trim().toLowerCase() : '';
     return signInWithEmailAndPassword(auth, cleanEmail, password);
@@ -179,6 +214,7 @@ export function AuthProvider({ children }) {
 
   const loginAsGuest = () => {
     try {
+      localStorage.removeItem(DEV_ACCOUNT_FLAG);
       localStorage.setItem(GUEST_STORAGE_FLAG, 'true');
     } catch (e) {
       console.warn('LocalStorage error setting guest flag:', e);
@@ -280,6 +316,7 @@ export function AuthProvider({ children }) {
 
   const logout = async () => {
     try {
+      localStorage.removeItem(DEV_ACCOUNT_FLAG);
       localStorage.removeItem(GUEST_STORAGE_FLAG);
     } catch (e) {
       console.warn('Fehler beim Löschen des Gast-Flags:', e);

@@ -5,6 +5,7 @@ import Button from '../ui/Button';
 import Input from '../ui/Input';
 import WordmarkWord from '../brand/WordmarkWord';
 import { LEGAL_PATHS } from '../../lib/legal';
+import { getDevCredentials } from '../../lib/devAccount';
 
 const THEME_STORAGE_KEY = 'focusflow_theme';
 
@@ -111,6 +112,12 @@ function Login() {
     loginAsGuest();
   };
 
+  // Nur Entwicklung (npm run dev) mit .env.development.local: lokaler Test-Account, kein Netzwerk
+  const devCredentials = getDevCredentials();
+  const handleDevLogin = () => {
+    if (devCredentials) loginWithEmail(devCredentials.email, devCredentials.password);
+  };
+
   return (
     <div className={isDark ? 'dark' : ''}>
     <div className="relative min-h-screen overflow-x-hidden bg-surface dark:bg-[#090a0f] transition-colors duration-300 motion-reduce:transition-none px-4 pt-16 pb-8 lg:py-8 flex flex-col items-center justify-center gap-6 lg:flex-row lg:gap-10 xl:gap-14">
@@ -153,6 +160,13 @@ function Login() {
           <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 p-3 rounded-lg text-sm text-center font-medium">
             {resetSuccess}
           </div>
+        )}
+
+        {devCredentials && (
+          <Button variant="secondary" fullWidth onClick={handleDevLogin} data-dev-login>
+            <span className="material-symbols-outlined text-[18px]">bug_report</span>
+            Mit Test-Konto anmelden (nur Entwicklung)
+          </Button>
         )}
 
         {/* 1-Klick Gast-Zugang */}

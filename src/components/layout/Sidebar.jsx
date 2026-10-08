@@ -46,6 +46,8 @@ const Sidebar = ({ currentScreen, setCurrentScreen, collapsed, setCollapsed }) =
     }
   };
 
+  // Dev-Account (nur Entwicklung) wird wie ein normales Konto dargestellt
+  const isPlainGuest = Boolean(user?.isGuest && !user?.isDevAccount);
   const userInitial = (user?.displayName || user?.email || 'U').substring(0, 2).toUpperCase();
 
   // Navigation targets with required icons (including smart_toy / auto_awesome AI coach compatibility)
@@ -206,21 +208,21 @@ const Sidebar = ({ currentScreen, setCurrentScreen, collapsed, setCollapsed }) =
                 type="button"
                 onClick={handleProfileClick}
                 className="w-full h-11 flex items-center p-0 rounded-2xl overflow-hidden cursor-pointer text-left"
-                title={user?.isGuest ? 'Gast-Modus (Einstellungen & Hilfe)' : 'Einstellungen & Profil'}
-                aria-label={user?.isGuest ? 'Gast-Modus (Einstellungen & Hilfe)' : 'Einstellungen & Profil'}
+                title={isPlainGuest ? 'Gast-Modus (Einstellungen & Hilfe)' : 'Einstellungen & Profil'}
+                aria-label={isPlainGuest ? 'Gast-Modus (Einstellungen & Hilfe)' : 'Einstellungen & Profil'}
               >
                 {/* Fixed 48px Avatar Slot: center is at 12px (p-3) + 24px = 36px from aside outer edge */}
                 <div className="w-12 h-11 flex items-center justify-center flex-shrink-0">
                   <div
                     className={`w-8 h-8 rounded-full flex items-center justify-center border font-mono text-xs font-bold flex-shrink-0 overflow-hidden shadow-sm ${
-                      user?.isGuest
+                      isPlainGuest
                         ? 'bg-amber-500/10 border-amber-500/30 text-amber-500'
                         : 'bg-primary/10 border-primary/20 text-primary'
                     }`}
                   >
                     {user?.photoURL ? (
                       <img src={user.photoURL} alt="Avatar" className="w-full h-full object-cover" />
-                    ) : user?.isGuest ? (
+                    ) : isPlainGuest ? (
                       <span className="material-symbols-outlined text-[18px]">person</span>
                     ) : (
                       userInitial
@@ -238,10 +240,10 @@ const Sidebar = ({ currentScreen, setCurrentScreen, collapsed, setCollapsed }) =
                   aria-hidden={collapsed}
                 >
                   <p className="font-semibold text-sm truncate text-on-surface leading-tight">
-                    {user?.isGuest ? 'Gast-Benutzer' : (user?.displayName || user?.email?.split('@')[0])}
+                    {isPlainGuest ? 'Gast-Benutzer' : (user?.displayName || user?.email?.split('@')[0])}
                   </p>
                   <p className="text-on-surface-variant text-xs truncate mt-0.5">
-                    {user?.isGuest ? 'Vorschau-Modus' : user?.email}
+                    {isPlainGuest ? 'Vorschau-Modus' : user?.email}
                   </p>
                 </div>
               </button>

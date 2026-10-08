@@ -234,7 +234,7 @@ function HubSheet({ isOpen, onClose, currentScreen, onNavigate }) {
             <span className="w-7 h-7 rounded-full overflow-hidden bg-white border border-outline-variant flex items-center justify-center text-[10px]">
               {user?.photoURL ? (
                 <img src={user.photoURL} alt="" className="w-full h-full object-cover" />
-              ) : user?.isGuest ? (
+              ) : user?.isGuest && !user?.isDevAccount ? (
                 <span className="material-symbols-outlined text-amber-500 text-[18px]">person</span>
               ) : (
                 initials
