@@ -167,6 +167,35 @@ const DEMO_REMINDERS = [
   }
 ];
 
+// Gedanken (inboxItems) nach Erstellzeit gruppieren: heute / gestern / letzte 7 Tage / älter
+const GUEST_INBOX_KEY = 'focusflow_guest_inbox';
+
+function groupInboxItems(items) {
+  const sorted = [...items].sort((a, b) => b.id.localeCompare(a.id));
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const startOfYesterday = startOfToday - 24 * 60 * 60 * 1000;
+  const startOfThisWeek = startOfToday - 6 * 24 * 60 * 60 * 1000;
+  const groups = { today: [], yesterday: [], thisWeek: [], older: [] };
+  sorted.forEach(item => {
+    const timestamp = item.createdAt || (item.id && item.id.includes('_') ? parseInt(item.id.split('_')[1]) : now.getTime());
+    if (timestamp >= startOfToday) groups.today.push(item);
+    else if (timestamp >= startOfYesterday) groups.yesterday.push(item);
+    else if (timestamp >= startOfThisWeek) groups.thisWeek.push(item);
+    else groups.older.push(item);
+  });
+  return groups;
+}
+
+function readGuestInbox() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(GUEST_INBOX_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 export const DataProvider = ({ children }) => {
   const { user, isCalendarConnected } = useAuth();
 
@@ -300,7 +329,7 @@ export const DataProvider = ({ children }) => {
       } catch (e) {
         setReminders(DEMO_REMINDERS);
       }
-      setInboxItems({ today: [], yesterday: [] });
+      applyGuestInbox(readGuestInbox(), false);
       setProjectCategories([{ id: 'allgemein', name: 'Allgemein', isExpanded: true, createdAt: 0 }]);
       setReminderCategories([{ id: 'allgemein', name: 'Allgemein', isExpanded: true, createdAt: 0 }]);
       try {
@@ -317,7 +346,6 @@ export const DataProvider = ({ children }) => {
       }
       setTrashedProjects([]);
       setTrashedReminders([]);
-      setTrashedInboxItems([]);
       return;
     }
 
@@ -387,31 +415,8 @@ export const DataProvider = ({ children }) => {
           items.push(data);
         }
       });
-      items.sort((a, b) => b.id.localeCompare(a.id));
       trashed.sort((a, b) => b.id.localeCompare(a.id));
-
-      const today = [];
-      const yesterday = [];
-      const thisWeek = [];
-      const older = [];
-      const now = new Date();
-      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-      const startOfYesterday = startOfToday - 24 * 60 * 60 * 1000;
-      const startOfThisWeek = startOfToday - 6 * 24 * 60 * 60 * 1000;
-
-      items.forEach(item => {
-        const timestamp = item.createdAt || (item.id && item.id.includes('_') ? parseInt(item.id.split('_')[1]) : now.getTime());
-        if (timestamp >= startOfToday) {
-          today.push(item);
-        } else if (timestamp >= startOfYesterday) {
-          yesterday.push(item);
-        } else if (timestamp >= startOfThisWeek) {
-          thisWeek.push(item);
-        } else {
-          older.push(item);
-        }
-      });
-      setInboxItems({ today, yesterday, thisWeek, older });
+      setInboxItems(groupInboxItems(items));
       setTrashedInboxItems(trashed);
       setFirestoreError(null);
     }, (err) => {
@@ -670,7 +675,8 @@ export const DataProvider = ({ children }) => {
     };
 
     await saveProject(newProject);
-    if (projectData.inboxItemId) {
+    // Gedanke ist jetzt im Projekt (als Notizen) – außer man will ihn ausdrücklich behalten
+    if (projectData.inboxItemId && !projectData.keepInboxItem) {
       deleteInboxItem(projectData.inboxItemId);
     }
     setSelectedProjectId(newId);
@@ -1209,7 +1215,8 @@ export const DataProvider = ({ children }) => {
     await saveReminder(newReminder);
     setSelectedReminderId(newId);
 
-    if (reminderData.inboxItemId) {
+    // Gedanke steckt jetzt in der Beschreibung – außer man will ihn ausdrücklich behalten
+    if (reminderData.inboxItemId && !reminderData.keepInboxItem) {
       deleteInboxItem(reminderData.inboxItemId);
     }
 
@@ -1566,6 +1573,19 @@ export const DataProvider = ({ children }) => {
   };
 
   // Inbox Helpers
+  // Gast-Modus: Gedanken liegen nur im Browser (wie Projekte und Erinnerungen der Gäste)
+  const applyGuestInbox = (list, persist = true) => {
+    if (persist) {
+      try {
+        localStorage.setItem(GUEST_INBOX_KEY, JSON.stringify(list));
+      } catch {
+        // Speicher voll oder gesperrt – Änderung gilt nur bis zum Neuladen
+      }
+    }
+    setInboxItems(groupInboxItems(list.filter(i => !i.deletedAt)));
+    setTrashedInboxItems(list.filter(i => i.deletedAt).map(i => ({ ...i, _type: 'inbox' })));
+  };
+
   const addInboxItem = async (itemData) => {
     if (!user) return;
     let newItem;
@@ -1600,6 +1620,10 @@ export const DataProvider = ({ children }) => {
         completed: false
       };
     }
+    if (user.isGuest) {
+      applyGuestInbox([newItem, ...readGuestInbox()]);
+      return;
+    }
     await setDoc(doc(db, 'users', user.uid, 'inboxItems', newItem.id), newItem);
   };
 
@@ -1610,6 +1634,10 @@ export const DataProvider = ({ children }) => {
     if (!itemToUpdate) return;
 
     const updated = { ...itemToUpdate, ...updates };
+    if (user.isGuest) {
+      applyGuestInbox(readGuestInbox().map(i => (i.id === id ? updated : i)));
+      return;
+    }
     await setDoc(doc(db, 'users', user.uid, 'inboxItems', id), updated);
   };
 
@@ -1619,6 +1647,10 @@ export const DataProvider = ({ children }) => {
     let itemToUpdate = allItems.find(i => i.id === id);
     if (!itemToUpdate) return;
     const updated = { ...itemToUpdate, deletedAt: new Date().toISOString() };
+    if (user.isGuest) {
+      applyGuestInbox(readGuestInbox().map(i => (i.id === id ? updated : i)));
+      return;
+    }
     await setDoc(doc(db, 'users', user.uid, 'inboxItems', id), updated);
   };
 

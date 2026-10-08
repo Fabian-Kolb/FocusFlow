@@ -111,15 +111,15 @@ function AppContent() {
   }, []);
 
   const screenTitles = {
-    dashboard: 'Dashboard',
-    inbox: 'Inbox',
+    dashboard: 'Home',
+    inbox: 'Gedanken',
     reminders: 'Erinnerungen',
     projects: 'Projekte',
     board: 'Kanban Board',
     'project-detail': 'Projektdetails',
     'reminder-detail': 'Erinnerungsdetails',
     calendar: 'Kalender',
-    coach: 'Fio Coach',
+    coach: 'Fio',
     review: 'Wochenrückblick',
     trash: 'Papierkorb'
   };

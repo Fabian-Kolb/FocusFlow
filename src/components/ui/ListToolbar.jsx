@@ -10,6 +10,12 @@ const STATUS_FILTERS = [
   { value: 'completed', label: 'Erledigt' },
 ];
 
+// Projekte-Tab: Liste und Kanban-Board sind zwei Ansichten desselben Ziels
+export const PROJECT_VIEW_OPTIONS = [
+  { value: 'list', label: 'Liste', icon: 'view_agenda' },
+  { value: 'board', label: 'Board', icon: 'view_kanban' },
+];
+
 const iconButton = 'shrink-0 w-10 h-10 md:w-9 md:h-9 flex items-center justify-center rounded-lg border transition-colors cursor-pointer';
 
 /**

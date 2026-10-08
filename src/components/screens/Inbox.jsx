@@ -1,25 +1,149 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useModalContext } from '../../context/ModalContext';
-import { summarizeVoiceNote, ensureBulletPoints } from '../../lib/gemini';
+import { ensureBulletPoints } from '../../lib/gemini';
+import { buildThought } from '../../lib/thoughts';
+import { useSpeechInput } from '../../hooks/useSpeechInput';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
-import Input from '../ui/Input';
 import ModelSelectorDropdown from '../ui/ModelSelectorDropdown';
 import SummaryLengthDropdown from '../ui/SummaryLengthDropdown';
 
+// Gedanken (intern weiterhin "inbox" / Firestore-Collection `inboxItems`):
+// schnell festhalten ohne Zuordnung, später manuell oder mit Fio in Projekte/Erinnerungen überführen.
+
+const escapeHtml = (text) => text
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#039;');
+
+/** Notiz-Inhalt aus einem Gedanken (Zusammenfassung + Originaltext), für "An … anhängen" */
+function thoughtToNote(item) {
+  let html = marked.parse(item.summary || item.title || '');
+  if (item.originalText && item.originalText !== (item.summary || item.title)) {
+    html += `<hr/><h4>Original-Transkript</h4><p>${escapeHtml(item.originalText).replace(/\n/g, '<br/>')}</p>`;
+  }
+  const firstLine = (item.title || item.summary || '').split('\n')[0].replace(/[*#]/g, '').trim();
+  const shortTitle = firstLine.substring(0, 30) + (firstLine.length > 30 ? '...' : '');
+  return {
+    id: `note_${Date.now()}`,
+    title: `Aus Gedanken: ${shortTitle || 'Notiz'}`,
+    content: DOMPurify.sanitize(html),
+    source: 'inbox',
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+}
+
+/** "Manuell ▾": Gedanke von Hand umwandeln oder an Bestehendes anhängen */
+function ManualMenu({ item, projects, reminders, onConvert, onAttach }) {
+  const [open, setOpen] = useState(false);
+  const [view, setView] = useState('main'); // 'main' | 'project' | 'reminder'
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDown = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setOpen(false);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('touchstart', onDown);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('touchstart', onDown);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const row = 'w-full min-h-[40px] px-3 py-2 flex items-center gap-2.5 rounded-lg text-sm font-semibold text-left text-primary hover:bg-surface-low transition-colors cursor-pointer';
+  const targets = view === 'project' ? projects : reminders;
+
+  return (
+    <div ref={menuRef} className="relative">
+      <button
+        type="button"
+        onClick={() => {
+          setOpen((o) => !o);
+          setView('main');
+        }}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="h-9 px-3 flex items-center gap-1 rounded-lg border border-outline-variant bg-white text-xs font-bold text-primary hover:border-primary transition-colors cursor-pointer"
+      >
+        Manuell
+        <span className="material-symbols-outlined text-[18px]">expand_more</span>
+      </button>
+
+      {open && (
+        <div role="menu" className="absolute right-0 top-full mt-1 z-30 w-64 max-h-80 overflow-y-auto bg-white border border-outline-variant rounded-xl shadow-xl p-1.5">
+          {view === 'main' ? (
+            <>
+              <button type="button" role="menuitem" className={row} onClick={() => { setOpen(false); onConvert(item, 'reminder'); }}>
+                <span className="material-symbols-outlined text-[20px]">notifications</span>
+                Als neue Erinnerung
+              </button>
+              <button type="button" role="menuitem" className={row} onClick={() => { setOpen(false); onConvert(item, 'project'); }}>
+                <span className="material-symbols-outlined text-[20px]">create_new_folder</span>
+                Als neues Projekt
+              </button>
+              <div className="h-px bg-outline-variant my-1" />
+              <button type="button" role="menuitem" className={row} onClick={() => setView('project')}>
+                <span className="material-symbols-outlined text-[20px]">library_add</span>
+                <span className="flex-1">An Projekt anhängen</span>
+                <span className="material-symbols-outlined text-[18px] text-on-surface-variant">chevron_right</span>
+              </button>
+              <button type="button" role="menuitem" className={row} onClick={() => setView('reminder')}>
+                <span className="material-symbols-outlined text-[20px]">add_alert</span>
+                <span className="flex-1">An Erinnerung anhängen</span>
+                <span className="material-symbols-outlined text-[18px] text-on-surface-variant">chevron_right</span>
+              </button>
+            </>
+          ) : (
+            <>
+              <button type="button" className={`${row} text-on-surface-variant`} onClick={() => setView('main')}>
+                <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+                {view === 'project' ? 'Projekt wählen' : 'Erinnerung wählen'}
+              </button>
+              {targets.length === 0 ? (
+                <p className="px-3 py-2 text-xs text-on-surface-variant italic">
+                  Keine aktiven {view === 'project' ? 'Projekte' : 'Erinnerungen'} gefunden.
+                </p>
+              ) : targets.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="menuitem"
+                  className={row}
+                  onClick={() => {
+                    setOpen(false);
+                    onAttach(item, view, t.id);
+                  }}
+                >
+                  <span className="material-symbols-outlined text-[18px]">{view === 'project' ? 'folder' : 'notifications'}</span>
+                  <span className="truncate">{t.title}</span>
+                </button>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const Inbox = ({ setCurrentScreen }) => {
-  const { inboxItems, addInboxItem, updateInboxItem, deleteInboxItem, openModal, projects, mutateProject, reminders, mutateReminder } = useModalContext();
-  const [appendToProjectId, setAppendToProjectId] = useState({});
+  const { inboxItems, addInboxItem, deleteInboxItem, openModal, projects, mutateProject, reminders, mutateReminder } = useModalContext();
   const [inputValue, setInputValue] = useState('');
-  const [isListening, setIsListening] = useState(false);
   const [isSummarizing, setIsSummarizing] = useState(false);
-  const [triageText, setTriageText] = useState(null);
-  const [isTriageOpen, setIsTriageOpen] = useState(false);
-  const [triageView, setTriageView] = useState('main'); // 'main', 'inbox', 'project', 'reminder'
   const [expandedItems, setExpandedItems] = useState({});
   const [activeModel, setActiveModel] = useState('eco');
   const [summaryLength, setSummaryLength] = useState('normal');
@@ -27,46 +151,32 @@ const Inbox = ({ setCurrentScreen }) => {
   const [showAllOlder, setShowAllOlder] = useState(false);
   const [isDeleteMode, setIsDeleteMode] = useState(false);
   const [isOlderExpandedManually, setIsOlderExpandedManually] = useState(null);
+  const { isListening, toggle: toggleListening, stop: stopListening } = useSpeechInput(inputValue, setInputValue);
 
-  // Current notes: items created today
-  const currentNotes = [...(inboxItems?.today || [])].sort((a, b) => {
-    const timeA = a.createdAt || (a.id && a.id.includes('_') ? parseInt(a.id.split('_')[1]) : 0);
-    const timeB = b.createdAt || (b.id && b.id.includes('_') ? parseInt(b.id.split('_')[1]) : 0);
-    return timeB - timeA;
-  });
+  const activeProjects = projects.filter((p) => !p.deletedAt);
+  const activeReminders = reminders.filter((r) => !r.deletedAt);
 
-  // Older notes: items from yesterday, this week, and older
-  const allOlderNotes = [
+  const timeOf = (item) => item.createdAt || (item.id && item.id.includes('_') ? parseInt(item.id.split('_')[1]) : 0);
+
+  // Aktuelle Gedanken: heute erstellt
+  const currentNotes = [...(inboxItems?.today || [])].sort((a, b) => timeOf(b) - timeOf(a));
+
+  // Ältere Gedanken: gestern, diese Woche und älter
+  const sortedOlderNotes = [
     ...(inboxItems?.yesterday || []),
     ...(inboxItems?.thisWeek || []),
-    ...(inboxItems?.older || [])
-  ];
-
-  const sortedOlderNotes = [...allOlderNotes].sort((a, b) => {
-    const timeA = a.createdAt || (a.id && a.id.includes('_') ? parseInt(a.id.split('_')[1]) : 0);
-    const timeB = b.createdAt || (b.id && b.id.includes('_') ? parseInt(b.id.split('_')[1]) : 0);
-    return timeB - timeA;
-  });
+    ...(inboxItems?.older || []),
+  ].sort((a, b) => timeOf(b) - timeOf(a));
 
   const hasCurrentNotes = currentNotes.length > 0;
   const isOlderOpen = isOlderExpandedManually !== null ? isOlderExpandedManually : !hasCurrentNotes;
   const visibleOlderNotes = showAllOlder ? sortedOlderNotes : sortedOlderNotes.slice(0, 3);
 
   const toggleOlderSection = () => {
-    setIsOlderExpandedManually(prev => {
-      const currentVal = prev !== null ? prev : !hasCurrentNotes;
-      return !currentVal;
-    });
+    setIsOlderExpandedManually((prev) => !(prev !== null ? prev : !hasCurrentNotes));
   };
 
-  const recognitionRef = useRef(null);
-  const isListeningRef = useRef(false);
   const textareaRef = useRef(null);
-  const baseTextRef = useRef('');
-
-  useEffect(() => {
-    isListeningRef.current = isListening;
-  }, [isListening]);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -75,197 +185,20 @@ const Inbox = ({ setCurrentScreen }) => {
     }
   }, [inputValue]);
 
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape' && isTriageOpen) {
-        setIsTriageOpen(false);
-        setTriageText(null);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isTriageOpen]);
-
   const toggleExpand = (id) => {
     setExpandedItems((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const handleToggleListening = () => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert('Spracheingabe wird in diesem Browser leider nicht unterstützt. Bitte benutze Chrome, Edge oder Safari.');
-      return;
-    }
-
-    if (isListening) {
-      isListeningRef.current = false;
-      setIsListening(false);
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.stop();
-        } catch (e) {
-          console.error(e);
-        }
-      }
-      return;
-    }
-
-    try {
-      baseTextRef.current = inputValue.trim();
-
-      const recognition = new SpeechRecognition();
-      recognition.lang = 'de-DE';
-      recognition.interimResults = true;
-      recognition.continuous = true;
-
-      recognition.onstart = () => {
-        setIsListening(true);
-        isListeningRef.current = true;
-      };
-
-      recognition.onresult = (event) => {
-        let transcript = '';
-        for (let i = 0; i < event.results.length; i++) {
-          transcript += event.results[i][0].transcript;
-        }
-
-        const base = baseTextRef.current;
-        if (base) {
-          const separator = base.endsWith(' ') || base.endsWith('\n') ? '' : ' ';
-          setInputValue(`${base}${separator}${transcript}`);
-        } else {
-          setInputValue(transcript);
-        }
-      };
-
-      recognition.onerror = (event) => {
-        console.error('Speech recognition error:', event.error);
-        if (event.error !== 'no-speech') {
-          setIsListening(false);
-          isListeningRef.current = false;
-        }
-      };
-
-      recognition.onend = () => {
-        if (isListeningRef.current) {
-          try {
-            recognition.start();
-          } catch (e) {
-            setIsListening(false);
-            isListeningRef.current = false;
-          }
-        } else {
-          setIsListening(false);
-        }
-      };
-
-      recognitionRef.current = recognition;
-      recognition.start();
-    } catch (err) {
-      console.error('Speech recognition failed:', err);
-      setIsListening(false);
-      isListeningRef.current = false;
-    }
-  };
-
-  const handleAdd = () => {
+  // Gedanke direkt speichern – keine Zuordnung nötig
+  const handleAdd = async () => {
     const text = inputValue.trim();
     if (!text || isSummarizing) return;
-
-    if (isListening) {
-      isListeningRef.current = false;
-      setIsListening(false);
-      if (recognitionRef.current) {
-        try { recognitionRef.current.stop(); } catch (e) {}
-      }
-    }
-
-    setTriageText(text);
-    setTriageView('main');
-    setIsTriageOpen(true);
-  };
-
-  const processTriageChoice = async (choice) => {
-    setIsTriageOpen(false);
-    setTriageView('main');
+    stopListening();
+    setIsSummarizing(true);
+    const thought = await buildThought(text, { summarize: isSummaryEnabled, model: activeModel, length: summaryLength });
+    await addInboxItem(thought);
+    setIsSummarizing(false);
     setInputValue('');
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-    }
-
-    const textToProcess = triageText;
-    setTriageText(null);
-
-    let summaryText = ensureBulletPoints(textToProcess);
-    let extractedTitle = textToProcess.split('\n')[0].substring(0, 40);
-    let cleanText = null;
-    let extractedDateType = null;
-    let extractedDate = null;
-    let extractedEndDate = null;
-    let extractedTime = null;
-
-    if (textToProcess.length > 20 && isSummaryEnabled) {
-      setIsSummarizing(true);
-      try {
-        const result = await summarizeVoiceNote(textToProcess, activeModel, summaryLength);
-        if (result) {
-          summaryText = result.summary;
-          extractedTitle = result.title || extractedTitle;
-          cleanText = result.cleanText || null;
-          extractedDateType = result.extractedDateType || null;
-          extractedDate = result.extractedDate || null;
-          extractedEndDate = result.extractedEndDate || null;
-          extractedTime = result.extractedTime || null;
-        }
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setIsSummarizing(false);
-      }
-    }
-
-    addInboxItem({
-      title: extractedTitle,
-      summary: summaryText,
-      originalText: textToProcess,
-      cleanText,
-      extractedDateType,
-      extractedDate,
-      extractedEndDate,
-      extractedTime,
-      createdAt: Date.now(),
-      type: choice === 'inbox' ? 'unclassified' : choice
-    });
-  };
-
-  const appendDirectly = (targetId, type) => {
-    const rawText = triageText || '';
-    let htmlContent = DOMPurify.sanitize(marked.parse(ensureBulletPoints(rawText)));
-    
-    const newNote = {
-      id: `note_${Date.now()}`,
-      title: 'Aus der Inbox (Schnellnotiz)',
-      content: htmlContent,
-      source: 'inbox',
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    };
-    
-    if (type === 'project') {
-      mutateProject(targetId, (proj) => {
-        return { ...proj, notes: [...(proj.notes || []), newNote] };
-      });
-    } else if (type === 'reminder') {
-      mutateReminder(targetId, (rem) => {
-        return { ...rem, notes: [...(rem.notes || []), newNote] };
-      });
-    }
-
-    setIsTriageOpen(false);
-    setTriageView('main');
-    setTriageText(null);
-    setInputValue('');
-    if (textareaRef.current) textareaRef.current.style.height = 'auto';
   };
 
   const handleKeyDown = (e) => {
@@ -275,24 +208,20 @@ const Inbox = ({ setCurrentScreen }) => {
     }
   };
 
-  const handleConvert = (item) => {
-    if (!item.type || item.type === 'unclassified') return;
-
-    // Clean title extraction
+  const handleConvert = (item, type) => {
     const rawTitle = item.title || (item.summary ? item.summary.split('\n')[0].replace(/^#{1,6}\s*/, '').replace(/\*/g, '').trim() : '');
     const cleanTitle = rawTitle || 'Neuer Eintrag';
 
-    const fullDescription = `${item.summary || item.title || ''}\n\n---\n\n${item.cleanText || item.originalText || ''}`.trim();
-
-    if (item.type === 'reminder') {
+    if (type === 'reminder') {
+      const fullDescription = `${item.summary || item.title || ''}\n\n---\n\n${item.cleanText || item.originalText || ''}`.trim();
       openModal('reminder', {
         inboxItemId: item.id,
         prefillTitle: cleanTitle,
         date: item.extractedDate || '',
         time: item.extractedTime || '',
-        prefillDescription: fullDescription
+        prefillDescription: fullDescription,
       });
-    } else if (item.type === 'project') {
+    } else {
       openModal('project', {
         inboxItemId: item.id,
         prefillTitle: cleanTitle,
@@ -301,55 +230,25 @@ const Inbox = ({ setCurrentScreen }) => {
         summaryText: item.summary || item.title || '',
         cleanText: item.cleanText || '',
         originalText: item.originalText || '',
-        prefillDescription: ''
+        prefillDescription: '',
       });
     }
   };
 
-  const handleAppendToProject = (item) => {
-    const targetProjectId = appendToProjectId[item.id];
-    if (!targetProjectId) return;
-    
-    const targetProject = projects.find(p => p.id === targetProjectId);
-    if (!targetProject) return;
-
-    let htmlContent = marked.parse(item.summary || item.title || '');
-    if (item.originalText && item.originalText !== (item.summary || item.title)) {
-      const escapedText = item.originalText
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-      htmlContent += '<hr/>';
-      htmlContent += `<h4>Original-Transkript</h4><p>${escapedText.replace(/\n/g, '<br/>')}</p>`;
+  // An Bestehendes anhängen: Inhalt wird zur Notiz, der Gedanke wandert in den Papierkorb
+  const handleAttach = (item, type, targetId) => {
+    const note = thoughtToNote(item);
+    if (type === 'project') {
+      mutateProject(targetId, (proj) => ({ ...proj, notes: [...(proj.notes || []), note] }));
+    } else {
+      mutateReminder(targetId, (rem) => ({ ...rem, notes: [...(rem.notes || []), note] }));
     }
-    htmlContent = DOMPurify.sanitize(htmlContent);
-    
-    // Extract a nice title from the summary (first line)
-    const firstLine = (item.title || item.summary || '').split('\n')[0].replace(/[*#]/g, '').trim();
-    const shortTitle = firstLine.substring(0, 30) + (firstLine.length > 30 ? '...' : '');
-
-    const newNote = {
-      id: `note_${Date.now()}`,
-      title: `Aus Inbox: ${shortTitle || 'Notiz'}`,
-      content: htmlContent,
-      source: 'inbox',
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    };
-    
-    mutateProject(targetProjectId, (proj) => {
-      return { ...proj, notes: [...(proj.notes || []), newNote] };
-    });
-
     deleteInboxItem(item.id);
   };
 
-  const renderItemCard = (item, isOlder = false, isDeleteMode = false) => {
+  const renderItemCard = (item, isOlder = false) => {
     const isExpanded = !!expandedItems[item.id];
 
-    // Format creation time
     const createdTimestamp = item.createdAt || parseInt((item.id || '').replace('i_', '')) || Date.now();
     const createdDateObj = new Date(createdTimestamp);
     const createdFormattedStr = createdDateObj.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr';
@@ -360,24 +259,18 @@ const Inbox = ({ setCurrentScreen }) => {
     const startOfYesterday = startOfToday - 24 * 60 * 60 * 1000;
 
     let dayLabel = createdDateStr;
-    if (createdTimestamp >= startOfToday) {
-      dayLabel = 'Heute';
-    } else if (createdTimestamp >= startOfYesterday) {
-      dayLabel = 'Gestern';
-    }
+    if (createdTimestamp >= startOfToday) dayLabel = 'Heute';
+    else if (createdTimestamp >= startOfYesterday) dayLabel = 'Gestern';
 
-    // Format target/extracted date badge
+    // Von der KI erkannte Zeitangabe
     let targetBadgeLabel = null;
     let targetBadgeIcon = 'event';
-
     if (item.extractedDate) {
       const formatDate = (isoStr) => {
         if (!isoStr) return '';
         const parts = isoStr.split('-');
-        if (parts.length !== 3) return isoStr;
-        return `${parts[2]}.${parts[1]}.${parts[0]}`;
+        return parts.length === 3 ? `${parts[2]}.${parts[1]}.${parts[0]}` : isoStr;
       };
-
       const startStr = formatDate(item.extractedDate);
       const endStr = formatDate(item.extractedEndDate);
       const timeStr = item.extractedTime ? `, ${item.extractedTime} Uhr` : '';
@@ -389,9 +282,7 @@ const Inbox = ({ setCurrentScreen }) => {
         targetBadgeLabel = `Termin: ${startStr}${timeStr}`;
         targetBadgeIcon = 'alarm';
       } else {
-        // default / deadline
         targetBadgeLabel = `Fällig: ${startStr}${timeStr}`;
-        targetBadgeIcon = 'event';
       }
     }
 
@@ -399,13 +290,10 @@ const Inbox = ({ setCurrentScreen }) => {
       <Card
         key={item.id}
         padding="small"
-        className={`flex flex-col gap-2 group hover:border-primary transition-all ${
-          isOlder ? 'opacity-85' : ''
-        }`}
+        className={`flex flex-col gap-2 group hover:border-primary transition-all ${isOlder ? 'opacity-85' : ''}`}
       >
         <div className="flex items-start justify-between gap-3">
-          <div className="flex-grow space-y-1.5">
-            {/* Meta-Header: Timestamp & optional Target Date */}
+          <div className="flex-grow space-y-1.5 min-w-0">
             <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono text-on-surface-variant">
               <span className="bg-surface-low border border-outline-variant rounded-md px-2 py-0.5 flex items-center gap-1">
                 <span className="material-symbols-outlined text-[13px]">schedule</span>
@@ -419,7 +307,6 @@ const Inbox = ({ setCurrentScreen }) => {
               )}
             </div>
 
-            {/* Summary Content */}
             <div className="text-xs sm:text-sm font-medium leading-snug">
               <div className="markdown-body markdown-compact">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -430,81 +317,28 @@ const Inbox = ({ setCurrentScreen }) => {
           </div>
 
           {isDeleteMode && (
-            <div className="relative flex-shrink-0">
-              <button
-                type="button"
-                className="p-1.5 bg-red-50 hover:bg-red-600 text-red-600 hover:text-white border border-red-200 hover:border-red-600 rounded-lg transition-all flex items-center justify-center cursor-pointer shadow-sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  deleteInboxItem(item.id);
-                }}
-                title="1-Klick Löschen"
-              >
-                <span className="material-symbols-outlined text-[18px]">delete</span>
-              </button>
-            </div>
+            <button
+              type="button"
+              className="shrink-0 p-1.5 bg-red-50 hover:bg-red-600 text-red-600 hover:text-white border border-red-200 hover:border-red-600 rounded-lg transition-all flex items-center justify-center cursor-pointer shadow-sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                deleteInboxItem(item.id);
+              }}
+              title="In den Papierkorb"
+              aria-label="Gedanke in den Papierkorb"
+            >
+              <span className="material-symbols-outlined text-[18px]">delete</span>
+            </button>
           )}
         </div>
 
-        {/* Klassifizierung / Aktionen */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mt-1 pt-3 border-t border-outline-variant">
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <span className="text-[10px] font-mono font-bold text-on-surface-variant uppercase flex-shrink-0">TYP:</span>
-            <select
-              value={item.type || 'unclassified'}
-              onChange={(e) => updateInboxItem(item.id, { type: e.target.value })}
-              className="flex-grow sm:flex-grow-0 bg-surface-low border border-outline-variant rounded-lg px-2.5 py-1 text-xs font-bold text-primary focus:outline-none focus:border-primary transition-colors cursor-pointer"
-            >
-              <option value="unclassified">Offen</option>
-              <option value="project">Projekt</option>
-              <option value="reminder">Erinnerung</option>
-            </select>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-            {item.type === 'project' && (
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <select
-                  className="w-full sm:w-auto flex-grow sm:flex-grow-0 bg-surface-low border border-outline-variant rounded-lg px-2.5 py-1.5 text-[11px] font-medium focus:outline-none focus:border-primary transition-colors cursor-pointer max-w-[200px] truncate"
-                  value={appendToProjectId[item.id] || ''}
-                  onChange={(e) => setAppendToProjectId(prev => ({ ...prev, [item.id]: e.target.value }))}
-                >
-                  <option value="">-- An bestehendes Projekt anhängen --</option>
-                  {projects.filter(p => !p.deletedAt).map(p => (
-                    <option key={p.id} value={p.id}>{p.title}</option>
-                  ))}
-                </select>
-                
-                {appendToProjectId[item.id] && (
-                  <button
-                    onClick={() => handleAppendToProject(item)}
-                    className="px-2 py-1.5 bg-primary/10 text-primary border border-primary/30 text-xs font-bold rounded flex justify-center items-center gap-1 hover:bg-primary/20 transition-all shadow-sm flex-shrink-0"
-                    title="An Projekt anhängen"
-                  >
-                    <span className="material-symbols-outlined text-[16px]">library_add</span>
-                  </button>
-                )}
-              </div>
-            )}
-            
-            <button
-              onClick={() => handleConvert(item)}
-              disabled={!item.type || item.type === 'unclassified'}
-              className="w-full sm:w-auto px-4 py-2 sm:py-1.5 bg-primary text-white text-xs font-bold rounded flex justify-center items-center gap-1.5 hover:bg-neutral-800 transition-all disabled:opacity-50 disabled:bg-surface-variant disabled:text-on-surface-variant disabled:cursor-not-allowed shadow-sm"
-            >
-              <span className="material-symbols-outlined text-[16px]">
-                {!item.type || item.type === 'unclassified' ? 'lock' : 'arrow_forward'}
-              </span>
-              {!item.type || item.type === 'unclassified' ? 'Bitte Typ wählen' : `Als neu${item.type === 'project' ? 'es Projekt' : 'e Erinnerung'}`}
-            </button>
-          </div>
-        </div>
-
         {(item.cleanText || item.originalText) && (
-          <div className="mt-2 border border-outline-variant rounded-xl overflow-hidden bg-surface-low">
+          <div className="border border-outline-variant rounded-xl overflow-hidden bg-surface-low">
             <button
+              type="button"
               className="w-full flex items-center justify-between p-2.5 hover:bg-surface-variant/30 transition-colors text-left cursor-pointer"
               onClick={() => toggleExpand(item.id)}
+              aria-expanded={isExpanded}
             >
               <span className="text-[11px] font-mono font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-[14px]">auto_fix_high</span>
@@ -514,7 +348,7 @@ const Inbox = ({ setCurrentScreen }) => {
                 {isExpanded ? 'keyboard_arrow_up' : 'keyboard_arrow_down'}
               </span>
             </button>
-            
+
             {isExpanded && (
               <div className="px-3 pb-3 pt-1 text-sm text-primary leading-relaxed space-y-2">
                 <div className="text-primary font-normal">{item.cleanText || item.originalText}</div>
@@ -523,31 +357,61 @@ const Inbox = ({ setCurrentScreen }) => {
                     <summary className="cursor-pointer font-mono text-[11px] uppercase font-bold text-primary hover:text-black transition-colors">
                       Roh-Transkript anzeigen
                     </summary>
-                    <div className="mt-2 text-sm text-primary leading-relaxed">
-                      {item.originalText}
-                    </div>
+                    <div className="mt-2 text-sm text-primary leading-relaxed">{item.originalText}</div>
                   </details>
                 )}
               </div>
             )}
           </div>
         )}
+
+        {/* Weiterverarbeiten */}
+        <div className="flex items-center justify-end gap-2 pt-2 border-t border-outline-variant">
+          <ManualMenu
+            item={item}
+            projects={activeProjects}
+            reminders={activeReminders}
+            onConvert={handleConvert}
+            onAttach={handleAttach}
+          />
+        </div>
       </Card>
     );
   };
+
+  const deleteModeButton = (extraClass = '') => (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        setIsDeleteMode((prev) => !prev);
+      }}
+      className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer text-xs font-mono font-bold ${extraClass} ${
+        isDeleteMode
+          ? 'bg-red-600 text-white border border-red-600 shadow-sm'
+          : 'text-on-surface-variant hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200'
+      }`}
+      title={isDeleteMode ? 'Löschmodus beenden' : 'Löschmodus aktivieren'}
+    >
+      <span className="material-symbols-outlined text-[16px]">{isDeleteMode ? 'check' : 'delete'}</span>
+      <span>{isDeleteMode ? 'Fertig' : 'Löschen'}</span>
+    </button>
+  );
 
   return (
     <div className="screen-transition">
       <div className="w-full mx-auto space-y-6 sm:space-y-8">
         <Card className="border-primary flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <label className="text-xs font-mono block uppercase tracking-wider text-on-surface-variant">
-              WAS GEHT DIR DURCH DEN KOPF?
+            <label htmlFor="thought-input" className="text-xs font-mono block uppercase tracking-wider text-on-surface-variant">
+              Was geht dir durch den Kopf?
             </label>
             <button
+              type="button"
               onClick={() => setCurrentScreen('trash')}
               className="flex items-center justify-center p-1.5 text-on-surface-variant hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-200"
               title="Papierkorb öffnen"
+              aria-label="Papierkorb öffnen"
             >
               <span className="material-symbols-outlined text-[20px]">delete</span>
             </button>
@@ -556,27 +420,24 @@ const Inbox = ({ setCurrentScreen }) => {
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 items-start sm:items-end">
             <div className="flex-grow flex items-end gap-2 w-full">
               <textarea
+                id="thought-input"
                 ref={textareaRef}
                 disabled={isSummarizing}
                 placeholder={
                   isSummarizing
-                    ? '✨ KI fasst deine Sprachnotiz zusammen...'
+                    ? 'KI fasst deinen Gedanken zusammen …'
                     : isListening
-                    ? 'Zuhören aktiv... Spreche so lange du möchtest!'
-                    : 'Neuer Gedanke, Aufgabe oder Notiz...'
+                    ? 'Zuhören aktiv … sprich so lange du möchtest'
+                    : 'Neuer Gedanke, Idee oder Notiz …'
                 }
                 value={inputValue}
-                onChange={(e) => {
-                  setInputValue(e.target.value);
-                  e.target.style.height = 'auto';
-                  e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
-                }}
+                onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 rows={1}
                 className="flex w-full rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all disabled:cursor-not-allowed disabled:opacity-50 placeholder:text-on-surface-variant resize-none overflow-y-auto min-h-[42px]"
-                style={{ height: 'auto' }}
               />
               <button
+                type="button"
                 disabled={isSummarizing}
                 className={`w-[42px] h-[42px] rounded-lg border transition-colors flex items-center justify-center flex-shrink-0 cursor-pointer ${
                   isListening
@@ -584,11 +445,11 @@ const Inbox = ({ setCurrentScreen }) => {
                     : 'bg-surface-low text-primary border-outline-variant hover:border-primary'
                 }`}
                 title={isListening ? 'Spracheingabe stoppen' : 'Spracheingabe starten'}
-                onClick={handleToggleListening}
+                aria-label={isListening ? 'Spracheingabe stoppen' : 'Spracheingabe starten'}
+                aria-pressed={isListening}
+                onClick={toggleListening}
               >
-                <span className="material-symbols-outlined text-[20px]">
-                  mic
-                </span>
+                <span className="material-symbols-outlined text-[20px]">mic</span>
               </button>
             </div>
             <Button
@@ -599,10 +460,10 @@ const Inbox = ({ setCurrentScreen }) => {
               {isSummarizing ? (
                 <>
                   <span className="material-symbols-outlined text-[18px] animate-spin">sync</span>
-                  <span>Fasse zusammen...</span>
+                  <span>Fasse zusammen …</span>
                 </>
               ) : (
-                'Hinzufügen'
+                'Speichern'
               )}
             </Button>
           </div>
@@ -615,23 +476,13 @@ const Inbox = ({ setCurrentScreen }) => {
                 onChange={(e) => setIsSummaryEnabled(e.target.checked)}
                 className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4"
               />
-              <span className="text-xs font-medium text-on-surface-variant">
-                KI Zusammenfassung
-              </span>
+              <span className="text-xs font-medium text-on-surface-variant">KI-Zusammenfassung</span>
             </label>
 
             {isSummaryEnabled && (
               <div className="flex flex-wrap items-center gap-2.5">
-                <ModelSelectorDropdown
-                  activeModel={activeModel}
-                  onSelectModel={setActiveModel}
-                  showEco={true}
-                />
-
-                <SummaryLengthDropdown
-                  value={summaryLength}
-                  onChange={setSummaryLength}
-                />
+                <ModelSelectorDropdown activeModel={activeModel} onSelectModel={setActiveModel} showEco={true} />
+                <SummaryLengthDropdown value={summaryLength} onChange={setSummaryLength} />
               </div>
             )}
           </div>
@@ -639,57 +490,33 @@ const Inbox = ({ setCurrentScreen }) => {
 
         {!hasCurrentNotes && sortedOlderNotes.length === 0 ? (
           <div className="text-center py-10 px-4 bg-surface-low border border-dashed border-outline-variant rounded-2xl text-on-surface-variant text-xs font-mono space-y-2">
-            <span className="material-symbols-outlined text-[32px] block opacity-40">inbox</span>
-            <p>Keine offenen Notizen in der Inbox.</p>
+            <span className="material-symbols-outlined text-[32px] block opacity-40">lightbulb</span>
+            <p>Noch keine Gedanken. Schreib oder sprich einfach drauflos.</p>
           </div>
         ) : (
           <div className="space-y-6">
-            {/* Aktuelle Notizen (nur sichtbar, wenn heute Einträge hinzugefügt wurden) */}
             {hasCurrentNotes && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between py-1.5 border-b border-outline-variant/60">
                   <div className="flex items-center gap-2 select-none">
-                    <span className="material-symbols-outlined text-[20px] text-primary">
-                      schedule
-                    </span>
+                    <span className="material-symbols-outlined text-[20px] text-primary">schedule</span>
                     <h2 className="text-sm font-bold text-on-surface flex items-center gap-1.5">
-                      <span>Aktuelle Notizen</span>
-                      <span className="text-on-surface-variant font-medium">
-                        ({currentNotes.length})
-                      </span>
+                      <span>Heute</span>
+                      <span className="text-on-surface-variant font-medium">({currentNotes.length})</span>
                     </h2>
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsDeleteMode(prev => !prev)}
-                    className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer text-xs font-mono font-bold ${
-                      isDeleteMode
-                        ? 'bg-red-600 text-white border border-red-600 shadow-sm'
-                        : 'text-on-surface-variant hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200'
-                    }`}
-                    title={isDeleteMode ? 'Löschmodus beenden' : 'Löschmodus aktivieren'}
-                  >
-                    <span className="material-symbols-outlined text-[16px]">
-                      {isDeleteMode ? 'check' : 'delete'}
-                    </span>
-                    <span>{isDeleteMode ? 'Fertig' : 'Löschen'}</span>
-                  </button>
+                  {deleteModeButton()}
                 </div>
-
                 <div className="space-y-3">
-                  {currentNotes.map((item) => renderItemCard(item, false, isDeleteMode))}
+                  {currentNotes.map((item) => renderItemCard(item, false))}
                 </div>
               </div>
             )}
 
-            {/* Ältere Notizen:
-                - Wenn keine aktuellen Notizen vorhanden: Automatisch aufgeklappt mit den letzten 3 älteren Notizen.
-                - Wenn aktuelle Notizen vorhanden: Standardmäßig zugeklappt.
-            */}
+            {/* Ältere Gedanken: ohne heutige automatisch offen (die letzten 3), sonst zugeklappt */}
             {sortedOlderNotes.length > 0 && (
               <div className="space-y-3 pt-1">
-                <div 
+                <div
                   className="flex items-center justify-between py-1.5 border-b border-outline-variant/60 cursor-pointer select-none group"
                   onClick={toggleOlderSection}
                 >
@@ -700,32 +527,11 @@ const Inbox = ({ setCurrentScreen }) => {
                       chevron_right
                     </span>
                     <h2 className="text-sm font-bold text-on-surface group-hover:text-primary transition-colors flex items-center gap-1.5">
-                      <span>Ältere Notizen</span>
+                      <span>Ältere Gedanken</span>
                       <span className="text-on-surface-variant font-medium">({sortedOlderNotes.length})</span>
                     </h2>
                   </div>
-
-                  {!hasCurrentNotes && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsDeleteMode(prev => !prev);
-                      }}
-                      className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer text-xs font-mono font-bold mr-2 ${
-                        isDeleteMode
-                          ? 'bg-red-600 text-white border border-red-600 shadow-sm'
-                          : 'text-on-surface-variant hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200'
-                      }`}
-                      title={isDeleteMode ? 'Löschmodus beenden' : 'Löschmodus aktivieren'}
-                    >
-                      <span className="material-symbols-outlined text-[16px]">
-                        {isDeleteMode ? 'check' : 'delete'}
-                      </span>
-                      <span>{isDeleteMode ? 'Fertig' : 'Löschen'}</span>
-                    </button>
-                  )}
-
+                  {!hasCurrentNotes && deleteModeButton('mr-2')}
                   <span className="text-xs font-mono font-bold text-primary group-hover:underline flex items-center gap-1">
                     {isOlderOpen ? 'Zuklappen' : 'Aufklappen'}
                   </span>
@@ -733,7 +539,7 @@ const Inbox = ({ setCurrentScreen }) => {
 
                 {isOlderOpen && (
                   <div className="space-y-3 animate-fadeIn">
-                    {visibleOlderNotes.map((item) => renderItemCard(item, true, isDeleteMode))}
+                    {visibleOlderNotes.map((item) => renderItemCard(item, true))}
 
                     {sortedOlderNotes.length > 3 && (
                       <div className="flex justify-center pt-2">
@@ -741,25 +547,19 @@ const Inbox = ({ setCurrentScreen }) => {
                           <button
                             type="button"
                             onClick={() => setShowAllOlder(false)}
-                            className="flex items-center gap-2 px-4 py-2 bg-surface-low hover:bg-white border border-outline-variant hover:border-primary text-xs font-mono font-bold text-on-surface-variant hover:text-primary rounded-xl shadow-2xs hover:shadow-xs transition-all cursor-pointer group"
+                            className="flex items-center gap-2 px-4 py-2 bg-surface-low hover:bg-white border border-outline-variant hover:border-primary text-xs font-mono font-bold text-on-surface-variant hover:text-primary rounded-xl transition-all cursor-pointer"
                           >
-                            <span className="material-symbols-outlined text-[18px] group-hover:-translate-y-0.5 transition-transform">
-                              expand_less
-                            </span>
+                            <span className="material-symbols-outlined text-[18px]">expand_less</span>
                             <span>Weniger anzeigen (nur die letzten 3)</span>
                           </button>
                         ) : (
                           <button
                             type="button"
                             onClick={() => setShowAllOlder(true)}
-                            className="w-full py-3 px-4 bg-surface-low/80 hover:bg-white border border-dashed border-outline-variant hover:border-primary text-xs font-mono font-bold text-primary rounded-2xl shadow-2xs hover:shadow-xs transition-all cursor-pointer flex items-center justify-center gap-2 group"
+                            className="w-full py-3 px-4 bg-surface-low/80 hover:bg-white border border-dashed border-outline-variant hover:border-primary text-xs font-mono font-bold text-primary rounded-2xl transition-all cursor-pointer flex items-center justify-center gap-2"
                           >
-                            <span className="material-symbols-outlined text-[18px] group-hover:translate-y-0.5 transition-transform">
-                              expand_more
-                            </span>
-                            <span>
-                              Mehr anzeigen ({sortedOlderNotes.length - 3} weitere ältere Notiz{sortedOlderNotes.length - 3 === 1 ? '' : 'en'})
-                            </span>
+                            <span className="material-symbols-outlined text-[18px]">expand_more</span>
+                            <span>Mehr anzeigen ({sortedOlderNotes.length - 3} weitere)</span>
                           </button>
                         )}
                       </div>
@@ -771,181 +571,6 @@ const Inbox = ({ setCurrentScreen }) => {
           </div>
         )}
       </div>
-
-      {isTriageOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border-2 border-primary rounded-3xl w-full max-w-md p-5 sm:p-6 space-y-4 shadow-2xl relative max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-outline-variant pb-3">
-              <div className="flex items-center gap-2">
-                {triageView !== 'main' && (
-                  <button onClick={() => setTriageView('main')} className="p-1 hover:bg-surface-low border border-transparent hover:border-outline-variant rounded transition-colors cursor-pointer mr-1">
-                    <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-                  </button>
-                )}
-                <span className="material-symbols-outlined text-primary text-[22px]">inbox</span>
-                <h3 className="text-xs sm:text-sm font-bold font-mono uppercase text-primary">
-                  {triageView === 'main' ? 'GEDANKE ZUWEISEN' : triageView === 'inbox' ? 'INBOX-EINTRAG ERFASSEN' : triageView === 'project' ? 'PROJEKT AUSWÄHLEN' : 'ERINNERUNG AUSWÄHLEN'}
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsTriageOpen(false);
-                  setTriageView('main');
-                  setTriageText(null);
-                }}
-                className="p-1 hover:bg-surface-low border border-outline-variant transition-colors cursor-pointer"
-                title="Abbrechen (ESC)"
-              >
-                <span className="material-symbols-outlined text-[18px]">close</span>
-              </button>
-            </div>
-
-            {triageView === 'main' && (
-              <>
-                <p className="text-xs text-on-surface-variant leading-relaxed mb-4">
-                  Wohin möchtest du diesen Gedanken legen?
-                </p>
-                <div className="space-y-4 pt-1">
-                  <div>
-                    <h4 className="text-[10px] font-mono text-on-surface-variant uppercase mb-2">Vormerken</h4>
-                    <button
-                      onClick={() => setTriageView('inbox')}
-                      className="w-full p-3 bg-surface-low border border-outline-variant rounded-2xl hover:border-primary text-left transition-all flex items-center gap-3 group cursor-pointer"
-                    >
-                      <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center flex-shrink-0 group-hover:bg-primary group-hover:text-white transition-colors">
-                        <span className="material-symbols-outlined text-[20px]">inbox</span>
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-primary uppercase">In Inbox ablegen</div>
-                        <div className="text-[11px] text-on-surface-variant">Als offenen Task für später speichern</div>
-                      </div>
-                    </button>
-                  </div>
-
-                  <div>
-                    <h4 className="text-[10px] font-mono text-on-surface-variant uppercase mb-2">Direkt einsortieren</h4>
-                    <div className="flex flex-col gap-2">
-                      <button
-                        onClick={() => setTriageView('project')}
-                        className="w-full p-3 bg-surface-low border border-outline-variant rounded-2xl hover:border-primary text-left transition-all flex items-center gap-3 group cursor-pointer"
-                      >
-                        <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center flex-shrink-0 group-hover:bg-primary group-hover:text-white transition-colors">
-                          <span className="material-symbols-outlined text-[20px]">library_add</span>
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold text-primary uppercase">Zu Projekt hinzufügen</div>
-                          <div className="text-[11px] text-on-surface-variant">Direkt als Notiz an ein Projekt hängen</div>
-                        </div>
-                      </button>
-
-                      <button
-                        onClick={() => setTriageView('reminder')}
-                        className="w-full p-3 bg-surface-low border border-outline-variant rounded-2xl hover:border-primary text-left transition-all flex items-center gap-3 group cursor-pointer"
-                      >
-                        <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center flex-shrink-0 group-hover:bg-primary group-hover:text-white transition-colors">
-                          <span className="material-symbols-outlined text-[20px]">notifications</span>
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold text-primary uppercase">Zu Erinnerung hinzufügen</div>
-                          <div className="text-[11px] text-on-surface-variant">An bestehende Erinnerung anheften</div>
-                        </div>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
-
-            {triageView === 'inbox' && (
-              <>
-                <p className="text-xs text-on-surface-variant leading-relaxed">
-                  Dein Gedanke wird in deiner <strong>Inbox</strong> abgelegt. Möchtest du ihn direkt für die spätere Weiterverarbeitung vormerken?
-                </p>
-
-                <div className="flex flex-col gap-2.5 pt-1">
-                  <button
-                    onClick={() => processTriageChoice('project')}
-                    className="w-full p-3 bg-surface-low border border-outline-variant rounded-xl hover:border-primary text-left transition-all flex items-center gap-3 group cursor-pointer"
-                  >
-                    <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center flex-shrink-0 group-hover:bg-primary group-hover:text-white transition-colors">
-                      <span className="material-symbols-outlined text-[20px]">create_new_folder</span>
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-primary uppercase">Als Projekt vormerken</div>
-                      <div className="text-[11px] text-on-surface-variant">In die Inbox legen mit Typ "Projekt"</div>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => processTriageChoice('reminder')}
-                    className="w-full p-3 bg-surface-low border border-outline-variant rounded-xl hover:border-primary text-left transition-all flex items-center gap-3 group cursor-pointer"
-                  >
-                    <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center flex-shrink-0 group-hover:bg-primary group-hover:text-white transition-colors">
-                      <span className="material-symbols-outlined text-[20px]">notifications</span>
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-primary uppercase">Als Erinnerung vormerken</div>
-                      <div className="text-[11px] text-on-surface-variant">In die Inbox legen mit Typ "Erinnerung"</div>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => processTriageChoice('inbox')}
-                    className="w-full p-3 bg-surface-low border border-outline-variant rounded-xl hover:border-primary text-left transition-all flex items-center gap-3 group cursor-pointer"
-                  >
-                    <div className="w-9 h-9 rounded-lg bg-surface-variant text-on-surface-variant flex items-center justify-center flex-shrink-0 group-hover:bg-primary group-hover:text-white transition-colors">
-                      <span className="material-symbols-outlined text-[20px]">help_outline</span>
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-primary uppercase">Noch unentschieden</div>
-                      <div className="text-[11px] text-on-surface-variant">In die Inbox legen ohne Typ</div>
-                    </div>
-                  </button>
-                </div>
-              </>
-            )}
-
-            {triageView === 'project' && (
-              <div className="flex flex-col gap-2.5 pt-1">
-                {projects.filter(p => !p.deletedAt).length === 0 ? (
-                  <p className="text-xs text-on-surface-variant italic">Keine aktiven Projekte gefunden.</p>
-                ) : (
-                  projects.filter(p => !p.deletedAt).map(p => (
-                    <button
-                      key={p.id}
-                      onClick={() => appendDirectly(p.id, 'project')}
-                      className="w-full p-3 bg-surface-low border border-outline-variant rounded-xl hover:border-primary text-left transition-all flex items-center gap-3 group cursor-pointer"
-                    >
-                      <span className="material-symbols-outlined text-[20px] text-primary">folder</span>
-                      <span className="text-xs font-bold text-primary">{p.title}</span>
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
-
-            {triageView === 'reminder' && (
-              <div className="flex flex-col gap-2.5 pt-1">
-                {reminders.filter(r => !r.deletedAt).length === 0 ? (
-                  <p className="text-xs text-on-surface-variant italic">Keine aktiven Erinnerungen gefunden.</p>
-                ) : (
-                  reminders.filter(r => !r.deletedAt).map(r => (
-                    <button
-                      key={r.id}
-                      onClick={() => appendDirectly(r.id, 'reminder')}
-                      className="w-full p-3 bg-surface-low border border-outline-variant rounded-xl hover:border-primary text-left transition-all flex items-center gap-3 group cursor-pointer"
-                    >
-                      <span className="material-symbols-outlined text-[20px] text-primary">notifications</span>
-                      <span className="text-xs font-bold text-primary">{r.title}</span>
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 };

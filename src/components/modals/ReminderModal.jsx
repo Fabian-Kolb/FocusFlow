@@ -16,6 +16,7 @@ const ReminderModal = ({ setCurrentScreen }) => {
   const [status, setStatus] = useState('GEPLANT');
   const [syncWithCalendar, setSyncWithCalendar] = useState(false);
   const [categoryId, setCategoryId] = useState('allgemein');
+  const [keepThought, setKeepThought] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const titleInputRef = useRef(null);
 
@@ -27,6 +28,7 @@ const ReminderModal = ({ setCurrentScreen }) => {
       setTime(modalPayload.time || '');
       setStatus(modalPayload.status || 'GEPLANT');
       setSyncWithCalendar(false);
+      setKeepThought(false);
       // Vorauswahl: Kategorie aus dem Aufruf (z. B. "+" in einer Kategorie), sonst die zuletzt benutzte
       setCategoryId(
         modalPayload.categoryId && reminderCategories.some((c) => c.id === modalPayload.categoryId)
@@ -62,6 +64,7 @@ const ReminderModal = ({ setCurrentScreen }) => {
       status,
       categoryId,
       inboxItemId: modalPayload.inboxItemId,
+      keepInboxItem: keepThought,
       syncWithCalendar: Boolean(syncWithCalendar && isCalendarConnected && !user?.isGuest)
     });
 
@@ -88,7 +91,7 @@ const ReminderModal = ({ setCurrentScreen }) => {
               <span className="material-symbols-outlined text-[22px]">notifications</span>
             </div>
             <h2 className="text-sm sm:text-base font-bold font-mono uppercase truncate text-on-surface" id="reminder-modal-title">
-              {isConversion ? 'Inbox-Gedanke umwandeln' : 'Neue Erinnerung erstellen'}
+              {isConversion ? 'Gedanke umwandeln' : 'Neue Erinnerung erstellen'}
             </h2>
           </div>
           <button
@@ -198,6 +201,19 @@ const ReminderModal = ({ setCurrentScreen }) => {
                 />
               </div>
             </div>
+
+            {/* Gedanken behalten: z. B. wenn daraus noch etwas Zweites entstehen soll */}
+            {isConversion && (
+              <label className="flex items-center gap-2 text-xs text-on-surface-variant cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={keepThought}
+                  onChange={(e) => setKeepThought(e.target.checked)}
+                  className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4"
+                />
+                Gedanken behalten (sonst wandert er nach dem Anlegen in den Papierkorb)
+              </label>
+            )}
 
             {/* Calendar Sync Option */}
             <div className={`p-3.5 rounded-xl border transition-all ${

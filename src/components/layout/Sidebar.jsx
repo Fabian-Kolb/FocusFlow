@@ -50,7 +50,7 @@ const Sidebar = ({ currentScreen, setCurrentScreen, collapsed, setCollapsed }) =
   // Navigation targets with required icons (including smart_toy / auto_awesome AI coach compatibility)
   const navItems = [
     { id: 'dashboard', label: 'Home', icon: 'home' },
-    { id: 'inbox', label: 'Inbox', icon: 'inbox' },
+    { id: 'inbox', label: 'Gedanken', icon: 'lightbulb' },
     { id: 'reminders', label: 'Erinnerungen', icon: 'notifications' },
     { id: 'projects', label: 'Projekte', icon: 'folder' },
     { id: 'board', label: 'Kanban Board', icon: 'view_kanban' },

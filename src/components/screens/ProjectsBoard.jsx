@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useModalContext } from '../../context/ModalContext';
 import { useCardTouchDrag } from '../ui/useCardTouchDrag';
 import Card from '../ui/Card';
+import { ViewToggle, PROJECT_VIEW_OPTIONS } from '../ui/ListToolbar';
 import { ProjectCardContent, ReminderCardContent } from '../ui/ItemCardContent';
 import CardContextMenu from '../ui/CardContextMenu';
 import KanbanFilterDrawer from '../ui/KanbanFilterDrawer';
@@ -330,8 +331,13 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
 
   return (
     <div className="h-full flex flex-col w-full min-h-0">
-      {/* Top Header Bar: Quick Tabs & Drawer Trigger */}
+      {/* Top Header Bar: Ansicht (Liste | Board), Quick Tabs & Drawer Trigger */}
       <div className="flex items-center justify-between gap-2 mb-3 bg-surface-low border border-outline-variant p-1.5 rounded-2xl shadow-xs shrink-0">
+        <ViewToggle
+          value="board"
+          onChange={(v) => v === 'list' && setCurrentScreen('projects')}
+          options={PROJECT_VIEW_OPTIONS}
+        />
         <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5 flex-1 min-w-0">
           {/* Quick Tab 1: Alle */}
           <button

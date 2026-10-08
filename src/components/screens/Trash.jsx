@@ -34,7 +34,7 @@ const Trash = ({ setCurrentScreen }) => {
     switch (type) {
       case 'project': return { icon: 'folder', label: 'Projekt', color: 'text-blue-600', bg: 'bg-blue-100' };
       case 'reminder': return { icon: 'notifications', label: 'Erinnerung', color: 'text-amber-600', bg: 'bg-amber-100' };
-      case 'inbox': return { icon: 'inbox', label: 'Inbox', color: 'text-emerald-600', bg: 'bg-emerald-100' };
+      case 'inbox': return { icon: 'lightbulb', label: 'Gedanke', color: 'text-emerald-600', bg: 'bg-emerald-100' };
       default: return { icon: 'description', label: 'Eintrag', color: 'text-gray-600', bg: 'bg-gray-100' };
     }
   };

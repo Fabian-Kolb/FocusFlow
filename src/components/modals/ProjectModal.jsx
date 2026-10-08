@@ -18,6 +18,7 @@ const ProjectModal = ({ setCurrentScreen }) => {
   const [status, setStatus] = useState('GEPLANT');
   const [phases, setPhases] = useState([]);
   const [categoryId, setCategoryId] = useState('allgemein');
+  const [keepThought, setKeepThought] = useState(false);
   // State for AI phase generation options and preview
   const [isAiConfigOpen, setIsAiConfigOpen] = useState(false);
   const [aiGranularity, setAiGranularity] = useState('balanced');
@@ -39,6 +40,7 @@ const ProjectModal = ({ setCurrentScreen }) => {
       setStartDate(modalPayload.startDate || '');
       setEndDate(modalPayload.endDate || '');
       setStatus(modalPayload.status || 'GEPLANT');
+      setKeepThought(false);
       // Vorauswahl: Kategorie aus dem Aufruf (z. B. "+" in einer Kategorie), sonst die zuletzt benutzte
       setCategoryId(
         modalPayload.categoryId && projectCategories.some((c) => c.id === modalPayload.categoryId)
@@ -131,7 +133,8 @@ const ProjectModal = ({ setCurrentScreen }) => {
       phases,
       notes,
       categoryId,
-      inboxItemId: modalPayload.inboxItemId
+      inboxItemId: modalPayload.inboxItemId,
+      keepInboxItem: keepThought
     });
 
     writeLastCategory('project', categoryId);
@@ -204,7 +207,7 @@ const ProjectModal = ({ setCurrentScreen }) => {
               <span className="material-symbols-outlined text-[22px]">create_new_folder</span>
             </div>
             <h2 className="text-sm sm:text-base font-bold font-mono uppercase truncate text-on-surface" id="project-modal-title">
-              {isConversion ? 'Inbox-Gedanke umwandeln' : 'Neues Projekt erstellen'}
+              {isConversion ? 'Gedanke umwandeln' : 'Neues Projekt erstellen'}
             </h2>
           </div>
           <button
@@ -284,7 +287,7 @@ const ProjectModal = ({ setCurrentScreen }) => {
                 {/* 3 Notes Selection */}
                 <div className="bg-surface-low border border-outline-variant rounded-xl p-4 space-y-3">
                   <label className="block text-xs font-mono font-bold text-primary uppercase tracking-wide">
-                    Inbox-Notizen übernehmen
+                    Notizen aus dem Gedanken übernehmen
                   </label>
                   <p className="text-xs text-on-surface-variant leading-relaxed">
                     Wähle aus, welche Notizen in das neue Projekt abgelegt werden sollen (sie werden nicht nochmals zusammengefasst):
@@ -337,6 +340,19 @@ const ProjectModal = ({ setCurrentScreen }) => {
                   </div>
                 </div>
               </>
+            )}
+
+            {/* Gedanken behalten: z. B. wenn daraus noch etwas Zweites entstehen soll */}
+            {isConversion && (
+              <label className="flex items-center gap-2 text-xs text-on-surface-variant cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={keepThought}
+                  onChange={(e) => setKeepThought(e.target.checked)}
+                  className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4"
+                />
+                Gedanken behalten (sonst wandert er nach dem Anlegen in den Papierkorb)
+              </label>
             )}
 
             {/* Description */}

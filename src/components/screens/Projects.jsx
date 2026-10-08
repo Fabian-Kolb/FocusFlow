@@ -8,7 +8,7 @@ import Button from '../ui/Button';
 import Input from '../ui/Input';
 import Badge from '../ui/Badge';
 import CardContextMenu from '../ui/CardContextMenu';
-import { ListToolbar, CategoryToolbar } from '../ui/ListToolbar';
+import { ListToolbar, CategoryToolbar, ViewToggle, PROJECT_VIEW_OPTIONS } from '../ui/ListToolbar';
 
 const Projects = ({ setCurrentScreen }) => {
   const { 
@@ -229,6 +229,13 @@ const Projects = ({ setCurrentScreen }) => {
         createLabel="Neues Projekt"
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
+        viewToggle={
+          <ViewToggle
+            value="list"
+            onChange={(v) => v === 'board' && setCurrentScreen('board')}
+            options={PROJECT_VIEW_OPTIONS}
+          />
+        }
       />
 
       {pinnedProjects.length > 0 && (
