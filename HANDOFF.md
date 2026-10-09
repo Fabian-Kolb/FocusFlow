@@ -258,3 +258,34 @@
 ### Offen
 - Stellschrauben: `PULL_MAX`, `PULL_COUPLING`, `PULL_STIFFNESS`/`PULL_DAMPING`, `FF_OFFSET`.
 - `shortcut-*.png` und Manifest-Farben unverändert.
+
+## Nachtrag 2026-10-09 (Claude Code): Anschlag der Buchstaben, Logo-Animation beim Einklappen
+
+### Getan
+- **Buchstaben dringen nie ineinander ein** (`Wordmark3D.jsx`): Je Buchstabe wird die Silhouette (links/rechts je Zeile, aus den Umrissdaten) berechnet. Nach der Feder-Integration prüft ein Anschlag-Schritt jedes Nachbarpaar (`gapBetween`, `MIN_GAP` = 3, nie kleiner als der Ruheabstand im Logo) und schiebt sich berührende Buchstaben gegenseitig weg (mehrere Durchläufe, Nachbarn gehen mit). Nur im Ruhezustand, Einflug und Klick-Wirbeln dürfen durcheinanderfliegen. Vertikaler Zug auf 40 %, Neigung in Zugrichtung verkleinert.
+- **Sidebar-Logo** (`BrandLockup.jsx` ersetzt `BrandLogo` und `BrandMark`): ein Logo, das beim Ein-/Ausklappen animiert (JS-Fortschritt, 650 ms, rAF). Die beiden F bleiben stehen, O/C/U/S und L/O/W schieben sich in die F hinein und blenden aus, das F von FLOW wandert nach links und verkürzt dabei seinen Balken exakt auf die Länge des F von FOCUS (der Balkenabschluss ist dasselbe Rundungsprofil, nur um `BAR_SHIFT` verschoben; die Punkte werden zurückgeschoben). Endzustand = FF-Bildmarke, Mitte in der 72-px-Leiste. Flug nach dem Login findet seine Ziele weiter über `data-brand-word` bzw. `data-brand-f` (je nach Zustand nur eine Sorte im DOM).
+
+### Tests
+- `vite build` ok. Headless-Chrome: Cursor-Zug mit Anschlag (Einzelbilder), Einklappen mit künstlicher Zeit in 65-ms-Schritten, beide Login-Flüge, keine Konsolenfehler.
+- Nicht geprüft: Ausklappen (gleiche Funktion rückwärts), Tablet-Drawer, Touch, Handy, Hell-Modus der Wortmarke.
+
+### Offen
+- Anschlag nutzt Zeilenprofile mit 1-Einheiten-Raster; sehr starke Neigung des ganzen Wortes ändert nichts daran (alles im Wortraum).
+- Stellschrauben: `MIN_GAP`, `PULL_*` in `Wordmark3D.jsx`; `DURATION`, Fenster in `apply` in `BrandLockup.jsx`.
+
+## Nachtrag 2026-10-09 (Claude Code): Buchstaben ziehen, mehr Luft, Sidebar synchron
+
+### Getan
+- **Kein Zittern/Wirbeln per Klick mehr.** Das Wirbeln gibt es nur noch beim Einflug (`scramble` intern), `burst` ist entfernt.
+- **Buchstaben greifen und ziehen** (`Wordmark3D.jsx`): Beim Klick/Tipp wird der Buchstabe unter dem Zeiger über seine Silhouette erkannt (`hitLetter`, Toleranz `HIT_TOLERANCE`). Gedrückt halten zieht ihn (angehoben, mit Glow, leichte Schräglage) überallhin, auch über die ganze Seite: Dafür wird die Zeichenfläche beim Ziehen fensterfüllend (`wide`, `position: fixed`, Kamera per `setViewOffset`, gleiche Perspektive). Die Nachbarn werden etwas mitgezogen. Beim Loslassen federt er zurück (`RETURN_*`), bleibt dabei vorn und darf über die anderen hinweg, danach gilt wieder die Kollisionsprüfung. Cursor: `grab`/`grabbing`. Auf Touch: `touch-action: pan-y`, Ziehen also horizontal.
+- **Mehr Abstand:** Bei Zug/Hover (`MIN_GAP_ACTIVE` = 6) lassen benachbarte Buchstaben mehr Luft als im Ruhezustand; im Ruhezustand gilt der Logo-Abstand.
+- **Sidebar und Logo exakt gleichzeitig:** `BrandLockup` leitet seinen Fortschritt jedes Bild aus der echten Breite der Sidebar ab (`aside.getBoundingClientRect()`), egal mit welcher Dauer oder Kurve die Sidebar läuft. Die äußeren Buchstaben gehen zuerst, damit nichts von der schmaler werdenden Sidebar abgeschnitten wird. Sidebar-Übergang von 300 auf 450 ms (`Sidebar.jsx`).
+- `tests/sidebar_geometry_and_state.test.js` (SIDEBAR-GEOM-02) prüft jetzt den `BrandLockup` statt des alten Monogramm-Slots.
+
+### Tests
+- `vite build` ok, Vitest 179/180 (nur der bekannte wacklige Kalender-Test), E2E-Skript 141/142 (nur T2-CAL-04, wie vorher).
+- Headless-Chrome: Hover (`grab`), Ziehen eines O quer über die Karte, Zurückfedern, Sidebar-Breite gegen Logo-Fortschritt aufgezeichnet. Hinweis: Im langsamen Headless-Chrome dauert der Einflug länger, Greifen geht erst danach.
+
+### Offen
+- Echtes Ziehen/Loslassen mit Maus und Touch von Hand ausprobieren, Stellschrauben: `DRAG_*`, `RETURN_*`, `MIN_GAP_ACTIVE`, Nachbar-Faktoren (0,14 / 0,05).
+- Hell-Modus, Handy und Tablet-Drawer ungeprüft.

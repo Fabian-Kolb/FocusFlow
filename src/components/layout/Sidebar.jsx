@@ -82,7 +82,7 @@ const Sidebar = ({ currentScreen, setCurrentScreen, collapsed, setCollapsed }) =
         - On Desktop (>= 1024px): Expands/contracts smoothly (72px <-> 256px) pushing content naturally.
       */}
       <div
-        className={`hidden md:flex flex-col flex-shrink-0 h-full relative transition-[width] duration-300 ease-in-out motion-reduce:transition-none ${
+        className={`hidden md:flex flex-col flex-shrink-0 h-full relative transition-[width] duration-[450ms] ease-in-out motion-reduce:transition-none ${
           collapsed ? 'w-[72px] z-30' : 'w-[72px] lg:w-[256px] z-40'
         }`}
       >
@@ -98,7 +98,7 @@ const Sidebar = ({ currentScreen, setCurrentScreen, collapsed, setCollapsed }) =
           role={typeof window !== 'undefined' && window.innerWidth < BREAKPOINTS.DESKTOP && !collapsed ? 'dialog' : 'navigation'}
           aria-modal={typeof window !== 'undefined' && window.innerWidth < BREAKPOINTS.DESKTOP && !collapsed ? 'true' : undefined}
           aria-label="Hauptnavigation"
-          className={`flex flex-col h-full border-r border-outline-variant bg-surface transition-[width,box-shadow] duration-300 ease-in-out motion-reduce:transition-none rounded-r-[24px] overflow-hidden absolute lg:relative top-0 bottom-0 left-0 ${
+          className={`flex flex-col h-full border-r border-outline-variant bg-surface transition-[width,box-shadow] duration-[450ms] ease-in-out motion-reduce:transition-none rounded-r-[24px] overflow-hidden absolute lg:relative top-0 bottom-0 left-0 ${
             collapsed
               ? 'w-[72px] shadow-none'
               : 'w-[256px] shadow-2xl lg:shadow-none'

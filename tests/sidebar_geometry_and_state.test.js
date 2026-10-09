@@ -97,8 +97,10 @@ export function registerSidebarGeometryAndStateTests(runner) {
       const filePath = path.resolve('src/components/layout/Sidebar.jsx');
       const src = fs.readFileSync(filePath, 'utf8');
 
-      // Header Monogram slot
-      assert(src.includes('w-12 h-12 flex items-center justify-center flex-shrink-0'), 'Header must implement matching w-12 h-12 slot for monogram');
+      // Header: Das Logo (BrandLockup) wird beim Einklappen zur FF-Bildmarke und ist in der 72-px-Leiste zentriert
+      assert(src.includes('<BrandLockup collapsed={collapsed} />'), 'Header must render the animated BrandLockup logo');
+      const lockup = fs.readFileSync(path.resolve('src/components/brand/BrandLockup.jsx'), 'utf8');
+      assert(lockup.includes('const RAIL_WIDTH = 72'), 'BrandLockup must center the FF mark in the 72px rail');
 
       // Profile Avatar slot
       assert(src.includes('w-12 h-11 flex items-center justify-center flex-shrink-0'), 'Profile must implement matching w-12 h-11 slot for avatar');

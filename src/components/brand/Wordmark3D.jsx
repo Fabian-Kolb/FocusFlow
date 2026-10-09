@@ -40,6 +40,13 @@ const PULL_STIFFNESS = 0.05;
 const PULL_DAMPING = 0.9;
 const PULL_MAX = 10; // größte Auslenkung eines Buchstabens (Welteinheiten)
 const PULL_COUPLING = 0.4; // wie stark Nachbarbuchstaben mitgezogen werden
+// Buchstabe mit der Maus greifen und ziehen
+const DRAG_STIFFNESS = 0.22;
+const DRAG_DAMPING = 0.74;
+const DRAG_LIFT = 46; // wird beim Ziehen nach vorn gehoben
+const RETURN_STIFFNESS = 0.1;
+const RETURN_DAMPING = 0.8;
+const HIT_TOLERANCE = 5; // Welteinheiten um die Silhouette
 const HALO_SCALES = [
   { scale: 1.07, opacity: 0.85 },
   { scale: 1.17, opacity: 0.35 },
@@ -55,7 +62,9 @@ const rand = (min, max) => min + Math.random() * (max - min);
 // Silhouette je Buchstabe (links/rechts je Zeile), damit sich Buchstaben beim Ziehen nie durchdringen
 const ROW_Y0 = -62;
 const ROW_N = 125;
-const MIN_GAP = 3; // so nah dürfen sich Buchstaben kommen (Welteinheiten), nie weniger als im Logo selbst
+// Beim Ziehen/Hovern halten benachbarte Buchstaben mindestens diesen Abstand (Welteinheiten) ein, damit sie
+// nicht ineinander übergehen. Im Ruhezustand gilt wieder der Abstand des Logos.
+const MIN_GAP_ACTIVE = 6;
 
 function buildProfile(letter) {
   const left = new Float32Array(ROW_N).fill(Infinity);
@@ -129,12 +138,12 @@ const prefersReducedMotion = () => window.matchMedia?.('(prefers-reduced-motion:
  * - Cursor-Glow: Buchstaben in Cursornähe leuchten und bekommen einen blauen Schein (Halo)
  * - Lichtquelle am Cursor
  * - Zug zum Cursor: Buchstaben (und das Wort) werden fest, aber wie durch zähe Flüssigkeit zum Zeiger gezogen, Nachbarn gehen mit
- * - Klick: Buchstaben wirbeln durcheinander und rasten wieder ein (`burst` löst es von außen aus)
+ * - Ziehen: Buchstabe unter dem Zeiger greifen und über die ganze Seite ziehen; beim Loslassen federt er zurück
  * - `attention` + `attentionTargetRef`: Das Wort richtet sich auf das Ziel (die Login-Karte) aus
  * - `pulse`: kleiner Impuls bei jedem Tastendruck
  * - Handy: Neigen des Geräts ersetzt den Mauszeiger
  */
-function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetRef = null, burst = 0, pulse = 0, controlRef: externalControlRef = null }) {
+function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetRef = null, pulse = 0, controlRef: externalControlRef = null }) {
   const containerRef = useRef(null);
   const sceneRef = useRef(null);
   const ownControlRef = useRef(null);
@@ -145,9 +154,6 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
   const inputRef = useRef({ attention, attentionTargetRef });
   inputRef.current = { attention, attentionTargetRef };
 
-  useEffect(() => {
-    if (burst) controlRef.current?.scramble(1);
-  }, [burst]);
   useEffect(() => {
     if (pulse) controlRef.current?.pulse();
   }, [pulse]);
@@ -168,16 +174,8 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.35;
-    // Die Zeichenfläche ragt über den Layout-Kasten hinaus, damit einfliegende Buchstaben nicht abgeschnitten werden
-    Object.assign(renderer.domElement.style, {
-      display: 'block',
-      position: 'absolute',
-      left: `${-STAGE_PAD_X * 100}%`,
-      top: `${-STAGE_PAD_Y * 100}%`,
-      width: `${(1 + 2 * STAGE_PAD_X) * 100}%`,
-      height: `${(1 + 2 * STAGE_PAD_Y) * 100}%`,
-      pointerEvents: 'none',
-    });
+    renderer.domElement.style.display = 'block';
+    renderer.domElement.style.pointerEvents = 'none';
     container.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
@@ -237,33 +235,70 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
         enter: 1, // Einflug: 0 = unsichtbar, 1 = da
         kickAt: 0, // Zeitpunkt, an dem der Buchstabe weggeschleudert wird
         kickPower: 1,
+        dragging: false, // wird gerade mit der Maus gezogen
+        returning: false, // federt nach dem Loslassen zurück
       };
     });
 
-    // Kollisionsprofile: Je zwei benachbarte Buchstaben behalten mindestens ihren Ruheabstand (höchstens MIN_GAP)
+    // Kollisionsprofile: Je zwei benachbarte Buchstaben behalten mindestens ihren Ruheabstand, bei Zug/Hover mehr
     const profiles = WORDMARK[word].letters.map(buildProfile);
     const zero = { x: 0, y: 0 };
-    const gapLimits = letters.slice(1).map((_, i) => Math.min(gapBetween(profiles[i], profiles[i + 1], zero, zero), MIN_GAP));
+    const baseGaps = letters.slice(1).map((_, i) => gapBetween(profiles[i], profiles[i + 1], zero, zero));
     const shiftA = { x: 0, y: 0 };
     const shiftB = { x: 0, y: 0 };
 
-    // Kamera so setzen, dass der gemeinsame Bildausschnitt genau in den Container passt
-    const resize = () => {
-      const width = Math.max(container.clientWidth, 1) * (1 + 2 * STAGE_PAD_X);
-      const height = Math.max(container.clientHeight, 1) * (1 + 2 * STAGE_PAD_Y);
-      renderer.setSize(width, height, false);
-      camera.aspect = width / height;
-      const tan = Math.tan(THREE.MathUtils.degToRad(FOV / 2));
+    // Zeichenfläche und Kamera. Normal ragt die Fläche über den Layout-Kasten hinaus (einfliegende Buchstaben werden
+    // nicht abgeschnitten). Beim Ziehen deckt sie das ganze Fenster ab (`wide`), damit der Buchstabe überall sichtbar bleibt.
+    // Die Kamera bleibt dabei gleich, nur der Bildausschnitt (setViewOffset) wandert mit.
+    let wide = false;
+    const tan = Math.tan(THREE.MathUtils.degToRad(FOV / 2));
+    const viewOffset = () => {
+      const boxW = Math.max(container.clientWidth, 1);
+      const boxH = Math.max(container.clientHeight, 1);
+      const stageW = boxW * (1 + 2 * STAGE_PAD_X);
+      const stageH = boxH * (1 + 2 * STAGE_PAD_Y);
+      const r = container.getBoundingClientRect();
+      camera.setViewOffset(stageW, stageH, -(r.left - boxW * STAGE_PAD_X), -(r.top - boxH * STAGE_PAD_Y), window.innerWidth, window.innerHeight);
+    };
+    const layout = () => {
+      const boxW = Math.max(container.clientWidth, 1);
+      const boxH = Math.max(container.clientHeight, 1);
+      const stageW = boxW * (1 + 2 * STAGE_PAD_X);
+      const stageH = boxH * (1 + 2 * STAGE_PAD_Y);
+      const style = renderer.domElement.style;
+      camera.aspect = stageW / stageH;
       const distH = (WORDMARK_FRAME.height * (1 + 2 * STAGE_PAD_Y)) / 2 / tan;
       const distW = (WORDMARK_FRAME.width * (1 + 2 * STAGE_PAD_X)) / 2 / (tan * camera.aspect);
       camera.position.set(0, 0, Math.max(distH, distW) + EXTRUDE.depth);
       camera.lookAt(0, 0, 0);
+      if (wide) {
+        Object.assign(style, { position: 'fixed', left: '0px', top: '0px', width: `${window.innerWidth}px`, height: `${window.innerHeight}px`, zIndex: '30' });
+        renderer.setSize(window.innerWidth, window.innerHeight, false);
+        viewOffset();
+      } else {
+        camera.clearViewOffset();
+        Object.assign(style, {
+          position: 'absolute',
+          left: `${-STAGE_PAD_X * 100}%`,
+          top: `${-STAGE_PAD_Y * 100}%`,
+          width: `${(1 + 2 * STAGE_PAD_X) * 100}%`,
+          height: `${(1 + 2 * STAGE_PAD_Y) * 100}%`,
+          zIndex: '',
+        });
+        renderer.setSize(stageW, stageH, false);
+      }
       camera.updateProjectionMatrix();
       renderer.render(scene, camera); // setSize leert die Fläche – sofort neu zeichnen
     };
-    resize();
-    const resizeObserver = new ResizeObserver(resize);
+    const setWide = (next) => {
+      if (wide === next) return;
+      wide = next;
+      layout();
+    };
+    layout();
+    const resizeObserver = new ResizeObserver(layout);
     resizeObserver.observe(container);
+    window.addEventListener('resize', layout);
 
     const reducedMotion = prefersReducedMotion();
 
@@ -285,18 +320,78 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
     // Cursor/Finger global verfolgen: Das Wort reagiert auch, wenn der Cursor neben ihm ist
     const pointer = { x: 0, y: 0, active: false };
     let usingMouse = false;
+    const drag = { letter: null, grabX: 0, grabY: 0, pointerId: null };
+
+    // Buchstabe unter dem Zeiger (Silhouette plus Toleranz), sonst null
+    const hitLetter = (clientX, clientY) => {
+      const r = container.getBoundingClientRect();
+      const k = WORDMARK_FRAME.width / Math.max(r.width, 1);
+      const wx = (clientX - (r.left + r.width / 2)) * k;
+      const wy = ((r.top + r.height / 2) - clientY) * k;
+      let best = null;
+      let bestDist = Infinity;
+      letters.forEach((l) => {
+        if (l.enter < 1) return;
+        const sx = wx - l.offset.x - l.pull.x;
+        const sy = wy - l.offset.y - l.pull.y;
+        const row = Math.round(sy - ROW_Y0);
+        if (row < 0 || row >= ROW_N) return;
+        const prof = profiles[l.index];
+        if (sx < prof.left[row] - HIT_TOLERANCE || sx > prof.right[row] + HIT_TOLERANCE) return;
+        const d = Math.hypot(sx - l.base.x, sy - l.base.y);
+        if (d < bestDist) {
+          best = l;
+          bestDist = d;
+        }
+      });
+      return best ? { letter: best, wx, wy } : null;
+    };
+    const endDrag = () => {
+      if (!drag.letter) return;
+      drag.letter.dragging = false;
+      drag.letter.returning = true; // federt zurück, bis er wieder an seinem Platz ist
+      drag.letter = null;
+      drag.pointerId = null;
+      document.body.style.userSelect = '';
+      container.style.cursor = '';
+    };
     const onPointerMove = (e) => {
       usingMouse = e.pointerType === 'mouse';
       pointer.x = e.clientX;
       pointer.y = e.clientY;
       pointer.active = true;
+      if (!drag.letter && usingMouse && !reducedMotion) {
+        const r = container.getBoundingClientRect();
+        const inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+        container.style.cursor = inside && hitLetter(e.clientX, e.clientY) ? 'grab' : '';
+      }
     };
     const onPointerLeave = () => { pointer.active = false; };
-    const onPointerDown = () => scramble(1);
+    const onPointerDown = (e) => {
+      if (reducedMotion || exiting || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      const hit = hitLetter(e.clientX, e.clientY);
+      if (!hit) return;
+      const { letter } = hit;
+      drag.letter = letter;
+      drag.pointerId = e.pointerId;
+      drag.grabX = hit.wx - letter.base.x - letter.offset.x - letter.pull.x;
+      drag.grabY = hit.wy - letter.base.y - letter.offset.y - letter.pull.y;
+      letter.dragging = true;
+      letter.returning = false;
+      pointer.x = e.clientX;
+      pointer.y = e.clientY;
+      pointer.active = true;
+      document.body.style.userSelect = 'none';
+      container.style.cursor = 'grabbing';
+      setWide(true);
+    };
     window.addEventListener('pointermove', onPointerMove, { passive: true });
     document.documentElement.addEventListener('pointerleave', onPointerLeave);
     container.addEventListener('pointerdown', onPointerDown);
-    container.style.cursor = 'pointer';
+    window.addEventListener('pointerup', endDrag);
+    window.addEventListener('pointercancel', endDrag);
+    window.addEventListener('blur', endDrag);
+    container.style.touchAction = 'pan-y';
 
     // Handy: Neigen des Geräts ersetzt den Mauszeiger
     const onOrientation = (e) => {
@@ -337,6 +432,7 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
     let exiting = false;
     const snapshot = () => {
       try {
+        setWide(false);
         renderer.render(scene, camera);
         return renderer.domElement.toDataURL('image/png');
       } catch {
@@ -349,11 +445,13 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
         resolve(snapshot());
         return;
       }
+      endDrag();
       exiting = true;
       const started = performance.now();
       const settled = () => (
         Math.abs(wordGroup.rotation.x) < 0.006
         && Math.abs(wordGroup.rotation.y) < 0.006
+        && !wide
         && letters.every((l) => l.enter >= 1 && l.kickAt === 0 && l.offset.lengthSq() < 0.15
           && l.pull.lengthSq() < 0.15 && l.velocity.lengthSq() < 0.002 && l.tilt.lengthSq() < 1e-4 && l.glow < 0.02)
       );
@@ -382,6 +480,7 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
     const pullGoals = letters.map(() => new THREE.Vector3());
     const tiltGoal = new THREE.Vector3();
     const pullGoal = new THREE.Vector3();
+    const finalGoals = letters.map(() => new THREE.Vector3());
     const emissiveColor = new THREE.Color();
 
     const tick = (now) => {
@@ -457,7 +556,8 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
       const pullRadius = WORDMARK_FRAME.width * 0.26;
       const wx = (smoothPointer.x - cx) * worldPerPx;
       const wy = (cy - smoothPointer.y) * worldPerPx;
-      const pulling = pointerOn && !targetEl && !exiting;
+      const dragged = drag.letter;
+      const pulling = pointerOn && !targetEl && !exiting && !dragged;
       letters.forEach((l, i) => {
         const g = pullGoals[i];
         g.set(0, 0, 0);
@@ -470,6 +570,28 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
         const len = Math.min(dist * 0.5, PULL_MAX) * falloff;
         g.set((dx / dist) * len, (dy / dist) * len * 0.4, falloff * 7);
       });
+      // Eigenes Ziel je Buchstabe: eigener Zug plus anteilig der Nachbarn. Wird ein Buchstabe gezogen,
+      // folgt er dem Zeiger genau (ohne Glättung), seine Nachbarn werden nur ein Stück mitgezogen.
+      letters.forEach((l, i) => {
+        const g = finalGoals[i];
+        g.copy(pullGoals[i]);
+        if (i > 0) g.addScaledVector(pullGoals[i - 1], PULL_COUPLING * 0.5);
+        if (i < letters.length - 1) g.addScaledVector(pullGoals[i + 1], PULL_COUPLING * 0.5);
+      });
+      if (dragged) {
+        const rawX = (pointer.x - cx) * worldPerPx;
+        const rawY = (cy - pointer.y) * worldPerPx;
+        const target = finalGoals[dragged.index];
+        target.set(rawX - drag.grabX - dragged.base.x - dragged.offset.x, rawY - drag.grabY - dragged.base.y - dragged.offset.y, DRAG_LIFT);
+        letters.forEach((l, i) => {
+          if (l === dragged) return;
+          const rank = Math.abs(i - dragged.index);
+          const g = finalGoals[i];
+          g.set(0, 0, 0);
+          const factor = rank === 1 ? 0.14 : rank === 2 ? 0.05 : 0;
+          if (factor) g.set(target.x * factor, target.y * factor, 0).clampLength(0, 14);
+        });
+      }
       const driftX = pulling ? clamp(wx * 0.05, -7, 7) * proximity : 0;
       const driftY = pulling ? clamp(wy * 0.05, -5, 5) * proximity : 0;
       wordGroup.position.x += (driftX - wordGroup.position.x) * ease * 0.6;
@@ -495,7 +617,9 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
         }
 
         let glowGoal = 0;
-        if (pointerOn) {
+        if (l.dragging) {
+          glowGoal = 1;
+        } else if (pointerOn) {
           if (targetEl) {
             glowGoal = 0.45;
           } else {
@@ -519,20 +643,23 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
         const wave = reducedMotion || exiting ? 0 : Math.sin(t * 1.6 + l.index * 0.6 + phase) * 1.4;
         goal.set(0, wave, 0);
 
-        // Eigener Zug plus anteilig der Zug der Nachbarn
-        const left = pullGoals[li - 1];
-        const right = pullGoals[li + 1];
+        // Ziel des Zugs (inkl. Nachbarn) und Neigung in Zugrichtung
         const own = pullGoals[li];
-        pullGoal.copy(own);
-        if (left) pullGoal.addScaledVector(left, PULL_COUPLING * 0.5);
-        if (right) pullGoal.addScaledVector(right, PULL_COUPLING * 0.5);
-        // Der Buchstabe lehnt sich leicht in Zugrichtung
-        tiltGoal.set(own.y * 0.012, 0, -own.x * 0.006);
+        pullGoal.copy(finalGoals[li]);
+        if (l.returning) {
+          // zurückfedernder Buchstabe bleibt vorn, bis er fast wieder an seinem Platz ist
+          pullGoal.set(finalGoals[li].x, finalGoals[li].y, clamp(Math.hypot(l.pull.x, l.pull.y) / 40, 0, 1) * DRAG_LIFT);
+        }
+        const lean = l.dragging ? finalGoals[li] : own;
+        tiltGoal.set(clamp(lean.y, -12, 12) * 0.012, clamp(lean.x, -12, 12) * (l.dragging ? 0.01 : 0), -clamp(lean.x, -12, 12) * (l.dragging ? 0.012 : 0.006));
+        const pullK = l.dragging ? DRAG_STIFFNESS : l.returning ? RETURN_STIFFNESS : PULL_STIFFNESS;
+        const pullD = l.dragging ? DRAG_DAMPING : l.returning ? RETURN_DAMPING : PULL_DAMPING;
+        if (l.returning && l.pull.lengthSq() < 1 && l.pullVelocity.lengthSq() < 0.01) l.returning = false;
 
         for (let s = 0; s < Math.ceil(step); s++) {
           l.velocity.addScaledVector(pull.subVectors(goal, l.offset), STIFFNESS).multiplyScalar(DAMPING);
           l.offset.add(l.velocity);
-          l.pullVelocity.addScaledVector(pull.subVectors(pullGoal, l.pull), PULL_STIFFNESS).multiplyScalar(PULL_DAMPING);
+          l.pullVelocity.addScaledVector(pull.subVectors(pullGoal, l.pull), pullK).multiplyScalar(pullD);
           l.pull.add(l.pullVelocity);
           l.tiltVelocity.addScaledVector(pull.subVectors(tiltGoal, l.tilt), STIFFNESS).multiplyScalar(DAMPING);
           l.tilt.add(l.tiltVelocity);
@@ -541,17 +668,22 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
 
       // Harter Anschlag: Berühren sich zwei Buchstaben, schieben sie sich gegenseitig weg statt ineinander zu gehen.
       // Nur im Ruhezustand, während Einflug/Wirbeln dürfen sie durcheinanderfliegen.
-      const calm = letters.every((l) => l.enter >= 1 && l.offset.lengthSq() < 9 && l.tilt.lengthSq() < 0.01);
+      const calm = letters.every((l) => l.dragging || l.returning || (l.enter >= 1 && l.offset.lengthSq() < 9 && l.tilt.lengthSq() < 0.01));
       if (calm) {
         for (let iter = 0; iter < 6; iter++) {
           for (let i = 0; i < letters.length - 1; i++) {
             const a = letters[i];
             const b = letters[i + 1];
+            // Der gezogene oder zurückfliegende Buchstabe ist angehoben und darf über die anderen hinweg
+            if (a.dragging || a.returning || b.dragging || b.returning) continue;
+            // Bei Zug/Hover mehr Luft zwischen den Buchstaben als im Ruhezustand
+            const engage = smooth(1.5, 5, Math.max(Math.hypot(a.pull.x, a.pull.y), Math.hypot(b.pull.x, b.pull.y)));
+            const limit = baseGaps[i] + Math.max(MIN_GAP_ACTIVE - baseGaps[i], 0) * engage;
             shiftA.x = a.offset.x + a.pull.x;
             shiftA.y = a.offset.y + a.pull.y;
             shiftB.x = b.offset.x + b.pull.x;
             shiftB.y = b.offset.y + b.pull.y;
-            const deficit = gapLimits[i] - gapBetween(profiles[i], profiles[i + 1], shiftA, shiftB);
+            const deficit = limit - gapBetween(profiles[i], profiles[i + 1], shiftA, shiftB);
             if (deficit > 0 && deficit < 40) {
               a.pull.x -= deficit / 2;
               b.pull.x += deficit / 2;
@@ -565,6 +697,12 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
         l.mesh.position.copy(l.base).add(l.offset).add(l.pull);
         l.mesh.rotation.set(l.tilt.x, l.tilt.y, l.tilt.z);
       });
+
+      // Breite Zeichenfläche (Ziehen) folgt dem Seitenausschnitt und endet, sobald alles wieder an seinem Platz ist
+      if (wide) {
+        if (!drag.letter && letters.every((l) => !l.returning)) setWide(false);
+        else viewOffset();
+      }
 
       renderer.render(scene, camera);
     };
@@ -581,6 +719,11 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
       if (askPermission) window.removeEventListener('pointerdown', askPermission);
       document.documentElement.removeEventListener('pointerleave', onPointerLeave);
       container.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointerup', endDrag);
+      window.removeEventListener('pointercancel', endDrag);
+      window.removeEventListener('blur', endDrag);
+      window.removeEventListener('resize', layout);
+      document.body.style.userSelect = '';
       letters.forEach((l) => l.mesh.geometry.dispose());
       materials.forEach((m) => m.dispose());
       renderer.dispose();
