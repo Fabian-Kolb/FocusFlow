@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { RECURRENCE_OPTIONS, getRecurrenceOptionId, toIsoDate } from '../../lib/recurrence';
 import { useModalContext } from '../../context/ModalContext';
 import { generateReminderStructure } from '../../lib/gemini';
-import FioIcon from '../ui/FioIcon';
 import CategoryChips from '../ui/CategoryChips';
 import { readLastCategory, writeLastCategory } from '../../lib/lastCategory';
+import { Button, Checkbox, Field, FioMark, Input, Select, Sheet, Textarea } from '../ds';
 
 const ReminderModal = ({ setCurrentScreen }) => {
   const { activeModal, modalPayload, closeModal, addReminder, user, isCalendarConnected, reminderCategories, addReminderCategory } = useModalContext();
@@ -39,7 +39,7 @@ const ReminderModal = ({ setCurrentScreen }) => {
           : readLastCategory('reminder', reminderCategories)
       );
 
-      // Auto-focus input after modal opens
+      // Nach dem Öffnen ins Titelfeld springen
       const timer = setTimeout(() => {
         if (titleInputRef.current) {
           titleInputRef.current.focus();
@@ -50,10 +50,6 @@ const ReminderModal = ({ setCurrentScreen }) => {
     // Kategorien nur beim Öffnen lesen, sonst überschreibt ein Sync die Auswahl
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, modalPayload]);
-
-  if (!isOpen) {
-    return null;
-  }
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -81,219 +77,119 @@ const ReminderModal = ({ setCurrentScreen }) => {
   };
 
   const isConversion = Boolean(modalPayload.inboxItemId);
+  const calendarUnavailable = !isCalendarConnected || user?.isGuest;
+
+  const structureWithFio = async () => {
+    const textToStructure = description || title;
+    if (!textToStructure.trim()) return;
+    setIsGenerating(true);
+    const result = await generateReminderStructure(textToStructure);
+    if (result) {
+      if (result.title) setTitle(result.title);
+      if (result.description) setDescription(result.description);
+    }
+    setIsGenerating(false);
+  };
 
   return (
-    <div
-      id="reminder-modal"
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto"
+    <Sheet
+      open={isOpen}
+      onClose={closeModal}
+      width="lg"
+      title={isConversion ? 'Gedanke umwandeln' : 'Neue Erinnerung'}
+      description={isConversion ? 'Aus deinem Gedanken wird eine Erinnerung.' : 'Halte fest, woran du denken willst.'}
+      footer={(
+        <>
+          <Button variant="secondary" onClick={closeModal}>Abbrechen</Button>
+          <Button type="submit" form="reminder-form">Erinnerung hinzufügen</Button>
+        </>
+      )}
     >
-      <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl relative my-auto max-h-[90vh] flex flex-col">
-        
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-outline-variant p-5 sm:px-6 sm:py-5 flex-shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
-              <span className="material-symbols-outlined text-[22px]">notifications</span>
-            </div>
-            <h2 className="text-sm sm:text-base font-bold font-mono uppercase truncate text-on-surface" id="reminder-modal-title">
-              {isConversion ? 'Gedanke umwandeln' : 'Neue Erinnerung erstellen'}
-            </h2>
+      <form id="reminder-form" onSubmit={handleSubmit} className="space-y-5">
+        <Field label="Titel">
+          <Input
+            ref={titleInputRef}
+            data-autofocus
+            required
+            placeholder="z. B. Zahnarzt anrufen"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+        </Field>
+
+        {/* Kategorie direkt beim Anlegen */}
+        <CategoryChips
+          categories={reminderCategories}
+          value={categoryId}
+          onChange={setCategoryId}
+          onCreate={addReminderCategory}
+        />
+
+        {isConversion && (
+          <div className="flex flex-col items-start gap-3 rounded-lg border border-subtle bg-subtle p-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-body text-secondary">
+              Fio macht aus deiner Notiz einen klaren Titel und eine Beschreibung.
+            </p>
+            <Button variant="secondary" size="sm" className="shrink-0" onClick={structureWithFio} loading={isGenerating}>
+              {!isGenerating && <FioMark size={16} />}
+              {isGenerating ? 'Fio arbeitet …' : 'Mit Fio strukturieren'}
+            </Button>
           </div>
-          <button
-            type="button"
-            className="p-2 hover:bg-surface-low rounded-full text-on-surface-variant transition-colors"
-            onClick={closeModal}
+        )}
+
+        <Field label="Beschreibung" optional>
+          <Textarea
+            placeholder="Details, Kontext oder Fließtext"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+        </Field>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="Fällig am" optional>
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          </Field>
+          <Field label="Uhrzeit" optional>
+            <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+          </Field>
+          <Field
+            label="Wiederholen"
+            className="sm:col-span-2"
+            hint={recurrenceId !== 'none' && !date ? 'Ohne Datum beginnt die Wiederholung heute.' : undefined}
           >
-            <span className="material-symbols-outlined text-[20px]">close</span>
-          </button>
+            <Select value={recurrenceId} onChange={(e) => setRecurrenceId(e.target.value)}>
+              {RECURRENCE_OPTIONS.map((o) => (
+                <option key={o.id} value={o.id}>{o.label}</option>
+              ))}
+            </Select>
+          </Field>
         </div>
 
-        {/* Form Content */}
-        <div className="overflow-y-auto p-5 sm:p-6 flex-grow">
-          <form id="reminder-form" onSubmit={handleSubmit} className="space-y-6">
-            
-            {/* Title */}
-            <div>
-              <label className="block text-xs font-mono font-bold text-primary mb-1.5 uppercase tracking-wide">
-                Erinnerungs-Titel / Name *
-              </label>
-              <input
-                type="text"
-                ref={titleInputRef}
-                required
-                className="w-full border-2 border-outline-variant rounded-xl px-4 py-2.5 text-sm font-medium focus:border-primary outline-none transition-colors"
-                placeholder="z.B. Zahnarzt anrufen"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-              />
-            </div>
+        {/* Gedanken behalten: z. B. wenn daraus noch etwas Zweites entstehen soll */}
+        {isConversion && (
+          <Checkbox
+            checked={keepThought}
+            onChange={(e) => setKeepThought(e.target.checked)}
+            label="Gedanken behalten"
+            description="Sonst wandert er nach dem Anlegen in den Papierkorb."
+          />
+        )}
 
-            {/* Kategorie direkt beim Anlegen */}
-            <CategoryChips
-              categories={reminderCategories}
-              value={categoryId}
-              onChange={setCategoryId}
-              onCreate={addReminderCategory}
-            />
-
-            {/* AI Generation Button */}
-            {isConversion && (
-              <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="text-xs text-on-surface-variant max-w-sm leading-relaxed">
-                  Lass die KI aus deiner Notiz automatisch einen strukturierten Erinnerungstitel und eine Beschreibung erstellen.
-                </div>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const textToStructure = description || title;
-                    if (!textToStructure.trim()) return;
-                    setIsGenerating(true);
-                    const result = await generateReminderStructure(textToStructure);
-                    if (result) {
-                      if (result.title) setTitle(result.title);
-                      if (result.description) setDescription(result.description);
-                    }
-                    setIsGenerating(false);
-                  }}
-                  disabled={isGenerating}
-                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:bg-neutral-800 transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
-                >
-                  {isGenerating ? (
-                    <span className="material-symbols-outlined text-[18px] animate-spin">sync</span>
-                  ) : (
-                    <FioIcon className="w-4 h-4 text-white" color="currentColor" />
-                  )}
-                  {isGenerating ? 'Strukturiere...' : 'Fio: Erinnerung strukturieren'}
-                </button>
-              </div>
-            )}
-
-            {/* Description */}
-            <div>
-              <label className="block text-xs font-mono font-bold text-primary mb-1.5 uppercase tracking-wide">
-                Beschreibung / Notiz (Optional)
-              </label>
-              <textarea
-                className="w-full border-2 border-outline-variant rounded-xl px-4 py-3 text-sm focus:border-primary outline-none min-h-[120px] resize-y transition-colors leading-relaxed"
-                placeholder="Zusätzliche Details, Kontext oder Fließtext..."
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
-            </div>
-
-            {/* Date & Time */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-mono font-bold text-primary mb-1.5 uppercase tracking-wide">
-                  Fälligkeitsdatum (Optional)
-                </label>
-                <input
-                  type="date"
-                  className="w-full border-2 border-outline-variant rounded-xl px-4 py-2.5 text-sm focus:border-primary outline-none transition-colors bg-white cursor-pointer"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-mono font-bold text-primary mb-1.5 uppercase tracking-wide">
-                  Uhrzeit (Optional)
-                </label>
-                <input
-                  type="time"
-                  className="w-full border-2 border-outline-variant rounded-xl px-4 py-2.5 text-sm focus:border-primary outline-none transition-colors bg-white cursor-pointer"
-                  value={time}
-                  onChange={(e) => setTime(e.target.value)}
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label htmlFor="reminder-recurrence" className="block text-xs font-mono font-bold text-primary mb-1.5 uppercase tracking-wide">
-                  Wiederholen
-                </label>
-                <div className="relative">
-                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant pointer-events-none">event_repeat</span>
-                  <select
-                    id="reminder-recurrence"
-                    className="w-full border-2 border-outline-variant rounded-xl pl-10 pr-4 py-2.5 text-sm focus:border-primary outline-none transition-colors bg-white cursor-pointer"
-                    value={recurrenceId}
-                    onChange={(e) => setRecurrenceId(e.target.value)}
-                  >
-                    {RECURRENCE_OPTIONS.map((o) => (
-                      <option key={o.id} value={o.id}>{o.label}</option>
-                    ))}
-                  </select>
-                </div>
-                {recurrenceId !== 'none' && !date && (
-                  <p className="mt-1.5 text-[11px] text-on-surface-variant">Ohne Datum beginnt die Wiederholung heute.</p>
-                )}
-              </div>
-            </div>
-
-            {/* Gedanken behalten: z. B. wenn daraus noch etwas Zweites entstehen soll */}
-            {isConversion && (
-              <label className="flex items-center gap-2 text-xs text-on-surface-variant cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={keepThought}
-                  onChange={(e) => setKeepThought(e.target.checked)}
-                  className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4"
-                />
-                Gedanken behalten (sonst wandert er nach dem Anlegen in den Papierkorb)
-              </label>
-            )}
-
-            {/* Calendar Sync Option */}
-            <div className={`p-3.5 rounded-xl border transition-all ${
-              !isCalendarConnected || user?.isGuest
-                ? 'bg-surface-low border-outline-variant/60 opacity-60'
-                : syncWithCalendar
-                ? 'bg-primary/5 border-primary/30'
-                : 'bg-white border-outline-variant hover:border-outline'
-            }`}>
-              <label className={`flex items-center gap-3 select-none ${(!isCalendarConnected || user?.isGuest) ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
-                <input
-                  type="checkbox"
-                  disabled={!isCalendarConnected || user?.isGuest}
-                  checked={syncWithCalendar}
-                  onChange={(e) => setSyncWithCalendar(e.target.checked)}
-                  className="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant cursor-pointer disabled:cursor-not-allowed"
-                />
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="material-symbols-outlined text-[18px] text-primary">calendar_month</span>
-                  <span className="text-xs sm:text-sm font-semibold text-on-surface">
-                    Mit Google Kalender synchronisieren
-                  </span>
-                </div>
-              </label>
-              {(!isCalendarConnected || user?.isGuest) && (
-                <p className="text-[11px] text-on-surface-variant mt-1.5 ml-7">
-                  {user?.isGuest
-                    ? 'Kalender-Synchronisation ist nur für registrierte Accounts verfügbar.'
-                    : 'Google Kalender ist aktuell nicht in FocusFlow verknüpft.'}
-                </p>
-              )}
-            </div>
-          </form>
-        </div>
-
-        {/* Footer */}
-        <div className="border-t border-outline-variant p-5 sm:px-6 flex items-center justify-end gap-3 flex-shrink-0 bg-surface-low rounded-b-2xl">
-          <button
-            type="button"
-            className="px-5 py-2.5 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-variant/50 transition-colors"
-            onClick={closeModal}
-          >
-            Abbrechen
-          </button>
-          <button
-            type="submit"
-            form="reminder-form"
-            className="px-6 py-2.5 bg-primary text-white text-sm font-bold rounded-xl hover:bg-neutral-800 transition-colors shadow-sm"
-          >
-            Erinnerung anlegen
-          </button>
-        </div>
-      </div>
-    </div>
+        <Checkbox
+          disabled={calendarUnavailable}
+          checked={syncWithCalendar}
+          onChange={(e) => setSyncWithCalendar(e.target.checked)}
+          label="Mit Google Kalender synchronisieren"
+          description={
+            user?.isGuest
+              ? 'Nur für registrierte Accounts verfügbar.'
+              : !isCalendarConnected
+              ? 'Google Kalender ist noch nicht verknüpft.'
+              : undefined
+          }
+        />
+      </form>
+    </Sheet>
   );
 };
 

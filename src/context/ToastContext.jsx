@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-
+
+import { Toast, ToastAction } from '../components/ds';
 const ToastContext = createContext(null);
 
 const DEFAULT_DURATION = 5000;
@@ -68,39 +69,27 @@ function ToastViewport({ toast, onDismiss }) {
   return createPortal(
     <div
       aria-live="polite"
-      className="fixed inset-x-0 z-[90] flex justify-center px-3 pointer-events-none bottom-[calc(4rem+env(safe-area-inset-bottom,0px)+0.75rem)] md:bottom-6"
+      className="fixed inset-x-0 z-toast flex justify-center px-3 pointer-events-none bottom-[calc(4rem+env(safe-area-inset-bottom,0px)+0.75rem)] md:bottom-6"
     >
       {toast && (
-        <div
+        <Toast
           key={toast.id}
-          role="status"
-          className="toast-enter pointer-events-auto flex items-center gap-3 max-w-md w-full sm:w-auto pl-4 pr-1.5 py-1.5 rounded-xl bg-primary text-on-primary shadow-2xl"
-        >
-          {toast.icon && (
-            <span className="material-symbols-outlined text-[18px] opacity-80 shrink-0">{toast.icon}</span>
-          )}
-          <span className="flex-1 min-w-0 text-sm leading-snug line-clamp-2 py-2">{toast.message}</span>
-          {toast.actionLabel && (
-            <button
-              type="button"
+          icon={toast.icon}
+          onClose={onDismiss}
+          className="toast-enter pointer-events-auto"
+          action={toast.actionLabel && (
+            <ToastAction
               onClick={() => {
                 toast.onAction?.();
                 onDismiss();
               }}
-              className="shrink-0 min-h-[40px] px-3 rounded-lg text-sm font-bold text-[#9DBDFF] hover:bg-white/10 transition-colors cursor-pointer"
             >
               {toast.actionLabel}
-            </button>
+            </ToastAction>
           )}
-          <button
-            type="button"
-            onClick={onDismiss}
-            aria-label="Meldung schließen"
-            className="shrink-0 w-10 h-10 flex items-center justify-center rounded-lg opacity-70 hover:opacity-100 hover:bg-white/10 transition cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-[18px]">close</span>
-          </button>
-        </div>
+        >
+          {toast.message}
+        </Toast>
       )}
     </div>,
     document.body

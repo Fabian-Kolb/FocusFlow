@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSwipeToClose } from '../../hooks/useSwipeToClose';
 import { useModalContext } from '../../context/ModalContext';
-import FioIcon from './FioIcon';
 
+import { Alert, Button, FioMark, Icon, IconButton } from '../ds';
 const SectionDetailDrawer = ({
   projectData,
   phase,
@@ -227,84 +227,73 @@ const SectionDetailDrawer = ({
   return (
     <>
       {/* Mobile Backdrop to cover BottomNav and dim background */}
-      <div 
-        className="sm:hidden fixed inset-0 bg-black/40 backdrop-blur-xs z-[55] transition-opacity duration-200"
+      <div
+        className="sm:hidden fixed inset-0 bg-scrim z-sheet transition-opacity duration-200"
         onClick={handleCloseAnimated}
         aria-hidden="true"
       />
 
       {/* Drawer Panel - Non-blocking Side Slide-In on desktop, high-priority bottom sheet on mobile */}
-      <div 
+      <div
         ref={drawerPanelRef}
         style={drawerStyle}
         aria-hidden={isChatReplacing ? 'true' : undefined}
-        className={`fixed z-[60] sm:z-50 flex flex-col bg-white border border-outline-variant shadow-2xl overflow-hidden
-          bottom-0 inset-x-0 h-[85vh] rounded-t-3xl w-full
-          sm:bottom-auto sm:inset-x-auto sm:inset-y-0 sm:right-0 sm:h-[calc(100vh-24px)] sm:w-[420px] sm:max-w-[420px] sm:my-3 sm:mr-3 sm:rounded-2xl
+        className={`fixed z-sheet sm:z-dropdown flex flex-col bg-surface border border-subtle shadow-lg overflow-hidden
+          bottom-0 inset-x-0 h-[85vh] rounded-t-xl w-full
+          sm:bottom-auto sm:inset-x-auto sm:inset-y-0 sm:right-0 sm:h-[calc(100vh-24px)] sm:w-[420px] sm:max-w-[420px] sm:my-3 sm:mr-3 sm:rounded-xl
           ${isChatReplacing ? 'pointer-events-none opacity-0 transition-opacity duration-150' : 'transition-opacity duration-150'}
           ${(isClosing || isSwitching) ? (wasSwipedClosed ? '' : 'drawer-slide-out') : ((entryAnimActive || slideInTrigger) ? 'drawer-slide-in' : '')}
         `}
       >
         {/* Notch / Drag Handle for Mobile */}
         <div className="w-full flex justify-center pt-2 pb-1 sm:hidden shrink-0">
-          <div className="w-12 h-1.5 bg-outline-variant/60 rounded-full" />
+          <div className="h-1 w-9 rounded-full bg-control" />
         </div>
-        
+
         {/* Header (Sticky) */}
-        <div className="sticky top-0 bg-white/95 backdrop-blur-md z-10 px-4 py-2.5 sm:px-5 sm:py-3.5 border-b border-outline-variant flex flex-col gap-2 sm:gap-2.5 lg:pt-4">
+        <div className="sticky top-0 bg-surface z-10 px-4 py-2.5 sm:px-5 sm:py-3.5 border-b border-subtle flex flex-col gap-2 sm:gap-2.5 lg:pt-4">
           {/* Top Bar: Meta Info + Actions */}
           <div className="flex items-center justify-end gap-2 w-full">
-            <div className="flex items-center gap-1.5 shrink-0">
-              {onOpenGlobalChat && (
-                <button 
-                  type="button"
-                  onClick={onOpenGlobalChat}
-                  className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg hover:bg-primary/10 text-primary transition-colors cursor-pointer"
-                  title="Fio (KI-Coach) öffnen"
-                >
-                  <FioIcon className="w-4 h-4 text-primary" color="currentColor" />
-                </button>
-              )}
-              <button 
-                onClick={handleCloseAnimated}
-                className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-full hover:bg-surface-low text-on-surface-variant transition-colors"
-                title="Schließen"
-              >
-                <span className="material-symbols-outlined text-[18px] sm:text-[20px]">close</span>
-              </button>
+            <div className="flex shrink-0 items-center gap-1">
+            {onOpenGlobalChat && (
+              <Button variant="ghost" size="sm" onClick={onOpenGlobalChat} title="Fio öffnen" aria-label="Fio öffnen">
+                <FioMark size={16} />
+              </Button>
+            )}
+            <IconButton icon="close" size="sm" label="Schließen" onClick={handleCloseAnimated} />
             </div>
           </div>
 
           {/* Bottom Row: Full-width Editable Title Box */}
-          <div className="relative group w-full bg-surface-low border border-outline-variant hover:border-primary/50 focus-within:border-primary focus-within:bg-white rounded-lg sm:rounded-xl px-3 py-1 sm:py-1.5 transition-all flex items-center">
+          <div className="group relative flex w-full items-center rounded-md border border-subtle bg-subtle px-3 py-1.5 transition-colors duration-fast focus-within:border-strong focus-within:bg-surface hover:border-control">
             <textarea
               ref={titleTextareaRef}
               value={localTitle}
               onChange={(e) => setLocalTitle(e.target.value)}
               onBlur={handleTitleBlur}
-              placeholder="Abschnitts-Titel..."
+              placeholder="Titel des Abschnitts"
               rows={1}
-              className="text-sm sm:text-base font-bold bg-transparent border-none outline-none focus:ring-0 w-full p-0 m-0 leading-tight block resize-none overflow-hidden text-primary"
+              className="text-body-strong sm:text-body-lg bg-transparent border-none outline-none focus:ring-0 w-full p-0 m-0 leading-tight block resize-none overflow-hidden text-primary"
             />
           </div>
 
         </div>
 
         {/* Scrollable Content */}
-        <div 
-          ref={scrollContainerRef} 
+        <div
+          ref={scrollContainerRef}
           className="flex-1 overflow-y-auto p-4 sm:p-5 flex flex-col gap-4 sm:gap-5"
           style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}
         >
-          
+
           {/* Fälligkeitsdatum */}
           <div className="flex flex-col gap-2">
-            <h3 className="text-xs font-mono font-bold text-primary uppercase flex items-center gap-2 tracking-wider">
-              <span className="material-symbols-outlined text-base">calendar_today</span>
+            <h3 className="flex items-center gap-2 text-label text-primary">
+              <Icon name="calendar_today" size="sm" />
               Fälligkeitsdatum
             </h3>
             <div className="relative">
-              <input 
+              <input
                 type="date"
                 value={typeof localDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(localDate) ? localDate : ''}
                 onChange={(e) => {
@@ -312,34 +301,30 @@ const SectionDetailDrawer = ({
                   setLocalDate(newDate);
                   onUpdatePhase(currentPhase.id, { dateInfo: newDate });
                 }}
-                className="w-full px-3 py-1.5 sm:py-2 border border-outline-variant rounded-lg sm:rounded-xl bg-surface-low focus:bg-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-sans text-sm transition-all"
+                className="w-full px-3 py-1.5 sm:py-2 border border-subtle rounded-md sm:rounded-lg bg-subtle focus:bg-surface focus:outline-none focus:border-strong focus:ring-1 focus:ring-focus font-sans text-body transition-all"
               />
             </div>
           </div>
 
           {/* Calendar Batch Sync Section */}
-          <div className="p-3 bg-surface-low/80 border border-outline-variant/60 rounded-xl flex flex-col gap-2.5">
+          <div className="p-3 bg-subtle border border-subtle rounded-lg flex flex-col gap-2.5">
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <div className="flex items-center gap-1.5 min-w-0">
-                <span className="material-symbols-outlined text-[18px] text-primary">calendar_month</span>
-                <span className="text-xs font-mono font-bold text-on-surface truncate">
+                <Icon name="calendar_month" size="md" className="text-primary" />
+                <span className="text-caption-strong font-label truncate">
                   Kalender-Synchronisation
                 </span>
               </div>
-              <span className="text-[10px] font-mono bg-white px-2 py-0.5 rounded-md text-on-surface-variant font-bold border border-outline-variant">
+              <span className="text-micro font-label bg-surface px-2 py-0.5 rounded-md text-secondary font-semibold border border-subtle">
                 {syncedTasks.length} / {datedTasks.length} synchronisiert
               </span>
             </div>
 
-            <p className="text-xs text-on-surface-variant leading-relaxed">
+            <p className="text-caption text-secondary leading-relaxed">
               Synchronisiert alle Aufgaben dieses Abschnitts mit Fälligkeitsdatum mit deinem Google Kalender.
             </p>
 
-            <button
-              type="button"
-              disabled={isBatchSyncing || user?.isGuest || !isCalendarConnected || datedTasks.length === 0}
-              onClick={handleBatchSync}
-              title={
+            <Button fullWidth leadingIcon="sync" loading={isBatchSyncing} disabled={user?.isGuest || !isCalendarConnected || datedTasks.length === 0} onClick={handleBatchSync} title={
                 user?.isGuest
                   ? 'Im Gastmodus nicht verfügbar'
                   : !isCalendarConnected
@@ -347,59 +332,27 @@ const SectionDetailDrawer = ({
                   : datedTasks.length === 0
                   ? 'Keine Aufgaben mit Fälligkeitsdatum vorhanden'
                   : 'Alle datierten Aufgaben dieses Abschnitts synchronisieren'
-              }
-              className="w-full py-2 px-3 rounded-lg bg-primary hover:bg-neutral-800 text-white font-mono text-xs uppercase font-bold flex items-center justify-center gap-2 cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {isBatchSyncing ? (
-                <>
-                  <span className="material-symbols-outlined text-[14px] animate-spin">sync</span>
-                  <span>Synchronisiere Aufgaben...</span>
-                </>
-              ) : (
-                <>
-                  <span className="material-symbols-outlined text-[14px]">sync</span>
-                  <span>Abschnitt-Aufgaben synchronisieren</span>
-                </>
-              )}
-            </button>
+              }>
+              {isBatchSyncing ? 'Synchronisiere Aufgaben …' : 'Abschnitt-Aufgaben synchronisieren'}
+              </Button>
 
             {batchSyncResult && (
-              <div className="text-[11px] font-mono p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-center justify-between gap-2">
-                <span>
-                  ✓ {batchSyncResult.synced?.length || 0} synchronisiert
-                  {batchSyncResult.skipped?.length > 0 && ` • ${batchSyncResult.skipped.length} unverändert`}
-                  {batchSyncResult.failed?.length > 0 && ` • ⚠️ ${batchSyncResult.failed.length} fehlgeschlagen`}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setBatchSyncResult(null)}
-                  className="text-emerald-700 hover:text-emerald-900 p-0.5"
-                  title="Ausblenden"
-                >
-                  <span className="material-symbols-outlined text-xs">close</span>
-                </button>
-              </div>
+              <Alert tone={batchSyncResult.failed?.length > 0 ? 'warning' : 'success'} onDismiss={() => setBatchSyncResult(null)}>
+              {batchSyncResult.synced?.length || 0} synchronisiert
+              {batchSyncResult.skipped?.length > 0 && ` · ${batchSyncResult.skipped.length} unverändert`}
+              {batchSyncResult.failed?.length > 0 && ` · ${batchSyncResult.failed.length} fehlgeschlagen`}
+              </Alert>
             )}
 
             {batchSyncError && (
-              <div className="text-[11px] font-mono p-2 rounded-lg bg-red-50 border border-red-200 text-red-700 flex items-center justify-between gap-2">
-                <span className="truncate">{batchSyncError}</span>
-                <button
-                  type="button"
-                  onClick={() => setBatchSyncError(null)}
-                  className="text-red-500 hover:text-red-700 p-0.5"
-                  title="Ausblenden"
-                >
-                  <span className="material-symbols-outlined text-xs">close</span>
-                </button>
-              </div>
+              <Alert tone="danger" onDismiss={() => setBatchSyncError(null)}>{batchSyncError}</Alert>
             )}
           </div>
 
           {/* Description */}
           <div className="flex flex-col gap-2">
-            <h3 className="text-xs font-mono font-bold text-primary uppercase flex items-center gap-2 tracking-wider">
-              <span className="material-symbols-outlined text-base">description</span>
+            <h3 className="flex items-center gap-2 text-label text-primary">
+              <Icon name="description" size="sm" />
               Beschreibung
             </h3>
             <div className="relative group">
@@ -407,8 +360,8 @@ const SectionDetailDrawer = ({
                 value={localDesc}
                 onChange={(e) => setLocalDesc(e.target.value)}
                 onBlur={handleDescBlur}
-                placeholder="Ziel, Kontext oder Notizen zu diesem Abschnitt..."
-                className="w-full px-3 py-1.5 sm:py-2 border border-outline-variant rounded-lg sm:rounded-xl bg-surface-low focus:bg-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-sans text-sm resize-y min-h-[80px] sm:min-h-[100px] transition-all"
+                placeholder="Ziel, Kontext oder Notizen zu diesem Abschnitt"
+                className="w-full px-3 py-1.5 sm:py-2 border border-subtle rounded-md sm:rounded-lg bg-subtle focus:bg-surface focus:outline-none focus:border-strong focus:ring-1 focus:ring-focus font-sans text-body resize-y min-h-[80px] sm:min-h-[100px] transition-all"
                 rows={3}
               />
             </div>
@@ -417,19 +370,19 @@ const SectionDetailDrawer = ({
           {/* Linked Notes Section */}
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-mono font-bold text-primary uppercase flex items-center gap-2 tracking-wider">
-                <span className="material-symbols-outlined text-base">sticky_note_2</span>
+              <h3 className="flex items-center gap-2 text-label text-primary">
+                <Icon name="sticky_note_2" size="sm" />
                 Verknüpfte Notizen
               </h3>
               {linkedNotes.length > 0 && (
-                <span className="text-[10px] font-mono bg-surface-low px-2 py-0.5 rounded-md text-on-surface-variant font-bold border border-outline-variant">
+                <span className="text-micro font-label bg-subtle px-2 py-0.5 rounded-md text-secondary font-semibold border border-subtle">
                   {linkedNotes.length}
                 </span>
               )}
             </div>
 
             {linkedNotes.length === 0 ? (
-              <p className="text-xs text-on-surface-variant/60 italic p-3 bg-surface-low/60 rounded-xl border border-outline-variant/40">
+              <p className="text-caption text-tertiary italic p-3 bg-subtle rounded-lg border border-subtle">
                 Keine Notizen mit diesem Abschnitt verknüpft.
               </p>
             ) : (
@@ -442,36 +395,30 @@ const SectionDetailDrawer = ({
                     <div
                       key={`note-${idx}`}
                       onClick={() => onOpenNote && onOpenNote(fullNote)}
-                      className="group p-2.5 sm:p-3.5 rounded-lg sm:rounded-xl border border-outline-variant bg-surface-low hover:bg-white hover:border-primary hover:shadow-sm transition-all cursor-pointer flex flex-col gap-1 sm:gap-1.5 relative"
+                      className="group p-2.5 sm:p-3.5 rounded-md sm:rounded-lg border border-subtle bg-subtle hover:bg-surface hover:border-strong hover:shadow-sm transition-all cursor-pointer flex flex-col gap-1 sm:gap-1.5 relative"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
-                          <span className="material-symbols-outlined text-primary text-[18px]">notes</span>
-                          <span className="font-bold text-sm text-primary truncate group-hover:underline">
+                          <Icon name="notes" size="md" className="text-primary" />
+                          <span className="text-body-strong text-primary truncate group-hover:underline">
                             {fullNote.title || mat.name}
                           </span>
                         </div>
-                        <button
-                          onClick={(e) => {
+                        <IconButton icon="close" label="Verknüpfung entfernen" variant="danger-ghost" size="sm" className="opacity-0 group-hover:opacity-100 shrink-0" onClick={(e) => {
                             e.stopPropagation();
                             const targetId = mat.id || mat.noteId || mat.url;
                             onDeleteMaterial && onDeleteMaterial({ type: 'phase', phaseId: currentPhase.id, materialId: targetId });
-                          }}
-                          className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-red-50 text-red-500 transition-all shrink-0"
-                          title="Verknüpfung entfernen"
-                        >
-                          <span className="material-symbols-outlined text-sm">close</span>
-                        </button>
+                          }} />
                       </div>
 
                       {previewText && (
-                        <p className="text-xs text-on-surface-variant line-clamp-2 pl-6 opacity-85 font-sans leading-relaxed">
+                        <p className="text-caption text-secondary line-clamp-2 pl-6 opacity-85 font-sans leading-relaxed">
                           {previewText}
                         </p>
                       )}
 
-                      <div className="text-[10px] font-mono text-primary/70 pl-6 flex items-center gap-1 mt-0.5 group-hover:text-primary">
-                        <span className="material-symbols-outlined text-[12px]">open_in_new</span>
+                      <div className="text-micro font-label text-secondary pl-6 flex items-center gap-1 mt-0.5 group-hover:text-primary">
+                        <Icon name="open_in_new" size="sm" />
                         Klicken zum Anzeigen & Bearbeiten
                       </div>
                     </div>
@@ -484,64 +431,51 @@ const SectionDetailDrawer = ({
           {/* Materials */}
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-mono font-bold text-primary uppercase flex items-center gap-2 tracking-wider">
-                <span className="material-symbols-outlined text-base">attach_file</span>
+              <h3 className="flex items-center gap-2 text-label text-primary">
+                <Icon name="attach_file" size="sm" />
                 Materialien
               </h3>
               {webMaterials.length > 0 && (
-                <span className="text-[10px] font-mono bg-surface-low px-2 py-0.5 rounded-md text-on-surface-variant font-bold border border-outline-variant">
+                <span className="text-micro font-label bg-subtle px-2 py-0.5 rounded-md text-secondary font-semibold border border-subtle">
                   {webMaterials.length}
                 </span>
               )}
             </div>
-            
+
             <div className="flex flex-col gap-2 mt-1">
               {webMaterials.map((mat, idx) => (
-                <div 
+                <div
                   key={`mat-${idx}`}
-                  className="group flex items-center justify-between p-3 rounded-xl border border-outline-variant bg-surface-low hover:bg-white hover:border-primary hover:shadow-sm transition-all"
+                  className="group flex items-center justify-between p-3 rounded-lg border border-subtle bg-subtle hover:bg-surface hover:border-strong hover:shadow-sm transition-all"
                 >
                   <div className="flex items-center gap-3 overflow-hidden">
-                    <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors text-[18px]">description</span>
+                    <Icon name="description" size="md" className="text-secondary group-hover:text-primary transition-colors" />
                     <a href={mat.url} target="_blank" rel="noopener noreferrer" className="flex flex-col hover:underline">
-                      <span className="text-sm truncate text-primary font-medium">{mat.name || mat.title}</span>
-                      <span className="text-[10px] font-mono text-on-surface-variant uppercase">Abschnitt-Material</span>
+                      <span className="text-label truncate text-primary">{mat.name || mat.title}</span>
+                      <span className="text-caption text-secondary">Abschnitt-Material</span>
                     </a>
                   </div>
-                  <button 
-                    onClick={(e) => {
+                  <IconButton icon="delete" label="Material löschen" size="sm" className="opacity-0 group-hover:opacity-100" onClick={(e) => {
                       e.preventDefault();
                       onDeleteMaterial({ type: 'phase', phaseId: currentPhase.id, materialId: mat.id });
-                    }}
-                    className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-surface-low text-on-surface-variant transition-all"
-                    title="Material löschen"
-                  >
-                    <span className="material-symbols-outlined text-sm">delete</span>
-                  </button>
+                    }} />
                 </div>
               ))}
 
-              <button
-                onClick={() => onAddMaterial({ type: 'phase', id: currentPhase.id })}
-                className="mt-1 w-full py-2.5 flex items-center justify-center gap-2 rounded-xl border border-dashed border-outline-variant text-on-surface-variant hover:text-primary hover:border-primary hover:bg-primary/5 transition-all font-mono text-xs uppercase font-bold cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[16px]">add</span>
+              <Button variant="ghost" fullWidth onClick={() => onAddMaterial({ type: 'phase', id: currentPhase.id })} className="mt-1">
+                <Icon name="add" size="sm" />
                 Material hinzufügen
-              </button>
+              </Button>
             </div>
           </div>
 
           <div className="flex-1" /> {/* Spacer */}
 
           {/* Danger Zone */}
-          <div className="pt-3 mt-1 border-t border-outline-variant/60">
-            <button
-              onClick={() => onDeletePhase(currentPhase.id)}
-              className="w-full py-2.5 flex items-center justify-center gap-2 rounded-xl bg-red-50 text-red-600 border border-red-200 hover:bg-red-600 hover:text-white transition-all font-mono text-xs uppercase font-bold cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[16px]">delete</span>
-              Abschnitt löschen
-            </button>
+          <div className="pt-3 mt-1 border-t border-subtle">
+            <Button variant="danger-ghost" fullWidth leadingIcon="delete" onClick={() => onDeletePhase(currentPhase.id)}>
+            Abschnitt löschen
+            </Button>
           </div>
 
         </div>

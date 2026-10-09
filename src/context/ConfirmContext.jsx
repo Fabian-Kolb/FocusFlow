@@ -1,6 +1,5 @@
 import React, { createContext, useCallback, useContext, useRef, useState } from 'react';
-import { Dialog } from '../components/ui/Overlay';
-import Button from '../components/ui/Button';
+import { Button, Dialog } from '../components/ds';
 
 const ConfirmContext = createContext(null);
 

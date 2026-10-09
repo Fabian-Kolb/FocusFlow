@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSwipeToClose } from '../../hooks/useSwipeToClose';
 import { useChat } from '../../context/ChatContext';
 import ProjectAiChat from './ProjectAiChat';
-import FioIcon from './FioIcon';
 import ModelSelectorDropdown from './ModelSelectorDropdown';
 
+import { IconButton, IconTile } from '../ds';
 const GlobalChatDrawer = ({
   isOpen,
   onClose,
@@ -117,50 +117,48 @@ const GlobalChatDrawer = ({
     <>
       {/* Mobile Backdrop */}
       {isOpen && (
-        <div 
-          className="sm:hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-40 drawer-backdrop-fade"
+        <div
+          className="sm:hidden fixed inset-0 bg-scrim z-nav drawer-backdrop-fade"
           onClick={handleCloseAnimated}
         />
       )}
 
       {/* Mobile Backdrop to cover BottomNav and dim background */}
-      <div 
-        className="sm:hidden fixed inset-0 bg-black/40 backdrop-blur-xs z-[55] transition-opacity duration-200"
+      <div
+        className="sm:hidden fixed inset-0 bg-scrim z-sheet transition-opacity duration-200"
         onClick={handleCloseAnimated}
         aria-hidden="true"
       />
 
       {/* Drawer Panel */}
-      <div 
+      <div
         ref={drawerPanelRef}
         style={{
           ...drawerStyle,
           '--chat-offset': isSecondaryPanel ? '444px' : '12px'
         }}
         className={`
-          fixed z-[60] ${isSecondaryPanel ? 'sm:z-40' : 'sm:z-50'} flex flex-col bg-white border border-outline-variant shadow-2xl overflow-hidden
-          bottom-0 inset-x-0 h-[85vh] rounded-t-3xl w-full
-          sm:bottom-auto sm:inset-x-auto sm:inset-y-0 sm:h-[calc(100vh-24px)] sm:w-[420px] sm:max-w-[420px] sm:my-3 sm:rounded-2xl
+          fixed z-sheet ${isSecondaryPanel ? 'sm:z-nav' : 'sm:z-dropdown'} flex flex-col bg-surface border border-subtle shadow-lg overflow-hidden
+          bottom-0 inset-x-0 h-[85vh] rounded-t-xl w-full
+          sm:bottom-auto sm:inset-x-auto sm:inset-y-0 sm:h-[calc(100vh-24px)] sm:w-[420px] sm:max-w-[420px] sm:my-3 sm:rounded-xl
           sm:right-0 sm:[margin-right:var(--chat-offset)]
           ${
-            isClosing 
-              ? (wasSwipedClosed ? '' : isReplacingDetail ? 'drawer-replace-out' : 'drawer-slide-out') 
+            isClosing
+              ? (wasSwipedClosed ? '' : isReplacingDetail ? 'drawer-replace-out' : 'drawer-slide-out')
               : (isReplacingDetail ? 'drawer-replace-in' : ((entryAnimActive || slideInTrigger) ? 'drawer-slide-in' : ''))
           }
         `}
       >
         {/* Notch / Drag Handle for Mobile */}
         <div className="w-full flex justify-center pt-2 pb-1 sm:hidden shrink-0">
-          <div className="w-12 h-1.5 bg-outline-variant/60 rounded-full" />
+          <div className="h-1 w-9 rounded-full bg-control" />
         </div>
 
         {/* Top Header Toolbar */}
-        <div className="shrink-0 h-13 bg-white border-b border-outline-variant flex items-center justify-between px-3 sm:px-4 gap-2">
+        <div className="shrink-0 h-12 bg-surface border-b border-subtle flex items-center justify-between px-3 sm:px-4 gap-2">
           {/* Left: Logo & Model Selector */}
           <div className="flex items-center gap-2 min-w-0">
-            <div className="w-7 h-7 shrink-0 flex items-center justify-center bg-primary/10 rounded-lg p-1 text-primary">
-              <FioIcon className="w-full h-full text-primary" color="currentColor" />
-            </div>
+            <IconTile area="coach" size="sm" />
 
             {/* Model Selector Dropdown */}
             <ModelSelectorDropdown
@@ -172,40 +170,24 @@ const GlobalChatDrawer = ({
           {/* Right: Actions (New Chat, History, Close) */}
           <div className="flex items-center gap-1 shrink-0">
             {/* New Chat Button */}
-            <button
-              onClick={() => setNewChatCounter((c) => c + 1)}
-              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-low text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
-              title="Neues Gespräch beginnen"
-            >
-              <span className="material-symbols-outlined text-[19px]">edit_square</span>
-            </button>
+            <IconButton icon="edit_square" label="Neues Gespräch beginnen" size="sm" onClick={() => setNewChatCounter((c) => c + 1)} />
 
             {/* History Toggle Button */}
-            <button
-              onClick={() => setIsHistoryOpen((prev) => !prev)}
-              className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer ${
-                isHistoryOpen
-                  ? 'bg-primary text-white shadow-xs'
-                  : 'hover:bg-surface-low text-on-surface-variant hover:text-primary'
-              }`}
-              title={isHistoryOpen ? 'Chat anzeigen' : 'Chatverlauf anzeigen'}
-            >
-              <span className="material-symbols-outlined text-[19px]">history</span>
-            </button>
+            <IconButton
+            icon="history"
+            label={isHistoryOpen ? 'Chat anzeigen' : 'Chatverlauf anzeigen'}
+            size="sm"
+            variant={isHistoryOpen ? 'primary' : 'ghost'}
+            onClick={() => setIsHistoryOpen((prev) => !prev)}
+            />
 
             {/* Close Button */}
-            <button 
-              onClick={handleCloseAnimated}
-              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-low text-on-surface-variant transition-colors cursor-pointer ml-0.5"
-              title="Schließen"
-            >
-              <span className="material-symbols-outlined text-[20px]">close</span>
-            </button>
+            <IconButton icon="close" label="Schließen" size="sm" className="ml-0.5" onClick={handleCloseAnimated} />
           </div>
         </div>
 
         {/* Chat Component */}
-        <ProjectAiChat 
+        <ProjectAiChat
           projectData={projectData}
           contextScope={contextScope}
           contextData={contextData}

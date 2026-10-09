@@ -1,12 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-import FioIcon from '../ui/FioIcon';
+import React, { useRef, useState } from 'react';
 import { useModalContext } from '../../context/ModalContext';
 import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
-import { useSwipeToClose } from '../../hooks/useSwipeToClose';
 import { countThoughts } from '../../lib/thoughts';
 import { areaOf } from '../../lib/areas';
+import { Avatar, FioMark, FOCUS, Icon, IconButton, Sheet, cx } from '../ds';
 
 // Hauptziele am Handy. Projekte umfasst auch Detailansicht und Kanban-Board (Umschalter "Liste | Board").
 const NAV_ITEMS = [
@@ -37,10 +35,10 @@ const BottomNav = ({ currentScreen, setCurrentScreen }) => {
   return (
     <nav
       aria-label="Mobile Navigation"
-      className="md:hidden flex-shrink-0 w-full z-40 bg-surface/95 backdrop-blur-md border-t border-outline-variant"
+      className="md:hidden flex-shrink-0 w-full z-nav bg-canvas border-t border-subtle"
       style={{
         minHeight: 'calc(4rem + env(safe-area-inset-bottom, 0px))',
-        paddingBottom: 'env(safe-area-inset-bottom, 0px)'
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       }}
     >
       <div className="w-full h-16 px-2 flex justify-around items-center">
@@ -55,11 +53,13 @@ const BottomNav = ({ currentScreen, setCurrentScreen }) => {
                   aria-label="Weitere Bereiche"
                   aria-haspopup="dialog"
                   aria-expanded={isHubOpen}
-                  className={`w-12 h-12 -mt-3 rounded-full text-white shadow-lg shadow-primary/25 flex items-center justify-center active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-accent cursor-pointer ${
-                    isHubActive ? 'bg-black ring-2 ring-offset-2 ring-primary/30' : 'bg-primary'
-                  }`}
+                  className={cx(
+                    'w-12 h-12 -mt-3 rounded-lg shadow-md flex items-center justify-center transition-colors duration-fast active:scale-95 motion-reduce:transform-none',
+                    FOCUS,
+                    isHubActive ? 'bg-inverse text-inverse' : 'bg-accent text-on-accent hover:bg-accent-hover',
+                  )}
                 >
-                  <span className="material-symbols-outlined text-[26px]">{isHubOpen ? 'close' : 'apps'}</span>
+                  <Icon name={isHubOpen ? 'close' : 'apps'} size="lg" />
                 </button>
               </div>
             );
@@ -73,21 +73,19 @@ const BottomNav = ({ currentScreen, setCurrentScreen }) => {
               type="button"
               onClick={() => setCurrentScreen(item.id)}
               aria-current={isActive ? 'page' : undefined}
-              className={`group relative flex flex-col items-center justify-center flex-1 h-full min-h-[48px] py-1.5 min-w-0 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-xl cursor-pointer ${
-                isActive ? `${area.activeText} font-bold` : 'text-on-surface-variant hover:text-primary'
-              }`}
+              className={cx(
+                'relative flex flex-col items-center justify-center flex-1 h-full min-h-12 py-1.5 min-w-0 rounded-md transition-colors duration-fast',
+                FOCUS,
+                isActive ? area.activeText : 'text-secondary hover:text-primary',
+              )}
             >
-              <div className="relative">
-                <span className={`material-symbols-outlined text-[24px] ${isActive ? 'scale-105' : ''} transition-transform`}>
-                  {item.icon}
-                </span>
+              <span className="relative">
+                <Icon name={item.icon} size="lg" filled={isActive} />
                 {isActive && (
-                  <span className={`absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full ${area.dot}`} />
+                  <span className={cx('absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full', area.dot)} aria-hidden="true" />
                 )}
-              </div>
-              <span className={`text-[10px] sm:text-[11px] font-sans mt-0.5 tracking-tight truncate max-w-[72px] ${
-                isActive ? `font-bold ${area.activeText}` : 'font-medium text-on-surface-variant'
-              }`}>
+              </span>
+              <span className={cx('text-micro mt-1 truncate max-w-[72px]', isActive && 'font-semibold')}>
                 {item.label}
               </span>
             </button>
@@ -108,35 +106,40 @@ const BottomNav = ({ currentScreen, setCurrentScreen }) => {
   );
 };
 
+function HubTile({ icon, label, active, badge, onClick, children }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-current={active ? 'page' : undefined}
+      className={cx(
+        'relative h-20 flex flex-col items-center justify-center gap-1.5 rounded-lg border text-label-sm transition-colors duration-fast',
+        FOCUS,
+        active ? 'bg-accent-subtle text-accent border-accent' : 'bg-surface text-primary border-subtle hover:border-default active:bg-pressed',
+      )}
+    >
+      {children || <Icon name={icon} size="lg" filled={active} />}
+      {label}
+      {badge > 0 && (
+        <span className="absolute top-2 right-2 min-w-[18px] h-[18px] px-1 rounded-sm bg-accent text-on-accent text-micro flex items-center justify-center">
+          {badge > 99 ? '99+' : badge}
+        </span>
+      )}
+    </button>
+  );
+}
+
 function HubSheet({ isOpen, onClose, currentScreen, onNavigate }) {
   const { inboxItems, openModal } = useModalContext();
   const { user } = useAuth();
   const { queuePrompt } = useChat();
   const [fioText, setFioText] = useState('');
-  const panelRef = useRef(null);
-  const { translateY, isDragging, entryAnimActive } = useSwipeToClose({
-    isOpen,
-    onClose,
-    drawerRef: panelRef,
-    threshold: 120,
-  });
-
-  useEffect(() => {
-    if (!isOpen) return undefined;
-    setFioText('');
-    const onKey = (e) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
 
   // Ohne Text einfach Fio öffnen, mit Text direkt als erste Nachricht in einem neuen Gespräch senden
   const askFio = () => {
     const text = fioText.trim();
     if (text) queuePrompt(text);
+    setFioText('');
     onNavigate('coach');
   };
 
@@ -147,105 +150,64 @@ function HubSheet({ isOpen, onClose, currentScreen, onNavigate }) {
     { id: 'review', label: 'Wochenrückblick', icon: 'analytics' },
     { id: 'trash', label: 'Papierkorb', icon: 'delete' },
   ];
-  const initials = (user?.displayName || user?.email || 'U').substring(0, 2).toUpperCase();
-  const panelStyle = translateY > 0 ? {
-    transform: `translateY(${translateY}px)`,
-    transition: isDragging ? 'none' : 'transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1)',
-  } : undefined;
+  const isPlainGuest = Boolean(user?.isGuest && !user?.isDevAccount);
+  const accountName = user?.displayName || user?.email || 'Konto';
 
-  // Portal: die Bottom-Bar hat backdrop-blur und wäre sonst Bezugsrahmen für `fixed` (Regel 04)
-  return createPortal(
-    <div className="md:hidden fixed inset-0 z-50 flex items-end">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden="true" />
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Weitere Bereiche"
-        style={panelStyle}
-        className={`relative w-full bg-surface rounded-t-3xl border-t border-outline-variant shadow-2xl pb-safe ${entryAnimActive ? 'drawer-slide-in-bottom' : ''}`}
+  return (
+    <Sheet open={isOpen} onClose={onClose} hideHeader side="bottom" ariaLabel="Weitere Bereiche" bodyClassName="pt-1 pb-safe">
+      {/* Frag Fio: schnellster Weg zum Coach, direkt mit Text */}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          askFio();
+        }}
+        className="mb-3 flex items-center gap-2 h-12 pl-3 pr-1.5 rounded-md border border-control bg-surface focus-within:border-strong transition-colors duration-fast"
       >
-        <div className="pt-3 pb-2 flex justify-center">
-          <div className="w-12 h-1.5 bg-outline-variant rounded-full" />
-        </div>
+        <FioMark size={20} className="shrink-0 text-secondary" />
+        <input
+          type="text"
+          value={fioText}
+          onChange={(e) => setFioText(e.target.value)}
+          placeholder="Frag Fio …"
+          aria-label="Frage an Fio"
+          enterKeyHint="send"
+          className="flex-1 min-w-0 h-full bg-transparent border-0 p-0 text-body-lg focus:ring-0 focus:outline-none placeholder:text-tertiary"
+        />
+        <IconButton
+          type="submit"
+          variant="primary"
+          size="sm"
+          icon={fioText.trim() ? 'arrow_upward' : 'arrow_forward'}
+          label={fioText.trim() ? 'An Fio senden' : 'Fio öffnen'}
+        />
+      </form>
 
-        {/* Frag Fio: schnellster Weg zum Coach, direkt mit Text */}
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            askFio();
-          }}
-          className="mx-4 mb-3 flex items-center gap-2 h-12 pl-3 pr-1.5 rounded-2xl border border-outline-variant bg-white focus-within:border-primary transition-colors"
-        >
-          <FioIcon className="w-5 h-5 shrink-0 text-primary" color="currentColor" />
-          <input
-            type="text"
-            value={fioText}
-            onChange={(e) => setFioText(e.target.value)}
-            placeholder="Frag Fio …"
-            aria-label="Frage an Fio"
-            enterKeyHint="send"
-            className="flex-1 min-w-0 h-full bg-transparent border-0 p-0 text-sm focus:ring-0 focus:outline-none placeholder:text-on-surface-variant"
+      <div className="grid grid-cols-3 gap-2">
+        {tiles.map((tile) => (
+          <HubTile
+            key={tile.id}
+            icon={tile.icon}
+            label={tile.label}
+            badge={tile.badge}
+            active={currentScreen === tile.id}
+            onClick={() => onNavigate(tile.id)}
           />
-          <button
-            type="submit"
-            aria-label={fioText.trim() ? 'An Fio senden' : 'Fio öffnen'}
-            className="shrink-0 w-9 h-9 rounded-xl bg-primary text-white flex items-center justify-center cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-[20px]">{fioText.trim() ? 'arrow_upward' : 'arrow_forward'}</span>
-          </button>
-        </form>
+        ))}
 
-        <div className="grid grid-cols-3 gap-2 px-4 pb-3">
-          {tiles.map((tile) => {
-            const active = currentScreen === tile.id;
-            return (
-              <button
-                key={tile.id}
-                type="button"
-                onClick={() => onNavigate(tile.id)}
-                aria-current={active ? 'page' : undefined}
-                className={`relative h-20 flex flex-col items-center justify-center gap-1.5 rounded-2xl border text-xs font-bold transition-colors cursor-pointer ${
-                  active ? 'bg-primary text-white border-primary' : 'bg-surface-low text-primary border-outline-variant active:border-primary'
-                }`}
-              >
-                <span className="material-symbols-outlined text-[24px]">{tile.icon}</span>
-                {tile.label}
-                {tile.badge > 0 && (
-                  <span className={`absolute top-2 right-2 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center ${
-                    active ? 'bg-white text-primary' : 'bg-primary text-white'
-                  }`}>
-                    {tile.badge > 99 ? '99+' : tile.badge}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-
-          {/* Account & Einstellungen */}
-          <button
-            type="button"
-            onClick={() => {
-              onClose();
-              openModal('settings', { initialTab: 'account' });
-            }}
-            className="h-20 flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-outline-variant bg-surface-low text-xs font-bold text-primary active:border-primary transition-colors cursor-pointer"
-          >
-            <span className="w-7 h-7 rounded-full overflow-hidden bg-white border border-outline-variant flex items-center justify-center text-[10px]">
-              {user?.photoURL ? (
-                <img src={user.photoURL} alt="" className="w-full h-full object-cover" />
-              ) : user?.isGuest && !user?.isDevAccount ? (
-                <span className="material-symbols-outlined text-amber-500 text-[18px]">person</span>
-              ) : (
-                initials
-              )}
-            </span>
-            Account
-          </button>
-        </div>
+        {/* Account & Einstellungen */}
+        <HubTile
+          label="Account"
+          onClick={() => {
+            onClose();
+            openModal('settings', { initialTab: 'account' });
+          }}
+        >
+          {isPlainGuest && !user?.photoURL
+            ? <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-warning-subtle text-warning"><Icon name="person" size="md" /></span>
+            : <Avatar name={accountName} src={user?.photoURL} size="md" />}
+        </HubTile>
       </div>
-    </div>,
-    document.body,
+    </Sheet>
   );
 }
 

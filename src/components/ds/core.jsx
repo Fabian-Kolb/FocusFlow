@@ -16,7 +16,7 @@ export function Icon({ name, size = 'md', filled = false, weight = 400, label, c
   const px = typeof size === 'number' ? size : ICON_PX[size] || 20;
   return (
     <span
-      className={cx('material-symbols-outlined inline-flex shrink-0 select-none items-center justify-center leading-none', className)}
+      className={cx('material-symbols-outlined inline-flex shrink-0 select-none items-center justify-center overflow-hidden leading-none', className)}
       style={{ fontSize: px, width: px, height: px, fontVariationSettings: `'FILL' ${filled ? 1 : 0}, 'wght' ${weight}, 'GRAD' 0, 'opsz' ${Math.min(48, Math.max(20, px))}`, ...style }}
       aria-hidden={label ? undefined : true}
       role={label ? 'img' : undefined}

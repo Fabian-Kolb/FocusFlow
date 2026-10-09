@@ -37,9 +37,9 @@ export function getPhaseStats(phase) {
   // Ohne Aufgaben zählt das gespeicherte Häkchen des Abschnitts
   const isDone = total > 0 ? completed === total : !!phase?.completed;
 
-  let label = `${completed}/${total} ERLEDIGT`;
-  if (isDone) label = 'ERLEDIGT';
-  else if (total === 0) label = 'KEINE AUFGABEN';
+  let label = `${completed}/${total} erledigt`;
+  if (isDone) label = 'Erledigt';
+  else if (total === 0) label = 'Keine Aufgaben';
 
   return { total, completed, isDone, label };
 }
@@ -67,7 +67,7 @@ export function getProjectTimeline(project, now = new Date()) {
     const ratio = (now - start) / (totalDays * DAY_MS);
     timeElapsed = Math.round(Math.min(1, Math.max(0, ratio)) * 100);
     const dayNum = Math.round((today - start) / DAY_MS) + 1;
-    if (dayNum >= 1 && dayNum <= totalDays) dayLabel = `TAG ${dayNum} VON ${totalDays}`;
+    if (dayNum >= 1 && dayNum <= totalDays) dayLabel = `Tag ${dayNum} von ${totalDays}`;
   }
 
   let daysLeft = null;
@@ -79,16 +79,16 @@ export function getProjectTimeline(project, now = new Date()) {
       deadlineLabel = '';
     } else if (start && today < start) {
       const daysToStart = Math.round((start - today) / DAY_MS);
-      deadlineLabel = daysToStart === 1 ? 'START MORGEN' : `START IN ${daysToStart} TAGEN`;
+      deadlineLabel = daysToStart === 1 ? 'Start morgen' : `Start in ${daysToStart} Tagen`;
     } else if (daysLeft > 1) {
-      deadlineLabel = `NOCH ${daysLeft} TAGE`;
+      deadlineLabel = `Noch ${daysLeft} Tage`;
     } else if (daysLeft === 1) {
-      deadlineLabel = 'BIS MORGEN';
+      deadlineLabel = 'Bis morgen';
     } else if (daysLeft === 0) {
-      deadlineLabel = 'HEUTE FÄLLIG';
+      deadlineLabel = 'Heute fällig';
     } else {
       isOverdue = true;
-      deadlineLabel = daysLeft === -1 ? '1 TAG ÜBERFÄLLIG' : `${-daysLeft} TAGE ÜBERFÄLLIG`;
+      deadlineLabel = daysLeft === -1 ? '1 Tag überfällig' : `${-daysLeft} Tage überfällig`;
     }
   }
 

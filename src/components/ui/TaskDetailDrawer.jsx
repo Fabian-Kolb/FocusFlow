@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSwipeToClose } from '../../hooks/useSwipeToClose';
 import { useModalContext } from '../../context/ModalContext';
-import FioIcon from './FioIcon';
 import CalendarDesyncModal from '../modals/CalendarDesyncModal';
 
+import { Alert, Button, FioMark, Icon, IconButton } from '../ds';
 const TaskDetailDrawer = ({
   projectData,
   task,
@@ -248,139 +248,113 @@ const TaskDetailDrawer = ({
   return (
     <>
       {/* Mobile Backdrop to cover BottomNav and dim background */}
-      <div 
-        className="sm:hidden fixed inset-0 bg-black/40 backdrop-blur-xs z-[55] transition-opacity duration-200"
+      <div
+        className="sm:hidden fixed inset-0 bg-scrim z-sheet transition-opacity duration-200"
         onClick={handleCloseAnimated}
         aria-hidden="true"
       />
 
       {/* Drawer Panel - Non-blocking Side Slide-In on desktop, high-priority bottom sheet on mobile */}
-      <div 
+      <div
         ref={drawerPanelRef}
         style={drawerStyle}
         aria-hidden={isChatReplacing ? 'true' : undefined}
-        className={`fixed z-[60] sm:z-50 flex flex-col bg-white border border-outline-variant shadow-2xl overflow-hidden
-          bottom-0 inset-x-0 h-[85vh] rounded-t-3xl w-full
-          sm:bottom-auto sm:inset-x-auto sm:inset-y-0 sm:right-0 sm:h-[calc(100vh-24px)] sm:w-[420px] sm:max-w-[420px] sm:my-3 sm:mr-3 sm:rounded-2xl
+        className={`fixed z-sheet sm:z-dropdown flex flex-col bg-surface border border-subtle shadow-lg overflow-hidden
+          bottom-0 inset-x-0 h-[85vh] rounded-t-xl w-full
+          sm:bottom-auto sm:inset-x-auto sm:inset-y-0 sm:right-0 sm:h-[calc(100vh-24px)] sm:w-[420px] sm:max-w-[420px] sm:my-3 sm:mr-3 sm:rounded-xl
           ${isChatReplacing ? 'pointer-events-none opacity-0 transition-opacity duration-150' : 'transition-opacity duration-150'}
           ${(isClosing || isSwitching) ? (wasSwipedClosed ? '' : 'drawer-slide-out') : ((entryAnimActive || slideInTrigger) ? 'drawer-slide-in' : '')}
         `}
       >
         {/* Notch / Drag Handle for Mobile */}
         <div className="w-full flex justify-center pt-2 pb-1 sm:hidden shrink-0">
-          <div className="w-12 h-1.5 bg-outline-variant/60 rounded-full" />
+          <div className="h-1 w-9 rounded-full bg-control" />
         </div>
-        
+
         {/* Header (Sticky) */}
-        <div className="sticky top-0 bg-white/95 backdrop-blur-md z-10 px-4 py-2.5 sm:px-5 sm:py-3.5 border-b border-outline-variant flex flex-col gap-2 sm:gap-2.5 lg:pt-4">
+        <div className="sticky top-0 bg-surface z-10 px-4 py-2.5 sm:px-5 sm:py-3.5 border-b border-subtle flex flex-col gap-2 sm:gap-2.5 lg:pt-4">
           {/* Top Bar: Meta Info + Actions */}
           <div className="flex items-center justify-end gap-2 w-full">
-            <div className="flex items-center gap-1.5 shrink-0">
-              {onOpenGlobalChat && (
-                <button 
-                  type="button"
-                  onClick={onOpenGlobalChat}
-                  className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg hover:bg-primary/10 text-primary transition-colors cursor-pointer"
-                  title="Fio (KI-Coach) öffnen"
-                >
-                  <FioIcon className="w-4 h-4 text-primary" color="currentColor" />
-                </button>
-              )}
-              <button 
-                onClick={() => onToggleTask(currentPhase.id, currentTask.id)}
-                className={`w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer ${
-                  currentTask.completed 
-                    ? 'bg-primary text-white' 
-                    : 'text-on-surface-variant/60 hover:text-primary hover:bg-surface-low'
-                }`}
-                title={currentTask.completed ? 'Als unerledigt markieren' : 'Als erledigt markieren'}
-              >
-                <span className="material-symbols-outlined text-lg sm:text-xl">check</span>
-              </button>
-              <button 
-                onClick={onClose}
-                className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-full hover:bg-surface-low text-on-surface-variant transition-colors"
-                title="Schließen"
-              >
-                <span className="material-symbols-outlined text-[18px] sm:text-[20px]">close</span>
-              </button>
+            <div className="flex shrink-0 items-center gap-1">
+            {onOpenGlobalChat && (
+              <Button variant="ghost" size="sm" onClick={onOpenGlobalChat} title="Fio öffnen" aria-label="Fio öffnen">
+                <FioMark size={16} />
+              </Button>
+            )}
+            <IconButton
+              icon="check"
+              size="sm"
+              variant={currentTask.completed ? 'primary' : 'ghost'}
+              label={currentTask.completed ? 'Als unerledigt markieren' : 'Als erledigt markieren'}
+              onClick={() => onToggleTask(currentPhase.id, currentTask.id)}
+            />
+            <IconButton icon="close" size="sm" label="Schließen" onClick={onClose} />
             </div>
           </div>
 
           {/* Bottom Row: Full-width Editable Title Box */}
-          <div className="relative group w-full bg-surface-low border border-outline-variant hover:border-primary/50 focus-within:border-primary focus-within:bg-white rounded-lg sm:rounded-xl px-3 py-1 sm:py-1.5 transition-all flex items-center">
+          <div className="group relative flex w-full items-center rounded-md border border-subtle bg-subtle px-3 py-1.5 transition-colors duration-fast focus-within:border-strong focus-within:bg-surface hover:border-control">
             <textarea
               ref={titleTextareaRef}
               value={localTitle}
               onChange={(e) => setLocalTitle(e.target.value)}
               onBlur={handleTitleBlur}
-              placeholder="Aufgaben-Titel..."
+              placeholder="Titel der Aufgabe"
               rows={1}
-              className={`text-sm sm:text-base font-bold bg-transparent border-none outline-none focus:ring-0 w-full p-0 m-0 leading-tight block resize-none overflow-hidden ${currentTask.completed ? 'line-through text-on-surface-variant' : 'text-primary'}`}
+              className={`text-body-strong sm:text-body-lg bg-transparent border-none outline-none focus:ring-0 w-full p-0 m-0 leading-tight block resize-none overflow-hidden ${currentTask.completed ? 'line-through text-secondary' : 'text-primary'}`}
             />
           </div>
 
         </div>
 
         {/* Scrollable Content */}
-        <div 
-          ref={scrollContainerRef} 
+        <div
+          ref={scrollContainerRef}
           className="flex-1 overflow-y-auto p-4 sm:p-5 flex flex-col gap-4 sm:gap-5"
           style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}
         >
-          
+
           {/* Due Date */}
           <div className="flex flex-col gap-2">
-            <h3 className="text-xs font-mono font-bold text-primary uppercase flex items-center gap-2 tracking-wider">
-              <span className="material-symbols-outlined text-base">calendar_today</span>
+            <h3 className="flex items-center gap-2 text-label text-primary">
+              <Icon name="calendar_today" size="sm" />
               Fälligkeitsdatum
             </h3>
             <div className="relative">
-              <input 
+              <input
                 type="date"
                 value={typeof localDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(localDate) ? localDate : ''}
                 onChange={handleDateChange}
-                className="w-full px-3 py-1.5 sm:py-2 border border-outline-variant rounded-lg sm:rounded-xl bg-surface-low focus:bg-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-sans text-sm transition-all"
+                className="w-full px-3 py-1.5 sm:py-2 border border-subtle rounded-md sm:rounded-lg bg-subtle focus:bg-surface focus:outline-none focus:border-strong focus:ring-1 focus:ring-focus font-sans text-body transition-all"
               />
             </div>
 
             {/* Calendar Sync Section */}
-            <div className="mt-1 p-2.5 bg-surface-low/80 border border-outline-variant/60 rounded-xl flex flex-col gap-2">
+            <div className="mt-1 p-2.5 bg-subtle border border-subtle rounded-lg flex flex-col gap-2">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="material-symbols-outlined text-[16px] text-primary">calendar_month</span>
-                  <span className="text-xs font-mono font-bold text-on-surface truncate">
+                  <Icon name="calendar_month" size="sm" className="text-primary" />
+                  <span className="text-caption-strong font-label truncate">
                     Google Kalender
                   </span>
                   {currentTask.isCalendarSynced ? (
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
-                      <span className="material-symbols-outlined text-[12px]">check_circle</span>
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs bg-success-subtle text-success border border-success text-micro font-semibold">
+                      <Icon name="check_circle" size="sm" />
                       Synchronisiert
                     </span>
                   ) : (
-                    <span className="text-[10px] text-on-surface-variant font-mono">
+                    <span className="text-micro text-secondary font-label">
                       Nicht synchronisiert
                     </span>
                   )}
                 </div>
 
                 {currentTask.isCalendarSynced ? (
-                  <button
-                    type="button"
-                    disabled={isSyncing}
-                    onClick={() => setIsDesyncModalOpen(true)}
-                    className="px-2 py-1 text-[11px] font-mono font-bold text-on-surface-variant hover:text-red-600 hover:bg-red-50 border border-outline-variant hover:border-red-200 rounded-lg transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                    title="Synchronisation trennen"
-                  >
-                    <span className="material-symbols-outlined text-[13px]">sync_disabled</span>
-                    <span>Trennen</span>
-                  </button>
+                  <Button variant="secondary" size="sm" leadingIcon="sync_disabled" disabled={isSyncing} onClick={() => setIsDesyncModalOpen(true)} title="Synchronisation trennen">
+                  Trennen
+                  </Button>
                 ) : (
-                  <button
-                    type="button"
-                    disabled={isSyncing || user?.isGuest || !isCalendarConnected || !localDate}
-                    onClick={handleSyncTask}
-                    title={
+                  <Button size="sm" leadingIcon="sync" loading={isSyncing} disabled={user?.isGuest || !isCalendarConnected || !localDate} onClick={handleSyncTask} title={
                       user?.isGuest
                         ? 'Im Gastmodus nicht verfügbar'
                         : !isCalendarConnected
@@ -388,48 +362,25 @@ const TaskDetailDrawer = ({
                         : !localDate
                         ? 'Bitte zuerst ein Datum festlegen'
                         : 'Mit Google Kalender synchronisieren'
-                    }
-                    className="px-2.5 py-1 text-[11px] font-mono font-bold text-white bg-primary hover:bg-neutral-800 rounded-lg transition-colors flex items-center gap-1 cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isSyncing ? (
-                      <>
-                        <span className="material-symbols-outlined text-[13px] animate-spin">sync</span>
-                        <span>Sync...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="material-symbols-outlined text-[13px]">sync</span>
-                        <span>Synchronisieren</span>
-                      </>
-                    )}
-                  </button>
+                    }>
+                    {isSyncing ? 'Synchronisiere …' : 'Synchronisieren'}
+                    </Button>
                 )}
               </div>
 
               {/* Sync Error Banner */}
               {syncError && (
-                <div className="p-2 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between gap-2 text-xs text-red-700">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="material-symbols-outlined text-[14px] text-red-600 shrink-0">error</span>
-                    <span className="truncate">{syncError}</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => clearEntitySyncError && clearEntitySyncError(currentTask.id)}
-                    className="text-red-500 hover:text-red-700 p-0.5"
-                    title="Meldung schließen"
-                  >
-                    <span className="material-symbols-outlined text-[12px]">close</span>
-                  </button>
-                </div>
+                <Alert tone="danger" onDismiss={() => clearEntitySyncError && clearEntitySyncError(currentTask.id)}>
+                {syncError}
+                </Alert>
               )}
             </div>
           </div>
 
           {/* Description */}
           <div className="flex flex-col gap-2">
-            <h3 className="text-xs font-mono font-bold text-primary uppercase flex items-center gap-2 tracking-wider">
-              <span className="material-symbols-outlined text-base">description</span>
+            <h3 className="flex items-center gap-2 text-label text-primary">
+              <Icon name="description" size="sm" />
               Beschreibung
             </h3>
             <textarea
@@ -437,7 +388,7 @@ const TaskDetailDrawer = ({
               onChange={(e) => setLocalNote(e.target.value)}
               onBlur={handleNoteBlur}
               placeholder="Gedanken, Details oder Anmerkungen zu dieser Aufgabe..."
-              className="w-full px-3 py-1.5 sm:py-2 border border-outline-variant rounded-lg sm:rounded-xl bg-surface-low focus:bg-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-sans text-sm resize-y min-h-[80px] sm:min-h-[100px] transition-all"
+              className="w-full px-3 py-1.5 sm:py-2 border border-subtle rounded-md sm:rounded-lg bg-subtle focus:bg-surface focus:outline-none focus:border-strong focus:ring-1 focus:ring-focus font-sans text-body resize-y min-h-[80px] sm:min-h-[100px] transition-all"
               rows={3}
             />
           </div>
@@ -445,19 +396,19 @@ const TaskDetailDrawer = ({
           {/* Linked Notes Section */}
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-mono font-bold text-primary uppercase flex items-center gap-2 tracking-wider">
-                <span className="material-symbols-outlined text-base">sticky_note_2</span>
+              <h3 className="flex items-center gap-2 text-label text-primary">
+                <Icon name="sticky_note_2" size="sm" />
                 Verknüpfte Notizen
               </h3>
               {(linkedNotes.length + phaseLinkedNotes.length) > 0 && (
-                <span className="text-[10px] font-mono bg-surface-low px-2 py-0.5 rounded-md text-on-surface-variant font-bold border border-outline-variant">
+                <span className="text-micro font-label bg-subtle px-2 py-0.5 rounded-md text-secondary font-semibold border border-subtle">
                   {linkedNotes.length + phaseLinkedNotes.length}
                 </span>
               )}
             </div>
 
             {(linkedNotes.length + phaseLinkedNotes.length) === 0 ? (
-              <p className="text-xs text-on-surface-variant/60 italic p-3 bg-surface-low/60 rounded-xl border border-outline-variant/40">
+              <p className="text-caption text-tertiary italic p-3 bg-subtle rounded-lg border border-subtle">
                 Keine Notizen mit dieser Aufgabe verknüpft.
               </p>
             ) : (
@@ -470,17 +421,16 @@ const TaskDetailDrawer = ({
                     <div
                       key={`note-${idx}`}
                       onClick={() => onOpenNote && onOpenNote(fullNote)}
-                      className="group p-2.5 sm:p-3.5 rounded-lg sm:rounded-xl border border-outline-variant bg-surface-low hover:bg-white hover:border-primary hover:shadow-sm transition-all cursor-pointer flex flex-col gap-1 sm:gap-1.5 relative"
+                      className="group p-2.5 sm:p-3.5 rounded-md sm:rounded-lg border border-subtle bg-subtle hover:bg-surface hover:border-strong hover:shadow-sm transition-all cursor-pointer flex flex-col gap-1 sm:gap-1.5 relative"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
-                          <span className="material-symbols-outlined text-primary text-[18px]">notes</span>
-                          <span className="font-bold text-sm text-primary truncate group-hover:underline">
+                          <Icon name="notes" size="md" className="text-primary" />
+                          <span className="text-body-strong text-primary truncate group-hover:underline">
                             {fullNote.title || link.name}
                           </span>
                         </div>
-                        <button
-                          onClick={(e) => {
+                        <IconButton icon="close" label="Verknüpfung entfernen" variant="danger-ghost" size="sm" className="opacity-0 group-hover:opacity-100 shrink-0" onClick={(e) => {
                             e.stopPropagation();
                             const targetId = link.id || link.noteId || link.url;
                             if (phaseLinkedNotes.includes(link)) {
@@ -488,22 +438,17 @@ const TaskDetailDrawer = ({
                             } else {
                               onDeleteMaterial && onDeleteMaterial({ type: 'task', taskId: currentTask.id, phaseId: currentPhase.id, linkId: targetId });
                             }
-                          }}
-                          className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-red-50 text-red-500 transition-all shrink-0"
-                          title="Verknüpfung entfernen"
-                        >
-                          <span className="material-symbols-outlined text-sm">close</span>
-                        </button>
+                          }} />
                       </div>
 
                       {previewText && (
-                        <p className="text-xs text-on-surface-variant line-clamp-2 pl-6 opacity-85 font-sans leading-relaxed">
+                        <p className="text-caption text-secondary line-clamp-2 pl-6 opacity-85 font-sans leading-relaxed">
                           {previewText}
                         </p>
                       )}
 
-                      <div className="text-[10px] font-mono text-primary/70 pl-6 flex items-center gap-1 mt-0.5 group-hover:text-primary">
-                        <span className="material-symbols-outlined text-[12px]">open_in_new</span>
+                      <div className="text-micro font-label text-secondary pl-6 flex items-center gap-1 mt-0.5 group-hover:text-primary">
+                        <Icon name="open_in_new" size="sm" />
                         Klicken zum Anzeigen & Bearbeiten
                       </div>
                     </div>
@@ -516,89 +461,84 @@ const TaskDetailDrawer = ({
           {/* Materials & Links */}
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-mono font-bold text-primary uppercase flex items-center gap-2 tracking-wider">
-                <span className="material-symbols-outlined text-base">attach_file</span>
+              <h3 className="flex items-center gap-2 text-label text-primary">
+                <Icon name="attach_file" size="sm" />
                 Materialien & Links
               </h3>
               {(webLinks.length + phaseMaterials.length) > 0 && (
-                <span className="text-[10px] font-mono bg-surface-low px-2 py-0.5 rounded-md text-on-surface-variant font-bold border border-outline-variant">
+                <span className="text-micro font-label bg-subtle px-2 py-0.5 rounded-md text-secondary font-semibold border border-subtle">
                   {webLinks.length + phaseMaterials.length}
                 </span>
               )}
             </div>
-            
+
             <div className="flex flex-col gap-2 mt-1">
               {/* Task Links */}
               {webLinks.map((link, idx) => (
-                <a 
-                  key={`link-${idx}`} 
+                <a
+                  key={`link-${idx}`}
                   href={link.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group flex items-center justify-between p-3 rounded-xl border border-outline-variant bg-surface-low hover:bg-white hover:border-primary hover:shadow-sm transition-all"
+                  className="group flex items-center justify-between p-3 rounded-lg border border-subtle bg-subtle hover:bg-surface hover:border-strong hover:shadow-sm transition-all"
                 >
                   <div className="flex items-center gap-3 overflow-hidden">
-                    <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors text-[18px]">link</span>
-                    <span className="text-sm truncate text-primary font-medium">{link.name || link.url}</span>
+                    <Icon name="link" size="md" className="text-secondary group-hover:text-primary transition-colors" />
+                    <span className="text-label truncate text-primary">{link.name || link.url}</span>
                   </div>
-                  <button 
-                    onClick={(e) => {
-                      e.preventDefault();
-                      onDeleteMaterial({ type: 'task', taskId: currentTask.id, phaseId: currentPhase.id, linkId: link.id });
-                    }}
-                    className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-surface-low text-on-surface-variant transition-all"
-                  >
-                    <span className="material-symbols-outlined text-sm">delete</span>
-                  </button>
+                  <IconButton
+                  icon="delete"
+                  label="Link entfernen"
+                  size="sm"
+                  className="opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onDeleteMaterial({ type: 'task', taskId: currentTask.id, phaseId: currentPhase.id, linkId: link.id });
+                  }}
+                  />
                 </a>
               ))}
 
               {/* Phase Materials */}
               {phaseMaterials.map((mat, idx) => (
-                <div 
+                <div
                   key={`mat-${idx}`}
-                  className="group flex items-center justify-between p-3 rounded-xl border border-outline-variant bg-surface-low hover:bg-white hover:border-primary hover:shadow-sm transition-all cursor-pointer"
+                  className="group flex items-center justify-between p-3 rounded-lg border border-subtle bg-subtle hover:bg-surface hover:border-strong hover:shadow-sm transition-all cursor-pointer"
                 >
                   <div className="flex items-center gap-3 overflow-hidden">
-                    <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors text-[18px]">description</span>
+                    <Icon name="description" size="md" className="text-secondary group-hover:text-primary transition-colors" />
                     <div className="flex flex-col">
-                      <span className="text-sm truncate text-primary font-medium">{mat.name || mat.title}</span>
-                      <span className="text-[10px] font-mono text-on-surface-variant uppercase">Abschnitt-Material</span>
+                      <span className="text-label truncate text-primary">{mat.name || mat.title}</span>
+                      <span className="text-caption text-secondary">Abschnitt-Material</span>
                     </div>
                   </div>
-                  <button 
-                    onClick={(e) => {
-                      e.preventDefault();
-                      onDeleteMaterial({ type: 'phase', phaseId: currentPhase.id, materialId: mat.id });
-                    }}
-                    className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-surface-low text-on-surface-variant transition-all"
-                  >
-                    <span className="material-symbols-outlined text-sm">delete</span>
-                  </button>
+                  <IconButton
+                  icon="delete"
+                  label="Material entfernen"
+                  size="sm"
+                  className="opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onDeleteMaterial({ type: 'phase', phaseId: currentPhase.id, materialId: mat.id });
+                  }}
+                  />
                 </div>
               ))}
 
-              <button
-                onClick={() => onAddMaterial({ type: 'task', taskId: currentTask.id, phaseId: currentPhase.id })}
-                className="mt-1 w-full py-2.5 flex items-center justify-center gap-2 rounded-xl border border-dashed border-outline-variant text-on-surface-variant hover:text-primary hover:border-primary hover:bg-primary/5 transition-all font-mono text-xs uppercase font-bold cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[16px]">add</span>
+              <Button variant="ghost" fullWidth onClick={() => onAddMaterial({ type: 'task', taskId: currentTask.id, phaseId: currentPhase.id })} className="mt-1">
+                <Icon name="add" size="sm" />
                 Material hinzufügen
-              </button>
+              </Button>
             </div>
           </div>
 
           <div className="flex-1" /> {/* Spacer */}
 
           {/* Danger Zone */}
-          <div className="pt-3 mt-1 border-t border-outline-variant/60">
-            <button
-              onClick={() => onDeleteTask(currentPhase.id, currentTask.id)}
-              className="w-full py-2.5 flex items-center justify-center gap-2 rounded-xl bg-red-50 text-red-600 border border-red-200 hover:bg-red-600 hover:text-white transition-all font-mono text-xs uppercase font-bold cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[16px]">delete</span>
-              Aufgabe löschen
-            </button>
+          <div className="pt-3 mt-1 border-t border-subtle">
+            <Button variant="danger-ghost" fullWidth leadingIcon="delete" onClick={() => onDeleteTask(currentPhase.id, currentTask.id)}>
+            Aufgabe löschen
+            </Button>
           </div>
 
         </div>

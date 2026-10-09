@@ -7,12 +7,10 @@ import { usePersistedChoice } from '../../hooks/usePersistedChoice';
 import { buildThought } from '../../lib/thoughts';
 import { getProjectStats } from '../../lib/projectProgress';
 import { buildAgenda, getNextTimed, formatMinutes } from '../../lib/dashboardAgenda';
-import { areaOf } from '../../lib/areas';
-import Card from '../ui/Card';
-import Badge from '../ui/Badge';
-import Button from '../ui/Button';
-import FioIcon from '../ui/FioIcon';
-import { Skeleton } from '../ui/Skeleton';
+import { areaOf, tileAreaOf } from '../../lib/areas';
+import {
+  Alert, Badge, Button, Card, EmptyState, FioMark, FOCUS, Icon, IconButton, IconTile, PageHeader, ProgressBar, Skeleton, cx,
+} from '../ds';
 import { AI_MODELS } from '../ui/ModelSelectorDropdown';
 import { SUMMARY_LENGTH_OPTIONS } from '../ui/SummaryLengthDropdown';
 
@@ -75,10 +73,10 @@ function QuickThought({ onOpenThoughts }) {
   return (
     <form
       onSubmit={(e) => { e.preventDefault(); save(); }}
-      className="flex items-center gap-2 bg-white rounded-xl border border-outline-variant shadow-card pl-4 pr-2 py-2 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/20 transition-shadow"
+      className="flex items-center gap-2 rounded-lg border border-subtle bg-surface py-2 pl-4 pr-2 shadow-sm transition-shadow duration-fast focus-within:border-accent focus-within:ring-2 focus-within:ring-focus"
       aria-label="Gedanken festhalten"
     >
-      <span className={`material-symbols-outlined text-[22px] shrink-0 ${areaOf('inbox').chip.split(' ')[1]}`} aria-hidden="true">lightbulb</span>
+      <Icon name="lightbulb" size="lg" className={cx('shrink-0', areaOf('inbox').activeText)} aria-hidden="true" />
       <label htmlFor="dashboard-thought" className="sr-only">Was geht dir durch den Kopf?</label>
       <input
         id="dashboard-thought"
@@ -88,11 +86,9 @@ function QuickThought({ onOpenThoughts }) {
         disabled={busy}
         placeholder="Was geht dir durch den Kopf?"
         enterKeyHint="send"
-        className="flex-1 min-w-0 border-0 bg-transparent px-0 py-2 text-base placeholder:text-on-surface-variant focus:ring-0 focus:outline-none disabled:opacity-60"
+        className="min-w-0 flex-1 border-0 bg-transparent px-0 py-2 text-body-lg placeholder:text-tertiary focus:outline-none focus:ring-0 disabled:opacity-60"
       />
-      <Button type="submit" size="icon" loading={busy} className="shrink-0" aria-label="Gedanke speichern">
-        {!busy && <span className="material-symbols-outlined text-[22px]">arrow_upward</span>}
-      </Button>
+      <IconButton type="submit" variant="primary" icon="arrow_upward" label="Gedanke speichern" loading={busy} className="shrink-0" />
     </form>
   );
 }
@@ -100,13 +96,12 @@ function QuickThought({ onOpenThoughts }) {
 /** Eine Zeile in Heute / Überfällig / Tagesdetail */
 function AgendaRow({ item, onToggle, onOpen, now, highlight }) {
   const meta = KIND_META[item.kind];
-  const chip = areaOf(meta.area).chip;
   const canToggle = item.kind !== 'event';
   const past = item.startAt && item.startAt < now && !item.completed && item.kind === 'event';
 
   return (
-    <li className={`flex items-center gap-3 py-2 ${highlight ? 'bg-surface-low -mx-3 px-3 rounded-lg' : ''}`}>
-      <span className={`w-14 shrink-0 text-xs font-semibold tabular-nums text-right ${item.dueLabel ? 'text-danger' : 'text-on-surface-variant'}`}>
+    <li className={cx('flex items-center gap-3 py-2', highlight && '-mx-3 rounded-md bg-subtle px-3')}>
+      <span className={cx('w-14 shrink-0 text-right text-caption-strong tabular-nums', item.dueLabel ? 'text-danger' : 'text-secondary')}>
         {item.allDay ? 'Ganztägig' : item.timeLabel || item.dueLabel || ''}
       </span>
       {canToggle ? (
@@ -116,48 +111,45 @@ function AgendaRow({ item, onToggle, onOpen, now, highlight }) {
           aria-checked={item.completed}
           aria-label={`${item.title} abhaken`}
           onClick={() => onToggle(item)}
-          className={`w-6 h-6 shrink-0 rounded-md border-2 flex items-center justify-center transition-colors cursor-pointer ${
-            item.completed ? 'bg-success border-success text-white' : 'border-outline-variant bg-white text-transparent hover:border-primary'
-          }`}
+          className={cx(
+            'relative flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 transition-colors duration-fast',
+            "after:absolute after:-inset-2 after:content-['']",
+            FOCUS,
+            item.completed ? 'border-success bg-success text-on-accent' : 'border-control bg-surface text-transparent hover:border-strong',
+          )}
         >
-          <span className="material-symbols-outlined text-[16px]" aria-hidden="true">check</span>
+          <Icon name="check" size="sm" aria-hidden="true" />
         </button>
       ) : (
-        <span className={`w-6 h-6 shrink-0 rounded-md flex items-center justify-center ${chip}`} aria-hidden="true">
-          <span className="material-symbols-outlined text-[15px]">{meta.icon}</span>
-        </span>
+        <IconTile area={tileAreaOf(meta.area)} icon={meta.icon} size="sm" className="!h-6 !w-6" />
       )}
       <button
         type="button"
         onClick={() => onOpen(item)}
-        className="flex-1 min-w-0 text-left cursor-pointer rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        className={cx('min-w-0 flex-1 rounded-md text-left', FOCUS)}
       >
-        <span className={`block text-sm font-semibold leading-snug truncate ${item.completed ? 'line-through text-on-surface-variant' : past ? 'text-on-surface-variant' : 'text-primary'}`}>
+        <span className={cx('block truncate text-body-strong', item.completed ? 'text-secondary line-through' : past ? 'text-secondary' : 'text-primary')}>
           {item.title}
         </span>
-        {item.subtitle && <span className="block text-xs text-on-surface-variant truncate">{item.subtitle}</span>}
+        {item.subtitle && <span className="block truncate text-caption text-secondary">{item.subtitle}</span>}
       </button>
-      {highlight && <Badge variant="default" className="shrink-0">{highlight}</Badge>}
+      {highlight && <Badge tone="neutral" className="shrink-0">{highlight}</Badge>}
     </li>
   );
 }
 
 function SectionCard({ title, icon, areaId, count, children, className = '', tone = 'default', action }) {
-  const area = areaOf(areaId);
-  const border = tone === 'danger' ? 'border-danger-border' : '';
   return (
-    <Card padding="none" className={`${border} ${className}`}>
-      <div className="flex items-center justify-between gap-2 px-4 sm:px-5 pt-4 pb-1">
-        <h2 className="flex items-center gap-2 text-base font-bold">
-          <span className={`w-7 h-7 rounded-lg flex items-center justify-center ${tone === 'danger' ? 'bg-danger-soft text-danger' : area.chip}`} aria-hidden="true">
-            <span className="material-symbols-outlined text-[18px]">{icon}</span>
-          </span>
+    <Card padding="none" className={cx(tone === 'danger' && 'border-danger', className)}>
+      <div className="flex items-center justify-between gap-2 px-4 pb-1 pt-4 sm:px-5">
+        <h2 className="flex items-center gap-2 text-subheading text-primary">
+          <IconTile area={tone === 'danger' ? 'neutral' : tileAreaOf(areaId)} icon={icon} size="sm" className={tone === 'danger' ? '!bg-danger-subtle !text-danger' : ''} />
           {title}
-          {count != null && <span className="text-sm font-medium text-on-surface-variant">{count}</span>}
+          {count != null && <span className="text-label text-secondary">{count}</span>}
         </h2>
         {action}
       </div>
-      <div className="px-4 sm:px-5 pb-4 pt-1">{children}</div>
+      <div className="px-4 pb-4 pt-1 sm:px-5">{children}</div>
     </Card>
   );
 }
@@ -263,33 +255,30 @@ const Dashboard = ({ setCurrentScreen }) => {
   };
 
   const showCalendarHint = !isCalendarConnected && !user?.isGuest && !hintDismissed;
+  const openProject = () => {
+    setSelectedProjectId(activeProject.id);
+    setCurrentScreen('project-detail');
+  };
 
   return (
-    <div className="screen-transition flex flex-col gap-5 sm:gap-6">
-      {/* Begrüßung + Fio */}
-      <header className="flex items-end justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-sm text-on-surface-variant capitalize">{formattedDate}</p>
-          <h1 className="text-2xl sm:text-3xl font-bold leading-tight truncate">
-            {greetingFor(now.getHours())}{userName ? `, ${userName}` : ''}
-          </h1>
-        </div>
-        <Button
-          variant="secondary"
-          onClick={() => setCurrentScreen('coach')}
-          aria-label="Fio KI-Coach öffnen"
-          className="shrink-0 min-w-0"
-        >
-          <FioIcon className="w-4 h-4" color="currentColor" />
-          <span className="hidden sm:inline">Fio fragen</span>
-        </Button>
-      </header>
+    <div className="flex flex-col gap-5 md:gap-6">
+      <PageHeader
+        title={`${greetingFor(now.getHours())}${userName ? `, ${userName}` : ''}`}
+        description={formattedDate}
+        actions={(
+          <Button variant="secondary" size="sm" onClick={() => setCurrentScreen('coach')} aria-label="Fio KI-Coach öffnen" className="shrink-0">
+            <FioMark size={16} />
+            <span className="hidden sm:inline">Fio fragen</span>
+          </Button>
+        )}
+        className="md:items-center"
+      />
 
       <QuickThought onOpenThoughts={() => setCurrentScreen('inbox')} />
 
-      <div className="flex flex-col gap-5 sm:gap-6 lg:grid lg:grid-cols-12 lg:items-start">
+      <div className="flex flex-col gap-5 md:gap-6 lg:grid lg:grid-cols-12 lg:items-start">
         {/* Linke Spalte (Desktop): Überfällig + Heute */}
-        <div className="contents lg:flex lg:flex-col lg:gap-6 lg:col-span-7">
+        <div className="contents lg:col-span-7 lg:flex lg:flex-col lg:gap-6">
           {agenda.overdue.length > 0 && (
             <SectionCard
               title="Überfällig"
@@ -299,7 +288,7 @@ const Dashboard = ({ setCurrentScreen }) => {
               count={agenda.overdue.length}
               className="order-1 lg:order-none"
             >
-              <ul className="divide-y divide-outline-variant/60">
+              <ul className="divide-y divide-subtle">
                 {agenda.overdue.map((item) => (
                   <AgendaRow key={item.key} item={item} onToggle={handleToggle} onOpen={handleOpen} now={now} />
                 ))}
@@ -317,8 +306,8 @@ const Dashboard = ({ setCurrentScreen }) => {
             {allDayToday.length > 0 && (
               <div className="flex flex-wrap gap-1.5 pb-2" aria-label="Ganztägige Termine">
                 {allDayToday.map((item) => (
-                  <Badge key={item.key} variant="default" className="max-w-full">
-                    <span className="material-symbols-outlined text-[14px]" aria-hidden="true">event</span>
+                  <Badge key={item.key} tone="neutral" className="max-w-full">
+                    <Icon name="event" size="sm" aria-hidden="true" />
                     <span className="truncate">{item.title}</span>
                   </Badge>
                 ))}
@@ -333,7 +322,7 @@ const Dashboard = ({ setCurrentScreen }) => {
             )}
 
             {timedToday.length > 0 && (
-              <ul className="divide-y divide-outline-variant/60">
+              <ul className="divide-y divide-subtle">
                 {timedToday.map((item) => {
                   const isNext = next && next.item.key === item.key;
                   const label = isNext ? (next.state === 'running' ? 'läuft' : next.minutes <= 180 ? formatMinutes(next.minutes) : null) : null;
@@ -343,9 +332,9 @@ const Dashboard = ({ setCurrentScreen }) => {
             )}
 
             {untimedToday.length > 0 && (
-              <div className={timedToday.length > 0 ? 'mt-3 pt-3 border-t border-outline-variant' : ''}>
-                {timedToday.length > 0 && <h3 className="text-xs font-semibold text-on-surface-variant mb-1">Ohne Uhrzeit</h3>}
-                <ul className="divide-y divide-outline-variant/60">
+              <div className={timedToday.length > 0 ? 'mt-3 border-t border-subtle pt-3' : ''}>
+                {timedToday.length > 0 && <h3 className="mb-1 text-caption-strong text-secondary">Ohne Uhrzeit</h3>}
+                <ul className="divide-y divide-subtle">
                   {untimedToday.map((item) => (
                     <AgendaRow key={item.key} item={item} onToggle={handleToggle} onOpen={handleOpen} now={now} />
                   ))}
@@ -354,34 +343,26 @@ const Dashboard = ({ setCurrentScreen }) => {
             )}
 
             {todayItems.length === 0 && !eventsLoading && (
-              <div className="text-center py-6">
-                <span className="material-symbols-outlined text-[32px] text-on-surface-variant/60" aria-hidden="true">event_available</span>
-                <p className="text-sm font-semibold mt-1">Heute ist nichts geplant</p>
-                <p className="text-sm text-on-surface-variant mt-0.5">Zeit für Fokus oder die nächste Idee.</p>
-                <Button size="sm" className="mt-3" onClick={() => openModal('reminder')}>
-                  Erinnerung erstellen
-                </Button>
-              </div>
+              <EmptyState
+                compact
+                bordered={false}
+                icon="event_available"
+                title="Heute ist nichts geplant"
+                description="Zeit für Fokus oder die nächste Idee."
+                action={<Button size="sm" onClick={() => openModal('reminder')}>Erinnerung hinzufügen</Button>}
+              />
             )}
           </SectionCard>
         </div>
 
         {/* Rechte Spalte (Desktop): Woche, Projekt, Gedanken */}
-        <div className="contents lg:flex lg:flex-col lg:gap-6 lg:col-span-5">
+        <div className="contents lg:col-span-5 lg:flex lg:flex-col lg:gap-6">
           <SectionCard
             title="Nächste 7 Tage"
             icon="date_range"
             areaId="calendar"
             className="order-2 lg:order-none"
-            action={(
-              <button
-                type="button"
-                onClick={() => setCurrentScreen('calendar')}
-                className="text-xs font-semibold text-on-surface-variant hover:text-primary hover:underline cursor-pointer"
-              >
-                Kalender
-              </button>
-            )}
+            action={<Button variant="ghost" size="sm" onClick={() => setCurrentScreen('calendar')}>Kalender</Button>}
           >
             <div className="grid grid-cols-7 gap-1" role="group" aria-label="Wochenübersicht">
               {agenda.days.map((day) => {
@@ -395,21 +376,23 @@ const Dashboard = ({ setCurrentScreen }) => {
                     aria-pressed={isSelected}
                     aria-label={`${WEEKDAY_SHORT[day.date.getDay()]} ${day.date.getDate()}., ${open} offene Einträge`}
                     onClick={() => setSelectedDayKey(isSelected ? null : day.key)}
-                    className={`flex flex-col items-center gap-1 py-2 rounded-lg border transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                    className={cx(
+                      'flex flex-col items-center gap-1 rounded-md border py-2 transition-colors duration-fast',
+                      FOCUS,
                       isSelected
-                        ? 'bg-surface-low border-primary/40'
+                        ? 'border-control bg-subtle'
                         : day.isToday
-                        ? 'border-outline-variant bg-white'
-                        : 'border-transparent hover:bg-surface-low'
-                    }`}
+                        ? 'border-subtle bg-surface'
+                        : 'border-transparent hover:bg-hover',
+                    )}
                   >
-                    <span className="text-xs text-on-surface-variant">{day.isToday ? 'Heute' : WEEKDAY_SHORT[day.date.getDay()]}</span>
-                    <span className={`w-8 h-8 rounded-md flex items-center justify-center text-sm font-bold ${day.isToday ? 'bg-primary text-white' : 'text-primary'}`}>
+                    <span className="text-caption text-secondary">{day.isToday ? 'Heute' : WEEKDAY_SHORT[day.date.getDay()]}</span>
+                    <span className={cx('flex h-8 w-8 items-center justify-center rounded-md text-body-strong', day.isToday ? 'bg-accent text-on-accent' : 'text-primary')}>
                       {day.date.getDate()}
                     </span>
-                    <span className="flex gap-0.5 h-1.5" aria-hidden="true">
+                    <span className="flex h-1.5 gap-0.5" aria-hidden="true">
                       {kinds.slice(0, 3).map((k) => (
-                        <span key={k} className={`w-1.5 h-1.5 rounded-full ${areaOf(KIND_META[k].area).dot}`} />
+                        <span key={k} className={cx('h-1.5 w-1.5 rounded-full', areaOf(KIND_META[k].area).dot)} />
                       ))}
                     </span>
                   </button>
@@ -418,74 +401,58 @@ const Dashboard = ({ setCurrentScreen }) => {
             </div>
 
             {selectedDay && (
-              <div className="mt-3 pt-3 border-t border-outline-variant">
-                <h3 className="text-xs font-semibold text-on-surface-variant mb-1">
+              <div className="mt-3 border-t border-subtle pt-3">
+                <h3 className="mb-1 text-caption-strong text-secondary">
                   {selectedDay.date.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}
                 </h3>
                 {selectedDay.items.length === 0 ? (
-                  <p className="text-sm text-on-surface-variant py-2">Nichts geplant.</p>
+                  <p className="py-2 text-body text-secondary">Nichts geplant.</p>
                 ) : (
-                  <ul className="divide-y divide-outline-variant/60">
+                  <ul className="divide-y divide-subtle">
                     {selectedDay.items.slice(0, 4).map((item) => (
                       <AgendaRow key={item.key} item={item} onToggle={handleToggle} onOpen={handleOpen} now={now} />
                     ))}
                   </ul>
                 )}
                 {selectedDay.items.length > 4 && (
-                  <button type="button" onClick={() => setCurrentScreen('calendar')} className="mt-1 text-xs font-semibold text-on-surface-variant hover:text-primary hover:underline cursor-pointer">
+                  <Button variant="ghost" size="sm" className="mt-1" onClick={() => setCurrentScreen('calendar')}>
                     Alle {selectedDay.items.length} im Kalender anzeigen
-                  </button>
+                  </Button>
                 )}
               </div>
             )}
 
             {showCalendarHint && (
-              <div className="mt-3 flex items-center gap-2 rounded-xl bg-surface-low px-3 py-2 text-xs text-on-surface-variant">
-                <span className="flex-1">Mit Google Kalender siehst du hier auch deine Termine.</span>
-                <button type="button" onClick={() => setCurrentScreen('calendar')} className="font-semibold text-primary hover:underline cursor-pointer">Verbinden</button>
-                <button type="button" onClick={dismissHint} aria-label="Hinweis ausblenden" className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-white cursor-pointer">
-                  <span className="material-symbols-outlined text-[16px]">close</span>
-                </button>
-              </div>
+              <Alert
+                tone="info"
+                icon="calendar_month"
+                onDismiss={dismissHint}
+                className="mt-3"
+                action={<Button variant="secondary" size="sm" onClick={() => setCurrentScreen('calendar')}>Kalender verbinden</Button>}
+              >
+                Mit Google Kalender siehst du hier auch deine Termine.
+              </Alert>
             )}
           </SectionCard>
 
           {activeProject && (
             <Card
+              as="button"
               interactive
-              padding="normal"
+              padding="md"
               className="order-4 lg:order-none"
-              role="button"
-              tabIndex={0}
-              onClick={() => {
-                setSelectedProjectId(activeProject.id);
-                setCurrentScreen('project-detail');
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  setSelectedProjectId(activeProject.id);
-                  setCurrentScreen('project-detail');
-                }
-              }}
+              onClick={openProject}
+              aria-label={`Projekt ${activeProject.title} öffnen`}
             >
-              <div className="flex items-center gap-2 mb-3">
-                <span className={`w-7 h-7 rounded-lg flex items-center justify-center ${areaOf('projects').chip}`} aria-hidden="true">
-                  <span className="material-symbols-outlined text-[18px]">folder</span>
-                </span>
-                <h2 className="text-base font-bold">Aktives Projekt</h2>
-              </div>
-              <p className="text-base font-semibold truncate">{activeProject.title}</p>
-              <p className="text-sm text-on-surface-variant mt-0.5 mb-3 truncate">
+              <span className="mb-3 flex items-center gap-2">
+                <IconTile area="projects" icon="folder" size="sm" />
+                <span className="text-subheading text-primary">Aktives Projekt</span>
+              </span>
+              <span className="block truncate text-subheading text-primary">{activeProject.title}</span>
+              <span className="mb-3 mt-0.5 block truncate text-body text-secondary">
                 {activeProjectStats.nextTask ? `Als Nächstes: ${activeProjectStats.nextTask.task.title}` : 'Projektübersicht öffnen'}
-              </p>
-              <div className="flex justify-between text-xs font-semibold mb-1.5">
-                <span className="text-on-surface-variant">Fortschritt</span>
-                <span>{activeProjectStats.progress}%</span>
-              </div>
-              <div className="w-full bg-surface-low h-2 rounded-full overflow-hidden" role="progressbar" aria-valuenow={activeProjectStats.progress} aria-valuemin={0} aria-valuemax={100}>
-                <div className="bg-primary h-full rounded-full transition-all duration-panel" style={{ width: `${activeProjectStats.progress}%` }} />
-              </div>
+              </span>
+              <ProgressBar value={activeProjectStats.progress} label="Fortschritt" showValue />
             </Card>
           )}
 
@@ -495,16 +462,16 @@ const Dashboard = ({ setCurrentScreen }) => {
               icon="lightbulb"
               areaId="inbox"
               className="order-5 lg:order-none"
-              action={(
-                <button type="button" onClick={() => setCurrentScreen('inbox')} className="text-xs font-semibold text-on-surface-variant hover:text-primary hover:underline cursor-pointer">
-                  Alle ansehen
-                </button>
-              )}
+              action={<Button variant="ghost" size="sm" onClick={() => setCurrentScreen('inbox')}>Alle ansehen</Button>}
             >
-              <ul className="divide-y divide-outline-variant/60">
+              <ul className="divide-y divide-subtle">
                 {recentThoughts.map((t) => (
                   <li key={t.id}>
-                    <button type="button" onClick={() => setCurrentScreen('inbox')} className="w-full text-left py-2 text-sm font-medium truncate hover:underline cursor-pointer">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentScreen('inbox')}
+                      className={cx('w-full truncate rounded-md py-2 text-left text-label hover:text-accent', FOCUS)}
+                    >
                       {t.title || t.summary}
                     </button>
                   </li>

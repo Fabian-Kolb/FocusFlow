@@ -10,14 +10,14 @@ const MonthSlide = ({ days, isCenter, selectedDay, getEventsForCell, onCellClick
   const rowCount = Math.ceil(days.length / 7);
 
   return (
-    <div className="w-full h-full flex flex-col bg-white">
+    <div className="w-full h-full flex flex-col bg-surface">
       {/* Wochentags-Header (MO. bis SO., Sonntag rot) */}
-      <div className="grid grid-cols-7 border-b border-neutral-100 bg-white flex-shrink-0">
+      <div className="grid grid-cols-7 border-b border-subtle bg-surface flex-shrink-0">
         {WEEKDAYS.map((wd) => (
           <div
             key={wd.short}
-            className={`py-2 text-center text-[11px] md:text-xs font-bold tracking-wider ${
-              wd.isSunday ? 'text-red-500' : 'text-neutral-500'
+            className={`py-2 text-center text-micro md:text-caption font-semibold ${
+              wd.isSunday ? 'text-danger' : 'text-tertiary'
             }`}
           >
             {wd.short}
@@ -27,7 +27,7 @@ const MonthSlide = ({ days, isCenter, selectedDay, getEventsForCell, onCellClick
 
       {/* Monatsraster (gleichmäßige Zeilenhöhe) */}
       <div
-        className="grid grid-cols-7 flex-1 h-full bg-white divide-y divide-neutral-100"
+        className="grid grid-cols-7 flex-1 h-full bg-surface divide-y divide-subtle"
         style={{ gridTemplateRows: `repeat(${rowCount}, minmax(0, 1fr))` }}
       >
         {days.map((cell, cellIdx) => {
@@ -42,28 +42,28 @@ const MonthSlide = ({ days, isCenter, selectedDay, getEventsForCell, onCellClick
             <div
               key={cell.key}
               onClick={() => onCellClick(cell)}
-              className={`relative p-1 md:p-1.5 flex flex-col justify-start overflow-hidden cursor-pointer transition-colors border-r border-neutral-100 last:border-r-0 ${
+              className={`relative p-1 md:p-1.5 flex flex-col justify-start overflow-hidden cursor-pointer transition-colors border-r border-subtle last:border-r-0 ${
                 isToday
-                  ? 'border-[1.5px] border-neutral-800 rounded-xl z-10 bg-white shadow-2xs'
+                  ? 'z-10 rounded-md border-[1.5px] border-strong bg-surface'
                   : isSelected && !isToday
-                  ? 'bg-neutral-50/80'
+                  ? 'bg-subtle'
                   : cell.isCurrentMonth
-                  ? 'bg-white hover:bg-neutral-50/50'
-                  : 'bg-neutral-50/30 hover:bg-neutral-50/50'
+                  ? 'bg-surface hover:bg-hover'
+                  : 'bg-subtle hover:bg-hover'
               }`}
             >
               {/* Tageszahl, zentriert */}
               <div className="flex justify-center items-center pt-0.5 pb-1 flex-shrink-0 select-none">
                 {isToday ? (
-                  <span className="w-[22px] h-[22px] rounded-[6px] bg-black text-white font-bold text-xs flex items-center justify-center shadow-xs">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-md bg-inverse text-caption-strong text-inverse">
                     {cell.day}
                   </span>
                 ) : (
                   <span
-                    className={`text-xs md:text-sm font-semibold leading-none ${
+                    className={`text-caption-strong md:text-body leading-none ${
                       isSunday
-                        ? cell.isCurrentMonth ? 'text-red-500' : 'text-red-300'
-                        : cell.isCurrentMonth ? 'text-neutral-900' : 'text-neutral-300 font-normal'
+                        ? cell.isCurrentMonth ? 'text-danger' : 'text-danger'
+                        : cell.isCurrentMonth ? 'text-primary' : 'text-disabled font-normal'
                     }`}
                   >
                     {cell.day}
@@ -91,17 +91,17 @@ const MonthSlide = ({ days, isCenter, selectedDay, getEventsForCell, onCellClick
                         }}
                         className={`w-full h-auto text-left transition-all active:scale-[0.98] select-none flex flex-col justify-start ${
                           isAllDay
-                            ? 'rounded-[4px] hover:brightness-95'
-                            : 'border-l-[3px] rounded-r-[4px] hover:bg-neutral-100/60'
+                            ? 'rounded-xs hover:brightness-95'
+                            : 'border-l-[3px] rounded-r-xs hover:bg-hover'
                         } ${
                           isFewEvents
-                            ? (isAllDay ? 'px-1.5 py-0.5 md:py-1' : 'pl-1.5 pr-0.5 py-0.5 md:py-1') + ' text-[10px] md:text-[11px] leading-tight'
-                            : (isAllDay ? 'px-1 py-0.5' : 'pl-1 pr-0.5 py-0.5') + ' text-[9px] md:text-[10px] leading-tight'
+                            ? (isAllDay ? 'px-1.5 py-0.5 md:py-1' : 'pl-1.5 pr-0.5 py-0.5 md:py-1') + ' text-micro md:text-micro leading-tight'
+                            : (isAllDay ? 'px-1 py-0.5' : 'pl-1 pr-0.5 py-0.5') + ' text-micro md:text-micro leading-tight'
                         }`}
                         style={{
                           ...(isAllDay ? { backgroundColor: colors.bg } : {}),
                           ...(!isAllDay ? { borderLeftColor: colors.border } : {}),
-                          color: isAllDay ? colors.text : '#171717',
+                          color: isAllDay ? colors.text : 'var(--text-primary)',
                         }}
                         title={evt.summary || '(Ohne Titel)'}
                       >
@@ -113,7 +113,7 @@ const MonthSlide = ({ days, isCenter, selectedDay, getEventsForCell, onCellClick
                   })}
 
                   {count > 4 && (
-                    <div className="text-[8.5px] font-bold text-neutral-400 text-center leading-none pt-0.5">
+                    <div className="text-micro font-semibold text-tertiary text-center leading-none pt-0.5">
                       +{count - 4}
                     </div>
                   )}

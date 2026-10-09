@@ -22,7 +22,8 @@ import MonthSlide from '../calendar/MonthSlide';
 import DesktopDayPanel from '../calendar/DesktopDayPanel';
 import MobileDaySheet from '../calendar/MobileDaySheet';
 import { SearchModal, MonthPickerModal, EventDetailModal } from '../calendar/CalendarModals';
-
+
+import { Button, EmptyState } from '../ds';
 // Orchestrierung des Kalenders: Zustand (Monat/Tag/Dialoge), Laden über useCalendarEvents, Karussell über useMonthCarousel.
 // Darstellung liegt in src/components/calendar/*, reine Logik in src/lib/calendarUtils.js.
 
@@ -245,22 +246,19 @@ const Calendar = () => {
   // Zustand 1: nicht verbunden
   if (!isCalendarConnected) {
     return (
-      <div className="screen-transition flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
-        <div className="w-24 h-24 bg-surface-low rounded-full flex items-center justify-center mb-6 text-primary">
-          <span className="material-symbols-outlined text-4xl">calendar_month</span>
-        </div>
-        <h2 className="text-2xl font-bold mb-3">Kalender verbinden</h2>
-        <p className="text-on-surface-variant max-w-md mb-8">
-          Verbinde deinen Google Kalender einmalig, um deine Projekte, Deadlines und Fokus-Zeiten dauerhaft zu synchronisieren.
-        </p>
-        <button
-          type="button"
-          onClick={handleConnectCalendar}
-          className="bg-primary text-white px-6 py-3 rounded-xl font-bold hover:bg-black transition-colors flex items-center gap-2"
-        >
-          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5 bg-white rounded-full p-0.5" />
-          Mit Google Kalender verbinden
-        </button>
+      <div className="flex min-h-[60vh] flex-col items-center justify-center px-4">
+      <EmptyState
+        bordered={false}
+        icon="calendar_month"
+        title="Kalender verbinden"
+        description="Verbinde deinen Google Kalender einmalig, um deine Projekte, Deadlines und Fokus-Zeiten dauerhaft zu synchronisieren."
+        action={(
+          <Button size="lg" onClick={handleConnectCalendar}>
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="" className="h-5 w-5 rounded-xs bg-white p-0.5" />
+            Mit Google Kalender verbinden
+          </Button>
+        )}
+      />
       </div>
     );
   }
@@ -280,7 +278,7 @@ const Calendar = () => {
   const monthSlideProps = { selectedDay, getEventsForCell, onCellClick: handleCellClick, onEventClick: handleEventClick };
 
   return (
-    <div className="screen-transition flex flex-col flex-1 h-full min-h-0 bg-white">
+    <div className="flex h-full min-h-0 flex-1 flex-col bg-surface">
       <CalendarHeader
         monthIndex={currentMonthIndex}
         year={currentYear}

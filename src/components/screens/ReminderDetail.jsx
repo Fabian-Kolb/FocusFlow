@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useModalContext } from '../../context/ModalContext';
 import NotesSection from '../ui/NotesSection';
 import GlobalChatDrawer from '../ui/GlobalChatDrawer';
-import FioIcon from '../ui/FioIcon';
 import CalendarDesyncModal from '../modals/CalendarDesyncModal';
 import { RECURRENCE_OPTIONS, getRecurrenceOptionId, formatRecurrence, toIsoDate } from '../../lib/recurrence';
 
+import { Alert, Badge, Button, Card, Chip, FOCUS, Field, FioMark, Icon, IconButton, Input, ProgressBar, SectionHeader, Select, cx } from '../ds';
 const ReminderDetail = ({ setCurrentScreen }) => {
   const {
     reminders,
@@ -110,9 +110,10 @@ const ReminderDetail = ({ setCurrentScreen }) => {
 
   if (!reminder) {
     return (
-      <div className="flex flex-col items-center justify-center h-full">
-        <p className="mb-4">Erinnerung nicht gefunden.</p>
-        <button className="px-4 py-2 border rounded" onClick={() => setCurrentScreen('reminders')}>Zurück</button>
+      <div className="flex h-full flex-col items-center justify-center gap-4 p-12 text-center">
+      <Icon name="notifications_off" size="xl" className="text-tertiary" />
+      <h2 className="text-heading text-primary">Erinnerung nicht gefunden</h2>
+      <Button onClick={() => setCurrentScreen('reminders')}>Zurück zur Übersicht</Button>
       </div>
     );
   }
@@ -120,18 +121,18 @@ const ReminderDetail = ({ setCurrentScreen }) => {
   // Status style helper
   const getStatusButtonClass = (status, isActive) => {
     if (!isActive) {
-      return "bg-surface-low text-on-surface-variant border-outline-variant hover:border-primary hover:text-primary opacity-60 hover:opacity-100";
+      return "bg-subtle text-secondary border-subtle hover:border-strong hover:text-primary opacity-60 hover:opacity-100";
     }
-    if (status === 'GEPLANT') return "bg-amber-100 text-amber-900 border-amber-400 ring-1 ring-amber-400 opacity-100";
-    if (status === 'AKTIV') return "bg-emerald-100 text-emerald-900 border-emerald-400 ring-1 ring-emerald-400 opacity-100";
-    if (status === 'ABGESCHLOSSEN') return "bg-neutral-200 text-neutral-800 border-neutral-400 ring-1 ring-neutral-400 opacity-100";
+    if (status === 'GEPLANT') return "bg-warning-subtle text-warning border-warning ring-1 ring-focus opacity-100";
+    if (status === 'AKTIV') return "bg-success-subtle text-success border-success ring-1 ring-focus opacity-100";
+    if (status === 'ABGESCHLOSSEN') return "bg-muted text-primary border-control ring-1 ring-focus opacity-100";
     return "";
   };
 
   const getStatusDotClass = (status) => {
-    if (status === 'GEPLANT') return "bg-amber-600";
-    if (status === 'AKTIV') return "bg-emerald-600 animate-pulse";
-    if (status === 'ABGESCHLOSSEN') return "bg-neutral-600";
+    if (status === 'GEPLANT') return "bg-warning";
+    if (status === 'AKTIV') return "bg-success animate-pulse";
+    if (status === 'ABGESCHLOSSEN') return "bg-control";
   };
 
   const handleStructureNotes = async () => {
@@ -180,7 +181,7 @@ const ReminderDetail = ({ setCurrentScreen }) => {
       // Set hours to 0 to only compare days if time isn't strict, but here time matters
       const diffMs = targetDate - now;
       const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-      
+
       if (reminder.createdAt) {
           const start = reminder.createdAt;
           const end = targetDate.getTime();
@@ -202,7 +203,7 @@ const ReminderDetail = ({ setCurrentScreen }) => {
           daysRemainingText = `In ${diffDays} Tagen`;
         }
       }
-      
+
       dateText = targetDate.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
       if (reminder.time) {
         dateText += ` • ${reminder.time} Uhr`;
@@ -217,376 +218,261 @@ const ReminderDetail = ({ setCurrentScreen }) => {
       daysRemainingText = 'Morgen fällig';
   }
 
+  const statusOptions = [
+    { id: 'GEPLANT', label: 'Geplant', icon: 'schedule' },
+    { id: 'AKTIV', label: 'Aktiv', icon: 'play_circle' },
+    { id: 'ABGESCHLOSSEN', label: 'Erledigt', icon: 'check_circle' },
+  ];
+  const recurrenceOptionId = getRecurrenceOptionId(reminder.recurrence);
+
   return (
-    <div className="screen-transition">
-      {reminder.isPaused && (
-        <div className="fixed top-0 left-0 right-0 h-64 sm:h-80 bg-gradient-to-b from-blue-200/70 via-blue-100/25 to-transparent pointer-events-none z-0" />
-      )}
-      <div className="w-full mx-auto space-y-4 sm:space-y-6 relative z-10">
-        <div>
-          {/* Breadcrumb Navigation */}
-          <nav className="flex items-center gap-1.5 text-xs font-mono text-on-surface-variant mb-4 flex-wrap bg-surface-low/60 p-2.5 rounded-xl border border-outline-variant/60">
-            <button
-              onClick={() => setCurrentScreen && setCurrentScreen('reminders')}
-              className="hover:text-primary transition-colors flex items-center gap-1 font-bold text-on-surface-variant hover:underline cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[16px]">arrow_back</span>
-              Übersicht
-            </button>
-            <span className="text-outline-variant font-bold">/</span>
-            <div className="inline-flex items-center gap-1">
-              <button
-                onClick={() => {
-                  if (setCurrentScreen) {
-                    setCurrentScreen('reminders');
-                    setTimeout(() => {
-                      const el = document.getElementById(`rcat-sec-${categoryObj.id}`);
-                      if (el) {
-                        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                      }
-                    }, 100);
+    <div>
+      <div className="relative mx-auto w-full space-y-4 sm:space-y-6">
+        {/* Brotkrumen */}
+        <nav aria-label="Pfad" className="flex flex-wrap items-center gap-1 text-caption text-secondary">
+          <Button variant="ghost" size="sm" leadingIcon="arrow_back" onClick={() => setCurrentScreen && setCurrentScreen('reminders')}>
+            Erinnerungen
+          </Button>
+          <span className="text-disabled" aria-hidden="true">/</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              if (setCurrentScreen) {
+                setCurrentScreen('reminders');
+                setTimeout(() => {
+                  const el = document.getElementById(`rcat-sec-${categoryObj.id}`);
+                  if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                   }
-                }}
-                className="hover:text-primary transition-colors text-on-surface-variant hover:underline font-medium cursor-pointer"
-              >
-                {categoryObj.name}
-              </button>
-              <button
-                onClick={() => openModal('moveCategory', { type: 'reminder', itemId: reminder.id, currentCategoryId: reminder.categoryId })}
-                className="p-1 hover:bg-surface-low text-on-surface-variant hover:text-primary rounded-lg transition-colors cursor-pointer flex items-center"
-                title="Kategorie ändern"
-              >
-                <span className="material-symbols-outlined text-[15px]">folder_open</span>
-              </button>
-            </div>
-            <span className="text-outline-variant font-bold">/</span>
-            <span className="font-bold text-primary truncate max-w-[200px] sm:max-w-xs">
-              {reminder.title}
-            </span>
-          </nav>
+                }, 100);
+              }
+            }}
+          >
+            {categoryObj.name}
+          </Button>
+          <IconButton
+            icon="folder_open"
+            label="Kategorie ändern"
+            size="sm"
+            onClick={() => openModal('moveCategory', { type: 'reminder', itemId: reminder.id, currentCategoryId: reminder.categoryId })}
+          />
+        </nav>
 
-          {isTrashed && (
-            <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-start gap-3">
-              <span className="material-symbols-outlined text-red-600 mt-0.5">delete</span>
-              <div>
-                <p className="font-bold text-sm">Erinnerung im Papierkorb</p>
-                <p className="text-xs mt-1">Diese Erinnerung wurde gelöscht. Um sie wieder richtig zu bearbeiten, stelle sie im Papierkorb wieder her.</p>
-              </div>
-            </div>
-          )}
+        {isTrashed && (
+          <Alert tone="danger" icon="delete" title="Erinnerung im Papierkorb">
+            Diese Erinnerung wurde gelöscht. Stelle sie im Papierkorb wieder her, um sie zu bearbeiten.
+          </Alert>
+        )}
 
-          {/* Read-Only Wrapper for Trashed Items */}
-          <div className={isTrashed ? 'pointer-events-none opacity-60 grayscale-[0.2]' : ''}>
-
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-            <div className="flex flex-col gap-1 flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                {isEditingTitle ? (
-                  <div className="flex items-center gap-2 flex-1 max-w-xl">
-                    <input
-                      type="text"
-                      value={editTitle}
-                      onChange={(e) => setEditTitle(e.target.value)}
-                      onBlur={handleSaveTitle}
-                      autoFocus
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleSaveTitle();
-                        if (e.key === 'Escape') {
-                          setEditTitle(reminder.title || '');
-                          setIsEditingTitle(false);
-                        }
-                      }}
-                      className="text-2xl sm:text-3xl font-bold leading-tight px-2 py-1 border border-primary rounded-xl bg-surface-low focus:bg-white focus:outline-none w-full"
-                    />
-                    <button
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        handleSaveTitle();
-                      }}
-                      className="p-1.5 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors cursor-pointer shrink-0"
-                      title="Speichern"
-                    >
-                      <span className="material-symbols-outlined text-[18px]">check</span>
-                    </button>
-                    <button
-                      onMouseDown={(e) => {
-                        e.preventDefault();
+        {/* Schreibgeschützt, solange die Erinnerung im Papierkorb liegt */}
+        <div className={cx('space-y-4 sm:space-y-6', isTrashed && 'pointer-events-none opacity-60')}>
+          <header className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+            <div className="min-w-0 flex-1">
+              {isEditingTitle ? (
+                <div className="flex max-w-xl items-center gap-2">
+                  <input
+                    type="text"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    onBlur={handleSaveTitle}
+                    autoFocus
+                    aria-label="Titel der Erinnerung"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveTitle();
+                      if (e.key === 'Escape') {
                         setEditTitle(reminder.title || '');
                         setIsEditingTitle(false);
-                      }}
-                      className="p-1.5 bg-surface-low text-on-surface-variant hover:bg-surface-variant rounded-lg transition-colors cursor-pointer shrink-0"
-                      title="Abbrechen"
-                    >
-                      <span className="material-symbols-outlined text-[18px]">close</span>
-                    </button>
-                  </div>
-                ) : (
-                  <div className="group flex items-center gap-2 flex-wrap">
-                    <h1 
-                      onClick={() => !isTrashed && setIsEditingTitle(true)}
-                      className={`text-2xl sm:text-3xl font-bold leading-tight cursor-pointer hover:underline decoration-primary/40 underline-offset-4 ${isTrashed ? 'cursor-default hover:no-underline' : ''}`}
-                      title={isTrashed ? '' : 'Klicken zum Umbenennen'}
-                    >
-                      {reminder.title}
-                    </h1>
-                    {!isTrashed && (
-                      <button
-                        onClick={() => setIsEditingTitle(true)}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-on-surface-variant hover:text-primary hover:bg-surface-low rounded-lg cursor-pointer"
-                        title="Erinnerung umbenennen"
-                      >
-                        <span className="material-symbols-outlined text-[18px]">edit</span>
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-              <button
-                className={`inline-flex items-center justify-center w-8 h-8 rounded-xl border transition-all shadow-sm cursor-pointer ${
-                  reminder.isPaused
-                    ? 'bg-blue-100 border-blue-300 text-blue-900 hover:bg-blue-200'
-                    : 'bg-white border-outline-variant text-on-surface-variant hover:text-primary hover:border-primary'
-                }`}
-                onClick={() => toggleReminderPause(reminder.id)}
-                title={reminder.isPaused ? 'Fortsetzen' : 'Pausieren'}
-              >
-                <span className="material-symbols-outlined text-[18px]">
-                  {reminder.isPaused ? 'play_arrow' : 'pause'}
-                </span>
-              </button>
-              
-              {/* Kanban Toggle Button */}
-              <button
-                className={`inline-flex items-center justify-center w-8 h-8 rounded-xl border transition-all shadow-sm cursor-pointer ${
-                  reminder.inKanban !== false
-                    ? 'bg-primary/10 border-primary/40 text-primary hover:bg-primary/20'
-                    : 'bg-slate-100 border-slate-300 text-slate-400 hover:bg-slate-200'
-                }`}
-                onClick={() => toggleReminderKanban(reminder.id)}
-                title={reminder.inKanban !== false ? 'Vom Kanban-Board ausblenden' : 'Auf Kanban-Board einblenden'}
-              >
-                <div className="relative inline-flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[18px]">view_kanban</span>
-                  {reminder.inKanban === false && (
-                    <span className="absolute text-slate-600 font-bold text-xs select-none pointer-events-none transform rotate-45">
-                      —
-                    </span>
+                      }
+                    }}
+                    className="w-full rounded-md border border-strong bg-surface px-2 py-1 text-title focus:outline-none sm:text-title-lg"
+                  />
+                  <IconButton
+                    icon="check"
+                    label="Speichern"
+                    variant="primary"
+                    size="sm"
+                    className="shrink-0"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      handleSaveTitle();
+                    }}
+                  />
+                  <IconButton
+                    icon="close"
+                    label="Abbrechen"
+                    variant="secondary"
+                    size="sm"
+                    className="shrink-0"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setEditTitle(reminder.title || '');
+                      setIsEditingTitle(false);
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="group flex flex-wrap items-center gap-2">
+                  <h1
+                    onClick={() => !isTrashed && setIsEditingTitle(true)}
+                    className={cx('text-title text-primary sm:text-title-lg', isTrashed ? 'cursor-default' : 'cursor-pointer hover:underline hover:underline-offset-4')}
+                    title={isTrashed ? '' : 'Klicken zum Umbenennen'}
+                  >
+                    {reminder.title}
+                  </h1>
+                  {!isTrashed && (
+                    <IconButton icon="edit" label="Erinnerung umbenennen" size="sm" className="opacity-0 focus-visible:opacity-100 group-hover:opacity-100" onClick={() => setIsEditingTitle(true)} />
                   )}
                 </div>
-              </button>
-            </div>
-          </div>
-
-          {/* BOX 1: Zeitspanne & Balken-System */}
-          <div className="p-3.5 sm:p-5 bg-white border border-outline-variant rounded-xl space-y-3 shadow-sm mb-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2 border-b border-outline-variant pb-2.5">
-              <span className="text-xs font-mono font-bold text-primary uppercase whitespace-nowrap">
-                ZEITSPANNE & BALKEN-SYSTEM
-              </span>
-              <div className="flex items-center gap-2">
-                {isEditingDates ? (
-                  <div className="flex items-center gap-2">
-                    <input 
-                      type="date" 
-                      className="text-[10px] sm:text-[11px] border border-outline-variant rounded px-1 py-0.5 outline-none focus:border-primary" 
-                      value={editDate} 
-                      onChange={(e) => setEditDate(e.target.value)} 
-                    />
-                    <input 
-                      type="time" 
-                      className="text-[10px] sm:text-[11px] border border-outline-variant rounded px-1 py-0.5 outline-none focus:border-primary" 
-                      value={editTime} 
-                      onChange={(e) => setEditTime(e.target.value)} 
-                    />
-                    <button onClick={handleSaveDates} className="text-primary hover:bg-surface-low rounded p-0.5 transition-colors">
-                      <span className="material-symbols-outlined text-[14px]">check</span>
-                    </button>
-                    <button onClick={() => setIsEditingDates(false)} className="text-red-500 hover:bg-red-50 rounded p-0.5 transition-colors">
-                      <span className="material-symbols-outlined text-[14px]">close</span>
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <div className="no-wrap-scroll text-[11px] sm:text-xs mono font-bold text-primary">
-                      <span>{dateText} {daysRemainingText && `(${daysRemainingText})`}</span>
-                    </div>
-                    <button onClick={() => setIsEditingDates(true)} className="text-on-surface-variant hover:text-primary transition-colors flex items-center justify-center p-0.5" title="Datum bearbeiten">
-                      <span className="material-symbols-outlined text-[14px]">edit</span>
-                    </button>
-                  </div>
-                )}
-              </div>
+              )}
             </div>
 
-            {!isTrashed && (() => {
-              const optionId = getRecurrenceOptionId(reminder.recurrence);
-              return (
-                <label className="flex items-center gap-2 text-xs text-on-surface-variant">
-                  <span className="material-symbols-outlined text-[16px]">event_repeat</span>
-                  <span className="font-mono font-bold uppercase text-primary">Wiederholen</span>
-                  <select
-                    aria-label="Wiederholung"
-                    className="ml-auto border border-outline-variant rounded-lg px-2 py-1 text-xs bg-white outline-none focus:border-primary cursor-pointer"
-                    value={optionId ?? 'custom'}
-                    onChange={(e) => handleRecurrenceChange(e.target.value)}
-                  >
-                    {optionId === null && <option value="custom">{formatRecurrence(reminder.recurrence)}</option>}
-                    {RECURRENCE_OPTIONS.map((o) => (
-                      <option key={o.id} value={o.id}>{o.label}</option>
-                    ))}
-                  </select>
-                </label>
-              );
-            })()}
+            <div className="flex items-center gap-2">
+              <IconButton
+                icon={reminder.isPaused ? 'play_arrow' : 'pause'}
+                label={reminder.isPaused ? 'Fortsetzen' : 'Pausieren'}
+                variant="secondary"
+                className={reminder.isPaused ? '!border-accent !bg-accent-subtle !text-accent' : ''}
+                onClick={() => toggleReminderPause(reminder.id)}
+              />
+              <IconButton
+                icon={reminder.inKanban !== false ? 'view_kanban' : 'visibility_off'}
+                label={reminder.inKanban !== false ? 'Vom Kanban-Board ausblenden' : 'Auf Kanban-Board einblenden'}
+                variant="secondary"
+                filled={reminder.inKanban !== false}
+                onClick={() => toggleReminderKanban(reminder.id)}
+              />
+            </div>
+          </header>
 
-            <div className="space-y-2">
-              <div>
-                <div className="flex justify-between text-[10px] sm:text-[11px] mono text-on-surface-variant mb-1 flex-wrap gap-1">
-                  <span>VERSTRICHENE ZEIT: {timeElapsed}%</span>
-                  <span>{daysRemainingText || 'Demnächst'}</span>
+          {/* Zeitspanne, Wiederholung und Kalender */}
+          <Card padding="md" className="space-y-4">
+            <SectionHeader
+              title="Zeitspanne"
+              action={isEditingDates ? (
+                <div className="flex items-center gap-2">
+                  <Input type="date" size="sm" aria-label="Datum" value={editDate} onChange={(e) => setEditDate(e.target.value)} className="w-36" />
+                  <Input type="time" size="sm" aria-label="Uhrzeit" value={editTime} onChange={(e) => setEditTime(e.target.value)} className="w-28" />
+                  <IconButton icon="check" label="Datum speichern" variant="primary" size="sm" onClick={handleSaveDates} />
+                  <IconButton icon="close" label="Abbrechen" variant="secondary" size="sm" onClick={() => setIsEditingDates(false)} />
                 </div>
-                <div className="w-full bg-surface-low h-2 border border-outline-variant rounded-full overflow-hidden">
-                  <div className="bg-primary h-full rounded-full transition-all duration-300" style={{ width: `${timeElapsed}%` }}></div>
-                </div>
-              </div>
-            </div>
-
-            {/* Kalender-Synchronisation Leiste */}
-            <div className="pt-3 border-t border-outline-variant/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="material-symbols-outlined text-[18px] text-primary">calendar_month</span>
-                <span className="text-xs font-mono font-bold text-on-surface">
-                  GOOGLE KALENDER:
-                </span>
-                {reminder.isCalendarSynced ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold">
-                    <span className="material-symbols-outlined text-[14px]">check_circle</span>
-                    Synchronisiert
+              ) : (
+                <div className="flex items-center gap-1">
+                  <span className="text-caption-strong text-primary">
+                    {dateText}
+                    {daysRemainingText && <span className={isOverdue ? 'text-danger' : 'text-secondary'}> ({daysRemainingText})</span>}
                   </span>
-                ) : (
-                  <span className="text-[11px] text-on-surface-variant">
-                    Nicht synchronisiert
-                  </span>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2">
-                {reminder.isCalendarSynced ? (
-                  <button
-                    type="button"
-                    disabled={isSyncing}
-                    onClick={() => setIsDesyncModalOpen(true)}
-                    className="px-2.5 py-1 text-[11px] font-mono font-bold text-on-surface-variant hover:text-red-600 hover:bg-red-50 border border-outline-variant hover:border-red-200 rounded-lg transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                    title="Synchronisation trennen"
-                  >
-                    <span className="material-symbols-outlined text-[14px]">sync_disabled</span>
-                    <span>Trennen</span>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={isSyncing || user?.isGuest || !isCalendarConnected}
-                    onClick={handleSyncToCalendar}
-                    title={
-                      user?.isGuest
-                        ? 'Im Gastmodus nicht verfügbar'
-                        : !isCalendarConnected
-                        ? 'Google Kalender ist nicht verbunden'
-                        : 'Mit Google Kalender synchronisieren'
-                    }
-                    className="px-3 py-1.5 text-xs font-mono font-bold text-white bg-primary hover:bg-neutral-800 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isSyncing ? (
-                      <>
-                        <span className="material-symbols-outlined text-[14px] animate-spin">sync</span>
-                        <span>Synchronisiere...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="material-symbols-outlined text-[14px]">sync</span>
-                        <span>Mit Kalender synchronisieren</span>
-                      </>
-                    )}
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Error & Retry Banner */}
-            {syncErrors && syncErrors[reminder.id] && (
-              <div className="mt-2 p-2.5 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between gap-2 text-xs text-red-700">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="material-symbols-outlined text-[16px] text-red-600 shrink-0">error</span>
-                  <span className="truncate">{syncErrors[reminder.id].message}</span>
+                  <IconButton icon="edit" label="Datum bearbeiten" size="sm" onClick={() => setIsEditingDates(true)} />
                 </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <button
-                    type="button"
-                    onClick={handleSyncToCalendar}
-                    className="px-2 py-0.5 bg-red-100 hover:bg-red-200 text-red-800 font-bold rounded-md transition-colors cursor-pointer"
-                  >
-                    Wiederholen
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => clearEntitySyncError && clearEntitySyncError(reminder.id)}
-                    className="p-0.5 hover:bg-red-100 rounded text-red-600"
-                    title="Fehlermeldung schließen"
-                  >
-                    <span className="material-symbols-outlined text-[14px]">close</span>
-                  </button>
-                </div>
-              </div>
+              )}
+            />
+
+            {!isTrashed && (
+              <Field label="Wiederholen">
+                <Select
+                  aria-label="Wiederholung"
+                  size="sm"
+                  value={recurrenceOptionId ?? 'custom'}
+                  onChange={(e) => handleRecurrenceChange(e.target.value)}
+                >
+                  {recurrenceOptionId === null && <option value="custom">{formatRecurrence(reminder.recurrence)}</option>}
+                  {RECURRENCE_OPTIONS.map((o) => (
+                    <option key={o.id} value={o.id}>{o.label}</option>
+                  ))}
+                </Select>
+              </Field>
             )}
-          </div>
 
-          {/* BOX 1.5: TRACKING & STATUS */}
-          <div className="p-3.5 sm:p-5 bg-white border border-outline-variant rounded-xl space-y-4 shadow-sm mb-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-outline-variant pb-2.5">
-              <span className="text-xs font-mono font-bold text-primary uppercase">
-                TRACKING & STATUS
-              </span>
-            </div>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 w-full">
-              <div className="flex items-center justify-center gap-1.5 sm:gap-2 w-full h-full">
-                {['GEPLANT', 'AKTIV', 'ABGESCHLOSSEN'].map((s) => {
-                  const isActive = reminder.status === s;
-                  return (
-                    <button
-                      key={s}
-                      onClick={() => {
-                        if (setReminderStatus) setReminderStatus(reminder.id, s);
-                      }}
-                      className={`flex-1 h-full inline-flex items-center justify-center gap-1.5 px-2 sm:px-3 py-2 border rounded-xl font-mono text-[10px] sm:text-xs font-bold transition-all shadow-sm cursor-pointer whitespace-nowrap ${getStatusButtonClass(s, isActive)}`}
-                    >
-                      <span>{s === 'ABGESCHLOSSEN' ? 'ERLEDIGT' : s}</span>
-                    </button>
-                  );
-                })}
+            <ProgressBar
+              value={timeElapsed}
+              tone={isOverdue ? 'danger' : 'accent'}
+              label={`Verstrichene Zeit · ${daysRemainingText || 'Demnächst'}`}
+              showValue
+            />
+
+            {/* Kalender-Synchronisation */}
+            <div className="flex flex-col justify-between gap-3 border-t border-subtle pt-4 sm:flex-row sm:items-center">
+              <div className="flex min-w-0 items-center gap-2">
+                <Icon name="calendar_month" size="md" className="text-secondary" />
+                <span className="text-label text-primary">Google Kalender</span>
+                {reminder.isCalendarSynced ? (
+                  <Badge tone="success" icon="check_circle">Synchronisiert</Badge>
+                ) : (
+                  <span className="text-caption text-secondary">Nicht synchronisiert</span>
+                )}
               </div>
-            </div>
-          </div>
 
-          {/* BOX 2: Notizen */}
-          <NotesSection 
+              {reminder.isCalendarSynced ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  leadingIcon="sync_disabled"
+                  disabled={isSyncing}
+                  onClick={() => setIsDesyncModalOpen(true)}
+                  title="Synchronisation trennen"
+                >
+                  Trennen
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  leadingIcon="sync"
+                  loading={isSyncing}
+                  disabled={user?.isGuest || !isCalendarConnected}
+                  onClick={handleSyncToCalendar}
+                  title={
+                    user?.isGuest
+                      ? 'Im Gastmodus nicht verfügbar'
+                      : !isCalendarConnected
+                      ? 'Google Kalender ist nicht verbunden'
+                      : 'Mit Google Kalender synchronisieren'
+                  }
+                >
+                  {isSyncing ? 'Synchronisiere …' : 'Mit Kalender synchronisieren'}
+                </Button>
+              )}
+            </div>
+
+            {syncErrors && syncErrors[reminder.id] && (
+              <Alert
+                tone="danger"
+                onDismiss={() => clearEntitySyncError && clearEntitySyncError(reminder.id)}
+                action={<Button variant="secondary" size="sm" onClick={handleSyncToCalendar}>Wiederholen</Button>}
+              >
+                {syncErrors[reminder.id].message}
+              </Alert>
+            )}
+          </Card>
+
+          {/* Status */}
+          <Card padding="md" className="space-y-4">
+            <SectionHeader title="Status" />
+            <div className="flex flex-wrap items-center gap-2">
+              {statusOptions.map((s) => (
+                <Chip
+                  key={s.id}
+                  selected={reminder.status === s.id}
+                  leadingIcon={s.icon}
+                  onClick={() => { if (setReminderStatus) setReminderStatus(reminder.id, s.id); }}
+                >
+                  {s.label}
+                </Chip>
+              ))}
+            </div>
+          </Card>
+
+          {/* Notizen */}
+          <NotesSection
             notes={reminder.notes || []}
             onAddNote={handleAddNote}
             onUpdateNote={handleUpdateNote}
             onDeleteNote={handleDeleteNote}
           />
-
-        </div>
-        
-        {/* End of Read-Only Wrapper */}
         </div>
       </div>
 
-      {/* Global Fio AI Chat Drawer for Reminder */}
-      <GlobalChatDrawer 
+      {/* Fio für diese Erinnerung */}
+      <GlobalChatDrawer
         isOpen={isGlobalChatOpen}
         onClose={() => setIsGlobalChatOpen(false)}
         projectData={null}
@@ -594,18 +480,22 @@ const ReminderDetail = ({ setCurrentScreen }) => {
         contextData={reminder}
       />
 
-      {/* Floating Action Speech Bubble (FAB) for Fio */}
       {!isGlobalChatOpen && (
         <button
+          type="button"
           onClick={() => setIsGlobalChatOpen(true)}
-          title="Fio (KI-Coach) für diese Erinnerung öffnen"
-          className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] right-4 sm:bottom-6 sm:right-6 z-50 w-12 h-12 sm:w-13 sm:h-13 flex items-center justify-center bg-neutral-900 text-white rounded-2xl rounded-br-[3px] shadow-2xl hover:shadow-primary/30 border border-neutral-700/60 hover:bg-black hover:scale-105 active:scale-95 transition-all duration-300 group cursor-pointer p-3"
+          title="Fio für diese Erinnerung öffnen"
+          aria-label="Fio für diese Erinnerung öffnen"
+          className={cx(
+            'group fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] right-4 z-dropdown flex h-12 w-12 items-center justify-center rounded-lg bg-inverse text-inverse shadow-lg transition-transform duration-fast hover:scale-105 active:scale-95 motion-reduce:transform-none sm:bottom-6 sm:right-6',
+            FOCUS,
+          )}
         >
-          <FioIcon className="w-full h-full text-white group-hover:scale-110 transition-transform" color="currentColor" />
+          <FioMark size={20} />
         </button>
       )}
 
-      {/* Calendar De-Sync Confirmation Modal */}
+      {/* Kalender-Synchronisierung trennen */}
       <CalendarDesyncModal
         isOpen={isDesyncModalOpen}
         title={reminder.title}
@@ -619,4 +509,3 @@ const ReminderDetail = ({ setCurrentScreen }) => {
 };
 
 export default ReminderDetail;
-

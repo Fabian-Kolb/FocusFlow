@@ -2,8 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useData } from '../../context/DataContext';
 import { searchCommands } from '../../lib/commandSearch';
 import { NAV_COMMANDS, ACTION_COMMANDS } from '../../lib/appCommands';
-import FioIcon from './FioIcon';
 
+import { FioMark, Icon, Kbd, cx } from '../ds';
 const GROUP_LABELS = {
   action: 'Aktionen',
   nav: 'Gehe zu',
@@ -13,13 +13,7 @@ const GROUP_LABELS = {
 };
 const GROUP_ORDER = ['action', 'nav', 'project', 'reminder', 'thought'];
 
-function Kbd({ children }) {
-  return (
-    <kbd className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded border border-outline-variant bg-surface-low text-[10px] font-sans font-semibold text-on-surface-variant">
-      {children}
-    </kbd>
-  );
-}
+
 
 export function KeyHint({ keys }) {
   return (
@@ -30,8 +24,8 @@ export function KeyHint({ keys }) {
 }
 
 function ItemIcon({ icon }) {
-  if (icon === 'fio') return <FioIcon className="w-[18px] h-[18px]" color="currentColor" />;
-  return <span className="material-symbols-outlined text-[18px]">{icon}</span>;
+  if (icon === 'fio') return <FioMark size={20} />;
+  return <Icon name={icon} size="md" />;
 }
 
 /**
@@ -121,18 +115,18 @@ export default function CommandPalette({ open, onClose, onNavigate, onAction, on
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-start justify-center bg-black/40 backdrop-blur-[2px] px-3 pt-[10vh] animate-fadeIn"
+      className="fixed inset-0 z-palette flex items-start justify-center bg-scrim px-3 pt-[10vh]"
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Befehlsleiste"
-        className="w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-outline-variant overflow-hidden flex flex-col max-h-[70vh]"
+        className="flex max-h-[70vh] w-full max-w-xl flex-col overflow-hidden rounded-xl border border-subtle bg-raised shadow-lg"
         onKeyDown={onKeyDown}
       >
-        <div className="flex items-center gap-3 px-4 border-b border-outline-variant">
-          <span className="material-symbols-outlined text-[20px] text-on-surface-variant">search</span>
+        <div className="flex items-center gap-3 border-b border-subtle px-4">
+          <Icon name="search" size="md" className="text-secondary" />
           <input
             ref={inputRef}
             type="text"
@@ -141,16 +135,16 @@ export default function CommandPalette({ open, onClose, onNavigate, onAction, on
             aria-controls="command-palette-list"
             aria-activedescendant={results[activeIndex] ? `cmd-${results[activeIndex].id}` : undefined}
             placeholder="Suchen oder Befehl eingeben …"
-            className="flex-1 h-14 bg-transparent text-base text-primary placeholder:text-on-surface-variant outline-none border-0 focus:ring-0 px-0"
+            className="h-14 flex-1 border-0 bg-transparent px-0 text-body-lg text-primary outline-none placeholder:text-tertiary focus:ring-0"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
           <Kbd>Esc</Kbd>
         </div>
 
-        <ul id="command-palette-list" ref={listRef} role="listbox" className="overflow-y-auto py-2">
+        <ul id="command-palette-list" ref={listRef} role="listbox" aria-label="Ergebnisse" className="overflow-y-auto py-2">
           {results.length === 0 && (
-            <li className="px-4 py-8 text-center text-sm text-on-surface-variant">Nichts gefunden für „{query}“</li>
+            <li className="px-4 py-8 text-center text-body text-secondary">Nichts gefunden für „{query}“</li>
           )}
           {results.map((item, index) => {
             const header = item.group !== lastGroup ? GROUP_LABELS[item.group] : null;
@@ -159,7 +153,7 @@ export default function CommandPalette({ open, onClose, onNavigate, onAction, on
             return (
               <React.Fragment key={item.id}>
                 {header && (
-                  <li role="presentation" className="px-4 pt-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">
+                  <li role="presentation" className="px-4 pb-1 pt-3 font-label text-eyebrow uppercase text-tertiary">
                     {header}
                   </li>
                 )}
@@ -170,19 +164,15 @@ export default function CommandPalette({ open, onClose, onNavigate, onAction, on
                   data-index={index}
                   onMouseMove={() => setActiveIndex(index)}
                   onClick={() => runItem(item)}
-                  className={`mx-2 px-3 py-2.5 rounded-xl flex items-center gap-3 cursor-pointer text-sm ${
-                    active ? 'bg-primary text-on-primary' : 'text-primary'
-                  }`}
-                >
-                  <span className={`flex items-center justify-center w-5 shrink-0 ${active ? '' : 'text-on-surface-variant'}`}>
-                    <ItemIcon icon={item.icon} />
+                  className={cx('mx-2 flex cursor-pointer items-center gap-3 rounded-md px-3 py-2.5 text-body', active ? 'bg-selected text-primary' : 'text-primary')}
+                  >
+                  <span className={cx('flex w-5 shrink-0 items-center justify-center', active ? 'text-accent' : 'text-secondary')}>
+                  <ItemIcon icon={item.icon} />
                   </span>
-                  <span className="flex-1 min-w-0 truncate">{item.label}</span>
-                  {item.sub && (
-                    <span className={`text-xs shrink-0 ${active ? 'opacity-80' : 'text-on-surface-variant'}`}>{item.sub}</span>
-                  )}
+                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                  {item.sub && <span className="shrink-0 text-caption text-secondary">{item.sub}</span>}
                   {item.keys && !active && <KeyHint keys={item.keys} />}
-                  {active && <span className="material-symbols-outlined text-[16px] opacity-80">keyboard_return</span>}
+                  {active && <Icon name="keyboard_return" size="sm" className="text-accent" />}
                 </li>
               </React.Fragment>
             );

@@ -2,23 +2,26 @@ import React from 'react';
 import { SectionIcon, TaskIcon } from './ItemIcons';
 import { getReminderDateInfo } from '../../lib/reminderDates';
 import { formatRecurrence } from '../../lib/recurrence';
+import { Badge, FOCUS, Icon, cx } from '../ds';
 
 // Gemeinsamer Karteninhalt für Projekte und Erinnerungen.
 // Wird in der Projekt-/Erinnerungsübersicht und im Kanban-Board genutzt, damit alle drei Stellen
 // gleich aussehen. Drag-Handler, Klick und Pausiert-Styling bleiben beim jeweiligen Screen.
 
-const STATUS_LABELS = { LAUFEND: 'AKTIV', ABGESCHLOSSEN: 'ERLEDIGT' };
-
-function statusStyle(status) {
-  if (status === 'GEPLANT') return 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200';
-  if (status === 'ABGESCHLOSSEN') return 'bg-neutral-100 text-neutral-800 border-neutral-300 hover:bg-neutral-200';
-  return 'bg-emerald-100 text-emerald-900 border-emerald-300 hover:bg-emerald-200';
-}
+// Status = Bedeutung (Regel 01): aktiv grün, geplant Stahlblau, erledigt neutral mit Haken
+const STATUS_META = {
+  LAUFEND: { label: 'Aktiv', tone: 'success' },
+  'IN ARBEIT': { label: 'Aktiv', tone: 'success' },
+  AKTIV: { label: 'Aktiv', tone: 'success' },
+  GEPLANT: { label: 'Geplant', tone: 'info' },
+  ABGESCHLOSSEN: { label: 'Erledigt', tone: 'neutral', icon: 'check' },
+};
 
 const clampPercent = (value) => Math.min(100, Math.max(0, Number(value) || 0));
 
 function StatusChip({ status, onToggle }) {
   if (!status) return null;
+  const meta = STATUS_META[status] || { label: status, tone: 'neutral' };
   return (
     <button
       type="button"
@@ -26,15 +29,15 @@ function StatusChip({ status, onToggle }) {
         e.stopPropagation();
         onToggle();
       }}
-      className={`shrink-0 px-2 py-0.5 rounded-md border text-[10px] sm:text-[11px] font-mono font-bold uppercase tracking-wider transition-colors cursor-pointer ${statusStyle(status)}`}
-      title="Klicken um Status zu wechseln"
+      className={cx('shrink-0 rounded-sm', FOCUS)}
+      title="Klicken, um den Status zu wechseln"
     >
-      {STATUS_LABELS[status] || status}
+      <Badge tone={meta.tone} icon={meta.icon} size="sm">{meta.label}</Badge>
     </button>
   );
 }
 
-// Runde Checkbox zum direkten Abhaken (nur Erinnerungen)
+// Abhaken (nur Erinnerungen): Quadrat wie alle Auswahlfelder, erledigt = grün
 function DoneCheckbox({ done, title, onToggle }) {
   return (
     <button
@@ -47,24 +50,25 @@ function DoneCheckbox({ done, title, onToggle }) {
         e.stopPropagation();
         onToggle();
       }}
-      className="shrink-0 -m-1.5 p-1.5 rounded-full text-on-surface-variant hover:text-emerald-600 transition-colors"
+      className={cx('relative -m-1.5 shrink-0 rounded-md p-1.5 text-secondary hover:text-success', FOCUS)}
     >
       <span
-        className={`flex items-center justify-center w-5 h-5 rounded-full border-2 transition-colors ${
-          done ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-current'
-        }`}
+        className={cx(
+          'flex h-5 w-5 items-center justify-center rounded-xs border-2 transition-colors duration-instant',
+          done ? 'border-success bg-success text-on-accent' : 'border-control bg-surface',
+        )}
       >
-        {done && <span className="material-symbols-outlined text-[14px] font-bold">check</span>}
+        {done && <Icon name="check" size="sm" />}
       </span>
     </button>
   );
 }
 
-const URGENCY_STYLES = {
-  overdue: 'bg-red-50 text-red-700 border-red-200',
-  today: 'bg-amber-50 text-amber-800 border-amber-200',
-  soon: 'bg-surface-low text-primary border-outline-variant',
-  later: 'bg-surface-low text-on-surface-variant border-outline-variant',
+const URGENCY_TONES = {
+  overdue: 'danger',
+  today: 'warning',
+  soon: 'neutral',
+  later: 'neutral',
 };
 
 function CardHeader({ item, menu, leading, done = false, dateContent }) {
@@ -72,28 +76,23 @@ function CardHeader({ item, menu, leading, done = false, dateContent }) {
     <>
       {item.inKanban === false && (
         <div
-          className="absolute top-2 right-2 w-2.5 h-2.5 bg-purple-500 rounded-full ring-2 ring-white z-10 shadow-sm"
+          className="absolute right-2 top-2 z-10 h-2.5 w-2.5 rounded-full bg-accent ring-2 ring-focus"
           title="Nicht im Kanban-Board"
         />
       )}
       <div className="flex items-start justify-between gap-2">
         {leading}
-        <div className="marquee-wrapper flex-1 min-w-0">
-          <h3 className={`text-sm sm:text-base font-bold hover:underline leading-snug marquee-content ${done ? 'line-through text-on-surface-variant' : ''}`}>
+        <div className="marquee-wrapper min-w-0 flex-1">
+          <h3 className={cx('marquee-content text-body-strong hover:underline sm:text-subheading', done && 'text-secondary line-through')}>
             {item.title}
           </h3>
         </div>
         {menu}
       </div>
-      <p className={`mt-0.5 min-h-[1rem] ${leading ? 'pl-7' : ''} text-[10px] sm:text-xs text-on-surface-variant font-mono truncate flex items-center gap-1.5`}>
+      <p className={cx('mt-0.5 flex min-h-4 items-center gap-1.5 truncate text-caption text-secondary', leading && 'pl-7')}>
         {dateContent}
         {item.isCalendarSynced && (
-          <span
-            className="material-symbols-outlined text-[14px] text-emerald-600 shrink-0"
-            title="Mit Google Kalender synchronisiert"
-          >
-            calendar_month
-          </span>
+          <Icon name="calendar_month" size="sm" className="shrink-0 text-success" title="Mit Google Kalender synchronisiert" />
         )}
       </p>
     </>
@@ -104,35 +103,35 @@ function CardHeader({ item, menu, leading, done = false, dateContent }) {
  * Fortschrittsbalken. Ohne `marker` zeigt er nur einen Wert;
  * mit `marker` markiert ein senkrechter Strich zusätzlich die verstrichene Zeit (Soll-Position).
  */
-function ProgressBar({ value, marker, label }) {
+function ElapsedProgress({ value, marker, label }) {
   const fill = clampPercent(value);
   return (
     <div
-      className="relative flex-1 h-1.5 bg-surface-low border border-outline-variant rounded-full"
+      className="relative h-1.5 flex-1 rounded-full bg-muted"
       role="progressbar"
       aria-valuenow={fill}
       aria-valuemin={0}
       aria-valuemax={100}
       aria-label={label}
     >
-      <div className="bg-primary h-full rounded-full" style={{ width: `${fill}%` }} />
+      <div className="h-full rounded-full bg-accent transition-[width] duration-slow ease-standard" style={{ width: `${fill}%` }} />
       {marker !== undefined && (
         <div
-          className="absolute -top-1 -bottom-1 w-0.5 rounded-full bg-amber-500"
+          className="absolute -bottom-1 -top-1 w-0.5 rounded-full bg-warning"
           style={{ left: `calc(${clampPercent(marker)}% - 1px)` }}
-          title={`Verstrichene Zeit: ${clampPercent(marker)}%`}
+          title={`Verstrichene Zeit: ${clampPercent(marker)} %`}
         />
       )}
     </div>
   );
 }
 
-function Stat({ icon, done, total, label }) {
+function Count({ icon, done, total, label }) {
   return (
     <span className="inline-flex items-center gap-1" title={`${label}: ${done} von ${total} erledigt`}>
       {icon}
       <span className="sr-only">{label}:</span>
-      <span className="font-bold text-primary">{done ?? 0}/{total ?? 0}</span>
+      <span className="text-caption-strong tabular-nums text-primary">{done ?? 0}/{total ?? 0}</span>
     </span>
   );
 }
@@ -146,32 +145,28 @@ export function ProjectCardContent({ project, menu, onToggleStatus }) {
         dateContent={
           <span className="truncate">
             {project.dateRange || 'Kein Datum'}
-            {project.daysRemaining && <span className="font-bold text-primary"> ({project.daysRemaining})</span>}
+            {project.daysRemaining && <span className="text-caption-strong text-primary"> ({project.daysRemaining})</span>}
           </span>
         }
       />
 
-      <div className="mt-2 flex items-center gap-3 text-[11px] sm:text-xs font-mono text-on-surface-variant">
-        <Stat icon={<SectionIcon />} done={project.phasesCompleted} total={project.phasesTotal} label="Abschnitte" />
-        <Stat icon={<TaskIcon />} done={project.tasksCompleted} total={project.tasksTotal} label="Aufgaben" />
+      <div className="mt-2 flex items-center gap-3 text-caption text-secondary">
+        <Count icon={<SectionIcon />} done={project.phasesCompleted} total={project.phasesTotal} label="Abschnitte" />
+        <Count icon={<TaskIcon />} done={project.tasksCompleted} total={project.tasksTotal} label="Aufgaben" />
       </div>
 
-      <div className="mt-2.5 pt-2.5 border-t border-outline-variant space-y-2">
-        <div className="flex items-center gap-1.5 flex-wrap">
+      <div className="mt-2.5 space-y-2 border-t border-subtle pt-2.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           <StatusChip status={project.status} onToggle={onToggleStatus} />
-          {project.warning && (
-            <span className="px-2 py-0.5 rounded-md border bg-amber-100 text-amber-900 border-amber-300 text-[10px] sm:text-[11px] font-mono font-bold uppercase tracking-wider">
-              {project.warning}
-            </span>
-          )}
+          {project.warning && <Badge tone="warning" size="sm">{project.warning}</Badge>}
         </div>
-        <div className="flex items-center gap-2 text-[10px] sm:text-[11px] font-mono font-bold">
-          <ProgressBar
+        <div className="flex items-center gap-2 text-caption-strong tabular-nums">
+          <ElapsedProgress
             value={project.progress}
             marker={project.timeElapsed}
-            label={`Fortschritt ${clampPercent(project.progress)}%, verstrichene Zeit ${clampPercent(project.timeElapsed)}%`}
+            label={`Fortschritt ${clampPercent(project.progress)} %, verstrichene Zeit ${clampPercent(project.timeElapsed)} %`}
           />
-          <span className="w-9 text-right" title="Fortschritt">{clampPercent(project.progress)}%</span>
+          <span className="w-10 text-right" title="Fortschritt">{clampPercent(project.progress)} %</span>
         </div>
       </div>
     </>
@@ -192,28 +187,22 @@ export function ReminderCardContent({ reminder, menu, onToggleStatus, onToggleDo
         dateContent={
           <>
             {recurrenceLabel && (
-              <span className="material-symbols-outlined text-[13px] shrink-0" title={`Wiederholt sich: ${recurrenceLabel}`} aria-label={`Wiederholt sich: ${recurrenceLabel}`}>
-                event_repeat
-              </span>
+              <Icon name="event_repeat" size="sm" className="shrink-0" title={`Wiederholt sich: ${recurrenceLabel}`} aria-label={`Wiederholt sich: ${recurrenceLabel}`} />
             )}
             <span className="truncate">{info.dateLabel}</span>
             {info.relativeLabel && !done && (
-              <span className={`shrink-0 px-1.5 rounded border font-bold ${URGENCY_STYLES[info.urgency]}`}>
-                {info.relativeLabel}
-              </span>
+              <Badge tone={URGENCY_TONES[info.urgency] || 'neutral'} size="sm" className="shrink-0">{info.relativeLabel}</Badge>
             )}
           </>
         }
         leading={onToggleDone && <DoneCheckbox done={done} title={reminder.title} onToggle={onToggleDone} />}
       />
 
-      <div className="mt-2.5 pt-2.5 border-t border-outline-variant flex items-center gap-2 text-[10px] sm:text-[11px] font-mono text-on-surface-variant">
+      <div className="mt-2.5 flex items-center gap-2 border-t border-subtle pt-2.5 text-caption text-secondary">
         <StatusChip status={reminder.status} onToggle={onToggleStatus} />
-        <span className="material-symbols-outlined text-[14px] shrink-0" title="Verstrichene Zeit" aria-hidden="true">
-          schedule
-        </span>
-        <ProgressBar value={elapsed} label={`Verstrichene Zeit ${elapsed}%`} />
-        <span className="w-9 text-right">{info.hasDate ? `${elapsed}%` : '–'}</span>
+        <Icon name="schedule" size="sm" className="shrink-0" title="Verstrichene Zeit" aria-hidden="true" />
+        <ElapsedProgress value={elapsed} label={`Verstrichene Zeit ${elapsed} %`} />
+        <span className="w-10 text-right tabular-nums">{info.hasDate ? `${elapsed} %` : '–'}</span>
       </div>
     </>
   );

@@ -140,7 +140,7 @@ const DEMO_PROJECTS = [
         title: 'Projekt initialisiert',
         category: 'Demo-Projekt',
         icon: 'rocket_launch',
-        badgeBg: 'bg-primary text-white'
+        badgeBg: 'bg-accent text-on-accent'
       }
     ]
   }
@@ -625,7 +625,7 @@ export const DataProvider = ({ children }) => {
 
         newPhases.push({
           id: `ph_${Date.now()}_${idx}`,
-          title: p.title.trim().toUpperCase(),
+          title: p.title.trim(),
           dateInfo: dateInfo,
           completed: false,
           tasks: newTasks,
@@ -635,7 +635,7 @@ export const DataProvider = ({ children }) => {
     } else if (projectData.firstPhase && projectData.firstPhase.trim() !== '') {
       newPhases.push({
         id: `ph_${Date.now()}`,
-        title: projectData.firstPhase.trim().toUpperCase(),
+        title: projectData.firstPhase.trim(),
         dateInfo: 'Startphase',
         completed: false,
         tasks: [],
@@ -668,11 +668,11 @@ export const DataProvider = ({ children }) => {
       history: [
         {
           id: `h_${Date.now()}`,
-          date: `${new Date().toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()} • ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`,
+          date: `${new Date().toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' })} • ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`,
           title: `Projekt '${projectData.title}' erfolgreich angelegt`,
           category: 'Gesamtdauer: Neu angelegt',
           icon: 'rocket_launch',
-          badgeBg: 'bg-primary text-white'
+          badgeBg: 'bg-accent text-on-accent'
         }
       ]
     };
@@ -703,11 +703,11 @@ export const DataProvider = ({ children }) => {
       const updatedPhases = [...(proj.phases || []), newPhase];
       const historyEntry = {
         id: `h_${Date.now()}`,
-        date: `${new Date().toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()} • ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`,
+        date: `${new Date().toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' })} • ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`,
         title: `Abschnitt angelegt: '${formattedTitle}'`,
         category: 'Neuer Abschnitt',
         icon: 'flag',
-        badgeBg: 'bg-surface-low border border-outline-variant text-primary'
+        badgeBg: 'bg-subtle border border-subtle text-primary'
       };
 
       return {
@@ -759,11 +759,11 @@ export const DataProvider = ({ children }) => {
 
       const historyEntry = {
         id: `h_${Date.now()}`,
-        date: `${new Date().toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()} • ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`,
+        date: `${new Date().toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' })} • ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`,
         title: `Unterpunkt hinzugefügt: '${taskData.title.trim()}'`,
         category: targetPhaseTitle || 'Aufgabe',
         icon: 'add_task',
-        badgeBg: 'bg-surface-low border border-outline-variant text-primary'
+        badgeBg: 'bg-subtle border border-subtle text-primary'
       };
 
       return {
@@ -799,11 +799,11 @@ export const DataProvider = ({ children }) => {
 
       const historyEntry = {
         id: `h_${Date.now()}`,
-        date: `${new Date().toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()} • ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`,
+        date: `${new Date().toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' })} • ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`,
         title: `Neues Phasenmaterial hinzugefügt: '${materialData.name.trim()}'`,
         category: targetPhaseTitle || 'Material',
         icon: 'attach_file',
-        badgeBg: 'bg-surface-low border border-outline-variant text-primary'
+        badgeBg: 'bg-subtle border border-subtle text-primary'
       };
 
       return { ...proj, phases: updatedPhases, history: [historyEntry, ...(proj.history || [])] };
@@ -855,11 +855,11 @@ export const DataProvider = ({ children }) => {
       if (isNowCompleted) {
         historyEntry = {
           id: `h_${Date.now()}`,
-          date: `${new Date().toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()} • ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`,
+          date: `${new Date().toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' })} • ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`,
           title: `Unterpunkt erledigt: '${taskTitle}'`,
           category: phaseName,
           icon: 'check',
-          badgeBg: 'bg-emerald-100 border border-emerald-300 text-emerald-800'
+          badgeBg: 'bg-success-subtle border border-success text-success'
         };
       }
 
@@ -1279,11 +1279,11 @@ export const DataProvider = ({ children }) => {
       history: [
         {
           id: `h_${Date.now()}`,
-          date: `${new Date().toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()} • ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`,
+          date: `${new Date().toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' })} • ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`,
           title: `Erinnerung '${reminderData.title}' erfolgreich angelegt`,
           category: 'Neu angelegt',
           icon: 'rocket_launch',
-          badgeBg: 'bg-primary text-white'
+          badgeBg: 'bg-accent text-on-accent'
         }
       ]
     };
@@ -1341,11 +1341,11 @@ export const DataProvider = ({ children }) => {
           history: [
             {
               id: `h_${Date.now()}`,
-              date: `${new Date().toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()} • ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`,
+              date: `${new Date().toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' })} • ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`,
               title: result.action === 'updated' ? 'Google-Kalendertermin aktualisiert' : 'Mit Google Kalender synchronisiert',
               category: 'Kalender-Sync',
               icon: 'calendar_month',
-              badgeBg: 'bg-emerald-600 text-white'
+              badgeBg: 'bg-success text-on-accent'
             },
              ...(reminder.history || [])
           ]
@@ -1410,11 +1410,11 @@ export const DataProvider = ({ children }) => {
         history: [
           {
             id: `h_${Date.now()}`,
-            date: `${new Date().toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()} • ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`,
+            date: `${new Date().toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' })} • ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`,
             title: deleteInGoogle ? 'Kalender-Sync getrennt & Termin im Kalender gelöscht' : 'Kalender-Sync getrennt (Termin im Kalender behalten)',
             category: 'Kalender-Sync',
             icon: 'sync_disabled',
-            badgeBg: 'bg-neutral-600 text-white'
+            badgeBg: 'bg-control text-on-accent'
           },
           ...(r.history || [])
         ]

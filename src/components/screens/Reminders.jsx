@@ -3,11 +3,8 @@ import { useBoardSort, LIFT_CLASS } from '../ui/useBoardSort';
 import { groupByCategory, sortItems, REMINDER_SORT_OPTIONS } from '../../lib/itemOrder';
 import { usePersistedChoice } from '../../hooks/usePersistedChoice';
 import { useModalContext } from '../../context/ModalContext';
-import Card from '../ui/Card';
+import { Button, Card, EmptyState, FOCUS, Icon, IconButton, Input, SectionHeader, cx } from '../ds';
 import { ReminderCardContent } from '../ui/ItemCardContent';
-import Badge from '../ui/Badge';
-import Button from '../ui/Button';
-import Input from '../ui/Input';
 import CardContextMenu from '../ui/CardContextMenu';
 import { ListToolbar, ViewToggle, CategoryToolbar } from '../ui/ListToolbar';
 import { groupRemindersByTime, compareReminderDue } from '../../lib/reminderDates';
@@ -30,12 +27,12 @@ function readStoredView() {
 }
 
 const Reminders = ({ setCurrentScreen }) => {
-  const { 
-    reminders, 
+  const {
+    reminders,
     openModal,
-    setSelectedReminderId, 
+    setSelectedReminderId,
     toggleReminderStatus,
-    setReminderStatus, 
+    setReminderStatus,
     toggleReminderPause,
     deleteReminder,
     toggleReminderKanban,
@@ -110,8 +107,8 @@ const Reminders = ({ setCurrentScreen }) => {
 
   if (searchQuery) {
     const q = searchQuery.toLowerCase();
-    activeReminders = activeReminders.filter(r => 
-      (r.title && r.title.toLowerCase().includes(q)) || 
+    activeReminders = activeReminders.filter(r =>
+      (r.title && r.title.toLowerCase().includes(q)) ||
       (r.description && r.description.toLowerCase().includes(q)) ||
       (r.tags && r.tags.some(tag => tag.toLowerCase().includes(q)))
     );
@@ -199,23 +196,23 @@ const Reminders = ({ setCurrentScreen }) => {
         right={{
           label: reminder.status === 'ABGESCHLOSSEN' ? 'Wieder öffnen' : 'Erledigt',
           icon: reminder.status === 'ABGESCHLOSSEN' ? 'undo' : 'check_circle',
-          className: 'bg-emerald-600',
+          className: 'bg-success',
           onCommit: () => setReminderStatus(reminder.id, reminder.status === 'ABGESCHLOSSEN' ? 'AKTIV' : 'ABGESCHLOSSEN')
         }}
         left={{
           label: 'Papierkorb',
           icon: 'delete',
-          className: 'bg-red-600',
+          className: 'bg-danger',
           dismiss: true,
           onCommit: () => deleteReminder(reminder.id)
         }}
       >
       <Card
         interactive
-        padding="small"
+        padding="sm"
         className={`flex flex-col h-full transition-all ${reminder.status === 'ABGESCHLOSSEN' ? 'opacity-60' : ''} ${
           reminder.isPaused
-            ? '!bg-blue-100 !border-blue-300 ring-1 ring-blue-300/40'
+            ? '!border-dashed !border-control !bg-subtle'
             : ''
         }`}
         onClick={() => handleReminderClick(reminder.id)}
@@ -248,9 +245,11 @@ const Reminders = ({ setCurrentScreen }) => {
   const timeGroups = groupRemindersByTime(otherReminders).filter((g) => g.items.length > 0);
 
   return (
-    <div className="screen-transition pb-20">
+    <div className="pb-20">
       <ListToolbar
-        searchValue={searchQuery}
+      title="Erinnerungen"
+      description={`${reminders.filter((x) => !x.deletedAt && x.status !== 'ABGESCHLOSSEN').length} offen`}
+      searchValue={searchQuery}
         onSearchChange={setSearchQuery}
         searchPlaceholder="Erinnerungen durchsuchen"
         onOpenTrash={() => setCurrentScreen('trash')}
@@ -263,10 +262,8 @@ const Reminders = ({ setCurrentScreen }) => {
 
       {pinnedReminders.length > 0 && (
         <div className="mb-6">
-          <h2 className="text-sm font-bold text-on-surface-variant uppercase tracking-wider mb-3 flex items-center gap-2">
-            <span className="material-symbols-outlined text-sm">push_pin</span> Angepinnt
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          <SectionHeader title="Angepinnt" count={pinnedReminders.length} className="mb-3" />
+          <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-3">
             {pinnedReminders.map((r) => renderCard(r))}
           </div>
         </div>
@@ -275,9 +272,12 @@ const Reminders = ({ setCurrentScreen }) => {
       {viewMode === 'time' ? (
         <div className="space-y-5">
           {timeGroups.length === 0 && (
-            <div className="py-10 border-2 border-dashed border-outline-variant rounded-xl text-center text-sm text-on-surface-variant">
-              Keine Erinnerungen{searchQuery || statusFilter !== 'all' ? ' für diesen Filter' : ''}.
-            </div>
+            <EmptyState
+              icon="notifications"
+              title={searchQuery || statusFilter !== 'all' ? 'Keine Treffer für diesen Filter' : 'Noch keine Erinnerungen'}
+              description={searchQuery || statusFilter !== 'all' ? 'Ändere die Suche oder den Filter.' : 'Lege eine Erinnerung an, damit nichts untergeht.'}
+              action={!(searchQuery || statusFilter !== 'all') && <Button onClick={() => openModal('reminder')}>Erinnerung hinzufügen</Button>}
+            />
           )}
           {timeGroups.map((group) => {
             const collapsed = Boolean(collapsedTimeGroups[group.id]);
@@ -288,18 +288,14 @@ const Reminders = ({ setCurrentScreen }) => {
                   type="button"
                   onClick={() => setCollapsedTimeGroups((prev) => ({ ...prev, [group.id]: !collapsed }))}
                   aria-expanded={!collapsed}
-                  className="w-full flex items-center gap-2 mb-2 py-1 text-left group cursor-pointer"
+                  className={cx('group mb-2 flex w-full items-center gap-2 rounded-md py-1 text-left', FOCUS)}
                 >
-                  <span className={`material-symbols-outlined text-[20px] text-on-surface-variant transition-transform ${collapsed ? '' : 'rotate-90'}`}>
-                    chevron_right
-                  </span>
-                  <span className={`material-symbols-outlined text-[18px] ${isOverdue ? 'text-red-600' : 'text-on-surface-variant'}`}>
-                    {group.icon}
-                  </span>
-                  <h2 id={`tgroup-${group.id}`} className={`text-sm font-bold tracking-wider uppercase ${isOverdue ? 'text-red-700' : ''}`}>
-                    {group.label} <span className="text-on-surface-variant font-normal text-xs">({group.items.length})</span>
+                  <Icon name="chevron_right" size="md" className={cx('text-secondary transition-transform duration-fast', !collapsed && 'rotate-90')} />
+                  <Icon name={group.icon} size="md" className={isOverdue ? 'text-danger' : 'text-secondary'} />
+                  <h2 id={`tgroup-${group.id}`} className={cx('font-label text-eyebrow uppercase', isOverdue ? 'text-danger' : 'text-secondary')}>
+                    {group.label} <span className="text-caption-strong normal-case tracking-normal text-tertiary">{group.items.length}</span>
                   </h2>
-                  <span className="h-px bg-outline-variant flex-grow opacity-50 group-hover:bg-primary/50 transition-colors" />
+                  <span className="h-px flex-grow bg-muted transition-colors duration-fast group-hover:bg-control" />
                 </button>
                 {!collapsed && (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
@@ -338,21 +334,21 @@ const Reminders = ({ setCurrentScreen }) => {
           const isCardHoveringThisCat = isDraggingItem && drag.catId === cat.id && drag.originCatId !== cat.id;
 
           return (
-            <div 
+            <div
               key={cat.id}
               id={`rcat-sec-${cat.id}`}
               data-category-id={cat.id}
               data-cat-section={cat.id}
-              className={`rounded-xl border scroll-mt-6 p-2 -m-1 transition-colors duration-150 ${
+              className={`rounded-lg border scroll-mt-6 p-2 -m-1 transition-colors duration-150 ${
                 isBeingDragged
-                  ? `${LIFT_CLASS} z-30 border-transparent`
+                  ? `${LIFT_CLASS} z-10 border-transparent`
                   : isCardHoveringThisCat
-                  ? 'border-primary bg-primary/10 ring-2 ring-primary/40'
+                  ? 'border-strong bg-hover ring-2 ring-focus'
                   : 'border-transparent'
-              } ${isDraggingItem && drag.catId === cat.id ? 'relative z-30' : ''}`}
+              } ${isDraggingItem && drag.catId === cat.id ? 'relative z-10' : ''}`}
             >
               {/* Steam-Like Header */}
-              <div 
+              <div
                 className={`flex items-center gap-3 mb-2 select-none py-1 group ${
                   isEditMode
                     ? 'cursor-default'
@@ -360,30 +356,16 @@ const Reminders = ({ setCurrentScreen }) => {
                 }`}
                 onClick={() => !isEditMode && toggleReminderCategory(cat.id)}
               >
-                <div className={`flex items-center gap-1.5 shrink-0 transition-colors text-on-surface ${
+                <div className={`flex items-center gap-1.5 shrink-0 transition-colors ${
                   isEditMode ? '' : 'hover:text-primary'
                 }`}>
                   {/* Drag Handle – always visible in edit mode */}
-                  <span 
-                    onMouseDown={(e) => startCategoryDrag(e, cat.id)}
-                    onTouchStart={(e) => startCategoryDrag(e, cat.id)}
-                    onClick={(e) => e.stopPropagation()}
-                    className={`material-symbols-outlined text-[18px] hover:text-primary cursor-grab active:cursor-grabbing p-1 -m-1 transition-opacity touch-none select-none ${
-                      isEditMode ? 'opacity-100 text-primary' : 'hidden md:inline-block opacity-50 group-hover:opacity-100'
-                    }`}
-                    title="Halten & Ziehen zum Sortieren"
-                  >
-                    drag_indicator
-                  </span>
+                  <Icon name="drag_indicator" size="md" className={`hover:text-primary cursor-grab active:cursor-grabbing p-1 -m-1 transition-opacity touch-none select-none ${isEditMode ? 'opacity-100 text-primary' : 'hidden md:inline-block opacity-50 group-hover:opacity-100'}`} onMouseDown={(e) => startCategoryDrag(e, cat.id)} onTouchStart={(e) => startCategoryDrag(e, cat.id)} onClick={(e) => e.stopPropagation()} title="Halten & Ziehen zum Sortieren" />
                   {/* Chevron – grayed out and non-interactive in edit mode */}
-                  <span className={`material-symbols-outlined text-[20px] transition-all ${
-                    isEditMode
-                      ? 'opacity-25 text-on-surface-variant'
-                      : `${cat.isExpanded ? 'rotate-90' : ''}`
-                  }`}>
-                    chevron_right
-                  </span>
-                  
+                  <Icon name="chevron_right" size="md" className={`transition-all ${isEditMode
+ ? 'opacity-25 text-secondary'
+ : `${cat.isExpanded ? 'rotate-90' : ''}`}`} />
+
                   {editingCatId === cat.id ? (
                     <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                       <input
@@ -391,42 +373,36 @@ const Reminders = ({ setCurrentScreen }) => {
                         value={editingCatName}
                         onChange={(e) => setEditingCatName(e.target.value)}
                         onBlur={() => saveEditCategory(cat.id)}
-                        className="px-2 py-1 text-xs font-bold uppercase bg-surface-low border border-primary rounded-lg focus:outline-none"
+                        className="px-2 py-1 font-label text-eyebrow uppercase bg-subtle border border-strong rounded-md focus:outline-none"
                         autoFocus
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') saveEditCategory(cat.id);
                           if (e.key === 'Escape') setEditingCatId(null);
                         }}
                       />
-                      <button
-                        onMouseDown={(e) => {
+                      <IconButton icon="check" label="Speichern" variant="primary" size="sm" onMouseDown={(e) => {
                           e.preventDefault();
                           saveEditCategory(cat.id);
-                        }}
-                        className="p-1 bg-primary text-white rounded-lg hover:bg-primary/90"
-                        title="Speichern"
-                      >
-                        <span className="material-symbols-outlined text-[16px]">check</span>
-                      </button>
-                      <button
+                        }} />
+                      <IconButton
+                        icon="close"
+                        label="Abbrechen"
+                        variant="secondary"
+                        size="sm"
                         onMouseDown={(e) => {
                           e.preventDefault();
                           setEditingCatId(null);
                         }}
-                        className="p-1 bg-surface-low text-on-surface-variant rounded-lg hover:bg-surface-variant"
-                        title="Abbrechen"
-                      >
-                        <span className="material-symbols-outlined text-[16px]">close</span>
-                      </button>
+                      />
                     </div>
                     ) : (
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h2 className="text-sm font-bold tracking-wider uppercase flex items-center gap-2">
-                          {cat.name} <span className="text-on-surface-variant font-normal text-xs">({catReminders.length})</span>
+                        <h2 className="font-label text-eyebrow uppercase flex items-center gap-2">
+                          {cat.name} <span className="text-secondary text-caption">({catReminders.length})</span>
                         </h2>
                         {isCardHoveringThisCat && (
-                          <span className="text-[11px] font-bold text-primary bg-primary/15 border border-primary/30 px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse">
-                            <span className="material-symbols-outlined text-[13px]">arrow_downward</span>
+                          <span className="text-micro font-semibold text-primary bg-pressed border border-default px-2 py-0.5 rounded-md flex items-center gap-1 animate-pulse">
+                            <Icon name="arrow_downward" size="sm" />
                             Hier ablegen
                           </span>
                         )}
@@ -434,64 +410,57 @@ const Reminders = ({ setCurrentScreen }) => {
                     )}
                 </div>
 
-                <div className="h-px bg-outline-variant flex-grow opacity-50 group-hover:bg-primary/50 transition-colors" />
-                
+                <div className="h-px bg-muted flex-grow opacity-50 group-hover:bg-control transition-colors" />
+
                 {/* Action Buttons – always visible in edit mode, hover-only otherwise */}
                 <div className={`flex items-center gap-0.5 shrink-0 transition-opacity ${
                   isEditMode ? 'opacity-100' : 'md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100'
                 }`}>
                   {!isEditMode && (
-                    <button
-                      onClick={(e) => {
+                    <IconButton icon="add" label={`Neu in Kategorie ${cat.name}`} onClick={(e) => {
                         e.stopPropagation();
                         openModal('reminder', { categoryId: cat.id });
-                      }}
-                      className="p-2 md:p-1 text-on-surface-variant hover:text-primary hover:bg-surface-low rounded transition-colors"
-                      title="Neu in dieser Kategorie"
-                      aria-label={`Neu in Kategorie ${cat.name}`}
-                    >
-                      <span className="material-symbols-outlined text-[18px]">add</span>
-                    </button>
+                      }} />
                   )}
-                  <button
+                  <IconButton
+                    icon="edit"
+                    label="Kategorie umbenennen"
+                    size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
                       setEditingCatId(cat.id);
                       setEditingCatName(cat.name);
                     }}
-                    className={`p-2 md:p-1 text-on-surface-variant hover:text-primary hover:bg-surface-low rounded transition-colors ${isEditMode ? '' : 'hidden md:inline-flex'}`}
-                    title="Kategorie umbenennen"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">edit</span>
-                  </button>
-                  <button
+                    className={isEditMode ? '' : 'hidden md:inline-flex'}
+                  />
+                  <IconButton
+                    icon="keyboard_arrow_up"
+                    label="Kategorie nach oben verschieben"
+                    size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
                       moveReminderCategoryOrder(cat.id, 'up');
                     }}
-                    className={`p-2 md:p-1 text-on-surface-variant hover:text-primary hover:bg-surface-low rounded transition-colors ${isEditMode ? '' : 'hidden md:inline-flex'}`}
-                    title="Kategorie nach oben verschieben"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">keyboard_arrow_up</span>
-                  </button>
-                  <button
+                    className={isEditMode ? '' : 'hidden md:inline-flex'}
+                  />
+                  <IconButton
+                    icon="keyboard_arrow_down"
+                    label="Kategorie nach unten verschieben"
+                    size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
                       moveReminderCategoryOrder(cat.id, 'down');
                     }}
-                    className={`p-2 md:p-1 text-on-surface-variant hover:text-primary hover:bg-surface-low rounded transition-colors ${isEditMode ? '' : 'hidden md:inline-flex'}`}
-                    title="Kategorie nach unten verschieben"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">keyboard_arrow_down</span>
-                  </button>
+                    className={isEditMode ? '' : 'hidden md:inline-flex'}
+                  />
                   {cat.id !== 'allgemein' && (
-                    <button 
+                    <IconButton
+                      icon="close"
+                      label="Kategorie löschen"
+                      size="sm"
                       onClick={(e) => { e.stopPropagation(); deleteReminderCategory(cat.id); }}
-                      className={`p-2 md:p-1 text-on-surface-variant hover:text-red-500 hover:bg-red-50 rounded transition-colors ml-1 ${isEditMode ? '' : 'hidden md:inline-flex'}`}
-                      title="Kategorie löschen"
-                    >
-                      <span className="material-symbols-outlined text-[16px]">close</span>
-                    </button>
+                      className={isEditMode ? 'hover:!bg-danger-subtle hover:!text-danger' : 'hidden hover:!bg-danger-subtle hover:!text-danger md:inline-flex'}
+                    />
                   )}
                 </div>
               </div>
@@ -502,14 +471,12 @@ const Reminders = ({ setCurrentScreen }) => {
                   {catReminders.length > 0 ? (
                     catReminders.map((r) => renderCard(r, true))
                   ) : (
-                    <div className={`col-span-full py-8 border-2 border-dashed rounded-xl flex items-center justify-center transition-colors ${
+                    <div className={`col-span-full py-8 border-2 border-dashed rounded-lg flex items-center justify-center transition-colors ${
                       isCardHoveringThisCat
-                        ? 'border-primary bg-primary/15 text-primary font-bold shadow-inner'
-                        : 'border-outline-variant text-on-surface-variant'
+                        ? 'border-strong bg-pressed text-primary font-semibold'
+                        : 'border-subtle text-secondary'
                     }`}>
-                      <span className="material-symbols-outlined mr-2 text-[18px]">
-                        {isCardHoveringThisCat ? 'arrow_downward' : 'drag_indicator'}
-                      </span>
+                      <Icon name={isCardHoveringThisCat ? 'arrow_downward' : 'drag_indicator'} size="md" className="mr-2" />
                       {isCardHoveringThisCat ? 'Hier loslassen' : 'Erinnerungen hier ablegen'}
                     </div>
                   )}
@@ -523,41 +490,32 @@ const Reminders = ({ setCurrentScreen }) => {
       {/* Subtle Steam-style Add Category Row at bottom */}
       <div className="mt-8">
         {isAddingCategory ? (
-          <form 
+          <form
             onSubmit={(e) => {
               e.preventDefault();
               createCategory();
-            }} 
-            className="flex items-center gap-3 animate-in fade-in duration-150"
+            }}
+            className="flex flex-wrap items-center gap-3"
           >
-            <div className="flex items-center gap-2 text-primary shrink-0">
-              <span className="material-symbols-outlined text-[20px]">add</span>
-              <span className="font-bold text-sm tracking-wider uppercase">Neue Kategorie:</span>
-            </div>
-            <Input 
-              type="text" 
-              placeholder="Name eingeben (z. B. Privat, Einkaufen)..." 
+            <Input
+              type="text"
+              size="sm"
+              placeholder="Name der Kategorie, z. B. Privat oder Einkaufen"
+              aria-label="Name der neuen Kategorie"
               value={newCategoryName}
               onChange={(e) => setNewCategoryName(e.target.value)}
-              className="flex-grow py-1 text-sm bg-surface-low border border-outline-variant rounded-xl"
+              className="min-w-[14rem] flex-1"
               autoFocus
             />
-            <Button type="submit" className="py-1.5 px-3 text-xs">Speichern</Button>
-            <Button variant="secondary" type="button" onClick={() => setIsAddingCategory(false)} className="py-1.5 px-3 text-xs">Abbrechen</Button>
-            <div className="h-px bg-outline-variant flex-grow opacity-50 hidden md:block" />
+            <Button type="submit" size="sm">Speichern</Button>
+            <Button variant="secondary" size="sm" onClick={() => setIsAddingCategory(false)}>Abbrechen</Button>
           </form>
         ) : (
-          <div 
-            onClick={() => setIsAddingCategory(true)}
-            className="flex items-center gap-3 cursor-pointer group py-2"
-          >
-            <div className="flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors">
-              <span className="material-symbols-outlined text-[20px]">add</span>
-              <h2 className="text-sm font-bold tracking-wider uppercase opacity-75 group-hover:opacity-100">
-                Kategorie hinzufügen
-              </h2>
-            </div>
-            <div className="h-px bg-outline-variant flex-grow opacity-40 group-hover:opacity-100 group-hover:bg-primary/50 transition-colors" />
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="sm" leadingIcon="add" onClick={() => setIsAddingCategory(true)}>
+              Kategorie hinzufügen
+            </Button>
+            <div className="h-px flex-grow bg-muted" />
           </div>
         )}
       </div>

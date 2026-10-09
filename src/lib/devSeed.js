@@ -150,7 +150,7 @@ export function buildSeedThoughts() {
     }),
     make(95 * 60 * 1000, {
       title: 'Fokus-Timer mit Musik',
-      summary: '### Fokus-Timer mit Musik\n- Pomodoro 25/5 als Grundlage\n- Spotify oder lokale Playlists anbinden\n- Statistik pro Woche\n- Ruhige Sounds als Alternative\n- Streaks für Motivation\n- Widget für den Homescreen',
+      summary: '### Fokus-Timer mit Musik\n- Pomodoro 25/5 als Grundlage\n- Spotify oder lokale Playlists anbinden\n- Statistik pro Woche\n- Ruhige Sounds Alternative\n- Streaks für Motivation\n- Widget den Homescreen',
       cleanText: 'Ich habe die Idee für einen Fokus-Timer mit Musik. Er soll nach Pomodoro 25/5 arbeiten, Spotify anbinden, eine Wochenstatistik zeigen und ruhige Sounds anbieten.',
       originalText: 'äh also ich hab da so ne idee für nen fokus timer mit musik so pomodoro 25 5 und spotify dann irgendne statistik pro woche und ruhige sounds',
     }),
@@ -168,13 +168,13 @@ export function buildSeedThoughts() {
       originalText: 'Geschenkideen Mama: Buch über Gartenarbeit, Gutschein Wellness, Bilderrahmen mit Familienfoto',
     }),
     make(4 * DAY, {
-      title: 'Blog über Remote-Arbeit schreiben, der die Erfahrungen der letzten zwei Jahre zusammenfasst und konkrete Tipps gibt',
-      summary: 'Blog über Remote-Arbeit schreiben, der die Erfahrungen der letzten zwei Jahre zusammenfasst und konkrete Tipps gibt',
-      originalText: 'Blog über Remote-Arbeit schreiben, der die Erfahrungen der letzten zwei Jahre zusammenfasst und konkrete Tipps gibt',
+      title: 'Blog über Remote-Arbeit schreiben, der die Erfahrungen letzten zwei Jahre zusammenfasst und konkrete Tipps gibt',
+      summary: 'Blog über Remote-Arbeit schreiben, der die Erfahrungen letzten zwei Jahre zusammenfasst und konkrete Tipps gibt',
+      originalText: 'Blog über Remote-Arbeit schreiben, der die Erfahrungen letzten zwei Jahre zusammenfasst und konkrete Tipps gibt',
     }),
     make(9 * DAY, {
       title: 'Urlaub im Herbst',
-      summary: '### Urlaub im Herbst\n- Portugal oder Griechenland\n- Zwei Wochen im Oktober\n- Flüge früh vergleichen',
+      summary: '### Urlaub im Herbst\n- Portugal oder Griechenland\n- Zwei Wochen Oktober\n- Flüge früh vergleichen',
       originalText: 'Urlaub im Herbst Portugal oder Griechenland zwei Wochen im Oktober Flüge früh vergleichen',
       extractedDateType: 'timeframe',
       extractedDate: inDays(40),

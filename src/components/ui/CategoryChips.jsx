@@ -1,4 +1,5 @@
 import React, { useId, useState } from 'react';
+import { Chip, FOCUS, IconButton, cx } from '../ds';
 
 /**
  * Kategorie-Auswahl als antippbare Chips (eine Zeile, auf dem Handy seitlich wischbar).
@@ -21,41 +22,34 @@ function CategoryChips({ categories = [], value, onChange, onCreate, label = 'Ka
     setIsAdding(false);
   };
 
-  const chipBase = 'shrink-0 inline-flex items-center gap-1 h-8 px-3 rounded-full border text-xs font-bold whitespace-nowrap transition-colors cursor-pointer';
-
   return (
     <div>
-      <span className="block text-xs font-mono font-bold text-primary mb-1.5 uppercase tracking-wide" id={labelId}>
+      <span className="mb-1.5 block text-label text-primary" id={labelId}>
         {label}
       </span>
       <div
         role="radiogroup"
         aria-labelledby={labelId}
-        className="flex items-center gap-2 overflow-x-auto no-wrap-scroll sm:flex-wrap -mx-1 px-1 py-0.5"
+        className="no-wrap-scroll -mx-1 flex items-center gap-2 px-1 py-1 sm:flex-wrap"
       >
         {categories.map((cat) => {
           const selected = cat.id === value;
           return (
-            <button
+            <Chip
               key={cat.id}
-              type="button"
               role="radio"
               aria-checked={selected}
+              selected={selected}
+              leadingIcon={selected ? 'check' : undefined}
               onClick={() => onChange(cat.id)}
-              className={`${chipBase} ${
-                selected
-                  ? 'bg-primary text-white border-primary'
-                  : 'bg-surface-low text-on-surface-variant border-outline-variant hover:border-primary hover:text-primary'
-              }`}
             >
-              {selected && <span className="material-symbols-outlined text-[14px]">check</span>}
               {cat.name}
-            </button>
+            </Chip>
           );
         })}
 
         {onCreate && (isAdding ? (
-          <span className="shrink-0 inline-flex items-center gap-1 h-8 pl-3 pr-1 rounded-full border border-primary bg-white">
+          <span className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md border border-strong bg-surface pl-3 pr-1">
             <input
               type="text"
               autoFocus
@@ -73,25 +67,20 @@ function CategoryChips({ categories = [], value, onChange, onCreate, label = 'Ka
               }}
               placeholder="Name"
               aria-label="Name der neuen Kategorie"
-              className="w-28 text-xs font-bold bg-transparent border-0 p-0 focus:ring-0 focus:outline-none"
+              className="w-28 border-0 bg-transparent p-0 text-label-sm placeholder:text-tertiary focus:outline-none focus:ring-0"
             />
-            <button
-              type="button"
-              onClick={create}
-              aria-label="Kategorie anlegen"
-              className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center"
-            >
-              <span className="material-symbols-outlined text-[14px]">check</span>
-            </button>
+            <IconButton icon="check" label="Kategorie anlegen" variant="primary" size="sm" onClick={create} className="!h-6 !w-6" />
           </span>
         ) : (
           <button
             type="button"
             onClick={() => setIsAdding(true)}
-            className={`${chipBase} border-dashed border-outline-variant text-on-surface-variant hover:border-primary hover:text-primary`}
+            className={cx(
+              'relative inline-flex h-8 shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-dashed border-control px-3 text-label-sm text-secondary transition-colors duration-fast hover:border-strong hover:text-primary',
+              FOCUS,
+            )}
           >
-            <span className="material-symbols-outlined text-[14px]">add</span>
-            Neu
+            + Neu
           </button>
         ))}
       </div>

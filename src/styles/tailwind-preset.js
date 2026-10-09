@@ -65,7 +65,8 @@ export default {
       transitionDuration: { instant: v('duration-instant'), fast: v('duration-fast'), base: v('duration-base'), slow: v('duration-slow'), slower: v('duration-slower') },
       transitionTimingFunction: { standard: v('easing-standard'), enter: v('easing-enter'), exit: v('easing-exit') },
       width: { drawer: v('drawer-width') },
-      maxWidth: { drawer: v('drawer-width') },
+      // content: Seitenbreite der Screens (1120 px), reading: Lesespalte (680 px), siehe Regel 01
+      maxWidth: { drawer: v('drawer-width'), content: '1120px', reading: '680px' },
     },
   },
 };

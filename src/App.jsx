@@ -7,7 +7,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ChatProvider } from './context/ChatContext';
 import { ToastProvider } from './context/ToastContext';
 import { ConfirmProvider } from './context/ConfirmContext';
-import { SkeletonList } from './components/ui/Skeleton';
+import { SkeletonList } from './components/ds';
 import FirestoreErrorBanner from './components/ui/FirestoreErrorBanner';
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -208,7 +208,7 @@ function AppContent() {
   }
 
   return (
-    <div className="flex flex-col md:flex-row h-screen h-[100dvh] overflow-hidden bg-surface text-primary antialiased font-sans">
+    <div className="flex flex-col md:flex-row h-screen h-[100dvh] overflow-hidden bg-canvas text-primary font-sans">
       <Sidebar
         currentScreen={currentScreen}
         setCurrentScreen={setCurrentScreen}
@@ -227,10 +227,10 @@ function AppContent() {
             currentScreen === 'coach' 
               ? 'p-0 max-w-none h-full overflow-hidden' 
               : currentScreen === 'calendar'
-              ? 'max-w-none p-0 md:px-8 md:py-8 h-full min-h-0 overflow-hidden md:overflow-visible'
+              ? 'max-w-none p-0 md:px-6 md:py-6 h-full min-h-0 overflow-hidden md:overflow-visible'
               : currentScreen === 'board'
-              ? 'max-w-none px-2 sm:px-4 md:px-8 py-3 sm:py-6 md:py-8 h-full min-h-0 overflow-hidden'
-              : 'max-w-none px-2 sm:px-4 md:px-8 py-4 sm:py-8 pb-6 sm:pb-8'
+              ? 'max-w-none px-4 md:px-6 py-4 md:py-6 h-full min-h-0 overflow-hidden'
+              : 'max-w-content px-4 md:px-6 py-6 md:py-8'
           }`}>
             {firestoreError && currentScreen !== 'coach' && (
               <FirestoreErrorBanner error={firestoreError} onDismiss={clearFirestoreError} />

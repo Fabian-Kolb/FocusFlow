@@ -1,39 +1,38 @@
 import React from 'react';
 import { useModalContext } from '../../context/ModalContext';
+import { Button, Icon, Sheet, cx } from '../ds';
+import { HISTORY_MARK_CLASS, historyTone } from '../../lib/historyStyle';
 
 const defaultHistoryItems = [
   {
     id: 'h1',
-    date: '14. MAI 2024 • 16:30 Uhr',
+    date: '14. Mai 2024 • 16:30 Uhr',
     title: "Unterpunkt erledigt: 'Moodboard & Designinspo erstellen'",
-    category: 'Phase 1: Vorbereitung & Analyse',
+    category: 'Phase 1: Vorbereitung und Analyse',
     icon: 'check',
-    badgeBg: 'bg-emerald-100 border border-emerald-300 text-emerald-800'
+    tone: 'success',
   },
   {
     id: 'h2',
-    date: '12. MAI 2024 • 11:15 Uhr',
+    date: '12. Mai 2024 • 11:15 Uhr',
     title: "Neues Phasenmaterial hinzugefügt: 'Briefing-Dokument.pdf'",
-    category: 'Phase 1: Vorbereitung & Analyse',
+    category: 'Phase 1: Vorbereitung und Analyse',
     icon: 'attach_file',
-    badgeBg: 'bg-surface-low border border-outline-variant text-primary'
   },
   {
     id: 'h3',
-    date: '10. MAI 2024 • 09:00 Uhr',
-    title: "Phase 1 gestartet: 'Vorbereitung & Analyse'",
+    date: '10. Mai 2024 • 09:00 Uhr',
+    title: "Phase 1 gestartet: 'Vorbereitung und Analyse'",
     category: 'Projekt-Startschuss',
     icon: 'flag',
-    badgeBg: 'bg-surface-low border border-outline-variant text-primary'
   },
   {
     id: 'h4',
-    date: '12. APRIL 2024 • 10:00 Uhr',
+    date: '12. April 2024 • 10:00 Uhr',
     title: "Projekt 'Re-Branding 2024' erfolgreich angelegt",
     category: 'Gesamtdauer: 70 Tage (Deadline: 30. Juni)',
     icon: 'rocket_launch',
-    badgeBg: 'bg-primary text-white'
-  }
+  },
 ];
 
 const ProjectHistoryModal = () => {
@@ -45,67 +44,37 @@ const ProjectHistoryModal = () => {
     ? currentProject.history
     : (modalPayload.history || defaultHistoryItems);
 
-  if (!isOpen) {
-    return (
-      <div id="project-history-modal" className="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"></div>
-    );
-  }
-
-  const projectTitle = modalPayload.projectTitle || currentProject?.title || 'Re-Branding 2024';
+  const projectTitle = modalPayload.projectTitle || currentProject?.title || 'Projekt';
 
   return (
-    <div
-      id="project-history-modal"
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+    <Sheet
+      open={isOpen}
+      onClose={closeModal}
+      title="Verlauf"
+      description={projectTitle}
+      footer={<Button variant="secondary" onClick={closeModal}>Schließen</Button>}
     >
-      <div className="bg-white border-2 border-primary w-full max-w-xl p-4 sm:p-6 space-y-4 sm:space-y-5 shadow-2xl relative">
-        <div className="flex items-center justify-between border-b border-outline-variant pb-3">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="material-symbols-outlined text-[20px] text-primary flex-shrink-0">history</span>
-            <h2 className="text-xs sm:text-sm font-bold font-mono uppercase truncate">
-              HISTORIE: {projectTitle}
-            </h2>
-          </div>
-          <button
-            type="button"
-            className="p-1 hover:bg-surface-low border border-outline-variant transition-colors flex-shrink-0"
-            onClick={closeModal}
-          >
-            <span className="material-symbols-outlined text-[18px]">close</span>
-          </button>
-        </div>
-
-        {/* Timeline der vergangenen Aktivitäten */}
-        <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1 sm:pr-2">
-          {historyList.map((item) => (
-            <div key={item.id} className="flex items-start gap-3">
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${item.badgeBg}`}>
-                <span className="material-symbols-outlined text-[14px]">{item.icon || 'history'}</span>
-              </div>
-              <div>
-                <span className="text-[10px] sm:text-xs font-mono font-bold text-primary block">
-                  {item.date}
-                </span>
-                <p className="text-xs sm:text-sm font-medium">{item.title}</p>
-                <span className="text-[10px] font-mono text-on-surface-variant">
-                  {item.category}
-                </span>
-              </div>
+      <ol className="space-y-4">
+        {historyList.map((item) => (
+          <li key={item.id} className="flex items-start gap-3">
+            <span
+              className={cx(
+                'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border',
+                HISTORY_MARK_CLASS[historyTone(item)],
+              )}
+              aria-hidden="true"
+            >
+              <Icon name={item.icon || 'history'} size="sm" />
+            </span>
+            <div className="min-w-0">
+              <span className="block text-caption text-tertiary">{item.date}</span>
+              <p className="text-body-strong text-primary">{item.title}</p>
+              {item.category && <span className="text-caption text-secondary">{item.category}</span>}
             </div>
-          ))}
-        </div>
-
-        <div className="border-t border-outline-variant pt-3 flex justify-end">
-          <button
-            type="button"
-            className="px-5 py-2 bg-primary text-white text-xs font-mono font-bold hover:bg-neutral-800 transition-colors"
-            onClick={closeModal}
-          >
-            SCHLIESSEN
-          </button>
-        </div>
-      </div>
-    </div>
+          </li>
+        ))}
+      </ol>
+    </Sheet>
   );
 };
 

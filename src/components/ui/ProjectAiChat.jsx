@@ -5,8 +5,8 @@ import { useModalContext } from '../../context/ModalContext';
 import { useChat } from '../../context/ChatContext';
 import { askGeminiCoach } from '../../lib/gemini';
 import { ACTION_ENGINE_SYSTEM_PROMPT, parseAiActions, executeAiActions, parseIntentChoice } from '../../lib/aiActionEngine';
-import FioIcon from './FioIcon';
 
+import { Button, FioMark, Icon, IconButton } from '../ds';
 const ProjectAiChat = ({
   projectData,
   contextScope = 'project', // 'project' | 'section' | 'task' | 'reminder'
@@ -179,9 +179,9 @@ const ProjectAiChat = ({
     }
 
     return `
-Du bist Fio, der persönliche, hochkompetente KI-Coach in der Produktivitäts-App FocusFlow.
-Du bist motivierend, präzise, pragmatisch und lösungsorientiert.
-Deine Aufgabe ist es, dem Nutzer zu helfen, seine Projekte, Aufgaben und Erinnerungen fokussiert und erfolgreich abzuarbeiten.
+Du bist Fio, der persönliche, hochkompetente KI-Coach in Produktivitäts-App FocusFlow.
+  motivierend, präzise, pragmatisch und lösungsorientiert.
+Deine Aufgabe ist es, dem Nutzer zu helfen, seine Projekte, Aufgaben Erinnerungen fokussiert erfolgreich abzuarbeiten.
 
 KONTEXT DES NUTZERS:
 ${JSON.stringify(contextSummary, null, 2)}
@@ -386,55 +386,50 @@ REGELN:
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-surface-low/30 overflow-hidden relative">
+    <div className="flex-1 flex flex-col h-full bg-subtle overflow-hidden relative">
 
       {/* Synchronized History Slide-Down Overlay */}
       <div 
-        className={`absolute inset-0 z-30 bg-white flex flex-col overflow-hidden transition-all duration-200 ease-in-out ${
+        className={`absolute inset-0 z-10 bg-surface flex flex-col overflow-hidden transition-all duration-200 ease-in-out ${
           isHistoryOpen 
             ? 'opacity-100 translate-y-0 pointer-events-auto' 
             : 'opacity-0 -translate-y-2 pointer-events-none'
         }`}
       >
         {/* History Header & Scope Toggle */}
-        <div className="p-3 border-b border-outline-variant flex flex-col gap-2 bg-surface-low/50">
+        <div className="p-3 border-b border-subtle flex flex-col gap-2 bg-subtle">
           <div className="flex items-center w-full">
-            <button
-              onClick={handleNewChat}
-              className="w-full h-10 px-3.5 bg-neutral-900 text-white hover:bg-black transition-all flex items-center justify-center gap-2 rounded-xl cursor-pointer shadow-xs hover:shadow-sm font-mono text-xs font-bold active:scale-[0.98]"
-            >
-              <span className="material-symbols-outlined text-[19px]">edit_square</span>
+            <Button fullWidth onClick={handleNewChat}>
+              <Icon name="edit_square" size="md" />
               <span>NEUER CHAT</span>
-            </button>
+            </Button>
           </div>
 
           {/* Scope Filter Segmented Tabs */}
-          <div className="flex items-center p-1 bg-surface-low/80 border border-outline-variant/60 rounded-xl gap-1 shadow-2xs">
+          <div className="flex items-center p-1 bg-subtle border border-subtle rounded-lg gap-1 shadow-xs">
             <button
               onClick={() => setHistoryScopeFilter('context')}
-              className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              className={`flex-1 py-1.5 px-2 rounded-md text-caption-strong font-label transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                 historyScopeFilter === 'context'
-                  ? 'bg-white dark:bg-surface text-primary shadow-xs border border-outline-variant/50'
-                  : 'text-on-surface-variant hover:text-on-surface hover:bg-white/40 border border-transparent'
+                  ? 'bg-surface dark:bg-canvas text-primary shadow-xs border border-subtle'
+                  : 'text-secondary hover:bg-surface border border-transparent'
               }`}
             >
-              <span className="material-symbols-outlined text-[15px]">
-                {contextScope === 'reminder' ? 'notifications' : contextScope === 'task' ? 'check_circle' : 'folder'}
-              </span>
+              <Icon name={contextScope === 'reminder' ? 'notifications' : contextScope === 'task' ? 'check_circle' : 'folder'} size="sm" />
               <span>Aktueller Bereich</span>
             </button>
             <button
               onClick={() => setHistoryScopeFilter('all')}
-              className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              className={`flex-1 py-1.5 px-2 rounded-md text-caption-strong font-label transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                 historyScopeFilter === 'all'
-                  ? 'bg-white dark:bg-surface text-primary shadow-xs border border-outline-variant/50'
-                  : 'text-on-surface-variant hover:text-on-surface hover:bg-white/40 border border-transparent'
+                  ? 'bg-surface dark:bg-canvas text-primary shadow-xs border border-subtle'
+                  : 'text-secondary hover:bg-surface border border-transparent'
               }`}
             >
-              <span className="material-symbols-outlined text-[15px]">all_inbox</span>
+              <Icon name="all_inbox" size="sm" />
               <span>Alle Chats</span>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
-                historyScopeFilter === 'all' ? 'bg-primary/10 text-primary font-bold' : 'bg-surface-low text-on-surface-variant'
+              <span className={`text-micro px-1.5 py-0.5 rounded-md font-label ${
+                historyScopeFilter === 'all' ? 'bg-hover text-primary font-semibold' : 'bg-subtle text-secondary'
               }`}>
                 {sessions.length}
               </span>
@@ -456,37 +451,35 @@ REGELN:
                     selectSession(sess.id);
                     if (setIsHistoryOpen) setIsHistoryOpen(false);
                   }}
-                  className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2.5 group ${
+                  className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between gap-2.5 group ${
                     isActive
-                      ? 'bg-primary/5 border-primary/40 shadow-xs'
-                      : 'bg-white border-outline-variant hover:border-primary/30 hover:bg-surface-low/40'
+                      ? 'bg-hover border-control shadow-xs'
+                      : 'bg-surface border-subtle hover:border-default hover:bg-hover'
                   }`}
                 >
                   {/* Left / Main: Icon + Title */}
                   <div className="min-w-0 flex-1 flex items-center gap-2.5">
-                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                    <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${
                       isReminder
-                        ? 'bg-amber-500/10 text-amber-700 border border-amber-500/20'
+                        ? 'bg-warning-subtle text-warning border border-warning'
                         : isProject
-                        ? 'bg-primary/10 text-primary border border-primary/20'
-                        : 'bg-surface-low text-on-surface-variant border border-outline-variant'
+                        ? 'bg-hover text-primary border border-default'
+                        : 'bg-subtle text-secondary border border-subtle'
                     }`}>
-                      <span className="material-symbols-outlined text-[16px]">
-                        {isReminder ? 'notifications' : isProject ? 'folder' : 'psychology'}
-                      </span>
+                      <Icon name={isReminder ? 'notifications' : isProject ? 'folder' : 'psychology'} size="sm" />
                     </div>
 
-                    <span className={`font-bold text-xs text-on-surface block truncate ${isActive ? 'text-primary' : ''}`}>
+                    <span className={`text-caption-strong block truncate ${isActive ? 'text-primary' : ''}`}>
                       {sess.title || 'Gespräch'}
                     </span>
                   </div>
 
                   {/* Right: Time on Top, Message count below */}
                   <div className="flex flex-col items-end shrink-0 text-right gap-0.5">
-                    <span className="text-[10px] font-mono text-on-surface-variant font-medium">
+                    <span className="text-micro font-label text-secondary font-medium">
                       {formatDate(sess.updatedAt || sess.createdAt)}
                     </span>
-                    <span className="text-[10px] font-mono text-on-surface-variant/70">
+                    <span className="text-micro font-label text-tertiary">
                       {sess.messages?.length || 0} Nachr.
                     </span>
                   </div>
@@ -497,17 +490,17 @@ REGELN:
                       e.stopPropagation();
                       deleteSession(sess.id);
                     }}
-                    className="w-7 h-7 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-red-600 hover:bg-red-50 transition-colors opacity-60 group-hover:opacity-100 cursor-pointer shrink-0"
+                    className="w-7 h-7 flex items-center justify-center rounded-md text-secondary hover:text-danger hover:bg-danger-subtle transition-colors opacity-60 group-hover:opacity-100 cursor-pointer shrink-0"
                     title="Gespräch löschen"
                   >
-                    <span className="material-symbols-outlined text-[16px]">delete</span>
+                    <Icon name="delete" size="sm" />
                   </button>
                 </div>
               );
             })}
 
             {displayedSessions.length === 0 && (
-              <div className="p-8 text-center text-xs text-on-surface-variant italic">
+              <div className="p-8 text-center text-caption text-secondary italic">
                 Keine Chats in dieser Auswahl vorhanden.
               </div>
             )}
@@ -516,12 +509,10 @@ REGELN:
 
       {/* Context Scope Indicator */}
       {contextScope !== 'general' && (
-        <div className="shrink-0 bg-white border-b border-outline-variant/60 px-4 py-2 flex items-center justify-between text-xs font-mono text-on-surface-variant">
+        <div className="shrink-0 bg-surface border-b border-subtle px-4 py-2 flex items-center justify-between text-caption font-label text-secondary">
           <div className="flex items-center gap-2 truncate">
-            <span className="material-symbols-outlined text-[15px] text-primary">
-              {contextScope === 'reminder' ? 'notifications' : contextScope === 'task' ? 'check_circle' : 'folder'}
-            </span>
-            <span className="font-bold text-on-surface truncate">
+            <Icon name={contextScope === 'reminder' ? 'notifications' : contextScope === 'task' ? 'check_circle' : 'folder'} size="sm" className="text-primary" />
+            <span className="font-semibold truncate">
               {contextScope === 'reminder'
                 ? `Erinnerung: ${contextData?.title || 'Aktive Erinnerung'}`
                 : contextScope === 'task'
@@ -531,7 +522,7 @@ REGELN:
                 : `Projekt: ${projectData?.title || 'Aktives Projekt'}`}
             </span>
           </div>
-          <span className="text-[10px] text-primary/80 uppercase font-bold tracking-wider shrink-0 bg-primary/5 px-2 py-0.5 rounded border border-primary/20">
+          <span className="font-label text-eyebrow text-secondary uppercase font-semibold shrink-0 bg-hover px-2 py-0.5 rounded-xs border border-default">
             Fokus
           </span>
         </div>
@@ -541,10 +532,10 @@ REGELN:
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 relative">
         {messages.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-6 max-w-sm mx-auto my-auto">
-            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-white border border-outline-variant/60 flex items-center justify-center shadow-md p-4 sm:p-5 mb-4">
-              <FioIcon className="w-full h-full text-primary" color="currentColor" />
+            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl bg-surface border border-subtle flex items-center justify-center shadow-md p-4 sm:p-5 mb-4">
+              <FioMark size={20} className="text-primary" />
             </div>
-            <p className="text-xs text-on-surface-variant leading-relaxed">
+            <p className="text-caption text-secondary leading-relaxed">
               {contextScope === 'reminder'
                 ? `Frag mich etwas zur Erinnerung „${contextData?.title || 'Aktive Erinnerung'}“ oder wähle einen Quick-Prompt.`
                 : contextScope === 'task' 
@@ -563,27 +554,27 @@ REGELN:
                 className={`flex gap-2.5 ${isBot ? 'justify-start' : 'justify-end'}`}
               >
                 {isBot && (
-                  <div className="w-7 h-7 shrink-0 rounded-xl bg-neutral-900 text-white flex items-center justify-center p-1.5 shadow-sm mt-0.5">
-                    <FioIcon className="w-full h-full text-white" color="currentColor" />
+                  <div className="w-7 h-7 shrink-0 rounded-lg bg-accent text-on-accent flex items-center justify-center p-1.5 shadow-sm mt-0.5">
+                    <FioMark size={20} className="text-on-accent" />
                   </div>
                 )}
                 <div 
-                  className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm shadow-sm leading-relaxed ${
+                  className={`max-w-[85%] rounded-lg px-4 py-2.5 text-body shadow-sm leading-relaxed ${
                     !isBot 
-                      ? 'bg-neutral-900 text-white rounded-br-xs' 
-                      : 'bg-white border border-outline-variant text-on-surface rounded-bl-xs'
+                      ? 'bg-accent text-on-accent rounded-br-xs' 
+                      : 'bg-surface border border-subtle rounded-bl-xs'
                   }`}
                 >
                   {isBot ? (
                     msg.content || msg.text ? (
-                      <div className="markdown-body text-sm space-y-2">
+                      <div className="markdown-body text-body space-y-2">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
                           {msg.content || msg.text}
                         </ReactMarkdown>
 
                         {/* Render Interactive Action Results Cards */}
                         {msg.actionResults && msg.actionResults.length > 0 && (
-                          <div className="space-y-1.5 mt-2.5 pt-2.5 border-t border-outline-variant/60 not-prose">
+                          <div className="space-y-1.5 mt-2.5 pt-2.5 border-t border-subtle not-prose">
                             {msg.actionResults.map((res, idx) => {
                               const isProjAction = res.targetType === 'project' || res.type === 'ADD_PHASE' || res.type === 'ADD_TASK' || res.type === 'CREATE_PROJECT' || res.type === 'UPDATE_PROJECT';
                               const isRemAction = res.targetType === 'reminder' || res.type === 'CREATE_REMINDER' || res.type === 'UPDATE_REMINDER';
@@ -593,28 +584,28 @@ REGELN:
 
                               const iconName = isNoteAction ? 'note_alt' : isMatAction ? 'attach_file' : isCalAction ? 'calendar_month' : isRemAction ? 'notifications' : isProjAction ? 'folder' : 'check_circle';
                               const iconStyle = isNoteAction
-                                ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                                ? 'bg-accent-subtle text-accent border-accent'
                                 : isMatAction
-                                ? 'bg-sky-50 text-sky-700 border-sky-200'
+                                ? 'bg-info-subtle text-info border-info'
                                 : isCalAction
-                                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                ? 'bg-info-subtle text-accent border-info'
                                 : isRemAction
-                                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                ? 'bg-warning-subtle text-warning border-warning'
                                 : isProjAction
-                                ? 'bg-primary/10 text-primary border-primary/20'
-                                : 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                                ? 'bg-hover text-primary border-default'
+                                : 'bg-success-subtle text-success border-success';
 
                               return (
                                 <div
                                   key={idx}
-                                  className="flex items-center gap-2 p-2 bg-surface-low border border-outline-variant rounded-xl text-xs shadow-2xs"
+                                  className="flex items-center gap-2 p-2 bg-subtle border border-subtle rounded-lg text-caption shadow-xs"
                                 >
-                                  <div className={`w-6 h-6 rounded-lg border flex items-center justify-center shrink-0 ${iconStyle}`}>
-                                    <span className="material-symbols-outlined text-[14px]">{iconName}</span>
+                                  <div className={`w-6 h-6 rounded-md border flex items-center justify-center shrink-0 ${iconStyle}`}>
+                                    <Icon name={iconName} size="sm" />
                                   </div>
                                   <div className="min-w-0 flex-1">
-                                    <div className="font-bold text-on-surface truncate text-[11px]">{res.title}</div>
-                                    <div className="text-[9px] font-mono text-on-surface-variant truncate">{res.subtitle}</div>
+                                    <div className="font-semibold truncate text-micro">{res.title}</div>
+                                    <div className="text-micro font-label text-secondary truncate">{res.subtitle}</div>
                                   </div>
                                 </div>
                               );
@@ -624,58 +615,48 @@ REGELN:
 
                         {/* Render 3-Way Intent Choice Pills if AI proposed an appointment/reminder */}
                         {msg.intentChoice && (
-                          <div className="mt-2.5 pt-2 border-t border-outline-variant/60 w-full space-y-1.5 not-prose">
-                            <div className="text-[10px] font-mono font-bold text-on-surface-variant flex items-center gap-1">
-                              <span className="material-symbols-outlined text-[12px] text-primary">help</span>
+                          <div className="mt-2.5 pt-2 border-t border-subtle w-full space-y-1.5 not-prose">
+                            <div className="text-micro font-label font-semibold text-secondary flex items-center gap-1">
+                              <Icon name="help" size="sm" className="text-primary" />
                               <span>Wo soll der Eintrag angelegt werden?</span>
                             </div>
                             <div className="flex flex-wrap gap-1">
-                              <button
-                                type="button"
-                                onClick={() => handleSend(`Bitte erstelle die Erinnerung „${msg.intentChoice.title}“ für den ${msg.intentChoice.date}${msg.intentChoice.time ? ` um ${msg.intentChoice.time} Uhr` : ''} nur in FocusFlow.`)}
-                                className="px-2 py-1 rounded-md bg-surface-low hover:bg-surface-variant border border-outline-variant text-[10px] font-mono text-on-surface flex items-center gap-1 transition-all cursor-pointer shadow-2xs hover:border-primary"
-                              >
-                                <span className="material-symbols-outlined text-[12px] text-amber-700">notifications</span>
+                              <Button variant="secondary" size="sm" onClick={() => handleSend(`Bitte erstelle die Erinnerung „${msg.intentChoice.title}“ für den ${msg.intentChoice.date}${msg.intentChoice.time ? ` um ${msg.intentChoice.time} Uhr` : ''} nur in FocusFlow.`)}>
+                                <Icon name="notifications" size="sm" className="text-warning" />
                                 <span>Nur in FocusFlow</span>
-                              </button>
+                              </Button>
 
                               <button
                                 type="button"
                                 disabled={user?.isGuest || !isCalendarConnected}
                                 onClick={() => handleSend(`Bitte erstelle die Erinnerung „${msg.intentChoice.title}“ für den ${msg.intentChoice.date}${msg.intentChoice.time ? ` um ${msg.intentChoice.time} Uhr` : ''} in FocusFlow mit Google Kalender-Sync.`)}
                                 title={user?.isGuest ? 'Im Gastmodus nicht verfügbar' : !isCalendarConnected ? 'Google Kalender nicht verbunden' : 'Empfohlen'}
-                                className="px-2 py-1 rounded-md bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-[10px] font-mono text-emerald-800 font-bold flex items-center gap-1 transition-all cursor-pointer shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-2 py-1 rounded-md bg-success-subtle hover:bg-success-subtle border border-success text-micro font-label text-success font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
                               >
-                                <span className="material-symbols-outlined text-[12px] text-emerald-600">sync</span>
+                                <Icon name="sync" size="sm" className="text-success" />
                                 <span>FocusFlow + Kalender-Sync</span>
                               </button>
 
-                              <button
-                                type="button"
-                                disabled={user?.isGuest || !isCalendarConnected}
-                                onClick={() => handleSend(`Bitte trage den Termin „${msg.intentChoice.title}“ für den ${msg.intentChoice.date}${msg.intentChoice.time ? ` um ${msg.intentChoice.time} Uhr` : ''} nur im Google Kalender ein.`)}
-                                title={user?.isGuest ? 'Im Gastmodus nicht verfügbar' : !isCalendarConnected ? 'Google Kalender nicht verbunden' : 'Direkt im Kalender eintragen'}
-                                className="px-2 py-1 rounded-md bg-surface-low hover:bg-surface-variant border border-outline-variant text-[10px] font-mono text-on-surface flex items-center gap-1 transition-all cursor-pointer shadow-2xs hover:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                <span className="material-symbols-outlined text-[12px] text-primary">calendar_month</span>
+                              <Button variant="secondary" size="sm" disabled={user?.isGuest || !isCalendarConnected} onClick={() => handleSend(`Bitte trage den Termin „${msg.intentChoice.title}“ für den ${msg.intentChoice.date}${msg.intentChoice.time ? ` um ${msg.intentChoice.time} Uhr` : ''} nur im Google Kalender ein.`)} title={user?.isGuest ? 'Im Gastmodus nicht verfügbar' : !isCalendarConnected ? 'Google Kalender nicht verbunden' : 'Direkt im Kalender eintragen'}>
+                                <Icon name="calendar_month" size="sm" className="text-primary" />
                                 <span>Nur im Google Kalender</span>
-                              </button>
+                              </Button>
                             </div>
                           </div>
                         )}
                       </div>
                     ) : msg.isStreaming ? (
-                      <div className="flex items-center gap-1.5 py-1 text-on-surface-variant text-xs">
-                        <span className="w-2 h-2 rounded-full bg-primary animate-ping" />
+                      <div className="flex items-center gap-1.5 py-1 text-secondary text-caption">
+                        <span className="w-2 h-2 rounded-full bg-accent animate-ping" />
                         <span>Fio denkt nach...</span>
                       </div>
                     ) : msg.cancelled ? (
-                      <div className="flex items-center gap-1.5 py-1 text-on-surface-variant text-xs italic">
-                        <span className="material-symbols-outlined text-[14px]">pause_circle</span>
+                      <div className="flex items-center gap-1.5 py-1 text-secondary text-caption italic">
+                        <Icon name="pause_circle" size="sm" />
                         <span>Antwort abgebrochen</span>
                       </div>
                     ) : (
-                      <div className="text-on-surface-variant text-xs italic">
+                      <div className="text-secondary text-caption italic">
                         (Keine Antwort erhalten)
                       </div>
                     )
@@ -692,39 +673,34 @@ REGELN:
 
       {/* Input Area (Sticky Bottom) */}
       <div 
-        className="shrink-0 bg-white border-t border-outline-variant/60 p-3 flex flex-col gap-2"
+        className="shrink-0 bg-surface border-t border-subtle p-3 flex flex-col gap-2"
         style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}
       >
         {/* Quick Prompts or Floating Stop Indicator */}
         {isLoading ? (
-          <div className="flex items-center justify-center pb-1 animate-fadeIn">
+          <div className="flex items-center justify-center pb-1">
             <button
               type="button"
               onClick={handleStopGeneration}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 rounded-full text-xs font-mono font-bold transition-all shadow-xs cursor-pointer hover:scale-105 active:scale-95"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-danger-subtle border border-danger text-danger hover:bg-danger-subtle rounded-md text-caption-strong font-label transition-all shadow-xs cursor-pointer hover:scale-105 active:scale-95"
             >
-              <span className="w-2.5 h-2.5 bg-red-600 rounded-xs animate-pulse" />
+              <span className="w-2.5 h-2.5 bg-danger rounded-xs animate-pulse" />
               <span>Antwort stoppen</span>
             </button>
           </div>
         ) : (
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
             {quickPrompts.map((prompt, idx) => (
-              <button
-                key={idx}
-                onClick={() => handleSend(prompt)}
-                disabled={isLoading}
-                className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-surface-low border border-outline-variant rounded-full text-xs font-mono font-bold text-primary hover:bg-primary/5 hover:border-primary/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[14px]">bolt</span>
+              <Button variant="secondary" size="sm" key={idx} onClick={() => handleSend(prompt)} disabled={isLoading} className="shrink-0">
+                <Icon name="bolt" size="sm" />
                 <span>{prompt}</span>
-              </button>
+              </Button>
             ))}
           </div>
         )}
 
         {/* Input Box */}
-        <div className="flex items-end gap-2 bg-surface-low border border-outline-variant focus-within:border-primary focus-within:bg-white rounded-xl p-1.5 transition-all">
+        <div className="flex items-end gap-2 bg-subtle border border-subtle focus-within:border-strong focus-within:bg-surface rounded-lg p-1.5 transition-all">
           <textarea
             ref={textareaRef}
             value={inputText}
@@ -749,31 +725,16 @@ REGELN:
                 ? 'Frag Fio zu dieser Aufgabe...'
                 : 'Frag Fio zum Projekt...'
             }
-            className="flex-1 max-h-[120px] bg-transparent border-none outline-none focus:ring-0 resize-none text-sm p-2 text-on-surface"
+            className="flex-1 max-h-[120px] bg-transparent border-none outline-none focus:ring-0 resize-none text-body p-2"
             rows={1}
             style={{ minHeight: '36px' }}
           />
 
           {/* Send or Stop Button */}
           {isLoading ? (
-            <button
-              type="button"
-              onClick={handleStopGeneration}
-              className="shrink-0 w-9 h-9 flex items-center justify-center rounded-lg bg-red-600 hover:bg-red-700 text-white transition-all cursor-pointer mb-0.5 mr-0.5 shadow-sm hover:scale-105 active:scale-95"
-              title="Antwort unterbrechen"
-            >
-              <span className="material-symbols-outlined text-[18px]">stop</span>
-            </button>
+            <IconButton icon="stop" label="Antwort unterbrechen" variant="danger" className="shrink-0 mb-0.5 mr-0.5" onClick={handleStopGeneration} />
           ) : (
-            <button
-              type="button"
-              onClick={() => handleSend()}
-              disabled={!inputText.trim() || isLoading}
-              className="shrink-0 w-9 h-9 flex items-center justify-center rounded-lg bg-neutral-900 text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-black transition-all cursor-pointer mb-0.5 mr-0.5 shadow-sm"
-              title="Nachricht senden"
-            >
-              <span className="material-symbols-outlined text-[18px]">send</span>
-            </button>
+            <IconButton icon="send" label="Nachricht senden" variant="primary" className="shrink-0 mb-0.5 mr-0.5" onClick={() => handleSend()} disabled={!inputText.trim() || isLoading} />
           )}
         </div>
       </div>

@@ -1,27 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import Card from '../ui/Card';
-import Button from '../ui/Button';
-import Input from '../ui/Input';
+import { Alert, Button, Card, Dialog, Divider, Field, IconButton, Input } from '../ds';
 import WordmarkWord from '../brand/WordmarkWord';
 import LoginMarquee from '../brand/LoginMarquee';
 import { LEGAL_PATHS } from '../../lib/legal';
 import { getDevCredentials } from '../../lib/devAccount';
 import { captureBrandHandoff, clearBrandHandoff } from '../../lib/brandTransition';
+import { resolveTheme, useThemePreference } from '../../lib/theme';
 
-const THEME_STORAGE_KEY = 'focusflow_theme';
-
-function readStoredTheme() {
-  try {
-    const value = localStorage.getItem(THEME_STORAGE_KEY);
-    if (value === 'light' || value === 'dark') return value;
-  } catch {
-    // Storage gesperrt (z. B. Private Browsing) – Systemeinstellung nutzen
-  }
-  return null;
-}
-
-const systemTheme = () => (window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+const LINK_CLASS = 'rounded-xs py-1 text-caption text-secondary underline underline-offset-2 transition-colors duration-fast hover:text-primary';
 
 function Login() {
   const [email, setEmail] = useState('');
@@ -31,9 +18,9 @@ function Login() {
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const { loginWithEmail, loginWithGoogle, loginAsGuest, resetPassword } = useAuth();
   const [resetSuccess, setResetSuccess] = useState('');
-  const [storedTheme, setStoredTheme] = useState(readStoredTheme);
-  const [osTheme, setOsTheme] = useState(systemTheme);
-  const theme = storedTheme || osTheme;
+  // Hell/Dunkel gilt app-weit (data-theme); ohne eigene Wahl folgt der Login der Systemeinstellung
+  const [themePreference, chooseTheme] = useThemePreference();
+  const theme = resolveTheme(themePreference);
   const isDark = theme === 'dark';
 
   // Wortmarke reagiert auf das Formular: richtet sich auf die Karte aus und hüpft bei jedem Tastendruck
@@ -69,24 +56,7 @@ function Login() {
     flowCtl.current?.resume?.();
   };
 
-  // Ohne eigene Wahl folgt der Login-Screen dem System-Design
-  useEffect(() => {
-    const media = window.matchMedia?.('(prefers-color-scheme: dark)');
-    if (!media) return undefined;
-    const onChange = (e) => setOsTheme(e.matches ? 'dark' : 'light');
-    media.addEventListener('change', onChange);
-    return () => media.removeEventListener('change', onChange);
-  }, []);
-
-  const toggleTheme = () => {
-    const next = isDark ? 'light' : 'dark';
-    setStoredTheme(next);
-    try {
-      localStorage.setItem(THEME_STORAGE_KEY, next);
-    } catch {
-      // Wahl gilt dann nur für diese Sitzung
-    }
-  };
+  const toggleTheme = () => chooseTheme(isDark ? 'light' : 'dark');
 
   useEffect(() => {
     const handleAuthError = (e) => {
@@ -94,7 +64,7 @@ function Login() {
       setLoading(false);
       cancelLeave();
     };
-    
+
     window.addEventListener('auth-error', handleAuthError);
     return () => window.removeEventListener('auth-error', handleAuthError);
   }, []);
@@ -163,83 +133,50 @@ function Login() {
   };
 
   return (
-    <div className={isDark ? 'dark' : ''}>
-    <div className="relative isolate min-h-screen overflow-x-hidden bg-surface dark:bg-[#090a0f] transition-colors duration-300 motion-reduce:transition-none px-4 pt-16 pb-8 lg:py-8 flex flex-col items-center justify-center gap-6 lg:flex-row lg:gap-10 xl:gap-14">
+    <div className="relative isolate flex min-h-screen flex-col items-center justify-center gap-6 overflow-x-hidden bg-canvas px-4 pb-8 pt-16 lg:flex-row lg:gap-10 lg:py-8 xl:gap-14">
       <LoginMarquee />
 
-      {/* Blaues Leuchten hinter der Wortmarke (nur im dunklen Design) */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 opacity-0 dark:opacity-100 transition-opacity duration-300 motion-reduce:transition-none bg-[radial-gradient(ellipse_at_center,rgba(0,82,255,0.28),transparent_65%)]"
+      <IconButton
+        icon={isDark ? 'light_mode' : 'dark_mode'}
+        label={isDark ? 'Helles Design aktivieren' : 'Dunkles Design aktivieren'}
+        variant="secondary"
+        className="absolute right-4 top-4 z-10"
+        onClick={toggleTheme}
       />
 
-      <button
-        type="button"
-        onClick={toggleTheme}
-        aria-label={isDark ? 'Helles Design aktivieren' : 'Dunkles Design aktivieren'}
-        title={isDark ? 'Helles Design' : 'Dunkles Design'}
-        className="touch-target absolute top-4 right-4 z-10 flex items-center justify-center rounded-full border border-outline-variant bg-surface-card text-primary hover:border-primary dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:border-white/40 transition-colors"
-      >
-        <span className="material-symbols-outlined text-[20px]">{isDark ? 'light_mode' : 'dark_mode'}</span>
-      </button>
-
       {/* Wortmarke: Mobil/Tablet zweizeilig über der Karte, Desktop FOCUS | Karte | FLOW */}
-      <WordmarkWord ref={focusWordRef} controlRef={focusCtl} word="FOCUS" theme={theme} attention={formEngaged} attentionTargetRef={formRef} pulse={typingPulse} className="order-1 w-full max-w-[24rem] sm:max-w-[30rem] lg:max-w-[32rem] xl:max-w-[36rem] lg:flex-1 -mb-8 lg:mb-0" />
-      <WordmarkWord ref={flowWordRef} controlRef={flowCtl} word="FLOW" theme={theme} attention={formEngaged} attentionTargetRef={formRef} pulse={typingPulse} className="order-2 lg:order-3 w-full max-w-[24rem] sm:max-w-[30rem] lg:max-w-[32rem] xl:max-w-[36rem] lg:flex-1" />
+      <WordmarkWord ref={focusWordRef} controlRef={focusCtl} word="FOCUS" theme={theme} attention={formEngaged} attentionTargetRef={formRef} pulse={typingPulse} className="order-1 -mb-8 w-full max-w-[24rem] sm:max-w-[30rem] lg:mb-0 lg:max-w-[32rem] lg:flex-1 xl:max-w-[36rem]" />
+      <WordmarkWord ref={flowWordRef} controlRef={flowCtl} word="FLOW" theme={theme} attention={formEngaged} attentionTargetRef={formRef} pulse={typingPulse} className="order-2 w-full max-w-[24rem] sm:max-w-[30rem] lg:order-3 lg:max-w-[32rem] lg:flex-1 xl:max-w-[36rem]" />
 
-      <Card padding="large" className="relative order-3 lg:order-2 w-full max-w-md lg:max-w-sm xl:max-w-md shrink-0 space-y-6 bg-surface/50 backdrop-blur-sm border-outline-variant dark:bg-[#12131a] dark:border-white/10">
+      <Card padding="lg" variant="outlined" className="relative order-3 w-full max-w-md shrink-0 space-y-6 lg:order-2 lg:max-w-sm xl:max-w-md">
         <div className="text-center">
           {/* Sichtbar übernimmt die 3D-Wortmarke den Titel, für Screenreader bleibt er erhalten */}
           <h1 className="sr-only">FocusFlow</h1>
-          <p className="text-sm text-on-surface-variant dark:text-neutral-400">
-            Dein intelligentes System für Fokus, Projekte & Workflows
+          <p className="text-body text-secondary">
+            Dein intelligentes System für Fokus, Projekte und Workflows
           </p>
         </div>
 
-        {error && (
-          <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-3 rounded-lg text-sm text-center font-medium">
-            {error}
-          </div>
-        )}
-
-        {resetSuccess && (
-          <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 p-3 rounded-lg text-sm text-center font-medium">
-            {resetSuccess}
-          </div>
-        )}
+        {error && <Alert tone="danger">{error}</Alert>}
+        {resetSuccess && <Alert tone="success">{resetSuccess}</Alert>}
 
         {devCredentials && (
-          <Button variant="secondary" fullWidth onClick={handleDevLogin} data-dev-login>
-            <span className="material-symbols-outlined text-[18px]">bug_report</span>
+          <Button variant="secondary" fullWidth leadingIcon="bug_report" onClick={handleDevLogin} data-dev-login>
             Mit Test-Konto anmelden (nur Entwicklung)
           </Button>
         )}
 
         {/* 1-Klick Gast-Zugang */}
-        <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 text-center space-y-2 dark:bg-white/5 dark:border-white/15">
-          <p className="text-xs text-on-surface-variant dark:text-neutral-400">
+        <div className="space-y-3 rounded-lg border border-subtle bg-subtle p-4 text-center">
+          <p className="text-caption text-secondary">
             Möchtest du FocusFlow direkt ohne Registrierung ausprobieren?
           </p>
-          <Button
-            variant="outline"
-            fullWidth
-            onClick={handleGuestLogin}
-            disabled={loading}
-            className="gap-2 border-primary text-primary font-semibold hover:bg-primary hover:text-white transition-all shadow-sm dark:border-white dark:text-white dark:hover:bg-white dark:hover:text-black"
-          >
-            <span className="material-symbols-outlined text-[18px]">explore</span>
+          <Button variant="secondary" fullWidth leadingIcon="explore" onClick={handleGuestLogin} disabled={loading}>
             Als Gast ausprobieren (Demo)
           </Button>
         </div>
 
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-outline-variant dark:border-white/10" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase tracking-wider">
-            <span className="px-3 bg-surface text-on-surface-variant font-medium dark:bg-[#12131a] dark:text-neutral-400">Mit Konto anmelden</span>
-          </div>
-        </div>
+        <Divider label="Mit Konto anmelden" />
 
         <form
           ref={formRef}
@@ -248,143 +185,85 @@ function Login() {
           onFocus={() => setFormEngaged(true)}
           onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setFormEngaged(false); }}
         >
-          <div className="space-y-3">
-            <div>
-              <label className="block text-xs font-bold text-primary mb-1 dark:text-white">E-Mail</label>
-              <Input
-                type="email"
-                required
-                className="dark:bg-white/5 dark:border-white/10 dark:text-white dark:placeholder:text-neutral-500 dark:focus:ring-white/60"
-                placeholder="deine.email@beispiel.de"
-                value={email}
-                onChange={typed(setEmail)}
-              />
+          <Field label="E-Mail">
+            <Input
+              type="email"
+              required
+              autoComplete="email"
+              placeholder="deine.email@beispiel.de"
+              value={email}
+              onChange={typed(setEmail)}
+            />
+          </Field>
+          <div>
+            <div className="mb-1.5 flex items-center justify-between">
+              <label htmlFor="login-password" className="text-label text-primary">Passwort</label>
+              <button type="button" onClick={handleResetPassword} className="rounded-xs text-caption-strong text-accent underline-offset-2 hover:underline">
+                Passwort vergessen?
+              </button>
             </div>
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-bold text-primary dark:text-white">Passwort</label>
-                <button
-                  type="button"
-                  onClick={handleResetPassword}
-                  className="text-xs text-primary hover:underline font-medium dark:text-neutral-300"
-                >
-                  Passwort vergessen?
-                </button>
-              </div>
-              <Input
-                type="password"
-                required
-                className="dark:bg-white/5 dark:border-white/10 dark:text-white dark:placeholder:text-neutral-500 dark:focus:ring-white/60"
-                placeholder="••••••••"
-                value={password}
-                onChange={typed(setPassword)}
-              />
-            </div>
+            <Input
+              id="login-password"
+              type="password"
+              required
+              autoComplete="current-password"
+              placeholder="••••••••"
+              value={password}
+              onChange={typed(setPassword)}
+            />
           </div>
 
-          <div>
-            <Button
-              type="submit"
-              disabled={loading}
-              fullWidth
-              className="dark:bg-white dark:text-black dark:hover:bg-neutral-200 dark:focus:ring-white/60 dark:focus:ring-offset-[#12131a]"
-            >
-              {loading ? 'Lädt...' : 'Mit E-Mail anmelden'}
-            </Button>
-          </div>
+          <Button type="submit" size="lg" fullWidth loading={loading}>
+            Mit E-Mail anmelden
+          </Button>
         </form>
 
-        <div className="pt-1">
-          <Button
-            variant="secondary"
-            fullWidth
-            onClick={handleGoogleLogin}
-            disabled={loading}
-            className="gap-3 text-xs dark:bg-white/5 dark:text-white dark:border-white/10 dark:hover:border-white/40"
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24">
-              <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-              <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-              <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-              <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-            </svg>
-            Mit Google anmelden
-          </Button>
-        </div>
+        <Button variant="secondary" fullWidth onClick={handleGoogleLogin} disabled={loading}>
+          <svg className="h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+            <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+            <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+            <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+          </svg>
+          Mit Google anmelden
+        </Button>
 
-        {/* Rechtliche Links & Nutzungshinweise */}
-        <div className="pt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-t border-outline-variant/30 dark:border-white/10">
-          <button
-            type="button"
-            onClick={() => setShowPrivacyModal(true)}
-            className="py-1 text-[11px] text-on-surface-variant/80 hover:text-primary transition-colors underline dark:text-neutral-400 dark:hover:text-white"
-          >
+        {/* Rechtliche Links und Nutzungshinweise */}
+        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 border-t border-subtle pt-3">
+          <button type="button" onClick={() => setShowPrivacyModal(true)} className={LINK_CLASS}>
             Nutzungshinweise
           </button>
-          <a
-            href={LEGAL_PATHS.datenschutz}
-            className="py-1 text-[11px] text-on-surface-variant/80 hover:text-primary transition-colors underline dark:text-neutral-400 dark:hover:text-white"
-          >
-            Datenschutz
-          </a>
-          <a
-            href={LEGAL_PATHS.impressum}
-            className="py-1 text-[11px] text-on-surface-variant/80 hover:text-primary transition-colors underline dark:text-neutral-400 dark:hover:text-white"
-          >
-            Impressum
-          </a>
+          <a href={LEGAL_PATHS.datenschutz} className={LINK_CLASS}>Datenschutz</a>
+          <a href={LEGAL_PATHS.impressum} className={LINK_CLASS}>Impressum</a>
         </div>
       </Card>
 
-      {/* Modal: Nutzungshinweise */}
-      {showPrivacyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
-          <div className="bg-surface border border-outline-variant rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto dark:bg-[#12131a] dark:border-white/10">
-            <div className="flex items-center justify-between border-b border-outline-variant pb-3 dark:border-white/10">
-              <h3 className="text-base font-bold text-primary flex items-center gap-2 dark:text-white">
-                <span className="material-symbols-outlined text-[20px]">shield</span>
-                Nutzungshinweise
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowPrivacyModal(false)}
-                className="text-on-surface-variant hover:text-primary p-1 rounded-lg dark:text-neutral-400 dark:hover:text-white"
-              >
-                <span className="material-symbols-outlined text-[20px]">close</span>
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs text-on-surface-variant leading-relaxed dark:text-neutral-400">
-              <p>
-                <strong>1. Bereitstellung („Wie besehen“):</strong> FocusFlow wird als webbasierte Anwendung zur Workflow- und Aufgabenorganisation zur Verfügung gestellt. Die Nutzung aller Funktionen erfolgt stets auf eigenes Risiko und in eigener Verantwortung.
-              </p>
-              <p>
-                <strong>2. Haftungsausschluss für Daten & Verfügbarkeit:</strong> Es wird ausdrücklich keine Haftung oder Gewährleistung für die Richtigkeit, Vollständigkeit, dauerhafte Speicherung oder Wiederherstellung von erstellten Projekten, Aufgaben, Notizen oder Terminen übernommen. Ein Anspruch auf eine unterbrechungsfreie oder fehlerfreie Verfügbarkeit des Dienstes besteht nicht.
-              </p>
-              <p>
-                <strong>3. KI-generierte Inhalte:</strong> Alle vom KI-Coach oder automatisierten Assistenten erzeugten Antworten, Vorschläge und Zusammenfassungen dienen reinen Informationszwecken. Für etwaige Entscheidungen, Handlungen oder Folgeschäden, die aus der Nutzung der KI-Ausgaben resultieren, wird jegliche Haftung ausgeschlossen.
-              </p>
-              <p>
-                <strong>4. Schnittstellen & Drittanbieter:</strong> Für die ständige Erreichbarkeit und fehlerfreie Funktion von angebundenen Drittanbieter-Diensten (z. B. Google Kalender oder externe Cloud-Dienste) sowie für etwaige Datenübertragungsfehler wird keine Haftung übernommen.
-              </p>
-              <p className="pt-1 font-semibold text-primary dark:text-white">
-                <strong>5. Eigenverantwortung:</strong> Das Betreten und Ausprobieren dieser App geschieht vollkommen auf eigene Gefahr und in reiner Selbstverantwortung – es gibt hier weder Sicherheiten noch Garantien.
-              </p>
-            </div>
-
-            <div className="pt-3 border-t border-outline-variant flex justify-end dark:border-white/10">
-              <Button
-                variant="primary"
-                onClick={() => setShowPrivacyModal(false)}
-                className="dark:bg-white dark:text-black dark:hover:bg-neutral-200"
-              >
-                Verstanden
-              </Button>
-            </div>
-          </div>
+      {/* Nutzungshinweise */}
+      <Dialog
+        open={showPrivacyModal}
+        onClose={() => setShowPrivacyModal(false)}
+        size="lg"
+        title="Nutzungshinweise"
+        footer={<Button onClick={() => setShowPrivacyModal(false)}>Verstanden</Button>}
+      >
+        <div className="max-h-[55vh] space-y-3 overflow-y-auto text-body text-secondary">
+          <p>
+            <strong className="text-primary">1. Bereitstellung („Wie besehen“):</strong> FocusFlow wird als webbasierte Anwendung zur Workflow- und Aufgabenorganisation zur Verfügung gestellt. Die Nutzung aller Funktionen erfolgt stets auf eigenes Risiko und in eigener Verantwortung.
+          </p>
+          <p>
+            <strong className="text-primary">2. Haftungsausschluss für Daten und Verfügbarkeit:</strong> Es wird ausdrücklich keine Haftung oder Gewährleistung für die Richtigkeit, Vollständigkeit, dauerhafte Speicherung oder Wiederherstellung von erstellten Projekten, Aufgaben, Notizen oder Terminen übernommen. Ein Anspruch auf eine unterbrechungsfreie oder fehlerfreie Verfügbarkeit des Dienstes besteht nicht.
+          </p>
+          <p>
+            <strong className="text-primary">3. KI-generierte Inhalte:</strong> Alle vom KI-Coach oder automatisierten Assistenten erzeugten Antworten, Vorschläge und Zusammenfassungen dienen reinen Informationszwecken. Für etwaige Entscheidungen, Handlungen oder Folgeschäden, die aus der Nutzung der KI-Ausgaben resultieren, wird jegliche Haftung ausgeschlossen.
+          </p>
+          <p>
+            <strong className="text-primary">4. Schnittstellen und Drittanbieter:</strong> Für die ständige Erreichbarkeit und fehlerfreie Funktion von angebundenen Drittanbieter-Diensten (z. B. Google Kalender oder externe Cloud-Dienste) sowie für etwaige Datenübertragungsfehler wird keine Haftung übernommen.
+          </p>
+          <p className="text-primary">
+            <strong>5. Eigenverantwortung:</strong> Das Betreten und Ausprobieren dieser App geschieht vollkommen auf eigene Gefahr und in reiner Selbstverantwortung – es gibt hier weder Sicherheiten noch Garantien.
+          </p>
         </div>
-      )}
-    </div>
+      </Dialog>
     </div>
   );
 }

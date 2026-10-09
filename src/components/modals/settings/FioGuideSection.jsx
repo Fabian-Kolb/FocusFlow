@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import FioIcon from '../../ui/FioIcon';
 
+import { FioMark, Icon } from '../../ds';
 // High impact, user-tested prompts
 const PROMPT_TEMPLATES = [
   {
@@ -156,32 +156,32 @@ export default function FioGuideSection({ onSelectPrompt }) {
       </div>
 
       {/* Header Banner */}
-      <div className="p-5 rounded-2xl bg-primary/10 border border-primary/20 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-        <div className="w-12 h-12 rounded-xl bg-neutral-900 text-white flex items-center justify-center p-2.5 shadow-sm shrink-0">
-          <FioIcon className="w-full h-full text-white" color="currentColor" />
+      <div className="p-5 rounded-lg bg-hover border border-default flex flex-col sm:flex-row items-start sm:items-center gap-4">
+        <div className="w-12 h-12 rounded-lg bg-accent text-on-accent flex items-center justify-center p-2.5 shadow-sm shrink-0">
+          <FioMark size={20} className="text-on-accent" />
         </div>
         <div>
-          <h3 className="text-base font-bold text-on-surface">Fio ist mehr als nur ein Chatbot</h3>
-          <p className="text-xs sm:text-sm text-on-surface-variant mt-0.5 leading-relaxed">
+          <h3 className="text-subheading">Fio ist mehr als nur ein Chatbot</h3>
+          <p className="text-caption sm:text-body text-secondary mt-0.5 leading-relaxed">
             Fio versteht deine Projekte und Aufgaben und kann echte Aktionen direkt in deiner FocusFlow-App ausführen. Du sagst einfach, was du brauchst – Fio erledigt die Fleißarbeit.
           </p>
         </div>
       </div>
 
       {/* Safety & Confirmation Principle */}
-      <div className="p-4 rounded-xl bg-surface-variant/20 border border-border space-y-2">
-        <div className="flex items-center gap-2 text-xs font-bold text-primary uppercase tracking-wider">
-          <span className="material-symbols-outlined text-[18px]">verified_user</span>
+      <div className="p-4 rounded-lg bg-subtle border border-subtle space-y-2">
+        <div className="flex items-center gap-2 font-label text-eyebrow text-primary uppercase">
+          <Icon name="verified_user" size="md" />
           Sicherheit & Bestätigung
         </div>
-        <p className="text-xs text-on-surface-variant leading-relaxed">
+        <p className="text-caption text-secondary leading-relaxed">
           <strong>Transparenz zuerst:</strong> Jede von Fio durchgeführte Änderung wird im Chat mit einer interaktiven Karte visualisiert und im Projekt-Verlauf protokolliert. Bei Kalendereinträgen fragt Fio dich vorab, ob der Termin nur lokal oder im Google Kalender synchronisiert werden soll. Fio löscht keine Daten selbstständig.
         </p>
       </div>
 
       {/* Copy Error Notice */}
       {copyError && (
-        <div role="alert" className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-400">
+        <div role="alert" className="p-3 rounded-lg bg-danger-subtle border border-danger text-caption text-danger">
           {copyError}
         </div>
       )}
@@ -189,10 +189,10 @@ export default function FioGuideSection({ onSelectPrompt }) {
       {/* Prompt Templates */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">
+          <h3 className="font-label text-eyebrow text-secondary uppercase">
             Inspirierende Prompt-Vorlagen
           </h3>
-          <span className="text-[11px] text-on-surface-variant">1-Klick kopieren</span>
+          <span className="text-micro text-secondary">1-Klick kopieren</span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -201,29 +201,27 @@ export default function FioGuideSection({ onSelectPrompt }) {
             return (
               <div 
                 key={tpl.id}
-                className="p-3.5 rounded-xl border border-border bg-surface hover:border-primary/40 transition-all flex flex-col justify-between gap-3 shadow-xs hover:shadow-sm"
+                className="p-3.5 rounded-lg border border-subtle bg-canvas hover:border-control transition-all flex flex-col justify-between gap-3 shadow-xs hover:shadow-sm"
               >
                 <div>
-                  <h4 className="text-xs font-bold text-on-surface">{tpl.title}</h4>
-                  <p className="text-[11px] text-on-surface-variant mt-0.5 leading-relaxed">{tpl.desc}</p>
-                  <p className="text-xs font-mono bg-surface-variant/30 text-on-surface border border-border/50 rounded-lg p-2 mt-2 leading-relaxed italic">
+                  <h4 className="text-caption-strong">{tpl.title}</h4>
+                  <p className="text-micro text-secondary mt-0.5 leading-relaxed">{tpl.desc}</p>
+                  <p className="text-caption font-label bg-subtle border border-subtle rounded-md p-2 mt-2 leading-relaxed italic">
                     „{tpl.prompt}“
                   </p>
                 </div>
-                <div className="flex items-center justify-end gap-2 pt-1 border-t border-border/40">
+                <div className="flex items-center justify-end gap-2 pt-1 border-t border-subtle">
                   <button
                     type="button"
                     onClick={() => handleCopyPrompt(tpl.id, tpl.prompt)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    className={`px-3 py-1.5 rounded-md text-caption-strong flex items-center gap-1.5 transition-all cursor-pointer ${
                       isCopied 
-                        ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30' 
-                        : 'bg-surface-variant hover:bg-surface-variant/80 text-on-surface border border-border'
+                        ? 'bg-success-subtle text-success border border-success' 
+                        : 'bg-subtle hover:bg-hover border border-subtle'
                     }`}
                     title="Prompt in Zwischenablage kopieren"
                   >
-                    <span className="material-symbols-outlined text-[16px]">
-                      {isCopied ? 'check' : 'content_copy'}
-                    </span>
+                    <Icon name={isCopied ? 'check' : 'content_copy'} size="sm" />
                     {isCopied ? 'Kopiert!' : 'Kopieren'}
                   </button>
                 </div>
@@ -236,17 +234,15 @@ export default function FioGuideSection({ onSelectPrompt }) {
       {/* Capability Matrix */}
       <div className="space-y-3 pt-2">
         <div className="flex items-center justify-between">
-          <h3 className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">
+          <h3 className="font-label text-eyebrow text-secondary uppercase">
             Fähigkeiten im Überblick
           </h3>
           <button
             type="button"
             onClick={() => setShowTechDetails(!showTechDetails)}
-            className="text-[11px] text-primary hover:underline cursor-pointer flex items-center gap-1"
+            className="text-micro text-primary hover:underline cursor-pointer flex items-center gap-1"
           >
-            <span className="material-symbols-outlined text-[14px]">
-              {showTechDetails ? 'visibility_off' : 'code'}
-            </span>
+            <Icon name={showTechDetails ? 'visibility_off' : 'code'} size="sm" />
             {showTechDetails ? 'Details ausblenden' : 'Technische Details'}
           </button>
         </div>
@@ -255,18 +251,16 @@ export default function FioGuideSection({ onSelectPrompt }) {
           {CAPABILITIES.map((cap, idx) => (
             <div 
               key={idx}
-              className="p-3 rounded-xl border border-border bg-surface-variant/15 flex items-start gap-3"
+              className="p-3 rounded-lg border border-subtle bg-subtle flex items-start gap-3"
             >
-              <span className="material-symbols-outlined text-primary text-xl shrink-0 mt-0.5">
-                {cap.icon}
-              </span>
+              <Icon name={cap.icon} size="md" className="text-primary shrink-0 mt-0.5" />
               <div className="min-w-0 flex-1">
-                <p className="text-xs sm:text-sm font-semibold text-on-surface">{cap.title}</p>
-                <p className="text-xs text-on-surface-variant mt-0.5 leading-relaxed">{cap.desc}</p>
+                <p className="text-caption-strong sm:text-body">{cap.title}</p>
+                <p className="text-caption text-secondary mt-0.5 leading-relaxed">{cap.desc}</p>
                 {showTechDetails && (
-                  <div className="mt-2 pt-2 border-t border-border/40 text-[10px] font-mono text-on-surface-variant flex flex-wrap gap-x-4 gap-y-1">
+                  <div className="mt-2 pt-2 border-t border-subtle text-micro font-label text-secondary flex flex-wrap gap-x-4 gap-y-1">
                     <span><strong className="text-primary">Action:</strong> {cap.actionType}</span>
-                    <span><strong className="text-on-surface">Parameter:</strong> {cap.params}</span>
+                    <span><strong className="">Parameter:</strong> {cap.params}</span>
                   </div>
                 )}
               </div>

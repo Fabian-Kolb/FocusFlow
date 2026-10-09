@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 
+import { Alert, Badge, Button, Chip, Field, Icon, IconTile, Input, SectionHeader } from '../../ds';
+import { THEME_CHOICES, useThemePreference } from '../../../lib/theme';
 const DELETE_CONFIRM_WORD = 'LÖSCHEN';
 
 function getDeleteErrorText(err) {
@@ -15,7 +17,7 @@ function getDeleteErrorText(err) {
     return 'Das Google-Fenster wurde blockiert. Bitte erlaube Popups und versuche es erneut.';
   }
   if (code === 'auth/user-mismatch') {
-    return 'Bitte bestätige mit demselben Google-Konto, mit dem du angemeldet bist.';
+    return 'Bitte bestätige mit demselben Google-Konto, dem du angemeldet bist.';
   }
   if (code === 'auth/too-many-requests') {
     return 'Zu viele Versuche. Bitte warte einen Moment.';
@@ -248,365 +250,262 @@ export default function AccountSection({
 
   const userInitial = (user?.displayName || user?.email || 'U').substring(0, 2).toUpperCase();
 
+  const [themePreference, chooseTheme] = useThemePreference();
+
   return (
     <div className="space-y-6">
-      {/* Feedback Message */}
+      {/* Rückmeldung */}
       {msg.text && (
-        <div 
-          role="alert"
-          className={`p-3.5 rounded-xl text-sm flex items-start gap-2.5 transition-all ${
-            msg.type === 'error' 
-              ? 'bg-red-500/10 text-red-400 border border-red-500/20' 
-              : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-          }`}
+        <Alert
+          tone={msg.type === 'error' ? 'danger' : 'success'}
+          onDismiss={() => setMsg({ type: '', text: '' })}
         >
-          <span className="material-symbols-outlined text-[20px] shrink-0 mt-0.5">
-            {msg.type === 'error' ? 'error' : 'check_circle'}
-          </span>
-          <span className="flex-1 text-xs sm:text-sm">{msg.text}</span>
-          <button 
-            type="button" 
-            onClick={() => setMsg({ type: '', text: '' })}
-            className="text-current opacity-60 hover:opacity-100 p-0.5"
-            title="Meldung schließen"
-          >
-            <span className="material-symbols-outlined text-[16px]">close</span>
-          </button>
-        </div>
+          {msg.text}
+        </Alert>
       )}
 
-      {/* User Info Overview Card */}
-      <div className="flex items-center gap-4 p-4 rounded-2xl bg-surface-variant/20 border border-border">
-        <div className="w-14 h-14 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center font-bold text-xl text-primary overflow-hidden shrink-0">
+      {/* Konto-Übersicht */}
+      <div className="flex items-center gap-4 rounded-lg border border-subtle bg-subtle p-4">
+        <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-default bg-surface text-heading text-primary">
           {formState.photoURL ? (
-            <img 
-              src={formState.photoURL} 
-              alt="Avatar" 
-              className="w-full h-full object-cover rounded-full"
+            <img
+              src={formState.photoURL}
+              alt="Avatar"
+              className="h-full w-full rounded-full object-cover"
               onError={(e) => { e.target.style.display = 'none'; }}
             />
           ) : user?.isGuest ? (
-            <span className="material-symbols-outlined text-2xl text-amber-500">person</span>
+            <Icon name="person" size="lg" className="text-warning" />
           ) : (
             userInitial
           )}
-        </div>
+        </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <p className="font-bold text-base truncate text-on-surface">
+            <p className="truncate text-subheading text-primary">
               {user?.displayName || 'Kein Name angegeben'}
             </p>
-            {isProfileDirty && (
-              <span className="px-1.5 py-0.5 text-[10px] font-medium bg-amber-500/15 text-amber-500 border border-amber-500/30 rounded-md">
-                Ungespeichert
-              </span>
-            )}
+            {isProfileDirty && <Badge tone="warning" size="sm">Ungespeichert</Badge>}
           </div>
-          <p className="text-xs sm:text-sm text-on-surface-variant truncate">{user?.email}</p>
-          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-            <span className={`inline-block text-[11px] px-2.5 py-0.5 rounded-full border font-mono ${
-              user?.isGuest 
-                ? 'bg-amber-500/10 text-amber-500 border-amber-500/30' 
-                : 'bg-surface border-border text-on-surface-variant'
-            }`}>
-              {user?.isGuest ? 'Gast-Modus (Vorschau)' : (isGoogleUser ? 'Google Konto' : 'E-Mail & Passwort')}
-            </span>
+          <p className="truncate text-body text-secondary">{user?.email}</p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+            <Badge tone={user?.isGuest ? 'warning' : 'neutral'} size="sm">
+              {user?.isGuest ? 'Gast-Modus (Vorschau)' : (isGoogleUser ? 'Google-Konto' : 'E-Mail und Passwort')}
+            </Badge>
             {user && !user.isGuest && (
-              <span className={`inline-flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-full border font-mono ${
-                user.emailVerified
-                  ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30'
-                  : 'bg-amber-500/10 text-amber-500 border-amber-500/30'
-              }`}>
-                <span className="material-symbols-outlined text-[12px]">
-                  {user.emailVerified ? 'verified' : 'pending'}
-                </span>
+              <Badge tone={user.emailVerified ? 'success' : 'warning'} size="sm" icon={user.emailVerified ? 'verified' : 'pending'}>
                 {user.emailVerified ? 'Verifiziert' : 'Nicht verifiziert'}
-              </span>
+              </Badge>
             )}
           </div>
         </div>
       </div>
 
-      {/* Guest Mode Notice */}
-      {user?.isGuest ? (
-        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/25 space-y-3 text-on-surface">
-          <div className="flex items-center gap-2 text-amber-500 font-semibold text-sm">
-            <span className="material-symbols-outlined text-[20px]">info</span>
-            Gast-Sitzung aktiv
-          </div>
-          <p className="text-xs text-on-surface-variant leading-relaxed">
-            Du erkundest FocusFlow im Gast-Modus. Deine erstellten Daten, Aufgaben und Chats bleiben in diesem Browser auch beim Neuladen der Seite erhalten. Cloud-Synchronisation und Google Kalender sind im Gast-Modus deaktiviert.
-          </p>
-          <div className="pt-1">
-            <button
-              type="button"
-              onClick={onLogout}
-              className="px-3.5 py-2 bg-amber-500/15 hover:bg-amber-500/25 text-amber-500 border border-amber-500/30 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
+      {/* Darstellung: Hell, Dunkel oder dem System folgen */}
+      <section className="space-y-3" aria-labelledby="settings-theme-title">
+        <SectionHeader title="Darstellung" />
+        <div role="radiogroup" aria-labelledby="settings-theme-title" className="flex flex-wrap gap-2">
+          <span id="settings-theme-title" className="sr-only">Farbschema</span>
+          {THEME_CHOICES.map((choice) => (
+            <Chip
+              key={choice.value}
+              role="radio"
+              aria-checked={themePreference === choice.value}
+              selected={themePreference === choice.value}
+              leadingIcon={choice.icon}
+              onClick={() => chooseTheme(choice.value)}
             >
-              <span className="material-symbols-outlined text-[16px]">logout</span>
-              Gast-Modus beenden & Anmelden
-            </button>
-          </div>
+              {choice.label}
+            </Chip>
+          ))}
         </div>
+      </section>
+
+      {/* Gast-Hinweis */}
+      {user?.isGuest ? (
+        <Alert
+          tone="warning"
+          title="Gast-Sitzung aktiv"
+          action={<Button variant="secondary" size="sm" leadingIcon="logout" onClick={onLogout}>Gast-Modus beenden und anmelden</Button>}
+        >
+          Du erkundest FocusFlow im Gast-Modus. Deine Daten, Aufgaben und Chats bleiben in diesem Browser auch nach dem Neuladen erhalten. Cloud-Synchronisation und Google Kalender sind im Gast-Modus deaktiviert.
+        </Alert>
       ) : (
         <>
-          {/* Email Verification Action (if unverified) */}
+          {/* E-Mail bestätigen (falls nötig) */}
           {!user?.emailVerified && (
-            <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="space-y-1">
-                <p className="text-xs font-semibold text-amber-500 flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-[18px]">mark_email_unread</span>
-                  E-Mail-Adresse noch nicht bestätigt
-                </p>
-                <p className="text-xs text-on-surface-variant">
-                  Bitte bestätige deine E-Mail, um alle Sicherheitsfeatures nutzen zu können.
-                </p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  disabled={loadingAction === 'verify'}
-                  onClick={handleSendVerification}
-                  className="px-3 py-1.5 bg-amber-500 text-neutral-900 rounded-lg text-xs font-bold hover:bg-amber-400 transition-colors disabled:opacity-50 cursor-pointer"
-                >
-                  {loadingAction === 'verify' ? 'Sendet...' : 'Link senden'}
-                </button>
-                <button
-                  type="button"
-                  disabled={loadingAction === 'reload'}
-                  onClick={handleReloadUser}
-                  className="px-3 py-1.5 border border-border text-on-surface rounded-lg text-xs font-medium hover:bg-surface-variant/30 transition-colors cursor-pointer"
-                >
-                  Prüfen
-                </button>
-              </div>
-            </div>
+            <Alert
+              tone="warning"
+              icon="mark_email_unread"
+              title="E-Mail-Adresse noch nicht bestätigt"
+              action={(
+                <>
+                  <Button size="sm" loading={loadingAction === 'verify'} onClick={handleSendVerification}>
+                    Link senden
+                  </Button>
+                  <Button variant="ghost" size="sm" disabled={loadingAction === 'reload'} onClick={handleReloadUser}>
+                    Prüfen
+                  </Button>
+                </>
+              )}
+            >
+              Bitte bestätige deine E-Mail, um alle Sicherheitsfunktionen zu nutzen.
+            </Alert>
           )}
 
-          {/* Edit Profile Form */}
+          {/* Profil */}
           <form onSubmit={handleUpdateProfile} className="space-y-4">
-            <h3 className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">
-              Profil-Informationen
-            </h3>
-            <div>
-              <label htmlFor="settings-display-name" className="block text-xs font-medium text-on-surface mb-1">
-                Anzeigename
-              </label>
-              <input
+            <SectionHeader title="Profil" />
+            <Field label="Anzeigename">
+              <Input
                 id="settings-display-name"
-                type="text"
-                className="w-full bg-surface-variant/20 border border-border rounded-xl px-3.5 py-2 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
                 placeholder="Dein Name"
                 value={formState.displayName}
                 onChange={(e) => setFormState(prev => ({ ...prev, displayName: e.target.value }))}
               />
-            </div>
-            <div>
-              <label htmlFor="settings-photo-url" className="block text-xs font-medium text-on-surface mb-1">
-                Profilbild URL
-              </label>
-              <input
+            </Field>
+            <Field label="Profilbild-Adresse" optional>
+              <Input
                 id="settings-photo-url"
                 type="url"
-                className="w-full bg-surface-variant/20 border border-border rounded-xl px-3.5 py-2 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
                 placeholder="https://beispiel.de/bild.jpg"
                 value={formState.photoURL}
                 onChange={(e) => setFormState(prev => ({ ...prev, photoURL: e.target.value }))}
               />
-            </div>
+            </Field>
             <div className="flex items-center gap-2">
-              <button
-                type="submit"
-                disabled={loadingAction === 'profile' || !isProfileDirty}
-                className="px-4 py-2 bg-primary text-on-primary rounded-xl text-xs sm:text-sm font-bold hover:bg-primary/90 transition-all disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
-              >
-                {loadingAction === 'profile' ? 'Wird gespeichert...' : 'Profil speichern'}
-              </button>
+              <Button type="submit" loading={loadingAction === 'profile'} disabled={!isProfileDirty}>
+                Profil speichern
+              </Button>
               {isProfileDirty && (
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
                   onClick={() => setFormState(prev => ({
                     ...prev,
                     displayName: user?.displayName || '',
                     photoURL: user?.photoURL || ''
                   }))}
-                  className="px-3 py-2 text-xs text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
                 >
                   Zurücksetzen
-                </button>
+                </Button>
               )}
             </div>
           </form>
 
-          {/* Change Password Form (Only for Password Users) */}
+          {/* Passwort (nur für Konten mit Passwort) */}
           {!isGoogleUser && (
-            <form onSubmit={handleChangePassword} className="space-y-4 pt-4 border-t border-border">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">
-                  Passwort ändern
-                </h3>
-                {isPasswordDirty && (
-                  <span className="text-[10px] text-amber-500 font-medium">Ungespeichert</span>
-                )}
-              </div>
-              <div>
-                <label htmlFor="settings-new-password" className="block text-xs font-medium text-on-surface mb-1">
-                  Neues Passwort
-                </label>
-                <input
+            <form onSubmit={handleChangePassword} className="space-y-4 border-t border-subtle pt-5">
+              <SectionHeader title="Passwort ändern" action={isPasswordDirty && <Badge tone="warning" size="sm">Ungespeichert</Badge>} />
+              <Field label="Neues Passwort">
+                <Input
                   id="settings-new-password"
                   type="password"
                   required
-                  className="w-full bg-surface-variant/20 border border-border rounded-xl px-3.5 py-2 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
                   placeholder="Mindestens 6 Zeichen"
                   value={formState.newPassword}
                   onChange={(e) => setFormState(prev => ({ ...prev, newPassword: e.target.value }))}
                 />
-              </div>
-              <div>
-                <label htmlFor="settings-confirm-password" className="block text-xs font-medium text-on-surface mb-1">
-                  Neues Passwort bestätigen
-                </label>
-                <input
+              </Field>
+              <Field label="Neues Passwort bestätigen">
+                <Input
                   id="settings-confirm-password"
                   type="password"
                   required
-                  className="w-full bg-surface-variant/20 border border-border rounded-xl px-3.5 py-2 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
                   placeholder="Passwort wiederholen"
                   value={formState.confirmPassword}
                   onChange={(e) => setFormState(prev => ({ ...prev, confirmPassword: e.target.value }))}
                 />
-              </div>
-              <button
-                type="submit"
-                disabled={loadingAction === 'password' || !isPasswordDirty}
-                className="px-4 py-2 bg-surface-variant hover:bg-surface-variant/80 border border-border text-on-surface rounded-xl text-xs sm:text-sm font-semibold transition-all disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
-              >
-                {loadingAction === 'password' ? 'Wird geändert...' : 'Passwort aktualisieren'}
-              </button>
+              </Field>
+              <Button variant="secondary" type="submit" loading={loadingAction === 'password'} disabled={!isPasswordDirty}>
+                Passwort aktualisieren
+              </Button>
             </form>
           )}
 
-          {/* Calendar Connection */}
-          <div className="space-y-3 pt-4 border-t border-border">
-            <h3 className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">
-              Verknüpfte Dienste
-            </h3>
-            <div className="flex items-center justify-between p-3.5 rounded-xl bg-surface-variant/20 border border-border">
-              <div className="flex items-center gap-3 min-w-0">
-                <span className="material-symbols-outlined text-primary text-2xl shrink-0">calendar_month</span>
+          {/* Verknüpfte Dienste */}
+          <div className="space-y-3 border-t border-subtle pt-5">
+            <SectionHeader title="Verknüpfte Dienste" />
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-subtle bg-subtle p-3.5">
+              <div className="flex min-w-0 items-center gap-3">
+                <IconTile area="calendar" icon="calendar_month" />
                 <div className="min-w-0">
-                  <p className="text-xs sm:text-sm font-semibold text-on-surface truncate">Google Kalender</p>
-                  <p className="text-[11px] text-on-surface-variant flex items-center gap-1.5 mt-0.5">
-                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isCalendarConnected ? 'bg-emerald-500' : 'bg-neutral-500'}`} />
-                    {isCalendarConnected ? 'Verbunden & synchronisiert' : 'Nicht verknüpft'}
+                  <p className="truncate text-body-strong text-primary">Google Kalender</p>
+                  <p className="mt-0.5 flex items-center gap-1.5 text-caption text-secondary">
+                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${isCalendarConnected ? 'bg-success' : 'bg-control'}`} aria-hidden="true" />
+                    {isCalendarConnected ? 'Verbunden und synchronisiert' : 'Nicht verknüpft'}
                   </p>
                 </div>
               </div>
-              <div className="shrink-0 ml-2">
+              <div className="shrink-0">
                 {isCalendarConnected ? (
-                  <button
-                    type="button"
-                    disabled={loadingAction === 'disconnect'}
-                    onClick={handleDisconnectCalendar}
-                    className="px-3 py-1.5 border border-border rounded-lg text-xs font-medium text-red-400 hover:bg-red-500/10 hover:border-red-500/30 transition-colors disabled:opacity-50 cursor-pointer"
-                  >
-                    {loadingAction === 'disconnect' ? 'Trennt...' : 'Trennen'}
-                  </button>
+                  <Button variant="danger-ghost" size="sm" loading={loadingAction === 'disconnect'} onClick={handleDisconnectCalendar}>
+                    Trennen
+                  </Button>
                 ) : (
-                  <button
-                    type="button"
-                    disabled={loadingAction === 'calendar'}
-                    onClick={handleConnectCalendar}
-                    className="px-3 py-1.5 bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer flex items-center gap-1"
-                  >
-                    {loadingAction === 'calendar' ? 'Verbindet...' : 'Verbinden'}
-                  </button>
+                  <Button variant="secondary" size="sm" loading={loadingAction === 'calendar'} onClick={handleConnectCalendar}>
+                    Verbinden
+                  </Button>
                 )}
               </div>
             </div>
           </div>
 
           {/* Konto löschen (DSGVO Art. 17) */}
-          <div className="space-y-3 pt-4 border-t border-border">
-            <h3 className="text-xs font-bold text-red-400 uppercase tracking-wider">
-              Konto löschen
-            </h3>
+          <div className="space-y-3 border-t border-subtle pt-5">
+            <SectionHeader title="Konto löschen" />
             {!deleteOpen ? (
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl border border-red-500/20 bg-red-500/5">
-                <p className="text-xs text-on-surface-variant leading-relaxed">
+              <div className="flex flex-col justify-between gap-3 rounded-lg border border-danger bg-danger-subtle p-4 sm:flex-row sm:items-center">
+                <p className="text-body text-secondary">
                   Löscht dein Konto und alle Projekte, Erinnerungen, Gedanken, Notizen und Chats endgültig.
                 </p>
-                <button
-                  type="button"
-                  onClick={() => setDeleteOpen(true)}
-                  className="shrink-0 min-h-[44px] sm:min-h-0 px-3.5 py-2 border border-red-500/30 text-red-400 hover:bg-red-500/10 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
-                >
+                <Button variant="danger-ghost" onClick={() => setDeleteOpen(true)} className="shrink-0">
                   Konto löschen …
-                </button>
+                </Button>
               </div>
             ) : (
               <form
                 onSubmit={handleDeleteAccount}
-                className="space-y-3 p-4 rounded-xl border border-red-500/30 bg-red-500/5"
+                className="space-y-4 rounded-lg border border-danger bg-danger-subtle p-4"
               >
-                <p className="text-xs text-on-surface-variant leading-relaxed">
-                  <strong className="text-red-400">Das kann nicht rückgängig gemacht werden.</strong>{' '}
+                <p className="text-body text-secondary">
+                  <strong className="text-danger">Das kann nicht rückgängig gemacht werden.</strong>{' '}
                   Alle Inhalte werden sofort gelöscht, auch der Papierkorb. Eine Google-Kalender-Verbindung wird getrennt;
                   deine Termine im Google Kalender selbst bleiben erhalten.
                 </p>
-                <div>
-                  <label htmlFor="settings-delete-confirm" className="block text-xs font-medium text-on-surface mb-1">
-                    Gib zur Bestätigung <span className="font-mono font-bold">{DELETE_CONFIRM_WORD}</span> ein
-                  </label>
-                  <input
+                <Field label={`Gib zur Bestätigung ${DELETE_CONFIRM_WORD} ein`}>
+                  <Input
                     id="settings-delete-confirm"
-                    type="text"
                     autoComplete="off"
                     autoCapitalize="characters"
-                    className="w-full bg-surface-variant/20 border border-border rounded-xl px-3.5 py-2 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-red-500/40 transition-all"
                     value={deleteConfirmText}
                     onChange={(e) => setDeleteConfirmText(e.target.value)}
                   />
-                </div>
+                </Field>
                 {isGoogleUser ? (
-                  <p className="text-[11px] text-on-surface-variant">
+                  <p className="text-caption text-secondary">
                     Zur Sicherheit bestätigst du den Vorgang gleich noch einmal mit deinem Google-Konto.
                   </p>
                 ) : (
-                  <div>
-                    <label htmlFor="settings-delete-password" className="block text-xs font-medium text-on-surface mb-1">
-                      Aktuelles Passwort
-                    </label>
-                    <input
+                  <Field label="Aktuelles Passwort">
+                    <Input
                       id="settings-delete-password"
                       type="password"
                       autoComplete="current-password"
-                      className="w-full bg-surface-variant/20 border border-border rounded-xl px-3.5 py-2 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-red-500/40 transition-all"
                       value={deletePassword}
                       onChange={(e) => setDeletePassword(e.target.value)}
                     />
-                  </div>
+                  </Field>
                 )}
                 {deleteError && (
-                  <p role="alert" className="text-xs text-red-400">{deleteError}</p>
+                  <p role="alert" className="text-caption text-danger">{deleteError}</p>
                 )}
-                <div className="flex flex-wrap items-center gap-2 pt-1">
-                  <button
-                    type="submit"
-                    disabled={!canDelete || loadingAction === 'delete'}
-                    className="min-h-[44px] sm:min-h-0 px-4 py-2 bg-red-500 text-white rounded-xl text-xs sm:text-sm font-bold hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    {loadingAction === 'delete' ? 'Wird gelöscht …' : 'Konto endgültig löschen'}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={loadingAction === 'delete'}
-                    onClick={resetDeleteState}
-                    className="min-h-[44px] sm:min-h-0 px-3 py-2 text-xs text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
-                  >
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button variant="danger" type="submit" loading={loadingAction === 'delete'} disabled={!canDelete}>
+                    Konto endgültig löschen
+                  </Button>
+                  <Button variant="ghost" disabled={loadingAction === 'delete'} onClick={resetDeleteState}>
                     Abbrechen
-                  </button>
+                  </Button>
                 </div>
               </form>
             )}

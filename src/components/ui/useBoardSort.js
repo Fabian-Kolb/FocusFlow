@@ -18,7 +18,7 @@ import { useState, useRef, useLayoutEffect, useEffect, useMemo, useCallback } fr
  * DOM-Vertrag: Kategorie-Abschnitt `data-cat-section={id}`, Karte `data-card-id={id}`.
  */
 
-export const LIFT_CLASS = 'relative z-20 bg-white shadow-2xl ring-1 ring-primary/40 rounded-xl cursor-grabbing';
+export const LIFT_CLASS = 'relative z-10 bg-surface shadow-lg ring-1 ring-focus rounded-lg cursor-grabbing';
 
 const LONG_PRESS_MS = 400;
 const MOUSE_THRESHOLD = 5;

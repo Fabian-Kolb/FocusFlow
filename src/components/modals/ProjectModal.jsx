@@ -3,9 +3,17 @@ import { useModalContext } from '../../context/ModalContext';
 import { generateProjectStructure, ensureBulletPoints } from '../../lib/gemini';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
-import FioIcon from '../ui/FioIcon';
 import CategoryChips from '../ui/CategoryChips';
 import { readLastCategory, writeLastCategory } from '../../lib/lastCategory';
+import {
+  Alert, Badge, Button, Checkbox, Dialog, Field, FioMark, Icon, IconButton, Input, SectionHeader, Select, Sheet, Textarea, cx,
+} from '../ds';
+
+const GRANULARITY = [
+  { id: 'few', label: 'Kompakt', hint: '2–3 Phasen' },
+  { id: 'balanced', label: 'Ausgewogen', hint: '3–5 Phasen' },
+  { id: 'detailed', label: 'Detailliert', hint: '5–8 Phasen' },
+];
 
 const ProjectModal = ({ setCurrentScreen }) => {
   const { activeModal, modalPayload, closeModal, addProject, projectCategories, addProjectCategory } = useModalContext();
@@ -29,7 +37,7 @@ const ProjectModal = ({ setCurrentScreen }) => {
   const [includeSummaryNote, setIncludeSummaryNote] = useState(true);
   const [includeCleanNote, setIncludeCleanNote] = useState(true);
   const [includeRawNote, setIncludeRawNote] = useState(false);
-  
+
   const [isGenerating, setIsGenerating] = useState(false);
   const nameInputRef = useRef(null);
 
@@ -51,12 +59,12 @@ const ProjectModal = ({ setCurrentScreen }) => {
       setIncludeSummaryNote(Boolean(modalPayload.summaryText));
       setIncludeCleanNote(Boolean(modalPayload.cleanText));
       setIncludeRawNote(Boolean(modalPayload.originalText && !modalPayload.cleanText));
-      
+
       // Initialize with one empty phase if not a conversion, else start empty so AI can fill
       const initialPhase = modalPayload.firstPhase ? [{ title: modalPayload.firstPhase, tasks: [] }] : [];
       setPhases(initialPhase);
 
-      // Auto-focus input after modal opens
+      // Nach dem Öffnen ins Titelfeld springen
       const timer = setTimeout(() => {
         if (nameInputRef.current) {
           nameInputRef.current.focus();
@@ -67,10 +75,6 @@ const ProjectModal = ({ setCurrentScreen }) => {
     // Kategorien nur beim Öffnen lesen, sonst überschreibt ein Sync die Auswahl
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, modalPayload]);
-
-  if (!isOpen) {
-    return null;
-  }
 
   const isConversion = Boolean(modalPayload.inboxItemId);
 
@@ -193,528 +197,339 @@ const ProjectModal = ({ setCurrentScreen }) => {
     setPhases(updated);
   };
 
+  const closeAiConfig = () => {
+    setIsAiConfigOpen(false);
+    setGeneratedPreview(null);
+  };
+
+  const generatePhases = async () => {
+    const textToStructure = description || name;
+    if (!textToStructure.trim()) return;
+    setIsGenerating(true);
+    const result = await generateProjectStructure(textToStructure, {
+      granularity: aiGranularity,
+      startDate,
+      endDate,
+      estimateDates: aiEstimateDates
+    });
+    if (result && result.phases) {
+      setGeneratedPreview(result.phases);
+    }
+    setIsGenerating(false);
+  };
+
   return (
-    <div
-      id="project-modal"
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto"
-    >
-      <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl relative my-auto max-h-[90vh] flex flex-col">
-        
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-outline-variant p-5 sm:px-6 sm:py-5 flex-shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
-              <span className="material-symbols-outlined text-[22px]">create_new_folder</span>
-            </div>
-            <h2 className="text-sm sm:text-base font-bold font-mono uppercase truncate text-on-surface" id="project-modal-title">
-              {isConversion ? 'Gedanke umwandeln' : 'Neues Projekt erstellen'}
-            </h2>
+    <>
+      <Sheet
+        open={isOpen}
+        onClose={closeModal}
+        width="lg"
+        title={isConversion ? 'Gedanke umwandeln' : 'Neues Projekt'}
+        description={isConversion ? 'Aus deinem Gedanken wird ein Projekt.' : 'Gib dem Projekt einen Namen. Phasen und Aufgaben kannst du später ergänzen.'}
+        footer={(
+          <>
+            <Button variant="secondary" onClick={closeModal}>Abbrechen</Button>
+            <Button type="submit" form="project-form">Projekt hinzufügen</Button>
+          </>
+        )}
+      >
+        <form id="project-form" onSubmit={handleSubmit} className="space-y-5">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-[2fr_1fr]">
+            <Field label="Titel">
+              <Input
+                ref={nameInputRef}
+                data-autofocus
+                required
+                placeholder="z. B. Umzug nach Köln"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </Field>
+            <Field label="Status">
+              <Select value={status} onChange={(e) => setStatus(e.target.value)}>
+                <option value="GEPLANT">Geplant</option>
+                <option value="AKTIV">Aktiv</option>
+                <option value="ABGESCHLOSSEN">Erledigt</option>
+              </Select>
+            </Field>
           </div>
-          <button
-            type="button"
-            className="p-2 hover:bg-surface-low rounded-full text-on-surface-variant transition-colors"
-            onClick={closeModal}
-          >
-            <span className="material-symbols-outlined text-[20px]">close</span>
-          </button>
-        </div>
 
-        {/* Form Content */}
-        <div className="overflow-y-auto p-5 sm:p-6 flex-grow">
-          <form id="project-form" onSubmit={handleSubmit} className="space-y-6">
-            
-            {/* Title & Status */}
-            <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr] gap-4">
-              <div>
-                <label className="block text-xs font-mono font-bold text-primary mb-1.5 uppercase tracking-wide">
-                  Projekttitel *
-                </label>
-                <input
-                  type="text"
-                  ref={nameInputRef}
-                  required
-                  className="w-full border-2 border-outline-variant rounded-xl px-4 py-2.5 text-sm font-medium focus:border-primary outline-none transition-colors"
-                  placeholder="z.B. Re-Branding 2024"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-mono font-bold text-primary mb-1.5 uppercase tracking-wide">
-                  Initialer Status
-                </label>
-                <select
-                  className="w-full border-2 border-outline-variant rounded-xl px-4 py-2.5 text-sm font-medium focus:border-primary outline-none transition-colors bg-white cursor-pointer"
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value)}
+          {/* Kategorie direkt beim Anlegen */}
+          <CategoryChips
+            categories={projectCategories}
+            value={categoryId}
+            onChange={setCategoryId}
+            onCreate={addProjectCategory}
+          />
+
+          {/* Fio-Phasen und Notizen-Auswahl beim Umwandeln eines Gedankens */}
+          {isConversion && (
+            <>
+              <div className="flex flex-col items-start gap-3 rounded-lg border border-subtle bg-subtle p-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-body text-secondary">
+                  Fio erstellt aus deiner Notiz <strong className="text-primary">Phasen und Aufgaben</strong>, auf Wunsch mit Zeitschätzung.
+                </p>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() => {
+                    setGeneratedPreview(null);
+                    setIsAiConfigOpen(true);
+                  }}
                 >
-                  <option value="GEPLANT">🔵 Geplant</option>
-                  <option value="AKTIV">🟢 Aktiv</option>
-                  <option value="ABGESCHLOSSEN">⚫ Erledigt</option>
-                </select>
+                  <FioMark size={16} />
+                  Phasen generieren
+                </Button>
               </div>
-            </div>
 
-            {/* Kategorie direkt beim Anlegen */}
-            <CategoryChips
-              categories={projectCategories}
-              value={categoryId}
-              onChange={setCategoryId}
-              onCreate={addProjectCategory}
+              <fieldset className="space-y-3 rounded-lg border border-subtle bg-surface p-4">
+                <legend className="px-1 text-label text-primary">Notizen aus dem Gedanken übernehmen</legend>
+                <p className="text-caption text-secondary">
+                  Wähle, welche Notizen im neuen Projekt landen. Sie werden nicht noch einmal zusammengefasst.
+                </p>
+                <div className="space-y-3">
+                  {modalPayload.summaryText && (
+                    <Checkbox
+                      checked={includeSummaryNote}
+                      onChange={(e) => setIncludeSummaryNote(e.target.checked)}
+                      label="KI-Zusammenfassung"
+                      description="Strukturierte Stichpunkte und Übersichten"
+                    />
+                  )}
+                  {(modalPayload.cleanText || modalPayload.summaryText) && (
+                    <Checkbox
+                      checked={includeCleanNote}
+                      onChange={(e) => setIncludeCleanNote(e.target.checked)}
+                      label="Zusammenfassung des Textes"
+                      description="Bereinigter Fließtext ohne Füllwörter"
+                    />
+                  )}
+                  {modalPayload.originalText && (
+                    <Checkbox
+                      checked={includeRawNote}
+                      onChange={(e) => setIncludeRawNote(e.target.checked)}
+                      label="Roh-Transkription"
+                      description="Wortgetreues Original-Diktat"
+                    />
+                  )}
+                </div>
+              </fieldset>
+
+              {/* Gedanken behalten: z. B. wenn daraus noch etwas Zweites entstehen soll */}
+              <Checkbox
+                checked={keepThought}
+                onChange={(e) => setKeepThought(e.target.checked)}
+                label="Gedanken behalten"
+                description="Sonst wandert er nach dem Anlegen in den Papierkorb."
+              />
+            </>
+          )}
+
+          <Field label="Beschreibung" optional>
+            <Textarea
+              placeholder="Details, Kontext oder Fließtext"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </Field>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="Startdatum" optional>
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            </Field>
+            <Field label="Deadline" optional>
+              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+            </Field>
+          </div>
+
+          {/* Phasen und Aufgaben */}
+          <div className="space-y-3">
+            <SectionHeader
+              title="Phasen und Aufgaben"
+              action={<Button variant="ghost" size="sm" leadingIcon="add" onClick={handleAddPhase}>Phase hinzufügen</Button>}
             />
 
-            {/* AI Generation Button */}
-            {/* AI Phase Generation Button & Notes Selection when converting from Inbox */}
-            {isConversion && (
-              <>
-                <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <div className="text-xs text-on-surface-variant max-w-sm leading-relaxed">
-                    Lass die KI aus deiner Notiz automatisch <strong>Phasen und Aufgaben</strong> mit eigener Granularität und Zeitschätzung erstellen.
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setGeneratedPreview(null);
-                      setIsAiConfigOpen(true);
-                    }}
-                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:bg-neutral-800 transition-colors shadow-sm cursor-pointer"
-                  >
-                    <FioIcon className="w-4 h-4 text-white" color="currentColor" />
-                    Phasen & Aufgaben generieren...
-                  </button>
-                </div>
-
-                {/* 3 Notes Selection */}
-                <div className="bg-surface-low border border-outline-variant rounded-xl p-4 space-y-3">
-                  <label className="block text-xs font-mono font-bold text-primary uppercase tracking-wide">
-                    Notizen aus dem Gedanken übernehmen
-                  </label>
-                  <p className="text-xs text-on-surface-variant leading-relaxed">
-                    Wähle aus, welche Notizen in das neue Projekt abgelegt werden sollen (sie werden nicht nochmals zusammengefasst):
-                  </p>
-                  <div className="space-y-2.5 pt-1">
-                    {modalPayload.summaryText && (
-                      <label className="flex items-center gap-3 p-3 bg-white border border-outline-variant rounded-xl cursor-pointer hover:border-primary transition-colors">
-                        <input
-                          type="checkbox"
-                          checked={includeSummaryNote}
-                          onChange={(e) => setIncludeSummaryNote(e.target.checked)}
-                          className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4 cursor-pointer"
-                        />
-                        <div className="flex-grow">
-                          <span className="text-xs font-bold text-primary block">Notiz 1: KI-Zusammenfassung</span>
-                          <span className="text-[11px] text-on-surface-variant block">Strukturierte Stichpunkte & Übersichten</span>
-                        </div>
-                      </label>
-                    )}
-
-                    {(modalPayload.cleanText || modalPayload.summaryText) && (
-                      <label className="flex items-center gap-3 p-3 bg-white border border-outline-variant rounded-xl cursor-pointer hover:border-primary transition-colors">
-                        <input
-                          type="checkbox"
-                          checked={includeCleanNote}
-                          onChange={(e) => setIncludeCleanNote(e.target.checked)}
-                          className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4 cursor-pointer"
-                        />
-                        <div className="flex-grow">
-                          <span className="text-xs font-bold text-primary block">Notiz 2: Zusammenfassung des Textes</span>
-                          <span className="text-[11px] text-on-surface-variant block">Bereinigter Fließtext ohne Füllwörter</span>
-                        </div>
-                      </label>
-                    )}
-
-                    {modalPayload.originalText && (
-                      <label className="flex items-center gap-3 p-3 bg-white border border-outline-variant rounded-xl cursor-pointer hover:border-primary transition-colors">
-                        <input
-                          type="checkbox"
-                          checked={includeRawNote}
-                          onChange={(e) => setIncludeRawNote(e.target.checked)}
-                          className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4 cursor-pointer"
-                        />
-                        <div className="flex-grow">
-                          <span className="text-xs font-bold text-primary block">Notiz 3: Roh-Transkription</span>
-                          <span className="text-[11px] text-on-surface-variant block">Wortgetreues Original-Diktat</span>
-                        </div>
-                      </label>
-                    )}
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* Gedanken behalten: z. B. wenn daraus noch etwas Zweites entstehen soll */}
-            {isConversion && (
-              <label className="flex items-center gap-2 text-xs text-on-surface-variant cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={keepThought}
-                  onChange={(e) => setKeepThought(e.target.checked)}
-                  className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4"
-                />
-                Gedanken behalten (sonst wandert er nach dem Anlegen in den Papierkorb)
-              </label>
-            )}
-
-            {/* Description */}
-            <div>
-              <label className="block text-xs font-mono font-bold text-primary mb-1.5 uppercase tracking-wide">
-                Beschreibung / Notiz (Optional)
-              </label>
-              <textarea
-                className="w-full border-2 border-outline-variant rounded-xl px-4 py-3 text-sm focus:border-primary outline-none min-h-[120px] resize-y transition-colors leading-relaxed"
-                placeholder="Zusätzliche Details, Kontext oder Fließtext..."
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
-            </div>
-
-            {/* Dates */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-mono font-bold text-primary mb-1.5 uppercase tracking-wide">
-                  Startdatum
-                </label>
-                <input
-                  type="date"
-                  className="w-full border-2 border-outline-variant rounded-xl px-4 py-2.5 text-sm focus:border-primary outline-none transition-colors bg-white cursor-pointer"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-mono font-bold text-primary mb-1.5 uppercase tracking-wide">
-                  Deadline
-                </label>
-                <input
-                  type="date"
-                  className="w-full border-2 border-outline-variant rounded-xl px-4 py-2.5 text-sm focus:border-primary outline-none transition-colors bg-white cursor-pointer"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                />
-              </div>
-            </div>
-
-            {/* Dynamic Phases & Tasks */}
-            <div className="space-y-3 pt-2">
-              <div className="flex items-center justify-between">
-                <label className="block text-xs font-mono font-bold text-primary uppercase tracking-wide">
-                  Projekt-Phasen & Aufgaben
-                </label>
-                <button
-                  type="button"
-                  onClick={handleAddPhase}
-                  className="text-xs font-bold text-primary hover:text-neutral-800 flex items-center gap-1 transition-colors"
-                >
-                  <span className="material-symbols-outlined text-[16px]">add_circle</span>
-                  Phase hinzufügen
-                </button>
-              </div>
-
-              {phases.length === 0 ? (
-                <div className="text-sm text-on-surface-variant text-center py-6 bg-surface-low border border-dashed border-outline-variant rounded-xl">
-                  Noch keine Phasen angelegt.
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {phases.map((phase, pIdx) => (
-                    <div key={pIdx} className="bg-surface-low border border-outline-variant rounded-xl p-4 space-y-3 relative group">
-                      <div className="flex flex-col gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-mono font-bold text-on-surface-variant">P{pIdx + 1}</span>
-                          <input
-                            type="text"
-                            placeholder="Name der Phase (z.B. Vorbereitung)"
-                            value={phase.title || ''}
-                            onChange={(e) => handleUpdatePhaseTitle(pIdx, e.target.value)}
-                            className="flex-grow bg-white border border-outline-variant rounded-lg px-3 py-1.5 text-sm font-medium focus:border-primary outline-none transition-colors"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleRemovePhase(pIdx)}
-                            className="p-1.5 text-on-surface-variant hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Phase löschen"
-                          >
-                            <span className="material-symbols-outlined text-[18px]">delete</span>
-                          </button>
-                        </div>
-                        <div className="flex flex-col sm:flex-row gap-2 pl-6">
-                          <input
-                            type="date"
-                            value={phase.date || ''}
-                            onChange={(e) => handleUpdatePhaseDate(pIdx, e.target.value)}
-                            className="w-full sm:w-auto bg-white border border-outline-variant rounded-lg px-3 py-1.5 text-xs focus:border-primary outline-none transition-colors cursor-pointer"
-                            title="Phasen-Datum"
-                          />
-                          <textarea
-                            placeholder="Phasen-Notiz / Dateien-Link..."
-                            value={phase.note || ''}
-                            onChange={(e) => handleUpdatePhaseNote(pIdx, e.target.value)}
-                            className="w-full flex-grow bg-white border border-outline-variant rounded-lg px-3 py-1.5 text-xs focus:border-primary outline-none transition-colors min-h-[36px] resize-y"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="pl-6 space-y-3 mt-2 border-t border-outline-variant/50 pt-3">
-                        {phase.tasks && phase.tasks.map((task, tIdx) => (
-                          <div key={tIdx} className="flex flex-col gap-1.5 bg-white p-2 rounded-lg border border-outline-variant/50">
-                            <div className="flex items-center gap-2">
-                              <span className="material-symbols-outlined text-[16px] text-on-surface-variant">check_box_outline_blank</span>
-                              <input
-                                type="text"
-                                placeholder="Unteraufgabe"
-                                value={task.title || ''}
-                                onChange={(e) => handleUpdateTaskTitle(pIdx, tIdx, e.target.value)}
-                                className="flex-grow bg-transparent border-none text-sm focus:ring-0 outline-none"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveTask(pIdx, tIdx)}
-                                className="p-1 text-on-surface-variant hover:text-red-500 rounded transition-colors"
-                              >
-                                <span className="material-symbols-outlined text-[16px]">close</span>
-                              </button>
-                            </div>
-                            <div className="flex flex-col sm:flex-row gap-2 pl-6">
-                              <input
-                                type="date"
-                                value={task.date || ''}
-                                onChange={(e) => handleUpdateTaskDate(pIdx, tIdx, e.target.value)}
-                                className="w-full sm:w-auto bg-surface-low border border-outline-variant rounded-md px-2 py-1 text-xs focus:border-primary outline-none transition-colors cursor-pointer"
-                                title="Task-Datum"
-                              />
-                              <input
-                                type="text"
-                                placeholder="Task-Notiz / Link..."
-                                value={task.note || ''}
-                                onChange={(e) => handleUpdateTaskNote(pIdx, tIdx, e.target.value)}
-                                className="w-full flex-grow bg-surface-low border border-outline-variant rounded-md px-2 py-1 text-xs focus:border-primary outline-none transition-colors"
-                              />
-                            </div>
-                          </div>
-                        ))}
-                        <button
-                          type="button"
-                          onClick={() => handleAddTask(pIdx)}
-                          className="text-[11px] font-bold text-on-surface-variant hover:text-primary flex items-center gap-1 transition-colors mt-1"
-                        >
-                          <span className="material-symbols-outlined text-[14px]">add</span>
-                          Aufgabe hinzufügen
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </form>
-        </div>
-
-        {/* Footer */}
-        <div className="border-t border-outline-variant p-5 sm:px-6 flex items-center justify-end gap-3 flex-shrink-0 bg-surface-low rounded-b-2xl">
-          <button
-            type="button"
-            className="px-5 py-2.5 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-variant/50 transition-colors"
-            onClick={closeModal}
-          >
-            Abbrechen
-          </button>
-          <button
-            type="submit"
-            form="project-form"
-            className="px-6 py-2.5 bg-primary text-white text-sm font-bold rounded-xl hover:bg-neutral-800 transition-colors shadow-sm"
-          >
-            Projekt anlegen
-          </button>
-        </div>
-      </div>
-
-      {/* AI Phase Generator Dialog (Feedback & Preferences) */}
-      {isAiConfigOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl p-5 sm:p-6 space-y-5 border-2 border-primary relative max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-outline-variant pb-3">
-              <div className="flex items-center gap-2">
-                <FioIcon className="w-5 h-5 text-primary" color="currentColor" />
-                <h3 className="text-sm font-bold font-mono uppercase text-primary">
-                  Fio KI-Phasengenerierung anpassen
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsAiConfigOpen(false);
-                  setGeneratedPreview(null);
-                }}
-                className="p-1 hover:bg-surface-low rounded-full text-on-surface-variant transition-colors cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[20px]">close</span>
-              </button>
-            </div>
-
-            {!generatedPreview ? (
-              <div className="space-y-5">
-                {/* 1. Granularitätsauswahl */}
-                <div>
-                  <label className="block text-xs font-mono font-bold text-primary mb-2 uppercase">
-                    Phasen-Granularität
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setAiGranularity('few')}
-                      className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                        aiGranularity === 'few'
-                          ? 'border-primary bg-primary/10 font-bold'
-                          : 'border-outline-variant hover:bg-surface-low text-on-surface-variant'
-                      }`}
-                    >
-                      <div className="text-xs text-primary font-bold">Kompakt</div>
-                      <div className="text-[10px] text-on-surface-variant">2-3 Phasen</div>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setAiGranularity('balanced')}
-                      className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                        aiGranularity === 'balanced'
-                          ? 'border-primary bg-primary/10 font-bold'
-                          : 'border-outline-variant hover:bg-surface-low text-on-surface-variant'
-                      }`}
-                    >
-                      <div className="text-xs text-primary font-bold">Ausgewogen</div>
-                      <div className="text-[10px] text-on-surface-variant">3-5 Phasen</div>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setAiGranularity('detailed')}
-                      className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                        aiGranularity === 'detailed'
-                          ? 'border-primary bg-primary/10 font-bold'
-                          : 'border-outline-variant hover:bg-surface-low text-on-surface-variant'
-                      }`}
-                    >
-                      <div className="text-xs text-primary font-bold">Detailliert</div>
-                      <div className="text-[10px] text-on-surface-variant">5-8 Phasen</div>
-                    </button>
-                  </div>
-                </div>
-
-                {/* 2. Zeitliche Schätzung / Datumsverteilung */}
-                <div className="bg-surface-low border border-outline-variant rounded-xl p-3.5 space-y-2">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={aiEstimateDates}
-                      onChange={(e) => setAiEstimateDates(e.target.checked)}
-                      className="w-4 h-4 text-primary rounded border-outline-variant focus:ring-primary"
-                    />
-                    <span className="text-xs font-bold text-primary">
-                      Termine & Fristen automatisch schätzen
-                    </span>
-                  </label>
-                  <p className="text-[11px] text-on-surface-variant leading-relaxed pl-6">
-                    Die KI verteilt die Fälligkeiten der Aufgaben gleichmäßig über den angegebenen Projektzeitraum ({startDate || 'Heute'} bis {endDate || 'Offen'}).
-                  </p>
-                </div>
-
-                <div className="flex items-center justify-end gap-3 pt-3 border-t border-outline-variant">
-                  <button
-                    type="button"
-                    onClick={() => setIsAiConfigOpen(false)}
-                    className="px-4 py-2 text-xs font-bold text-on-surface-variant hover:bg-surface-low rounded-lg transition-colors cursor-pointer"
-                  >
-                    Abbrechen
-                  </button>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const textToStructure = description || name;
-                      if (!textToStructure.trim()) return;
-                      setIsGenerating(true);
-                      const result = await generateProjectStructure(textToStructure, {
-                        granularity: aiGranularity,
-                        startDate,
-                        endDate,
-                        estimateDates: aiEstimateDates
-                      });
-                      if (result && result.phases) {
-                        setGeneratedPreview(result.phases);
-                      }
-                      setIsGenerating(false);
-                    }}
-                    disabled={isGenerating}
-                    className="px-5 py-2.5 bg-primary text-white text-xs font-bold rounded-xl hover:bg-neutral-800 transition-colors disabled:opacity-50 flex items-center gap-2 shadow-sm cursor-pointer"
-                  >
-                    {isGenerating ? (
-                      <span className="material-symbols-outlined text-[16px] animate-spin">sync</span>
-                    ) : (
-                      <FioIcon className="w-4 h-4 text-white" color="currentColor" />
-                    )}
-                    {isGenerating ? 'Phasen werden generiert...' : 'Phasen jetzt generieren'}
-                  </button>
-                </div>
-              </div>
+            {phases.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-default bg-subtle py-6 text-center text-body text-secondary">
+                Noch keine Phasen angelegt.
+              </p>
             ) : (
-              /* Vorschau & Feedback Ansicht */
-              <div className="space-y-4">
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-900 flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[18px] text-emerald-600">check_circle</span>
-                  <span className="font-bold">Generierte Phasenstruktur im Überblick:</span>
-                </div>
-
-                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
-                  {generatedPreview.map((ph, idx) => (
-                    <div key={idx} className="bg-surface-low border border-outline-variant rounded-xl p-3 space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-primary uppercase">
-                          P{idx + 1}: {ph.title}
-                        </span>
-                        {ph.date && (
-                          <span className="text-[10px] font-mono bg-white px-2 py-0.5 border rounded text-on-surface-variant font-bold">
-                            📅 {ph.date}
-                          </span>
-                        )}
+              <div className="space-y-3">
+                {phases.map((phase, pIdx) => (
+                  <div key={pIdx} className="space-y-3 rounded-lg border border-subtle bg-subtle p-3">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Badge tone="neutral" size="sm">P{pIdx + 1}</Badge>
+                        <Input
+                          size="sm"
+                          placeholder="Name der Phase, z. B. Vorbereitung"
+                          aria-label={`Name der Phase ${pIdx + 1}`}
+                          value={phase.title || ''}
+                          onChange={(e) => handleUpdatePhaseTitle(pIdx, e.target.value)}
+                          className="flex-1"
+                        />
+                        <IconButton
+                          icon="delete"
+                          label="Phase löschen"
+                          size="sm"
+                          onClick={() => handleRemovePhase(pIdx)}
+                          className="hover:!bg-danger-subtle hover:!text-danger"
+                        />
                       </div>
-                      <div className="pl-3 space-y-1">
-                        {ph.tasks && ph.tasks.map((t, tIdx) => (
-                          <div key={tIdx} className="text-xs text-on-surface flex items-center justify-between gap-2">
-                            <span>• {t.title}</span>
-                            {t.date && <span className="text-[10px] text-on-surface-variant font-mono">{t.date}</span>}
-                          </div>
-                        ))}
+                      <div className="flex flex-col gap-2 sm:flex-row sm:pl-10">
+                        <Input
+                          type="date"
+                          size="sm"
+                          aria-label="Datum der Phase"
+                          value={phase.date || ''}
+                          onChange={(e) => handleUpdatePhaseDate(pIdx, e.target.value)}
+                          className="sm:w-auto"
+                        />
+                        <Input
+                          size="sm"
+                          placeholder="Notiz oder Link zur Phase"
+                          aria-label="Notiz zur Phase"
+                          value={phase.note || ''}
+                          onChange={(e) => handleUpdatePhaseNote(pIdx, e.target.value)}
+                          className="flex-1"
+                        />
                       </div>
                     </div>
-                  ))}
-                </div>
 
-                <div className="flex items-center justify-between gap-3 pt-3 border-t border-outline-variant">
-                  <button
-                    type="button"
-                    onClick={() => setGeneratedPreview(null)}
-                    className="px-4 py-2 text-xs font-bold text-on-surface-variant hover:bg-surface-low border border-outline-variant rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-[16px]">tune</span>
-                    Einstellungen anpassen
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPhases(generatedPreview);
-                      setIsAiConfigOpen(false);
-                      setGeneratedPreview(null);
-                    }}
-                    className="px-5 py-2.5 bg-primary text-white text-xs font-bold rounded-xl hover:bg-neutral-800 transition-colors flex items-center gap-2 shadow-sm cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-[16px]">check</span>
-                    Phasen übernehmen
-                  </button>
-                </div>
+                    <div className="space-y-2 border-t border-subtle pt-3 sm:pl-10">
+                      {phase.tasks && phase.tasks.map((task, tIdx) => (
+                        <div key={tIdx} className="space-y-2 rounded-md border border-subtle bg-surface p-2">
+                          <div className="flex items-center gap-2">
+                            <Icon name="check_box_outline_blank" size="sm" className="shrink-0 text-tertiary" />
+                            <input
+                              type="text"
+                              placeholder="Aufgabe"
+                              aria-label={`Aufgabe ${tIdx + 1}`}
+                              value={task.title || ''}
+                              onChange={(e) => handleUpdateTaskTitle(pIdx, tIdx, e.target.value)}
+                              className="min-w-0 flex-1 border-0 bg-transparent p-0 text-body placeholder:text-tertiary focus:outline-none focus:ring-0"
+                            />
+                            <IconButton icon="close" label="Aufgabe entfernen" size="sm" onClick={() => handleRemoveTask(pIdx, tIdx)} />
+                          </div>
+                          <div className="flex flex-col gap-2 sm:flex-row sm:pl-6">
+                            <Input
+                              type="date"
+                              size="sm"
+                              aria-label="Datum der Aufgabe"
+                              value={task.date || ''}
+                              onChange={(e) => handleUpdateTaskDate(pIdx, tIdx, e.target.value)}
+                              className="sm:w-auto"
+                            />
+                            <Input
+                              size="sm"
+                              placeholder="Notiz oder Link"
+                              aria-label="Notiz zur Aufgabe"
+                              value={task.note || ''}
+                              onChange={(e) => handleUpdateTaskNote(pIdx, tIdx, e.target.value)}
+                              className="flex-1"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                      <Button variant="ghost" size="sm" leadingIcon="add" onClick={() => handleAddTask(pIdx)}>
+                        Aufgabe hinzufügen
+                      </Button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
-        </div>
-      )}
-    </div>
+        </form>
+      </Sheet>
+
+      {/* Fio-Phasengenerierung: Einstellungen und Vorschau */}
+      <Dialog
+        open={isOpen && isAiConfigOpen}
+        onClose={closeAiConfig}
+        size="md"
+        title="Fio erstellt Phasen"
+        description={generatedPreview ? 'So sieht die vorgeschlagene Struktur aus.' : 'Wähle, wie fein Fio dein Projekt gliedern soll.'}
+        footer={!generatedPreview ? (
+          <>
+            <Button variant="secondary" onClick={closeAiConfig}>Abbrechen</Button>
+            <Button onClick={generatePhases} loading={isGenerating}>
+              {!isGenerating && <FioMark size={16} />}
+              {isGenerating ? 'Fio arbeitet …' : 'Phasen generieren'}
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button variant="secondary" leadingIcon="tune" onClick={() => setGeneratedPreview(null)}>Einstellungen ändern</Button>
+            <Button
+              leadingIcon="check"
+              onClick={() => {
+                setPhases(generatedPreview);
+                closeAiConfig();
+              }}
+            >
+              Phasen übernehmen
+            </Button>
+          </>
+        )}
+      >
+        {!generatedPreview ? (
+          <div className="space-y-5">
+            <fieldset>
+              <legend className="mb-2 text-label text-primary">Granularität</legend>
+              <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Phasen-Granularität">
+                {GRANULARITY.map((g) => (
+                  <button
+                    key={g.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={aiGranularity === g.id}
+                    onClick={() => setAiGranularity(g.id)}
+                    className={cx(
+                      'rounded-md border p-2.5 text-left transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
+                      aiGranularity === g.id ? 'border-accent bg-accent-subtle' : 'border-default bg-surface hover:border-strong',
+                    )}
+                  >
+                    <span className={cx('block text-label-sm', aiGranularity === g.id ? 'text-accent' : 'text-primary')}>{g.label}</span>
+                    <span className="block text-caption text-secondary">{g.hint}</span>
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+
+            <Checkbox
+              checked={aiEstimateDates}
+              onChange={(e) => setAiEstimateDates(e.target.checked)}
+              label="Termine und Fristen schätzen"
+              description={`Fio verteilt die Fälligkeiten gleichmäßig über den Projektzeitraum (${startDate || 'heute'} bis ${endDate || 'offen'}).`}
+            />
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <Alert tone="success" title="Phasenstruktur erstellt" />
+            <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+              {generatedPreview.map((ph, idx) => (
+                <div key={idx} className="space-y-1.5 rounded-lg border border-subtle bg-subtle p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-body-strong text-primary">P{idx + 1}: {ph.title}</span>
+                    {ph.date && <Badge tone="neutral" size="sm" icon="event">{ph.date}</Badge>}
+                  </div>
+                  <ul className="space-y-1 pl-1">
+                    {ph.tasks && ph.tasks.map((t, tIdx) => (
+                      <li key={tIdx} className="flex items-center justify-between gap-2 text-caption text-secondary">
+                        <span>{t.title}</span>
+                        {t.date && <span className="shrink-0 text-micro text-tertiary">{t.date}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Dialog>
+    </>
   );
 };
 

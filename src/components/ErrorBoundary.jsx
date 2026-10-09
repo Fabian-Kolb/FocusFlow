@@ -1,5 +1,6 @@
 import React from 'react';
 
+import { Button, Icon } from './ds';
 // Nach einem Deploy fehlen alte Lazy-Chunks; ein Reload lädt die neue Version.
 function isChunkLoadError(error) {
   const msg = String(error?.message || '');
@@ -66,44 +67,33 @@ export default class ErrorBoundary extends React.Component {
     return (
       <div
         role="alert"
-        className={`flex flex-col items-center justify-center text-center px-6 py-12 gap-4 ${
-          isApp ? 'min-h-[100dvh] bg-surface text-primary' : 'flex-1 min-h-[50vh]'
+        className={`flex flex-col items-center justify-center gap-4 px-6 py-12 text-center ${
+          isApp ? 'min-h-[100dvh] bg-canvas text-primary' : 'min-h-[50vh] flex-1'
         }`}
       >
-        <span className="material-symbols-outlined text-5xl text-on-surface-variant">
-          {isUpdate ? 'system_update' : 'sentiment_dissatisfied'}
-        </span>
+        <Icon name={isUpdate ? 'system_update' : 'sentiment_dissatisfied'} size="xl" className="text-secondary" />
         <div className="space-y-1.5 max-w-sm">
-          <h2 className="text-lg font-bold text-primary">
+          <h2 className="text-heading text-primary">
             {isUpdate ? 'Neue Version verfügbar' : 'Hier ist etwas schiefgelaufen'}
           </h2>
-          <p className="text-sm text-on-surface-variant leading-relaxed">
+          <p className="text-body text-secondary leading-relaxed">
             {isUpdate
               ? 'FocusFlow wurde aktualisiert. Lade die Seite neu, um weiterzumachen.'
               : 'Deine Daten sind sicher gespeichert. Lade die Seite neu oder versuche es noch einmal.'}
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-          <button
-            type="button"
-            onClick={this.handleReload}
-            className="min-h-[44px] px-5 py-2.5 bg-primary text-on-primary rounded-xl text-sm font-bold hover:bg-primary/90 transition-colors cursor-pointer flex items-center gap-1.5"
-          >
-            <span className="material-symbols-outlined text-[18px]">refresh</span>
-            Neu laden
-          </button>
+          <Button leadingIcon="refresh" onClick={this.handleReload}>
+          Neu laden
+          </Button>
           {!isApp && !isUpdate && (
-            <button
-              type="button"
-              onClick={this.handleRetry}
-              className="min-h-[44px] px-4 py-2.5 border border-outline-variant text-primary rounded-xl text-sm font-semibold hover:bg-surface-low transition-colors cursor-pointer"
-            >
-              Erneut versuchen
-            </button>
+          <Button variant="secondary" onClick={this.handleRetry}>
+            Erneut versuchen
+          </Button>
           )}
         </div>
         {import.meta.env.DEV && (
-          <pre className="mt-4 max-w-full overflow-x-auto text-left text-[11px] text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg p-3 whitespace-pre-wrap">
+          <pre className="mt-4 max-w-full overflow-x-auto text-left text-micro text-danger bg-danger-subtle border border-danger rounded-md p-3 whitespace-pre-wrap">
             {String(error?.stack || error)}
           </pre>
         )}

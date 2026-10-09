@@ -3,14 +3,15 @@ import { createPortal } from 'react-dom';
 import { draftId, clearNewFlags, countNew } from '../../lib/projectDraft';
 import { useSwipeToClose } from '../../hooks/useSwipeToClose';
 
+import { Button, Icon, IconButton } from '../ds';
 // Entwurfskarte für "Projektanlegung": Handänderungen und Fio-Prompts arbeiten am selben Entwurf.
 // Desktop: Editor direkt in der Karte. Handy: Bottom-Drawer (Regel 07, per Portal wegen Regel 04).
 // Reihenfolge ändern: Ziehen am Griff (Pointer-Events, funktioniert mit Maus und Touch; keine Pfeile, spart Platz am Handy).
 
-const inputCls = 'w-full rounded-lg border border-outline-variant bg-white px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent min-h-[32px]';
-const iconBtn = 'w-6 h-6 flex items-center justify-center rounded-md text-on-surface-variant hover:text-primary hover:bg-surface-low disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors shrink-0';
+const inputCls = 'w-full rounded-md border border-subtle bg-surface px-2 py-1 text-body focus:outline-none focus:ring-2 focus:ring-focus focus:border-transparent min-h-8';
+const iconBtn = 'w-6 h-6 flex items-center justify-center rounded-md text-secondary hover:text-primary hover:bg-hover disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors shrink-0';
 const dangerBtn = `${iconBtn} hover:!text-red-600 hover:!bg-red-50`;
-const icon = 'material-symbols-outlined text-[16px]';
+const icon = 'material-symbols-outlined text-body-lg';
 
 /** Verschiebt einen Abschnitt oder eine Aufgabe. target.index = Position in der Liste OHNE das verschobene Element. */
 const moveInDraft = (draft, kind, id, target) => {
@@ -63,9 +64,9 @@ function DragHandle({ onStart, label, disabled }) {
       disabled={disabled}
       onPointerDown={onStart}
       style={{ touchAction: 'none' }}
-      className="w-5 h-7 flex items-center justify-center text-on-surface-variant/60 hover:text-primary cursor-grab active:cursor-grabbing disabled:opacity-30 disabled:cursor-not-allowed shrink-0 select-none"
+      className="w-5 h-7 flex items-center justify-center text-tertiary hover:text-primary cursor-grab active:cursor-grabbing disabled:opacity-30 disabled:cursor-not-allowed shrink-0 select-none"
     >
-      <span className="material-symbols-outlined text-[18px]">drag_indicator</span>
+      <Icon name="drag_indicator" size="md" />
     </button>
   );
 }
@@ -266,9 +267,9 @@ function DraftEditor({ draft, categories, source, disabled, onChange, onConfirm,
     window.addEventListener('keydown', onKey);
   };
 
-  const hl = (isNew) => (isNew ? 'bg-emerald-50 ring-1 ring-emerald-300' : '');
+  const hl = (isNew) => (isNew ? 'bg-success-subtle ring-1 ring-focus' : '');
   const lift = (kind, id) =>
-    drag?.kind === kind && drag.id === id ? 'relative z-20 !bg-white shadow-xl ring-1 ring-primary/40 cursor-grabbing' : '';
+    drag?.kind === kind && drag.id === id ? 'relative z-10 !bg-white shadow-lg ring-1 ring-focus cursor-grabbing' : '';
 
   const canConfirm = !disabled && draft.title.trim().length > 0;
   const notes = draft.includeNotes || {};
@@ -279,27 +280,17 @@ function DraftEditor({ draft, categories, source, disabled, onChange, onConfirm,
   ].filter((o) => o.available);
 
   const actions = (
-    <div className={stickyActions ? 'sticky bottom-0 -mx-3 px-3 pt-2 pb-1 bg-white border-t border-outline-variant/60' : 'pt-1'}>
+    <div className={stickyActions ? 'sticky bottom-0 -mx-3 px-3 pt-2 pb-1 bg-surface border-t border-subtle' : 'pt-1'}>
       <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          disabled={!canConfirm}
-          onClick={onConfirm}
-          className="h-10 px-4 rounded-xl bg-neutral-900 text-white text-sm font-bold flex items-center gap-1.5 hover:bg-black disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-        >
-          <span className="material-symbols-outlined text-[18px]">check</span>
+        <Button disabled={!canConfirm} onClick={onConfirm}>
+          <Icon name="check" size="md" />
           Projekt anlegen
-        </button>
+        </Button>
         {versions.length > 1 && (
-          <button
-            type="button"
-            onClick={() => setShowVersions((v) => !v)}
-            aria-expanded={showVersions}
-            className="h-10 px-3 rounded-xl border border-outline-variant bg-white text-xs font-bold text-primary hover:border-primary flex items-center gap-1 cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-[18px]">history</span>
+          <Button variant="secondary" onClick={() => setShowVersions((v) => !v)} aria-expanded={showVersions}>
+            <Icon name="history" size="md" />
             Versionen ({versions.length})
-          </button>
+          </Button>
         )}
       </div>
     </div>
@@ -310,7 +301,7 @@ function DraftEditor({ draft, categories, source, disabled, onChange, onConfirm,
       <div className="space-y-1.5">
         <input
           aria-label="Projektname"
-          className={`${inputCls} font-bold`}
+          className={`${inputCls} font-semibold`}
           value={draft.title}
           disabled={disabled}
           onChange={(e) => set({ title: e.target.value })}
@@ -326,15 +317,15 @@ function DraftEditor({ draft, categories, source, disabled, onChange, onConfirm,
           placeholder="Kurzbeschreibung (optional)"
         />
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-          <label className="text-[10px] font-mono uppercase text-on-surface-variant space-y-0.5">
+          <label className="font-label text-eyebrow uppercase text-secondary space-y-0.5">
             Start
             <input type="date" className={inputCls} value={draft.startDate} disabled={disabled} onChange={(e) => set({ startDate: e.target.value })} />
           </label>
-          <label className="text-[10px] font-mono uppercase text-on-surface-variant space-y-0.5">
+          <label className="font-label text-eyebrow uppercase text-secondary space-y-0.5">
             Ende
             <input type="date" className={inputCls} value={draft.endDate} disabled={disabled} onChange={(e) => set({ endDate: e.target.value })} />
           </label>
-          <label className="text-[10px] font-mono uppercase text-on-surface-variant space-y-0.5 col-span-2 sm:col-span-1">
+          <label className="font-label text-eyebrow uppercase text-secondary space-y-0.5 col-span-2 sm:col-span-1">
             Kategorie
             <select className={inputCls} value={draft.categoryId} disabled={disabled} onChange={(e) => set({ categoryId: e.target.value })}>
               {categories.map((c) => (
@@ -347,22 +338,22 @@ function DraftEditor({ draft, categories, source, disabled, onChange, onConfirm,
 
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-on-surface-variant">
+          <span className="font-label text-eyebrow font-semibold uppercase text-secondary">
             Abschnitte ({view.phases.length})
           </span>
           <button
             type="button"
             disabled={disabled}
             onClick={() => set({ phases: [...draft.phases, { id: draftId('dph'), title: '', date: '', tasks: [] }] })}
-            className="text-xs font-bold text-primary hover:underline flex items-center gap-0.5 cursor-pointer disabled:opacity-40"
+            className="text-caption-strong text-primary hover:underline flex items-center gap-0.5 cursor-pointer disabled:opacity-40"
           >
-            <span className="material-symbols-outlined text-[16px]">add</span>
+            <Icon name="add" size="sm" />
             Abschnitt
           </button>
         </div>
 
         {view.phases.length === 0 && (
-          <p className="text-xs text-on-surface-variant italic">Noch keine Abschnitte. Bitte Fio darum oder füge einen von Hand hinzu.</p>
+          <p className="text-caption text-secondary italic">Noch keine Abschnitte. Bitte Fio darum oder füge einen von Hand hinzu.</p>
         )}
 
         {view.phases.map((phase, pi) => (
@@ -371,7 +362,7 @@ function DraftEditor({ draft, categories, source, disabled, onChange, onConfirm,
               data-phase-id={phase.id}
               data-flip={phase.id}
               data-flip-kind="phase"
-              className={`rounded-xl border border-outline-variant bg-surface-low/60 p-1.5 space-y-1 transition-colors will-change-transform ${hl(phase.isNew)} ${lift('phase', phase.id)}`}
+              className={`rounded-lg border border-subtle bg-subtle p-1.5 space-y-1 transition-colors will-change-transform ${hl(phase.isNew)} ${lift('phase', phase.id)}`}
             >
               <div className="flex items-center gap-0.5">
                 <DragHandle label={`Abschnitt ${pi + 1} verschieben`} disabled={disabled} onStart={(e) => startDrag(e, 'phase', phase.id)} />
@@ -398,7 +389,7 @@ function DraftEditor({ draft, categories, source, disabled, onChange, onConfirm,
               <ul className="space-y-0.5 pl-1">
                 {phase.tasks.map((task) => (
                   <React.Fragment key={task.id}>
-                    <li data-task-id={task.id} data-flip={task.id} data-flip-kind="task" className={`rounded-lg p-0.5 transition-colors will-change-transform ${hl(task.isNew)} ${lift('task', task.id)}`}>
+                    <li data-task-id={task.id} data-flip={task.id} data-flip-kind="task" className={`rounded-md p-0.5 transition-colors will-change-transform ${hl(task.isNew)} ${lift('task', task.id)}`}>
                       <div className="flex items-center gap-0.5">
                         <DragHandle label="Aufgabe verschieben" disabled={disabled} onStart={(e) => startDrag(e, 'task', task.id)} />
                         <input
@@ -428,7 +419,7 @@ function DraftEditor({ draft, categories, source, disabled, onChange, onConfirm,
                 type="button"
                 disabled={disabled}
                 onClick={() => setPhase(phase.id, { tasks: [...phase.tasks, { id: draftId('dt'), title: '', date: '' }] })}
-                className="ml-6 text-xs font-semibold text-primary hover:underline flex items-center gap-0.5 cursor-pointer disabled:opacity-40"
+                className="ml-6 text-caption-strong text-primary hover:underline flex items-center gap-0.5 cursor-pointer disabled:opacity-40"
               >
                 <span className={icon}>add</span>
                 Aufgabe
@@ -440,22 +431,22 @@ function DraftEditor({ draft, categories, source, disabled, onChange, onConfirm,
 
       {noteOptions.length > 0 && (
         <fieldset className="space-y-1" disabled={disabled}>
-          <legend className="text-[11px] font-mono font-bold uppercase tracking-wider text-on-surface-variant mb-1">Als Notizen übernehmen</legend>
+          <legend className="font-label text-eyebrow font-semibold uppercase text-secondary mb-1">Als Notizen übernehmen</legend>
           {noteOptions.map((o) => (
-            <label key={o.key} className="flex items-center gap-2 text-sm cursor-pointer">
+            <label key={o.key} className="flex items-center gap-2 text-body cursor-pointer">
               <input
                 type="checkbox"
-                className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4"
+                className="rounded-xs border-subtle text-primary focus:ring-focus h-4 w-4"
                 checked={!!notes[o.key]}
                 onChange={(e) => set({ includeNotes: { ...notes, [o.key]: e.target.checked } })}
               />
               {o.label}
             </label>
           ))}
-          <label className="flex items-center gap-2 text-sm cursor-pointer pt-0.5">
+          <label className="flex items-center gap-2 text-body cursor-pointer pt-0.5">
             <input
               type="checkbox"
-              className="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4"
+              className="rounded-xs border-subtle text-primary focus:ring-focus h-4 w-4"
               checked={!!draft.keepThought}
               onChange={(e) => set({ keepThought: e.target.checked })}
             />
@@ -465,17 +456,17 @@ function DraftEditor({ draft, categories, source, disabled, onChange, onConfirm,
       )}
 
       {showVersions && (
-        <ul className="rounded-xl border border-outline-variant divide-y divide-outline-variant/60 bg-white">
+        <ul className="rounded-lg border border-subtle divide-y divide-subtle bg-surface">
           {[...versions].reverse().map((v, i) => (
-            <li key={v.id} className="flex items-center justify-between gap-2 px-3 py-1.5 text-xs">
+            <li key={v.id} className="flex items-center justify-between gap-2 px-3 py-1.5 text-caption">
               <span className="min-w-0 truncate">
-                <span className="font-bold">{i === 0 ? 'Aktuell' : v.label}</span>
-                <span className="text-on-surface-variant font-mono ml-2">
+                <span className="font-semibold">{i === 0 ? 'Aktuell' : v.label}</span>
+                <span className="text-secondary font-label ml-2">
                   {new Date(v.at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
                 </span>
               </span>
               {i !== 0 && (
-                <button type="button" className="font-bold text-primary hover:underline cursor-pointer shrink-0" onClick={() => { onRestore(v); setShowVersions(false); }}>
+                <button type="button" className="font-semibold text-primary hover:underline cursor-pointer shrink-0" onClick={() => { onRestore(v); setShowVersions(false); }}>
                   Wiederherstellen
                 </button>
               )}
@@ -508,7 +499,7 @@ function DraftDrawer({ onClose, disabled, children }) {
   }, [onClose]);
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-xs flex items-end" onClick={onClose}>
+    <div className="fixed inset-0 z-palette bg-scrim flex items-end" onClick={onClose}>
       <div
         ref={drawerPanelRef}
         role="dialog"
@@ -516,20 +507,18 @@ function DraftDrawer({ onClose, disabled, children }) {
         aria-label="Projekt-Entwurf"
         style={drawerStyle}
         onClick={(e) => e.stopPropagation()}
-        className={`bg-surface rounded-t-3xl w-full max-h-[85vh] shadow-2xl flex flex-col overflow-hidden ${entryAnimActive ? 'drawer-slide-in' : ''}`}
+        className={`bg-canvas rounded-t-xl w-full max-h-[85vh] shadow-lg flex flex-col overflow-hidden ${entryAnimActive ? 'drawer-slide-in' : ''}`}
       >
         <div className="pt-3 pb-1 flex justify-center flex-shrink-0">
-          <div className="w-12 h-1.5 bg-outline-variant rounded-full" />
+          <div className="h-1 w-9 rounded-full bg-control" />
         </div>
         <div className="flex items-center justify-between px-3 pb-2 flex-shrink-0">
-          <span className="font-bold text-sm flex items-center gap-2">
-            <span className="material-symbols-outlined text-[20px] text-primary">edit_note</span>
+          <span className="text-body-strong flex items-center gap-2">
+            <Icon name="edit_note" size="md" className="text-primary" />
             Projekt-Entwurf
-            {disabled && <span className="text-[11px] font-mono text-on-surface-variant animate-pulse">Fio arbeitet …</span>}
+            {disabled && <span className="text-micro font-label text-secondary animate-pulse">Fio arbeitet …</span>}
           </span>
-          <button type="button" aria-label="Schließen" onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-low cursor-pointer">
-            <span className="material-symbols-outlined text-[20px]">close</span>
-          </button>
+          <IconButton icon="close" label="Schließen" size="sm" onClick={onClose} />
         </div>
         <div ref={scrollBodyRef} className="flex-1 overflow-y-auto overscroll-contain px-3 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))]">
           {children}
@@ -549,8 +538,8 @@ const ProjectDraftCard = (props) => {
 
   if (confirmed) {
     return (
-      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 flex items-center gap-2 text-sm text-emerald-800">
-        <span className="material-symbols-outlined text-[20px]">check_circle</span>
+      <div className="rounded-lg border border-success bg-success-subtle p-3 flex items-center gap-2 text-body text-success">
+        <Icon name="check_circle" size="md" />
         <span className="min-w-0 truncate"><strong>{draft.title}</strong> wurde als Projekt angelegt.</span>
       </div>
     );
@@ -559,16 +548,16 @@ const ProjectDraftCard = (props) => {
   if (!isDesktop) {
     return (
       <>
-        <div className="rounded-2xl border border-primary/40 bg-white p-3 space-y-2 shadow-sm">
+        <div className="rounded-lg border border-control bg-surface p-3 space-y-2 shadow-sm">
           <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[20px] text-primary">edit_note</span>
-            <span className="font-bold text-sm truncate">{draft.title || 'Entwurf'}</span>
-            {disabled && <span className="text-[11px] font-mono text-on-surface-variant animate-pulse">Fio arbeitet …</span>}
+            <Icon name="edit_note" size="md" className="text-primary" />
+            <span className="text-body-strong truncate">{draft.title || 'Entwurf'}</span>
+            {disabled && <span className="text-micro font-label text-secondary animate-pulse">Fio arbeitet …</span>}
           </div>
-          <p className="text-xs text-on-surface-variant">{draft.phases.length} Abschnitte · {taskCount} Aufgaben</p>
-          <button type="button" onClick={() => setDrawerOpen(true)} className="w-full h-10 rounded-xl bg-neutral-900 text-white text-sm font-bold cursor-pointer">
+          <p className="text-caption text-secondary">{draft.phases.length} Abschnitte · {taskCount} Aufgaben</p>
+          <Button fullWidth onClick={() => setDrawerOpen(true)}>
             Entwurf öffnen
-          </button>
+          </Button>
         </div>
         {drawerOpen && (
           <DraftDrawer onClose={() => setDrawerOpen(false)} disabled={disabled}>
@@ -587,11 +576,11 @@ const ProjectDraftCard = (props) => {
   }
 
   return (
-    <div className="rounded-2xl border border-primary/40 bg-white p-3 shadow-sm">
+    <div className="rounded-lg border border-control bg-surface p-3 shadow-sm">
       <div className="flex items-center gap-2 mb-2">
-        <span className="material-symbols-outlined text-[20px] text-primary">edit_note</span>
-        <span className="font-bold text-sm">Projekt-Entwurf</span>
-        {disabled && <span className="text-[11px] font-mono text-on-surface-variant animate-pulse">Fio arbeitet …</span>}
+        <Icon name="edit_note" size="md" className="text-primary" />
+        <span className="text-body-strong">Projekt-Entwurf</span>
+        {disabled && <span className="text-micro font-label text-secondary animate-pulse">Fio arbeitet …</span>}
       </div>
       <DraftEditor {...props} />
     </div>

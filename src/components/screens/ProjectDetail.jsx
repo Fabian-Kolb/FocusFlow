@@ -4,7 +4,6 @@ import NotesSection from '../ui/NotesSection';
 import TaskDetailDrawer from '../ui/TaskDetailDrawer';
 import SectionDetailDrawer from '../ui/SectionDetailDrawer';
 import GlobalChatDrawer from '../ui/GlobalChatDrawer';
-import FioIcon from '../ui/FioIcon';
 import { canFitDrawersSideBySide } from '../../lib/breakpoints';
 import {
   getProjectStats,
@@ -14,12 +13,17 @@ import {
   formatTaskDate
 } from '../../lib/projectProgress';
 
+import {
+  Alert, Badge, Button, Card, Checkbox, Chip, FOCUS, Field, FioMark, Icon, IconButton, IconTile, Input, Kbd, ListGroup, ListItem,
+  ProgressBar, SectionHeader, Sheet, Stat, Textarea, cx,
+} from '../ds';
+import { HISTORY_MARK_CLASS, historyTone } from '../../lib/historyStyle';
 const HISTORY_LIMIT = 100;
 
 /** Zeitstempel im selben Format wie die Verlaufs-Einträge aus dem DataContext */
 const historyTimestamp = () => {
   const now = new Date();
-  const day = now.toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
+  const day = now.toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' });
   const time = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
   return `${day} • ${time} Uhr`;
 };
@@ -272,7 +276,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
           text: `Neuer Abschnitt aus Notiz erstellt: '${newPhase.title}'`,
           phase: 'Projekt-Fortschritt',
           icon: 'note_add',
-          iconStyle: 'bg-primary/10 text-primary border border-primary/20'
+          iconStyle: 'bg-hover text-primary border border-default'
         })
       };
     });
@@ -321,7 +325,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
           text: `Neue Aufgabe aus Notiz erstellt: '${note.title}'`,
           phase: 'Projekt-Fortschritt',
           icon: 'add_task',
-          iconStyle: 'bg-primary/10 text-primary border border-primary/20'
+          iconStyle: 'bg-hover text-primary border border-default'
         })
       };
     });
@@ -376,7 +380,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
           text: `Notiz '${note.title}' verknüpft`,
           phase: 'Wissensmanagement',
           icon: 'link',
-          iconStyle: 'bg-surface-low text-primary border border-outline-variant'
+          iconStyle: 'bg-subtle text-primary border border-subtle'
         })
       };
     });
@@ -384,20 +388,20 @@ const ProjectDetail = ({ setCurrentScreen }) => {
 
   const getStatusButtonClass = (status, isActive) => {
     if (!isActive) {
-      return "bg-surface-low text-on-surface-variant border-outline-variant hover:border-primary hover:text-primary opacity-60 hover:opacity-100";
+      return "bg-subtle text-secondary border-subtle hover:border-strong hover:text-primary opacity-60 hover:opacity-100";
     }
-    if (status === 'GEPLANT') return "bg-amber-100 text-amber-900 border-amber-400 ring-1 ring-amber-400 opacity-100";
-    if (status === 'AKTIV') return "bg-emerald-100 text-emerald-900 border-emerald-400 ring-1 ring-emerald-400 opacity-100";
-    if (status === 'PAUSIERT') return "bg-blue-100 text-blue-900 border-blue-400 ring-1 ring-blue-400 opacity-100";
-    if (status === 'ABGESCHLOSSEN') return "bg-neutral-200 text-neutral-800 border-neutral-400 ring-1 ring-neutral-400 opacity-100";
+    if (status === 'GEPLANT') return "bg-warning-subtle text-warning border-warning ring-1 ring-focus opacity-100";
+    if (status === 'AKTIV') return "bg-success-subtle text-success border-success ring-1 ring-focus opacity-100";
+    if (status === 'PAUSIERT') return "bg-info-subtle text-accent border-info ring-1 ring-focus opacity-100";
+    if (status === 'ABGESCHLOSSEN') return "bg-muted text-primary border-control ring-1 ring-focus opacity-100";
     return "";
   };
 
   const getStatusDotClass = (status) => {
-    if (status === 'GEPLANT') return "bg-amber-600";
-    if (status === 'AKTIV') return "bg-emerald-600 animate-pulse";
-    if (status === 'PAUSIERT') return "bg-blue-600";
-    if (status === 'ABGESCHLOSSEN') return "bg-neutral-600";
+    if (status === 'GEPLANT') return "bg-warning";
+    if (status === 'AKTIV') return "bg-success animate-pulse";
+    if (status === 'PAUSIERT') return "bg-accent";
+    if (status === 'ABGESCHLOSSEN') return "bg-control";
   };
 
   // Collapse / Expand All Phases
@@ -488,7 +492,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
               text: `Aufgabe erledigt: '${toggledTitle}'`,
               phase: toggledPhaseTitle,
               icon: 'check',
-              iconStyle: 'bg-emerald-100 border border-emerald-300 text-emerald-800'
+              iconStyle: 'bg-success-subtle border border-success text-success'
             })
           : prev.history || [],
         phases: updatedPhases
@@ -526,7 +530,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
           text: `Neuer Abschnitt angelegt: '${newPhaseTitle.trim()}'`,
           phase: 'Projekt-Fortschritt',
           icon: 'flag',
-          iconStyle: 'bg-surface-low border border-outline-variant rounded-lg text-primary'
+          iconStyle: 'bg-subtle border border-subtle rounded-md text-primary'
         }),
         phases: updatedPhases
       };
@@ -652,7 +656,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
             text: `Neues Material hinzugefügt: '${name}'`,
             phase: 'Abschnitt-Material',
             icon: 'attach_file',
-            iconStyle: 'bg-surface-low border border-outline-variant rounded-lg text-primary'
+            iconStyle: 'bg-subtle border border-subtle rounded-md text-primary'
           }),
           phases: updatedPhases
         };
@@ -762,7 +766,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
           text: `Abschnitt gelöscht: '${phaseToDelete?.title}'`,
           phase: 'Projekt-Fortschritt',
           icon: 'delete',
-          iconStyle: 'bg-red-50 text-red-600 border border-red-200'
+          iconStyle: 'bg-danger-subtle text-danger border border-danger'
         }),
         phases: updatedPhases
       };
@@ -802,11 +806,11 @@ const ProjectDetail = ({ setCurrentScreen }) => {
 
   if (!projectData.id) {
     return (
-      <div className="flex flex-col items-center justify-center h-full p-12 text-center text-on-surface-variant">
-        <span className="material-symbols-outlined text-6xl mb-4 opacity-50">folder_off</span>
-        <h2 className="text-xl font-bold mb-2">Projekt nicht gefunden</h2>
+      <div className="flex flex-col items-center justify-center h-full p-12 text-center text-secondary">
+        <Icon name="folder_off" size="xl" className="mb-4 opacity-50" />
+        <h2 className="text-heading mb-2">Projekt nicht gefunden</h2>
         <p className="mb-6">Das Projekt wurde möglicherweise gelöscht.</p>
-        <button onClick={() => setCurrentScreen && setCurrentScreen('projects')} className="px-4 py-2 bg-primary text-on-primary rounded-xl font-bold">Zurück zur Übersicht</button>
+        <Button onClick={() => setCurrentScreen && setCurrentScreen('projects')}>Zurück zur Übersicht</Button>
       </div>
     );
   }
@@ -872,902 +876,526 @@ const ProjectDetail = ({ setCurrentScreen }) => {
     }
   };
 
+  const statusOptions = [
+    { id: 'GEPLANT', label: 'Geplant', icon: 'schedule' },
+    { id: 'AKTIV', label: 'Aktiv', icon: 'play_circle' },
+    { id: 'ABGESCHLOSSEN', label: 'Erledigt', icon: 'check_circle' },
+  ];
+  const filterOptions = [
+    { id: 'all', label: 'Alle' },
+    { id: 'open', label: 'Offen' },
+    { id: 'completed', label: 'Erledigt' },
+  ];
+
   return (
-    <div ref={rootRef} className="screen-transition">
-      {projectData.isPaused && (
-        <div className="fixed top-0 left-0 right-0 h-64 sm:h-80 bg-gradient-to-b from-blue-200/70 via-blue-100/25 to-transparent pointer-events-none z-0" />
-      )}
-      <div className={`w-full mx-auto space-y-4 sm:space-y-6 relative z-10 transition-all duration-300 ${rightMarginClass}`}>
+    <div ref={rootRef}>
+      <div className={cx('relative mx-auto w-full space-y-4 transition-[margin] duration-slow sm:space-y-6', rightMarginClass)}>
         {syncFeedback && (
-          <div className={`p-3 rounded-xl border flex items-center justify-between gap-3 text-xs font-mono font-bold animate-in fade-in duration-200 ${
-            syncFeedback.type === 'error'
-              ? 'bg-red-50 border-red-200 text-red-700'
-              : 'bg-emerald-50 border-emerald-200 text-emerald-800'
-          }`}>
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-[18px]">
-                {syncFeedback.type === 'error' ? 'error' : 'check_circle'}
-              </span>
-              <span>{syncFeedback.message}</span>
-            </div>
-            <button
-              onClick={() => setSyncFeedback(null)}
-              className="p-1 hover:bg-black/5 rounded-md cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[14px]">close</span>
-            </button>
-          </div>
+          <Alert tone={syncFeedback.type === 'error' ? 'danger' : 'success'} onDismiss={() => setSyncFeedback(null)}>
+            {syncFeedback.message}
+          </Alert>
         )}
-        <div>
-          {/* Breadcrumb Navigation */}
-          <nav className="flex items-center gap-1.5 text-xs font-mono text-on-surface-variant mb-4 flex-wrap bg-surface-low/60 p-2.5 rounded-xl border border-outline-variant/60">
-            <button
-              onClick={() => setCurrentScreen && setCurrentScreen('projects')}
-              className="hover:text-primary transition-colors flex items-center gap-1 font-bold text-on-surface-variant hover:underline cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[16px]">arrow_back</span>
-              Übersicht
-            </button>
-            <span className="text-outline-variant font-bold">/</span>
-            <div className="inline-flex items-center gap-1">
-              <button
-                onClick={() => {
-                  if (setCurrentScreen) {
-                    setCurrentScreen('projects');
-                    setTimeout(() => {
-                      const el = document.getElementById(`cat-sec-${categoryObj.id}`);
-                      if (el) {
-                        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                      }
-                    }, 100);
+
+        {/* Brotkrumen */}
+        <nav aria-label="Pfad" className="flex flex-wrap items-center gap-1 text-caption text-secondary">
+          <Button variant="ghost" size="sm" leadingIcon="arrow_back" onClick={() => setCurrentScreen && setCurrentScreen('projects')}>
+            Projekte
+          </Button>
+          <span className="text-disabled" aria-hidden="true">/</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              if (setCurrentScreen) {
+                setCurrentScreen('projects');
+                setTimeout(() => {
+                  const el = document.getElementById(`cat-sec-${categoryObj.id}`);
+                  if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                   }
-                }}
-                className="hover:text-primary transition-colors text-on-surface-variant hover:underline font-medium cursor-pointer"
-              >
-                {categoryObj.name}
-              </button>
-              <button
-                onClick={() => openModal('moveCategory', { type: 'project', itemId: projectData.id, currentCategoryId: projectData.categoryId })}
-                className="p-1 hover:bg-surface-low text-on-surface-variant hover:text-primary rounded-lg transition-colors cursor-pointer flex items-center"
-                title="Kategorie ändern"
-              >
-                <span className="material-symbols-outlined text-[15px]">folder_open</span>
-              </button>
-            </div>
-            <span className="text-outline-variant font-bold">/</span>
-            <span className="font-bold text-primary truncate max-w-[200px] sm:max-w-xs">
-              {projectData.title}
-            </span>
-          </nav>
+                }, 100);
+              }
+            }}
+          >
+            {categoryObj.name}
+          </Button>
+          <IconButton
+            icon="folder_open"
+            label="Kategorie ändern"
+            size="sm"
+            onClick={() => openModal('moveCategory', { type: 'project', itemId: projectData.id, currentCategoryId: projectData.categoryId })}
+          />
+        </nav>
 
-          {isTrashed && (
-            <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-start gap-3">
-              <span className="material-symbols-outlined text-red-600 mt-0.5">delete</span>
-              <div>
-                <p className="font-bold text-sm">Projekt im Papierkorb</p>
-                <p className="text-xs mt-1">Dieses Projekt wurde gelöscht. Um es wieder richtig zu bearbeiten, stelle es im Papierkorb wieder her.</p>
-              </div>
-            </div>
-          )}
+        {isTrashed && (
+          <Alert tone="danger" icon="delete" title="Projekt im Papierkorb">
+            Dieses Projekt wurde gelöscht. Stelle es im Papierkorb wieder her, um es zu bearbeiten.
+          </Alert>
+        )}
 
-          {/* Read-Only Wrapper for Trashed Items */}
-          <div className={isTrashed ? 'pointer-events-none opacity-60 grayscale-[0.2]' : ''}>
-
-          {/* Header Title with Interactive Status Toggle & History Button */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-            <div className="flex flex-col gap-1 flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                {isEditingTitle ? (
-                  <div className="flex items-center gap-2 flex-1 max-w-xl">
-                    <input
-                      type="text"
-                      value={editTitle}
-                      onChange={(e) => setEditTitle(e.target.value)}
-                      onBlur={handleSaveTitle}
-                      autoFocus
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleSaveTitle();
-                        if (e.key === 'Escape') {
-                          setEditTitle(projectData.title || '');
-                          setIsEditingTitle(false);
-                        }
-                      }}
-                      className="text-2xl sm:text-3xl font-bold leading-tight px-2 py-1 border border-primary rounded-xl bg-surface-low focus:bg-white focus:outline-none w-full"
-                    />
-                    <button
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        handleSaveTitle();
-                      }}
-                      className="p-1.5 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors cursor-pointer shrink-0"
-                      title="Speichern"
-                    >
-                      <span className="material-symbols-outlined text-[18px]">check</span>
-                    </button>
-                    <button
-                      onMouseDown={(e) => {
-                        e.preventDefault();
+        {/* Schreibgeschützt, solange das Projekt im Papierkorb liegt */}
+        <div className={cx('space-y-4 sm:space-y-6', isTrashed && 'pointer-events-none opacity-60')}>
+          {/* Titel mit Pause und Kanban */}
+          <header className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+            <div className="min-w-0 flex-1">
+              {isEditingTitle ? (
+                <div className="flex max-w-xl items-center gap-2">
+                  <input
+                    type="text"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    onBlur={handleSaveTitle}
+                    autoFocus
+                    aria-label="Projekttitel"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveTitle();
+                      if (e.key === 'Escape') {
                         setEditTitle(projectData.title || '');
                         setIsEditingTitle(false);
-                      }}
-                      className="p-1.5 bg-surface-low text-on-surface-variant hover:bg-surface-variant rounded-lg transition-colors cursor-pointer shrink-0"
-                      title="Abbrechen"
-                    >
-                      <span className="material-symbols-outlined text-[18px]">close</span>
-                    </button>
-                  </div>
-                ) : (
-                  <div className="group flex items-center gap-2 flex-wrap">
-                    <h1 
-                      onClick={() => !isTrashed && setIsEditingTitle(true)}
-                      className={`text-2xl sm:text-3xl font-bold leading-tight cursor-pointer hover:underline decoration-primary/40 underline-offset-4 ${isTrashed ? 'cursor-default hover:no-underline' : ''}`}
-                      title={isTrashed ? '' : 'Klicken zum Umbenennen'}
-                    >
-                      {projectData.title}
-                    </h1>
-                    {!isTrashed && (
-                      <button
-                        onClick={() => setIsEditingTitle(true)}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-on-surface-variant hover:text-primary hover:bg-surface-low rounded-lg cursor-pointer"
-                        title="Projekt umbenennen"
-                      >
-                        <span className="material-symbols-outlined text-[18px]">edit</span>
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-              <button
-                className={`inline-flex items-center justify-center w-8 h-8 rounded-xl border transition-all shadow-sm cursor-pointer ${
-                  projectData.isPaused
-                    ? 'bg-blue-100 border-blue-300 text-blue-900 hover:bg-blue-200'
-                    : 'bg-white border-outline-variant text-on-surface-variant hover:text-primary hover:border-primary'
-                }`}
-                onClick={() => toggleProjectPause(projectData.id)}
-                title={projectData.isPaused ? 'Fortsetzen' : 'Pausieren'}
-              >
-                <span className="material-symbols-outlined text-[18px]">
-                  {projectData.isPaused ? 'play_arrow' : 'pause'}
-                </span>
-              </button>
-              
-              {/* Kanban Toggle Button */}
-              <button
-                className={`inline-flex items-center justify-center w-8 h-8 rounded-xl border transition-all shadow-sm cursor-pointer ${
-                  projectData.inKanban !== false
-                    ? 'bg-primary/10 border-primary/40 text-primary hover:bg-primary/20'
-                    : 'bg-slate-100 border-slate-300 text-slate-400 hover:bg-slate-200'
-                }`}
-                onClick={() => toggleProjectKanban(projectData.id)}
-                title={projectData.inKanban !== false ? 'Vom Kanban-Board ausblenden' : 'Auf Kanban-Board einblenden'}
-              >
-                <div className="relative inline-flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[18px]">view_kanban</span>
-                  {projectData.inKanban === false && (
-                    <span className="absolute text-slate-600 font-bold text-xs select-none pointer-events-none transform rotate-45">
-                      —
-                    </span>
-                  )}
-                </div>
-              </button>
-            </div>
-          </div>
-
-          {/* BOX 1: Zeitspanne & Doppelbalken */}
-          <div className="p-3.5 sm:p-5 bg-white border border-outline-variant rounded-xl space-y-3 shadow-sm mb-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2 border-b border-outline-variant pb-2.5">
-              <span className="text-xs font-mono font-bold text-primary uppercase whitespace-nowrap">
-                ZEITSPANNE & BALKEN-SYSTEM
-              </span>
-              <div className="flex items-center gap-2">
-                {isEditingDates ? (
-                  <div className="flex items-center gap-2">
-                    <input 
-                      type="date" 
-                      className="text-[10px] sm:text-[11px] border border-outline-variant rounded px-1 py-0.5 outline-none focus:border-primary" 
-                      value={editStartDate} 
-                      onChange={(e) => setEditStartDate(e.target.value)} 
-                    />
-                    <span className="text-[10px] text-on-surface-variant">-</span>
-                    <input 
-                      type="date" 
-                      className="text-[10px] sm:text-[11px] border border-outline-variant rounded px-1 py-0.5 outline-none focus:border-primary" 
-                      value={editEndDate} 
-                      onChange={(e) => setEditEndDate(e.target.value)} 
-                    />
-                    <button onClick={handleSaveDates} className="text-primary hover:bg-surface-low rounded p-0.5 transition-colors">
-                      <span className="material-symbols-outlined text-[14px]">check</span>
-                    </button>
-                    <button onClick={() => setIsEditingDates(false)} className="text-red-500 hover:bg-red-50 rounded p-0.5 transition-colors">
-                      <span className="material-symbols-outlined text-[14px]">close</span>
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <div className="no-wrap-scroll text-[11px] sm:text-xs mono font-bold text-primary">
-                      <span>{timeline.dateRange || 'Kein Zeitraum'}</span>
-                      {timeline.deadlineLabel && (
-                        <span className={timeline.isOverdue ? 'text-rose-600' : ''}> ({timeline.deadlineLabel})</span>
-                      )}
-                    </div>
-                    <button onClick={() => setIsEditingDates(true)} className="text-on-surface-variant hover:text-primary transition-colors flex items-center justify-center p-0.5" title="Datum bearbeiten">
-                      <span className="material-symbols-outlined text-[14px]">edit</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <div>
-                <div className="flex justify-between text-[11px] sm:text-xs mono font-bold mb-1 flex-wrap gap-1">
-                  <span>AUFGABEN-FORTSCHRITT: {stats.progress}%</span>
-                  <span className="text-on-surface-variant font-normal">({stats.tasksCompleted} / {stats.tasksTotal} Aufgaben)</span>
-                </div>
-                <div className="w-full bg-surface-low h-2 border border-outline-variant rounded-full overflow-hidden">
-                  <div className="bg-primary h-full rounded-full transition-all duration-300" style={{ width: `${stats.progress}%` }}></div>
-                </div>
-              </div>
-
-              {timeline.timeElapsed !== null ? (
-                <div>
-                  <div className="flex justify-between text-[10px] sm:text-[11px] mono text-on-surface-variant mb-1 flex-wrap gap-1">
-                    <span>VERSTRICHENE ZEIT: {timeline.timeElapsed}%</span>
-                    <span>{timeline.dayLabel}</span>
-                  </div>
-                  <div className="w-full bg-surface-low h-2 border border-outline-variant rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-300 ${timeline.isOverdue ? 'bg-rose-500' : 'bg-primary'}`}
-                      style={{ width: `${timeline.timeElapsed}%` }}
-                    ></div>
-                  </div>
+                      }
+                    }}
+                    className="w-full rounded-md border border-strong bg-surface px-2 py-1 text-title focus:outline-none sm:text-title-lg"
+                  />
+                  <IconButton
+                    icon="check"
+                    label="Speichern"
+                    variant="primary"
+                    size="sm"
+                    className="shrink-0"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      handleSaveTitle();
+                    }}
+                  />
+                  <IconButton
+                    icon="close"
+                    label="Abbrechen"
+                    variant="secondary"
+                    size="sm"
+                    className="shrink-0"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setEditTitle(projectData.title || '');
+                      setIsEditingTitle(false);
+                    }}
+                  />
                 </div>
               ) : (
-                <p className="text-[10px] sm:text-[11px] mono text-on-surface-variant">
-                  Start- und Enddatum festlegen, um die verstrichene Zeit zu sehen.
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* BOX 1.5: STATUS & VERLAUF */}
-          <div className="p-3.5 sm:p-5 bg-white border border-outline-variant rounded-xl space-y-4 shadow-sm mb-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-outline-variant pb-2.5">
-              <span className="text-xs font-mono font-bold text-primary uppercase">
-                STATUS & VERLAUF
-              </span>
-            </div>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 w-full">
-              {/* Segmented Control for Status */}
-              <div className="flex items-center justify-center gap-1.5 sm:gap-2 w-full h-full">
-                {['GEPLANT', 'AKTIV', 'ABGESCHLOSSEN'].map((s) => {
-                  const isActive = normalizeProjectStatus(projectData.status) === s;
-                  return (
-                    <button
-                      key={s}
-                      onClick={() => handleStatusSet(s)}
-                      className={`flex-1 h-full inline-flex items-center justify-center gap-1.5 px-2 sm:px-3 py-2 border rounded-xl font-mono text-[10px] sm:text-xs font-bold transition-all shadow-sm cursor-pointer whitespace-nowrap ${getStatusButtonClass(s, isActive)}`}
-                    >
-                      <span>{s === 'ABGESCHLOSSEN' ? 'ERLEDIGT' : s}</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <button
-                className="w-full h-full inline-flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2.5 sm:py-3 bg-white border border-outline-variant rounded-xl hover:border-primary text-primary font-mono text-xs sm:text-sm font-bold transition-all shadow-sm cursor-pointer whitespace-nowrap"
-                onClick={() => setShowHistoryModal(true)}
-                title="Projekt-Historie & erledigte Tasks anzeigen"
-              >
-                <span className="material-symbols-outlined text-[18px]">history</span>
-                <span>HISTORIE</span>
-              </button>
-            </div>
-          </div>
-
-          {/* BOX 2: TEMPO-STATUS & TAGES-EMPFOHLENES ZIEL */}
-          <div className="p-3.5 sm:p-5 bg-white border border-outline-variant rounded-xl space-y-4 shadow-sm mb-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-outline-variant pb-2.5">
-              <span className="text-xs font-mono font-bold text-primary uppercase">
-                TEMPO-STATUS & ZIEL
-              </span>
-              {projectData.warning && (
-                <span className="text-[10px] sm:text-xs font-mono font-bold px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 self-start sm:self-auto whitespace-nowrap">
-                  {projectData.warning}
-                </span>
+                <div className="group flex flex-wrap items-center gap-2">
+                  <h1
+                    onClick={() => !isTrashed && setIsEditingTitle(true)}
+                    className={cx('text-title text-primary sm:text-title-lg', isTrashed ? 'cursor-default' : 'cursor-pointer hover:underline hover:underline-offset-4')}
+                    title={isTrashed ? '' : 'Klicken zum Umbenennen'}
+                  >
+                    {projectData.title}
+                  </h1>
+                  {!isTrashed && (
+                    <IconButton icon="edit" label="Projekt umbenennen" size="sm" className="opacity-0 focus-visible:opacity-100 group-hover:opacity-100" onClick={() => setIsEditingTitle(true)} />
+                  )}
+                </div>
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-2 sm:gap-3 p-2.5 sm:p-3 bg-surface-low border border-outline-variant rounded-lg text-[11px] sm:text-xs font-mono">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-[16px] sm:text-[18px] text-primary flex-shrink-0">
-                  auto_stories
-                </span>
-                <div className="min-w-0">
-                  <span className="text-on-surface-variant text-[9px] sm:text-[10px] uppercase block truncate">ABSCHNITTE</span>
-                  <span className="font-bold text-primary truncate block">
-                    {stats.phasesCompleted} / {stats.phasesTotal} Erledigt
-                  </span>
+            <div className="flex items-center gap-2">
+              <IconButton
+                icon={projectData.isPaused ? 'play_arrow' : 'pause'}
+                label={projectData.isPaused ? 'Fortsetzen' : 'Pausieren'}
+                variant="secondary"
+                className={projectData.isPaused ? '!border-accent !bg-accent-subtle !text-accent' : ''}
+                onClick={() => toggleProjectPause(projectData.id)}
+              />
+              <IconButton
+                icon={projectData.inKanban !== false ? 'view_kanban' : 'visibility_off'}
+                label={projectData.inKanban !== false ? 'Vom Kanban-Board ausblenden' : 'Auf Kanban-Board einblenden'}
+                variant="secondary"
+                filled={projectData.inKanban !== false}
+                onClick={() => toggleProjectKanban(projectData.id)}
+              />
+            </div>
+          </header>
+
+          {/* Zeitspanne und Fortschritt */}
+          <Card padding="md" className="space-y-4">
+            <SectionHeader
+              title="Zeitspanne"
+              action={isEditingDates ? (
+                <div className="flex items-center gap-2">
+                  <Input type="date" size="sm" aria-label="Startdatum" value={editStartDate} onChange={(e) => setEditStartDate(e.target.value)} className="w-36" />
+                  <span className="text-caption text-secondary" aria-hidden="true">–</span>
+                  <Input type="date" size="sm" aria-label="Enddatum" value={editEndDate} onChange={(e) => setEditEndDate(e.target.value)} className="w-36" />
+                  <IconButton icon="check" label="Datum speichern" variant="primary" size="sm" onClick={handleSaveDates} />
+                  <IconButton icon="close" label="Abbrechen" variant="secondary" size="sm" onClick={() => setIsEditingDates(false)} />
                 </div>
-              </div>
-              <div className="flex items-center gap-2 border-l border-outline-variant pl-2 sm:pl-3">
-                <span className="material-symbols-outlined text-[16px] sm:text-[18px] text-primary flex-shrink-0">
-                  check_box
-                </span>
-                <div className="min-w-0">
-                  <span className="text-on-surface-variant text-[9px] sm:text-[10px] uppercase block truncate">AUFGABEN</span>
-                  <span className="font-bold text-primary truncate block">
-                    {stats.tasksCompleted} / {stats.tasksTotal} Aufgaben
+              ) : (
+                <div className="flex items-center gap-1">
+                  <span className="text-caption-strong text-primary">
+                    {timeline.dateRange || 'Kein Zeitraum'}
+                    {timeline.deadlineLabel && (
+                      <span className={timeline.isOverdue ? 'text-danger' : 'text-secondary'}> ({timeline.deadlineLabel})</span>
+                    )}
                   </span>
+                  <IconButton icon="edit" label="Datum bearbeiten" size="sm" onClick={() => setIsEditingDates(true)} />
                 </div>
-              </div>
+              )}
+            />
+            <ProgressBar value={stats.progress} label={`Aufgaben-Fortschritt · ${stats.tasksCompleted} von ${stats.tasksTotal}`} showValue />
+            {timeline.timeElapsed !== null ? (
+              <ProgressBar
+                value={timeline.timeElapsed}
+                tone={timeline.isOverdue ? 'danger' : 'accent'}
+                label={`Verstrichene Zeit · ${timeline.dayLabel || ''}`}
+                showValue
+              />
+            ) : (
+              <p className="text-caption text-secondary">Lege Start- und Enddatum fest, um die verstrichene Zeit zu sehen.</p>
+            )}
+          </Card>
+
+          {/* Status und Verlauf */}
+          <Card padding="md" className="space-y-4">
+            <SectionHeader title="Status und Verlauf" />
+            <div className="flex flex-wrap items-center gap-2">
+              {statusOptions.map((s) => (
+                <Chip
+                  key={s.id}
+                  selected={normalizeProjectStatus(projectData.status) === s.id}
+                  leadingIcon={s.icon}
+                  onClick={() => handleStatusSet(s.id)}
+                >
+                  {s.label}
+                </Chip>
+              ))}
+              <Button variant="secondary" size="sm" leadingIcon="history" className="sm:ml-auto" onClick={() => setShowHistoryModal(true)}>
+                Verlauf
+              </Button>
+            </div>
+          </Card>
+
+          {/* Tempo und empfohlene Schritte */}
+          <Card padding="md" className="space-y-4">
+            <SectionHeader
+              title="Tempo und Ziel"
+              action={projectData.warning ? <Badge tone="warning">{projectData.warning}</Badge> : null}
+            />
+            <div className="grid grid-cols-2 gap-3 rounded-md border border-subtle bg-subtle p-3">
+              <Stat icon="auto_stories" label="Abschnitte" value={`${stats.phasesCompleted}/${stats.phasesTotal}`} area="projects" />
+              <Stat icon="check_box" label="Aufgaben" value={`${stats.tasksCompleted}/${stats.tasksTotal}`} area="projects" />
             </div>
 
             {projectData.recommendedSteps && projectData.recommendedSteps.length > 0 && (
-              <div className="space-y-2 pt-1">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[11px] sm:text-xs font-mono font-bold text-primary uppercase truncate">
-                    EMPFOHLENE SCHRITTE FÜR HEUTE:
-                  </span>
-                  <span className="text-[9px] sm:text-[10px] mono text-on-surface-variant whitespace-nowrap">
-                    FOKUSSIEREN
-                  </span>
-                </div>
-
-                <div className="space-y-2">
+              <div className="space-y-2">
+                <SectionHeader title="Empfohlene Schritte für heute" />
+                <ListGroup>
                   {projectData.recommendedSteps.map((step) => (
-                    <div
+                    <ListItem
                       key={step.id}
-                      className="p-3 bg-surface-low border border-outline-variant rounded-lg hover:border-primary transition-all cursor-pointer flex items-center justify-between gap-2 group"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <span className="w-5 h-5 bg-primary text-white text-[10px] font-mono flex items-center justify-center font-bold flex-shrink-0">
-                          {step.num}
-                        </span>
-                        <div className="min-w-0">
-                          <span className="text-xs font-bold text-primary group-hover:underline block truncate">
-                            {step.title}
-                          </span>
-                          <span className="text-[10px] font-mono text-on-surface-variant block truncate">
-                            {step.date}
-                          </span>
-                        </div>
-                      </div>
-                      <span className="material-symbols-outlined text-[16px] text-on-surface-variant group-hover:text-primary flex-shrink-0">
-                        arrow_forward
-                      </span>
-                    </div>
+                      leading={<Badge tone="accent" size="sm">{step.num}</Badge>}
+                      title={step.title}
+                      description={step.date}
+                      trailing={<Icon name="arrow_forward" size="sm" className="text-secondary" />}
+                    />
                   ))}
-                </div>
+                </ListGroup>
               </div>
             )}
-          </div>
+          </Card>
 
-        <NotesSection
-          notes={projectData.notes || []}
-          phases={projectData.phases || []}
-          activeNote={activeNoteModal}
-          onCloseActiveNote={() => setActiveNoteModal(null)}
-          onAddNote={handleAddNote}
-          onUpdateNote={handleUpdateNote}
-          onDeleteNote={handleDeleteNote}
-          onConvertNoteToPhase={handleConvertNoteToPhase}
-          onConvertNoteToTask={handleConvertNoteToTask}
-          onLinkNote={handleLinkNote}
-        />
+          <NotesSection
+            notes={projectData.notes || []}
+            phases={projectData.phases || []}
+            activeNote={activeNoteModal}
+            onCloseActiveNote={() => setActiveNoteModal(null)}
+            onAddNote={handleAddNote}
+            onUpdateNote={handleUpdateNote}
+            onDeleteNote={handleDeleteNote}
+            onConvertNoteToPhase={handleConvertNoteToPhase}
+            onConvertNoteToTask={handleConvertNoteToTask}
+            onLinkNote={handleLinkNote}
+          />
 
-        {/* BEREICHS-HEADER: PROJEKT-PHASEN & PHASEN-FILTER */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b-2 border-primary pb-3 pt-2 mb-6">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[20px] text-primary">layers</span>
-            <h2 className="text-sm font-mono font-bold text-primary uppercase tracking-wider">
-              ABSCHNITTE
-            </h2>
-          </div>
-
-          <div className="no-wrap-scroll flex items-center gap-2 font-mono text-xs pb-1">
-            <div className="flex items-center border border-outline-variant rounded-lg bg-white p-0.5 flex-shrink-0 overflow-hidden">
-              <button
-                className={`px-2.5 py-1 font-bold transition-all shadow-sm rounded-md ${
-                  filterType === 'all' ? 'bg-primary text-white' : 'text-on-surface-variant hover:text-primary'
-                }`}
-                onClick={() => setFilterType('all')}
-              >
-                ALLE
-              </button>
-              <button
-                className={`px-2.5 py-1 transition-all font-medium rounded-md ${
-                  filterType === 'open' ? 'bg-primary text-white font-bold' : 'text-on-surface-variant hover:text-primary'
-                }`}
-                onClick={() => setFilterType('open')}
-              >
-                OFFEN
-              </button>
-              <button
-                className={`px-2.5 py-1 transition-all font-medium rounded-md ${
-                  filterType === 'completed' ? 'bg-primary text-white font-bold' : 'text-on-surface-variant hover:text-primary'
-                }`}
-                onClick={() => setFilterType('completed')}
-              >
-                ERLEDIGT
-              </button>
+          {/* Abschnitte und Filter */}
+          <div className="flex flex-col justify-between gap-3 border-b border-subtle pb-3 pt-2 sm:flex-row sm:items-center">
+            <SectionHeader title="Abschnitte" count={projectPhases.length} />
+            <div className="no-wrap-scroll -my-1.5 flex items-center gap-2 py-1.5">
+              {filterOptions.map((f) => (
+                <Chip key={f.id} selected={filterType === f.id} onClick={() => setFilterType(f.id)}>{f.label}</Chip>
+              ))}
+              <Button variant="ghost" size="sm" leadingIcon={isAllCollapsed ? 'unfold_more' : 'unfold_less'} onClick={toggleAllPhases}>
+                {isAllCollapsed ? 'Alle ausklappen' : 'Alle einklappen'}
+              </Button>
             </div>
-
-            <button
-              className="px-2.5 py-1 bg-surface-low border border-outline-variant rounded-lg hover:border-primary text-primary font-bold flex items-center gap-1 transition-all whitespace-nowrap flex-shrink-0 cursor-pointer"
-              onClick={toggleAllPhases}
-            >
-              <span className="material-symbols-outlined text-[14px]">unfold_less</span>
-              <span>{isAllCollapsed ? 'ALLE AUSKLAPPEN' : 'ALLE EINKLAPPEN'}</span>
-            </button>
           </div>
-        </div>
 
-        {/* Phasen Container */}
-        <div className="space-y-6">
-          {filteredPhases.map((phase) => {
-            const isCollapsed = collapsedPhases[phase.id];
+          {/* Abschnitte */}
+          <div className="space-y-4">
+            {filteredPhases.map((phase) => {
+              const isCollapsed = collapsedPhases[phase.id];
+              const phaseStats = getPhaseStats(phase);
 
-            return (
-              <div
-                key={phase.id}
-                className="border border-outline-variant bg-white rounded-xl p-3.5 sm:p-6 space-y-4 transition-all phase-card"
-              >
-                {/* Collapsible Header */}
-                <div className="flex items-center justify-between gap-2 border-b border-outline-variant pb-3 select-none">
-                  <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                    <button
-                      type="button"
-                      onClick={() => togglePhaseCollapse(phase.id)}
-                      className="p-1 rounded-lg hover:bg-surface-low text-primary transition-colors flex-shrink-0 cursor-pointer"
-                      title={isCollapsed ? 'Abschnitt ausklappen' : 'Abschnitt einklappen'}
-                    >
-                      <span className="material-symbols-outlined text-[20px] transition-transform duration-200">
-                        {isCollapsed ? 'chevron_right' : 'expand_more'}
-                      </span>
-                    </button>
-                    
-                    <div 
-                      className="min-w-0 cursor-pointer group section-header"
-                      data-drawer-trigger="true"
-                      onClick={() => handleSelectPhase(phase)}
-                    >
-                      <div className="flex items-center gap-2 flex-wrap">
+              return (
+                <Card key={phase.id} padding="md" className="phase-card space-y-3">
+                  <div className="flex select-none items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+                      <IconButton
+                        icon={isCollapsed ? 'chevron_right' : 'expand_more'}
+                        label={isCollapsed ? 'Abschnitt ausklappen' : 'Abschnitt einklappen'}
+                        size="sm"
+                        onClick={() => togglePhaseCollapse(phase.id)}
+                      />
+                      <div
+                        className="section-header group min-w-0 cursor-pointer"
+                        data-drawer-trigger="true"
+                        onClick={() => handleSelectPhase(phase)}
+                      >
                         {phase.dateInfo && (
-                          <span className="text-[10px] font-mono text-primary bg-primary/5 px-2 py-0.5 rounded border border-primary/20 flex items-center gap-1">
-                            <span className="material-symbols-outlined text-[11px]">calendar_today</span>
-                            <span>{formatDate(phase.dateInfo)}</span>
-                          </span>
+                          <Badge tone="neutral" size="sm" icon="calendar_today">{formatDate(phase.dateInfo)}</Badge>
                         )}
+                        <h3 className="mt-0.5 truncate text-subheading text-primary group-hover:underline sm:text-heading">
+                          {phase.title}
+                        </h3>
                       </div>
-                      <h3 className="text-base sm:text-lg font-bold group-hover:underline truncate mt-0.5">
-                        {phase.title}
-                      </h3>
+                    </div>
+
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Badge tone={phaseStats.isDone ? 'success' : 'neutral'} className="hidden sm:inline-flex">{phaseStats.label}</Badge>
+                      <IconButton
+                        icon={syncingPhaseId === phase.id ? 'sync' : 'calendar_month'}
+                        label={
+                          user?.isGuest
+                            ? 'Im Gastmodus nicht verfügbar'
+                            : !isCalendarConnected
+                            ? 'Google Kalender ist nicht verbunden'
+                            : 'Alle Aufgaben dieses Abschnitts mit Fälligkeitsdatum mit Google Kalender synchronisieren'
+                        }
+                        size="sm"
+                        disabled={user?.isGuest || !isCalendarConnected || syncingPhaseId === phase.id}
+                        className={syncingPhaseId === phase.id ? '[&_.material-symbols-outlined]:animate-spin' : ''}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleBatchSyncPhase(phase.id);
+                        }}
+                      />
+                      <IconButton icon="edit" label="Abschnitt bearbeiten" size="sm" onClick={() => handleSelectPhase(phase)} />
                     </div>
                   </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono font-bold text-on-surface-variant bg-surface-low px-2.5 py-1 rounded-lg border border-outline-variant">
-                      {getPhaseStats(phase).label}
-                    </span>
-                    <button
-                      type="button"
-                      disabled={user?.isGuest || !isCalendarConnected || syncingPhaseId === phase.id}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleBatchSyncPhase(phase.id);
-                      }}
-                      className="p-1 rounded-lg hover:bg-surface-low text-on-surface-variant hover:text-primary transition-colors cursor-pointer disabled:opacity-40"
-                      title={
-                        user?.isGuest
-                          ? 'Im Gastmodus nicht verfügbar'
-                          : !isCalendarConnected
-                          ? 'Google Kalender ist nicht verbunden'
-                          : 'Alle Aufgaben dieses Abschnitts mit Fälligkeitsdatum mit Google Kalender synchronisieren'
-                      }
-                    >
-                      <span className={`material-symbols-outlined text-[18px] ${syncingPhaseId === phase.id ? 'animate-spin text-primary' : ''}`}>
-                        {syncingPhaseId === phase.id ? 'sync' : 'calendar_month'}
-                      </span>
-                    </button>
-                    <button
-                      onClick={() => handleSelectPhase(phase)}
-                      className="p-1 rounded-lg hover:bg-surface-low text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
-                      title="Abschnitt bearbeiten"
-                    >
-                      <span className="material-symbols-outlined text-[18px]">edit</span>
-                    </button>
-                  </div>
-                </div>
 
-                {/* Phase Body */}
-                {!isCollapsed && (
-                  <div className="space-y-4 pt-1">
-                    {/* Task List - Slim */}
-                    <div className="space-y-1">
+                  {!isCollapsed && (
+                    <div className="space-y-1 border-t border-subtle pt-3">
                       {(phase.tasks || []).map((task) => (
                         <div
                           key={task.id}
                           id={`task-${task.id}`}
                           data-drawer-trigger="true"
-                          className={`task-item flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all group ${
-                            selectedTask?.task.id === task.id
-                              ? 'bg-primary/5 border border-primary/20'
-                              : 'hover:bg-surface-low border border-transparent'
-                          }`}
+                          className={cx(
+                            'task-item group flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2.5 transition-colors duration-fast',
+                            selectedTask?.task.id === task.id ? 'border-default bg-hover' : 'border-transparent hover:bg-hover',
+                          )}
                           onClick={() => handleSelectTask(task, phase)}
                         >
-                          <input
-                            type="checkbox"
-                            checked={task.completed}
-                            onChange={(e) => {
-                              e.stopPropagation();
-                              toggleTaskCompletion(phase.id, task.id);
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                            className="w-4 h-4 text-primary rounded-none border-outline-variant focus:ring-0 flex-shrink-0 cursor-pointer"
-                          />
-                          <span
-                            className={`flex-1 text-sm font-medium truncate ${
-                              task.completed ? 'line-through text-on-surface-variant' : 'text-primary'
-                            }`}
-                          >
+                          <span onClick={(e) => e.stopPropagation()} className="flex">
+                            <Checkbox
+                              aria-label={`${task.title} abhaken`}
+                              checked={task.completed}
+                              onChange={() => toggleTaskCompletion(phase.id, task.id)}
+                            />
+                          </span>
+                          <span className={cx('flex-1 truncate text-label', task.completed ? 'text-secondary line-through' : 'text-primary')}>
                             {task.title}
                           </span>
                           {task.isCalendarSynced && (
-                            <span 
-                              className="material-symbols-outlined text-[16px] text-emerald-600 flex-shrink-0"
-                              title="Mit Google Kalender synchronisiert"
-                            >
-                              calendar_month
-                            </span>
+                            <Icon name="calendar_month" size="sm" className="shrink-0 text-success" title="Mit Google Kalender synchronisiert" />
                           )}
                           {task.date && task.date !== 'Geplant: Demnächst' && (
-                            <span className="text-[10px] font-mono text-on-surface-variant bg-surface-low px-2 py-0.5 rounded-lg border border-outline-variant flex-shrink-0 hidden sm:inline">
-                              📅 {formatTaskDate(task.date)}
-                            </span>
+                            <Badge tone="neutral" size="sm" icon="event" className="hidden sm:inline-flex">{formatTaskDate(task.date)}</Badge>
                           )}
                           {((task.note) || (task.links && task.links.length > 0)) && (
-                            <span className="material-symbols-outlined text-[14px] text-on-surface-variant/50 flex-shrink-0">attachment</span>
+                            <Icon name="attachment" size="sm" className="shrink-0 text-tertiary" />
                           )}
                         </div>
                       ))}
 
-                      {/* Add Task Button */}
-                      <button
-                        className="flex items-center gap-2.5 px-3 py-2 w-full rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-low transition-all cursor-pointer group"
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        leadingIcon="add"
+                        className="mt-1"
                         onClick={() => {
                           setActivePhaseIdForTask(phase.id);
                           setShowTaskModal(true);
                         }}
                       >
-                        <span className="material-symbols-outlined text-[16px] group-hover:text-primary">add</span>
-                        <span className="text-xs font-mono font-bold uppercase">+ Aufgabe hinzufügen</span>
-                      </button>
+                        Aufgabe hinzufügen
+                      </Button>
                     </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Add New Phase Action Box */}
-        <div
-          className="p-4 border-2 border-dashed border-outline-variant rounded-xl hover:border-primary bg-white hover:bg-surface-low cursor-pointer transition-all flex items-center justify-between group shadow-sm mt-6"
-          onClick={() => setShowPhaseModal(true)}
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-6 h-6 border border-dashed border-primary flex items-center justify-center font-mono text-xs font-bold text-primary group-hover:bg-primary group-hover:text-white transition-colors">
-              +
-            </div>
-            <span className="text-xs font-mono font-bold text-primary group-hover:underline uppercase">
-              + NEUER ABSCHNITT
-            </span>
+                  )}
+                </Card>
+              );
+            })}
           </div>
-          <span className="text-[10px] font-mono px-2.5 py-1 bg-surface-low border border-outline-variant rounded-lg text-primary font-bold">
-            ORGANISIEREN
-          </span>
-        </div>
-        {/* End of Read-Only Wrapper: umfasst Kopf, Notizen, Abschnitte und Aufgaben */}
-        </div>
+
+          <Button variant="secondary" size="lg" fullWidth leadingIcon="add" className="border-dashed" onClick={() => setShowPhaseModal(true)}>
+            Neuer Abschnitt
+          </Button>
         </div>
       </div>
 
-      {/* --- MODALS --- */}
+      {/* Verlauf */}
+      <Sheet
+        open={showHistoryModal}
+        onClose={() => setShowHistoryModal(false)}
+        title="Verlauf"
+        description={projectData.title}
+        footer={<Button variant="secondary" onClick={() => setShowHistoryModal(false)}>Schließen</Button>}
+      >
+        {projectData.history && projectData.history.length > 0 ? (
+          <ol className="space-y-4">
+            {projectData.history.map((item) => (
+              <li key={item.id} className="flex items-start gap-3">
+                {/* Einträge aus dem DataContext heißen date/title/category/badgeBg, eigene timestamp/text/phase/iconStyle */}
+                <span
+                  className={cx('mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border', HISTORY_MARK_CLASS[historyTone(item)])}
+                  aria-hidden="true"
+                >
+                  <Icon name={item.icon || 'history'} size="sm" />
+                </span>
+                <div className="min-w-0">
+                  <span className="block text-caption text-tertiary">{item.timestamp || item.date}</span>
+                  <p className="text-body-strong text-primary">{item.text || item.title}</p>
+                  <span className="text-caption text-secondary">{item.phase || item.category}</span>
+                </div>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="text-body text-secondary">Keine bisherigen Aktivitäten vorhanden.</p>
+        )}
+      </Sheet>
 
-      {/* 1. PROJECT HISTORY MODAL */}
-      {showHistoryModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border-2 border-primary w-full max-w-xl p-4 sm:p-6 space-y-4 sm:space-y-5 shadow-2xl relative">
-            <div className="flex items-center justify-between border-b border-outline-variant pb-3">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="material-symbols-outlined text-[20px] text-primary flex-shrink-0">history</span>
-                <h2 className="text-xs sm:text-sm font-bold font-mono uppercase truncate">
-                  HISTORIE: {projectData.title}
-                </h2>
-              </div>
-              <button
-                className="p-1 hover:bg-surface-low border border-outline-variant rounded-lg transition-colors flex-shrink-0 cursor-pointer"
-                onClick={() => setShowHistoryModal(false)}
-              >
-                <span className="material-symbols-outlined text-[18px]">close</span>
-              </button>
-            </div>
+      {/* Neuer Abschnitt */}
+      <Sheet
+        open={showPhaseModal}
+        onClose={() => setShowPhaseModal(false)}
+        title="Neuer Abschnitt"
+        footer={(
+          <>
+            <Button variant="secondary" onClick={() => setShowPhaseModal(false)}>Abbrechen</Button>
+            <Button type="submit" form="pd-phase-form">Abschnitt hinzufügen</Button>
+          </>
+        )}
+      >
+        <form id="pd-phase-form" onSubmit={handlePhaseSubmit} className="space-y-4">
+          <Field label="Titel">
+            <Input
+              data-autofocus
+              required
+              value={newPhaseTitle}
+              onChange={(e) => setNewPhaseTitle(e.target.value)}
+              placeholder="z. B. Marketing, Design, Recherche"
+            />
+          </Field>
+          <Field label="Ziel" optional>
+            <Textarea
+              rows={3}
+              value={newPhaseDesc}
+              onChange={(e) => setNewPhaseDesc(e.target.value)}
+              placeholder="Was soll in diesem Abschnitt erreicht werden?"
+            />
+          </Field>
+        </form>
+      </Sheet>
 
-            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1 sm:pr-2">
-              {projectData.history && projectData.history.length > 0 ? (
-                projectData.history.map((item) => (
-                  <div key={item.id} className="flex items-start gap-3">
-                    {/* Einträge aus dem DataContext heißen date/title/category/badgeBg, eigene timestamp/text/phase/iconStyle */}
-                    <div
-                      className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${item.iconStyle || item.badgeBg || ''}`}
-                    >
-                      <span className="material-symbols-outlined text-[14px]">{item.icon}</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] sm:text-xs font-mono font-bold text-primary block">
-                        {item.timestamp || item.date}
-                      </span>
-                      <p className="text-xs sm:text-sm font-medium">{item.text || item.title}</p>
-                      <span className="text-[10px] font-mono text-on-surface-variant">{item.phase || item.category}</span>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-xs font-mono text-on-surface-variant">Keine bisherigen Aktivitäten vorhanden.</p>
-              )}
-            </div>
+      {/* Neue Aufgabe */}
+      <Sheet
+        open={showTaskModal}
+        onClose={() => setShowTaskModal(false)}
+        title="Aufgabe hinzufügen"
+        footer={(
+          <>
+            <Button variant="secondary" onClick={() => setShowTaskModal(false)}>Abbrechen</Button>
+            <Button type="submit" form="pd-task-form">Aufgabe hinzufügen</Button>
+          </>
+        )}
+      >
+        <form id="pd-task-form" onSubmit={handleTaskSubmit} className="space-y-4">
+          <Field label="Titel">
+            <Input
+              data-autofocus
+              required
+              value={newTaskTitle}
+              onChange={(e) => setNewTaskTitle(e.target.value)}
+              placeholder="z. B. Stakeholder-Interviews führen"
+            />
+          </Field>
+          {/* Echtes Datum (YYYY-MM-DD): nur so erscheint die Aufgabe auf Home und lässt sich mit dem Kalender abgleichen */}
+          <Field label="Fällig am" optional>
+            <Input id="new-task-date" type="date" value={newTaskDate} onChange={(e) => setNewTaskDate(e.target.value)} />
+          </Field>
+          <Field label="Notiz" optional>
+            <Textarea
+              rows={3}
+              value={newTaskNote}
+              onChange={(e) => setNewTaskNote(e.target.value)}
+              placeholder="Wichtige Hinweise zur Durchführung"
+            />
+          </Field>
+        </form>
+      </Sheet>
 
-            <div className="border-t border-outline-variant pt-3 flex justify-end">
-              <button
-                className="px-5 py-2 bg-primary text-white text-xs font-mono font-bold hover:bg-neutral-800 transition-colors cursor-pointer"
-                onClick={() => setShowHistoryModal(false)}
-              >
-                SCHLIESSEN
-              </button>
+      {/* Material oder Link anhängen */}
+      <Sheet
+        open={showMaterialModal}
+        onClose={() => setShowMaterialModal(false)}
+        title="Material anhängen"
+        description="Dateien, Dokumente oder Web-Links zum Projekt hinzufügen."
+        footer={(
+          <>
+            <Button variant="secondary" onClick={() => setShowMaterialModal(false)}>Abbrechen</Button>
+            <Button type="submit" form="pd-material-form" leadingIcon="add_link">Anhängen</Button>
+          </>
+        )}
+      >
+        <form id="pd-material-form" onSubmit={handleMaterialSubmit} className="space-y-4">
+          <div
+            role="button"
+            tabIndex={0}
+            className="cursor-pointer space-y-3 rounded-lg border-2 border-dashed border-default bg-subtle p-6 text-center transition-colors duration-fast hover:border-strong hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+            onClick={() => localFileInputRef.current?.click()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                localFileInputRef.current?.click();
+              }
+            }}
+          >
+            <input
+              type="file"
+              ref={localFileInputRef}
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  setNewMaterialName(e.target.files[0].name);
+                }
+              }}
+            />
+            <IconTile area="accent" icon="cloud_upload" size="lg" className="mx-auto" />
+            <div>
+              <p className="text-body-strong text-primary">Datei auswählen oder hierher ziehen</p>
+              <p className="mt-1 text-caption text-secondary">Dokumente, Bilder, PDFs und Markdown (max. 25 MB)</p>
             </div>
+            <p className="inline-flex flex-wrap items-center justify-center gap-1.5 text-caption text-secondary">
+              Tipp: <Kbd>Strg</Kbd> + <Kbd>V</Kbd> fügt ein Bild ein.
+            </p>
           </div>
-        </div>
-      )}
-
-      {/* 2. ADD PHASE MODAL */}
-      {showPhaseModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border-2 border-primary w-full max-w-md p-5 sm:p-6 space-y-4 shadow-2xl relative">
-            <div className="flex items-center justify-between border-b border-outline-variant pb-3">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="material-symbols-outlined text-[22px] text-primary">layers</span>
-                <h2 className="text-xs sm:text-sm font-bold font-mono uppercase truncate">NEUER ABSCHNITT</h2>
-              </div>
-              <button
-                className="p-1 hover:bg-surface-low border border-outline-variant rounded-lg transition-colors cursor-pointer"
-                onClick={() => setShowPhaseModal(false)}
-              >
-                <span className="material-symbols-outlined text-[18px]">close</span>
-              </button>
-            </div>
-
-            <form onSubmit={handlePhaseSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-mono font-bold text-primary mb-1 uppercase">ABSCHNITT-TITEL *</label>
-                <input
-                  type="text"
-                  required
-                  value={newPhaseTitle}
-                  onChange={(e) => setNewPhaseTitle(e.target.value)}
-                  className="w-full border border-outline-variant px-3 py-2 text-sm focus:border-primary outline-none"
-                  placeholder="z.B. Marketing, Design, Recherche"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-mono font-bold text-primary mb-1 uppercase">
-                  ZIEL / BESCHREIBUNG (OPTIONAL)
-                </label>
-                <textarea
-                  rows="2"
-                  value={newPhaseDesc}
-                  onChange={(e) => setNewPhaseDesc(e.target.value)}
-                  className="w-full border border-outline-variant p-2 text-xs focus:border-primary outline-none"
-                  placeholder="Was soll in dieser Phase erreicht werden?"
-                ></textarea>
-              </div>
-
-              <div className="border-t border-outline-variant pt-4 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  className="px-4 py-2 border border-outline-variant text-xs font-mono font-bold text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
-                  onClick={() => setShowPhaseModal(false)}
-                >
-                  ABBRECHEN
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-primary text-white text-xs font-mono font-bold hover:bg-neutral-800 transition-colors shadow-sm cursor-pointer"
-                >
-                  ABSCHNITT ANLEGEN
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* 3. ADD TASK MODAL */}
-      {showTaskModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border-2 border-primary w-full max-w-md p-5 sm:p-6 space-y-4 shadow-2xl relative">
-            <div className="flex items-center justify-between border-b border-outline-variant pb-3">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="material-symbols-outlined text-[22px] text-primary">add_task</span>
-                <h2 className="text-xs sm:text-sm font-bold font-mono uppercase truncate">AUFGABE HINZUFÜGEN</h2>
-              </div>
-              <button
-                className="p-1 hover:bg-surface-low border border-outline-variant rounded-lg transition-colors cursor-pointer"
-                onClick={() => setShowTaskModal(false)}
-              >
-                <span className="material-symbols-outlined text-[18px]">close</span>
-              </button>
-            </div>
-
-            <form onSubmit={handleTaskSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-mono font-bold text-primary mb-1 uppercase">AUFGABEN-TITEL *</label>
-                <input
-                  type="text"
-                  required
-                  value={newTaskTitle}
-                  onChange={(e) => setNewTaskTitle(e.target.value)}
-                  className="w-full border border-outline-variant px-3 py-2 text-sm focus:border-primary outline-none"
-                  placeholder="z.B. Stakeholder Interviews führen"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="new-task-date" className="block text-xs font-mono font-bold text-primary mb-1 uppercase">
-                  FÄLLIG AM (OPTIONAL)
-                </label>
-                {/* Echtes Datum (YYYY-MM-DD): nur so erscheint die Aufgabe auf Home und lässt sich mit dem Kalender abgleichen */}
-                <input
-                  id="new-task-date"
-                  type="date"
-                  value={newTaskDate}
-                  onChange={(e) => setNewTaskDate(e.target.value)}
-                  className="w-full border border-outline-variant px-3 py-2 text-xs font-mono focus:border-primary outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-mono font-bold text-primary mb-1 uppercase">
-                  ANMERKUNG / NOTIZ (OPTIONAL)
-                </label>
-                <textarea
-                  rows="2"
-                  value={newTaskNote}
-                  onChange={(e) => setNewTaskNote(e.target.value)}
-                  className="w-full border border-outline-variant p-2 text-xs focus:border-primary outline-none"
-                  placeholder="Wichtige Hinweise zur Durchführung..."
-                ></textarea>
-              </div>
-
-              <div className="border-t border-outline-variant pt-4 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  className="px-4 py-2 border border-outline-variant text-xs font-mono font-bold text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
-                  onClick={() => setShowTaskModal(false)}
-                >
-                  ABBRECHEN
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-primary text-white text-xs font-mono font-bold hover:bg-neutral-800 transition-colors shadow-sm cursor-pointer"
-                >
-                  AUFGABE SPEICHERN
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* 4. MATERIAL / LINK MODAL */}
-      {showMaterialModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-primary/20 w-full max-w-lg p-6 space-y-5 shadow-2xl rounded-2xl relative animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between border-b border-outline-variant pb-3.5">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[20px]">attach_file</span>
-                </div>
-                <div>
-                  <h2 className="text-sm sm:text-base font-bold font-mono text-primary uppercase tracking-wider">
-                    MATERIAL / DOKUMENT ANHÄNGEN
-                  </h2>
-                  <p className="text-[11px] text-on-surface-variant font-normal">Dateien, Dokumente oder Web-Links zum Projekt hinzufügen</p>
-                </div>
-              </div>
-              <button
-                className="p-1.5 hover:bg-surface-low rounded-xl text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
-                onClick={() => setShowMaterialModal(false)}
-              >
-                <span className="material-symbols-outlined text-[20px]">close</span>
-              </button>
-            </div>
-
-            <form onSubmit={handleMaterialSubmit} className="space-y-4">
-              <div
-                className="border-2 border-dashed border-outline-variant hover:border-primary bg-surface-low/50 hover:bg-surface-low rounded-xl p-6 text-center space-y-3 transition-all cursor-pointer relative"
-                onClick={() => {
-                  if (localFileInputRef.current) {
-                    localFileInputRef.current.click();
-                  }
-                }}
-              >
-                <input
-                  type="file"
-                  ref={localFileInputRef}
-                  className="hidden"
-                  onChange={(e) => {
-                    if (e.target.files && e.target.files[0]) {
-                      setNewMaterialName(e.target.files[0].name);
-                    }
-                  }}
-                />
-                <div className="w-12 h-12 bg-primary text-on-primary rounded-full flex items-center justify-center mx-auto shadow-md">
-                  <span className="material-symbols-outlined text-[24px]">cloud_upload</span>
-                </div>
-                <div>
-                  <p className="text-xs font-mono font-bold text-primary">DATEI AUSWÄHLEN ODER HIERHER ZIEHEN</p>
-                  <p className="text-[11px] text-on-surface-variant mt-1">Unterstützt Dokumente, Bilder, PDFs, Markdown (max. 25 MB)</p>
-                </div>
-                <div className="inline-flex items-center gap-1 px-3 py-1 bg-white border border-outline-variant rounded-lg text-[10px] font-mono text-primary font-bold shadow-sm">
-                  <span>💡 TIPP:</span>
-                  <kbd className="px-1 py-0.5 bg-surface-low border border-outline-variant rounded text-[9px]">Strg</kbd>
-                  <span>+</span>
-                  <kbd className="px-1 py-0.5 bg-surface-low border border-outline-variant rounded text-[9px]">V</kbd>
-                  <span>Bild einfügen</span>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-xs font-mono font-bold text-primary uppercase">
-                  WEB-LINK ODER DOKUMENTEN-NAME *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={newMaterialName}
-                  onChange={(e) => setNewMaterialName(e.target.value)}
-                  className="w-full border border-outline-variant px-3 py-2 text-xs rounded-lg focus:border-primary outline-none bg-white font-sans"
-                  placeholder="z.B. Briefing-Dokument.pdf oder https://..."
-                />
-              </div>
-
-              <div className="border-t border-outline-variant pt-4 flex items-center justify-end gap-2.5">
-                <button
-                  type="button"
-                  className="px-4 py-2 border border-outline-variant rounded-xl text-xs font-mono font-bold text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
-                  onClick={() => setShowMaterialModal(false)}
-                >
-                  ABBRECHEN
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-primary text-white rounded-xl text-xs font-mono font-bold hover:bg-neutral-800 transition-colors shadow-md flex items-center gap-1.5 cursor-pointer"
-                >
-                  <span className="material-symbols-outlined text-[16px]">add_link</span>
-                  <span>ANHÄNGEN</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+          <Field label="Web-Link oder Dokumentname">
+            <Input
+              required
+              value={newMaterialName}
+              onChange={(e) => setNewMaterialName(e.target.value)}
+              placeholder="z. B. Briefing.pdf oder https://…"
+            />
+          </Field>
+        </form>
+      </Sheet>
 
       {/* Detail Drawers */}
       <TaskDetailDrawer
@@ -1790,7 +1418,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
         onDeleteMaterial={handleDeleteMaterial}
         onOpenNote={(note) => setActiveNoteModal(note)}
       />
-      
+
       <SectionDetailDrawer
         projectData={projectData}
         phase={selectedPhase}
@@ -1821,17 +1449,22 @@ const ProjectDetail = ({ setCurrentScreen }) => {
         contextData={selectedTask ? selectedTask : selectedPhase ? selectedPhase : null}
       />
 
-      {/* Floating Action Speech Bubble (FAB) for Fio */}
+      {/* Fio-Schnellzugriff (schwebender Knopf) */}
       {!isGlobalChatOpen && (
         <button
+          type="button"
           onClick={() => setIsGlobalChatOpen(true)}
-          title="Fio (KI-Coach) öffnen"
+          title="Fio öffnen"
+          aria-label="Fio öffnen"
           style={{ '--fab-offset': detailDrawerOpen ? '444px' : '24px' }}
-          className={`fixed z-50 bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] right-4 sm:bottom-6 sm:right-auto sm:[right:var(--fab-offset)] ${
-            detailDrawerOpen ? 'hidden sm:flex' : 'flex'
-          } w-12 h-12 sm:w-13 sm:h-13 items-center justify-center bg-neutral-900 text-white rounded-2xl rounded-br-[3px] shadow-2xl hover:shadow-primary/30 border border-neutral-700/60 hover:bg-black hover:scale-105 active:scale-95 transition-[right,transform] duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] group cursor-pointer p-3`}
+          className={cx(
+            'group fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] right-4 z-dropdown sm:bottom-6 sm:right-auto sm:[right:var(--fab-offset)]',
+            'h-12 w-12 items-center justify-center rounded-lg bg-inverse text-inverse shadow-lg transition-[right,transform] duration-slow ease-standard hover:scale-105 active:scale-95 motion-reduce:transform-none',
+            FOCUS,
+            detailDrawerOpen ? 'hidden sm:flex' : 'flex',
+          )}
         >
-          <FioIcon className="w-full h-full text-white group-hover:scale-110 transition-transform" color="currentColor" />
+          <FioMark size={20} />
         </button>
       )}
     </div>

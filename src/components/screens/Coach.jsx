@@ -8,11 +8,11 @@ import { fetchCalendarEvents } from '../../lib/calendarAPI';
 import { notify } from '../../lib/notify';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import FioIcon from '../ui/FioIcon';
 import ModelSelectorDropdown from '../ui/ModelSelectorDropdown';
 import ProjectDraftCard from '../ui/ProjectDraftCard';
 import { reviseDraftWithFio, draftToProjectData, clearNewFlags, DETAIL_LEVELS } from '../../lib/projectDraft';
 
+import { Button, FioMark, Icon, IconButton } from '../ds';
 const Coach = ({ setCurrentScreen }) => {
   const modalContext = useModalContext();
   const { projects, reminders = [], setSelectedProjectId, setSelectedReminderId, isCalendarConnected, openModal, addProject, projectCategories = [] } = modalContext;
@@ -442,33 +442,33 @@ Nutze diesen 360-Grad-Blick für ganzheitliche, harmonische Empfehlungen.
 
     return `
 Du bist der FocusFlow AI Coach (Fio), ein hochkompetenter, empathischer und pragmatischer Produktivitäts-Assistent.
-Deine Mission ist es, dem Nutzer zu helfen, seinen Tag mit maximalem Fokus, Klarheit und ohne Stress zu meistern.
+Deine Mission ist es, dem Nutzer zu helfen, seinen Tag mit maximalem Fokus, Klarheit ohne Stress meistern.
 
 DAS DREI-SÄULEN-SYSTEM VON FOCUSFLOW:
-FocusFlow basiert auf DREI gleichwertigen, zentralen Säulen:
-1. 📅 KALENDER: Feste Termine, feste Uhrzeiten heute und Vorbereitung für anstehende Termine morgen.
-2. 🔔 ERINNERUNGEN: Zeitkritische To-Dos, Fristen und Prioritäten für den heutigen Tag.
-3. 🎯 PROJEKTE: Strategischer Fortschritt – welcher konkrete nächste Schritt im wichtigsten Vorhaben bringt den größten Hebel?
+ basiert auf DREI gleichwertigen, zentralen Säulen:
+1. 📅 KALENDER: Feste Termine, feste Uhrzeiten heute Vorbereitung für anstehende Termine morgen.
+2. 🔔 ERINNERUNGEN: Zeitkritische To-Dos, Fristen Prioritäten den heutigen Tag.
+3. 🎯 PROJEKTE: Strategischer Fortschritt – welcher konkrete nächste Schritt im wichtigsten Vorhaben bringt größten Hebel?
 
-WICHTIGE VERHALTENSREGELN FÜR TAGESFRAGEN (z. B. „Was sollte ich heute noch machen?“, „Was steht an?“, „Tagesplan“):
-1. PRÄZISION STATT REIZÜBERFLUTUNG (WENIGER IST MEHR):
-   - Wenn der Nutzer nach seinem Tag oder nach Empfehlungen fragt: Schütte ihn NIEMALS mit einer endlosen Liste aller Projekte und Aufgaben zu! Keine Textwüsten.
-   - Gib WENIGER, aber dafür PRÄZISER aus: Wähle maximal 2 bis 3 konkrete, hochrelevante Fokus-Punkte für heute aus.
-   - Strukturiere übersichtlich, ansprechend und sofort scannbar mit Emojis:
-     • 📅 Kalender-Check: Heutige feste Termine + kurzer Blick auf morgen (insb. wenn Vorbereitung nötig ist).
-     • 🔔 Fokus-Erinnerung: Maximal 1 (höchstens 2) überfällige oder heute fällige Erinnerungen.
-     • 🎯 Projekt-Fokus: Genau 1 wichtigster nächster Schritt aus dem aktivsten bzw. wichtigsten Projekt (nicht 5 Projekte gleichzeitig).
+WICHTIGE VERHALTENSREGELN FÜR TAGESFRAGEN (z. B. „Was sollte ich noch machen?“, steht an?“, „Tagesplan“):
+ PRÄZISION STATT REIZÜBERFLUTUNG (WENIGER IST MEHR):
+   - Wenn nach seinem oder Empfehlungen fragt: Schütte ihn NIEMALS einer endlosen Liste aller Projekte Aufgaben zu! Keine Textwüsten.
+ Gib WENIGER, aber dafür PRÄZISER aus: Wähle maximal 2 bis 3 konkrete, hochrelevante Fokus-Punkte aus.
+ Strukturiere übersichtlich, ansprechend sofort scannbar Emojis:
+     • Kalender-Check: Heutige + kurzer Blick morgen (insb. wenn nötig ist).
+  Fokus-Erinnerung: Maximal 1 (höchstens 2) überfällige fällige Erinnerungen.
+  Projekt-Fokus: Genau wichtigster nächster aus aktivsten bzw. Projekt (nicht 5 gleichzeitig).
 
-2. PROAKTIVER KALENDER- & MORGIGER VORBEREITUNGS-CHECK:
-   - Der Kalender ist genauso wichtig wie Projekte und Erinnerungen – beziehe ihn immer aktiv ein!
-   - Termine heute: Berücksichtige feste Uhrzeiten für die Tagesstruktur.
-   - Termine morgen: Untersuche ganz gezielt, ob morgen Termine im Kalender stehen (z. B. Meeting, Präsentation, Kundentermin, Arzt, Deadline, Abgabe).
-   - Vorbereitungs-Check: Prüfe, ob in den Projekten oder Erinnerungen bereits Aufgaben dazu vorbereitet wurden oder ob noch gar nichts dazu gemacht wurde.
-   - Wenn für einen morgigen Termin noch nichts vorbereitet wurde: Weise den Nutzer kurz und aufmerksam darauf hin (z. B.: „📅 Kalender-Hinweis für morgen: Du hast um 10:00 Uhr ‚Meeting X‘. Da dazu noch keine Vorbereitung hinterlegt ist: Sollen wir heute 20 Minuten einplanen, um die Unterlagen vorzubereiten?“).
+ PROAKTIVER KALENDER- & MORGIGER VORBEREITUNGS-CHECK:
+ Der Kalender genauso wichtig wie Erinnerungen beziehe immer aktiv ein!
+  heute: Berücksichtige die Tagesstruktur.
+  morgen: Untersuche ganz gezielt, ob stehen Meeting, Präsentation, Kundentermin, Arzt, Deadline, Abgabe).
+ Vorbereitungs-Check: Prüfe, in Projekten bereits dazu vorbereitet wurden gar nichts gemacht wurde.
+   einen morgigen Termin wurde: Weise kurz aufmerksam darauf hin B.: „📅 Kalender-Hinweis hast um 10:00 Uhr ‚Meeting X‘. Da keine hinterlegt ist: Sollen wir 20 Minuten einplanen, Unterlagen vorzubereiten?“).
 
-3. IMMER MIT EINER PROAKTIVEN RÜCKFRAGE ABSCHLIESSEN:
-   - Beende deine Antwort IMMER mit genau EINER konkreten, motivierenden Rückfrage bezüglich des vorgeschlagenen Projekts, des nächsten Schritts oder des Kalendertermins (z. B.: „Möchtest du, dass wir direkt mit [Aufgabe X] im Projekt [Y] starten, oder soll ich dir dafür noch Teilaufgaben anlegen?“ oder „Sollen wir für den morgigen Termin [Z] eine kurze Vorbereitungs-Erinnerung einstellen?“).
-   - So kann der Nutzer im Chat direkt antworten und mit dir ins Detail gehen, ohne überlegen zu müssen.
+ IMMER MIT EINER PROAKTIVEN RÜCKFRAGE ABSCHLIESSEN:
+ Beende deine Antwort genau konkreten, motivierenden Rückfrage bezüglich des vorgeschlagenen Projekts, nächsten Schritts Kalendertermins „Möchtest du, dass direkt [Aufgabe X] [Y] starten, soll dir Teilaufgaben anlegen?“ „Sollen [Z] eine kurze Vorbereitungs-Erinnerung einstellen?“).
+ So kann Chat antworten ins Detail gehen, überlegen müssen.
 
 ${contextMetaGuidance}
 
@@ -1006,37 +1006,35 @@ ${JSON.stringify(contextData, null, 2)}
       <div
         key={sess.id}
         onClick={() => selectSession(sess.id)}
-        className={`p-2.5 sm:p-3 cursor-pointer transition-all flex items-center justify-between gap-2.5 rounded-xl border group relative ${
+        className={`p-2.5 sm:p-3 cursor-pointer transition-all flex items-center justify-between gap-2.5 rounded-lg border group relative ${
           isActive
-            ? 'bg-primary/5 border-primary shadow-xs'
-            : 'bg-white border-outline-variant hover:border-primary/30 hover:bg-surface-low/50'
+            ? 'bg-hover border-strong shadow-xs'
+            : 'bg-surface border-subtle hover:border-default hover:bg-hover'
         }`}
       >
         {/* Left / Main: Icon + Title */}
         <div className="min-w-0 flex-1 flex items-center gap-2.5">
-          <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+          <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${
             isReminder
-              ? 'bg-amber-500/10 text-amber-700 border border-amber-500/20'
+              ? 'bg-warning-subtle text-warning border border-warning'
               : isProject || isDraft
-              ? 'bg-primary/10 text-primary border border-primary/20'
-              : 'bg-surface-low text-on-surface-variant border border-outline-variant'
+              ? 'bg-hover text-primary border border-default'
+              : 'bg-subtle text-secondary border border-subtle'
           }`}>
-            <span className="material-symbols-outlined text-[16px]">
-              {isReminder ? 'notifications' : isDraft ? 'edit_note' : isProject ? 'folder' : 'psychology'}
-            </span>
+            <Icon name={isReminder ? 'notifications' : isDraft ? 'edit_note' : isProject ? 'folder' : 'psychology'} size="sm" />
           </div>
 
-          <span className={`text-xs block truncate ${isActive ? 'font-bold text-on-surface' : 'font-medium text-on-surface'}`}>
+          <span className={`text-caption block truncate ${isActive ? 'font-semibold' : 'font-medium'}`}>
             {sess.title || 'Gespräch'}
           </span>
         </div>
 
         {/* Right: Time on Top, Message Count below */}
         <div className="flex flex-col items-end shrink-0 text-right gap-0.5">
-          <span className="text-[10px] font-mono text-on-surface-variant font-medium">
+          <span className="text-micro font-label text-secondary font-medium">
             {formatSessionTime(sess.updatedAt || sess.createdAt)}
           </span>
-          <span className="text-[10px] font-mono text-on-surface-variant/70">
+          <span className="text-micro font-label text-tertiary">
             {sess.messages?.length || 0} Nachr.
           </span>
         </div>
@@ -1047,21 +1045,21 @@ ${JSON.stringify(contextData, null, 2)}
             e.stopPropagation();
             deleteSession(sess.id);
           }}
-          className="w-7 h-7 flex items-center justify-center rounded-lg text-on-surface-variant/40 hover:text-red-600 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer shrink-0"
+          className="w-7 h-7 flex items-center justify-center rounded-md text-disabled hover:text-danger hover:bg-danger-subtle transition-colors opacity-0 group-hover:opacity-100 cursor-pointer shrink-0"
           title="Gespräch löschen"
         >
-          <span className="material-symbols-outlined text-[16px]">delete</span>
+          <Icon name="delete" size="sm" />
         </button>
       </div>
     );
   };
 
   return (
-    <div className="screen-transition flex flex-col h-full w-full relative overflow-hidden bg-surface">
+    <div className="flex flex-col h-full w-full relative overflow-hidden bg-canvas">
       <div className="flex h-full w-full relative overflow-hidden">
         {/* Mobile-Only Overlay (Tap to close on small screens) */}
         <div 
-          className={`fixed inset-0 bg-black/40 backdrop-blur-xs z-[55] md:hidden transition-opacity duration-300 ${
+          className={`fixed inset-0 bg-scrim z-sheet md:hidden transition-opacity duration-300 ${
             isHistoryOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
           }`}
           onClick={() => setIsHistoryOpen(false)}
@@ -1071,8 +1069,8 @@ ${JSON.stringify(contextData, null, 2)}
         {/* Left Floating History Panel (Slides out smoothly, stable inner width prevents wrapping during close) */}
         <div
           className={`
-            fixed inset-y-0 left-0 z-[60] h-full
-            md:relative md:inset-auto md:z-20
+            fixed inset-y-0 left-0 z-sheet h-full
+            md:relative md:inset-auto md:z-10
             transition-[width,transform,opacity] duration-300 ease-in-out overflow-hidden
             ${isHistoryOpen
               ? 'w-[85%] sm:w-80 max-w-[340px] md:w-80 translate-x-0 opacity-100 pointer-events-auto'
@@ -1085,59 +1083,49 @@ ${JSON.stringify(contextData, null, 2)}
             isHistoryOpen ? 'translate-x-0' : '-translate-x-full md:-translate-x-full'
           }`}>
             {/* Inner Rounded Floating Pill Card */}
-            <div className="w-full h-full flex flex-col bg-white/95 dark:bg-surface-low/95 backdrop-blur-xl border border-outline-variant/80 rounded-2xl sm:rounded-3xl shadow-xl overflow-hidden">
+            <div className="w-full h-full flex flex-col bg-surface dark:bg-subtle border border-subtle rounded-xl sm:rounded-xl shadow-lg overflow-hidden">
               {/* Header with Neuer Chat & Verkleinern Button */}
-              <div className="p-3 sm:p-3.5 border-b border-outline-variant/60 flex items-center gap-2 bg-surface-low/50">
+              <div className="p-3 sm:p-3.5 border-b border-subtle flex items-center gap-2 bg-subtle">
                 {/* Neuer Chat Button (Prominent, Touch-Friendly 40px) */}
-                <button
-                  className="flex-grow h-10 px-3.5 bg-neutral-900 text-white hover:bg-black transition-all flex items-center justify-center gap-2 rounded-xl cursor-pointer shadow-xs hover:shadow-sm font-mono text-xs font-bold active:scale-[0.98]"
-                  title="Neuen Chat starten"
-                  onClick={handleNewChat}
-                >
-                  <span className="material-symbols-outlined text-[19px]">edit_square</span>
+                <Button title="Neuen Chat starten" onClick={handleNewChat}>
+                  <Icon name="edit_square" size="md" />
                   <span>Neuer Chat</span>
-                </button>
+                </Button>
 
                 {/* Button zum Verkleinern des Chats (Matching 40px x 40px UI Button) */}
-                <button
-                  className="w-10 h-10 border border-outline-variant bg-white hover:border-primary text-primary transition-all flex items-center justify-center rounded-xl cursor-pointer shadow-xs hover:shadow-sm active:scale-[0.98] shrink-0"
-                  title="Verlauf einklappen"
-                  onClick={() => setIsHistoryOpen(false)}
-                >
-                  <span className="material-symbols-outlined text-[20px]">left_panel_close</span>
-                </button>
+                <IconButton icon="left_panel_close" label="Verlauf einklappen" variant="secondary" className="shrink-0" onClick={() => setIsHistoryOpen(false)} />
               </div>
 
             {/* Search Bar for Sessions */}
-            <div className="p-2.5 border-b border-outline-variant/60">
-              <div className="flex items-center gap-1.5 bg-white border border-outline-variant rounded-xl px-2.5 py-1.5 focus-within:border-primary transition-colors shadow-2xs">
-                <span className="material-symbols-outlined text-[16px] text-on-surface-variant">search</span>
+            <div className="p-2.5 border-b border-subtle">
+              <div className="flex items-center gap-1.5 bg-surface border border-subtle rounded-lg px-2.5 py-1.5 focus-within:border-strong transition-colors shadow-xs">
+                <Icon name="search" size="sm" className="text-secondary" />
                 <input
                   type="text"
                   value={sessionSearchText}
                   onChange={(e) => setSessionSearchText(e.target.value)}
                   placeholder="Gespräche durchsuchen..."
-                  className="w-full text-xs bg-transparent border-none outline-none focus:ring-0 p-0 text-on-surface placeholder:text-on-surface-variant/50"
+                  className="w-full text-caption bg-transparent border-none outline-none focus:ring-0 p-0 placeholder:text-tertiary"
                 />
                 {sessionSearchText && (
                   <button
                     onClick={() => setSessionSearchText('')}
-                    className="text-on-surface-variant hover:text-primary cursor-pointer"
+                    className="text-secondary hover:text-primary cursor-pointer"
                   >
-                    <span className="material-symbols-outlined text-[14px]">close</span>
+                    <Icon name="close" size="sm" />
                   </button>
                 )}
               </div>
             </div>
 
             {/* Sidebar Scope / Filter Button */}
-            <div className="px-2.5 py-2 border-b border-outline-variant/60">
+            <div className="px-2.5 py-2 border-b border-subtle">
               <button
                 onClick={() => setIsSidebarFilterModalOpen(true)}
-                className="w-full flex items-center gap-2 px-3 py-2 bg-white border border-outline-variant rounded-xl text-xs font-mono font-medium hover:border-primary/40 hover:bg-surface-low transition-all cursor-pointer shadow-2xs text-on-surface text-left"
+                className="w-full flex items-center gap-2 px-3 py-2 bg-surface border border-subtle rounded-lg text-caption-strong font-label hover:border-control hover:bg-hover transition-all cursor-pointer shadow-xs text-left"
                 title="Chat-Verlauf filtern / Suche"
               >
-                <span className="material-symbols-outlined text-[16px] text-primary shrink-0">filter_list</span>
+                <Icon name="filter_list" size="sm" className="text-primary shrink-0" />
                 <span className="truncate">{sidebarScopeLabel}</span>
               </button>
             </div>
@@ -1146,7 +1134,7 @@ ${JSON.stringify(contextData, null, 2)}
             <div className="space-y-4 p-2.5 overflow-y-auto flex-grow">
               {groupedSessions.today.length > 0 && (
                 <div className="space-y-1.5">
-                  <span className="text-[10px] font-mono font-bold text-on-surface-variant/70 uppercase px-1 tracking-wider">
+                  <span className="font-label text-eyebrow font-semibold text-tertiary uppercase px-1">
                     Heute
                   </span>
                   {groupedSessions.today.map(renderSessionCard)}
@@ -1155,7 +1143,7 @@ ${JSON.stringify(contextData, null, 2)}
 
               {groupedSessions.yesterday.length > 0 && (
                 <div className="space-y-1.5">
-                  <span className="text-[10px] font-mono font-bold text-on-surface-variant/70 uppercase px-1 tracking-wider">
+                  <span className="font-label text-eyebrow font-semibold text-tertiary uppercase px-1">
                     Gestern
                   </span>
                   {groupedSessions.yesterday.map(renderSessionCard)}
@@ -1164,7 +1152,7 @@ ${JSON.stringify(contextData, null, 2)}
 
               {groupedSessions.lastWeek.length > 0 && (
                 <div className="space-y-1.5">
-                  <span className="text-[10px] font-mono font-bold text-on-surface-variant/70 uppercase px-1 tracking-wider">
+                  <span className="font-label text-eyebrow font-semibold text-tertiary uppercase px-1">
                     Letzte 7 Tage
                   </span>
                   {groupedSessions.lastWeek.map(renderSessionCard)}
@@ -1173,7 +1161,7 @@ ${JSON.stringify(contextData, null, 2)}
 
               {groupedSessions.older.length > 0 && (
                 <div className="space-y-1.5">
-                  <span className="text-[10px] font-mono font-bold text-on-surface-variant/70 uppercase px-1 tracking-wider">
+                  <span className="font-label text-eyebrow font-semibold text-tertiary uppercase px-1">
                     Älter
                   </span>
                   {groupedSessions.older.map(renderSessionCard)}
@@ -1181,7 +1169,7 @@ ${JSON.stringify(contextData, null, 2)}
               )}
 
               {sessions.length === 0 && (
-                <div className="p-6 text-center text-xs text-on-surface-variant italic">
+                <div className="p-6 text-center text-caption text-secondary italic">
                   Keine gespeicherten Gespräche vorhanden.
                 </div>
               )}
@@ -1191,28 +1179,28 @@ ${JSON.stringify(contextData, null, 2)}
       </div>
 
         {/* Right Main Chat Panel (Adapts Width Dynamically, Keeps Centered Input & Messages) */}
-        <div className="flex-grow min-w-0 flex flex-col h-full relative overflow-hidden bg-surface">
+        <div className="flex-grow min-w-0 flex flex-col h-full relative overflow-hidden bg-canvas">
           {/* Fixed Top Controls Bar with Soft Gradient */}
-          <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-between p-3 sm:p-3.5 pointer-events-none bg-gradient-to-b from-surface via-surface/90 to-transparent pb-6">
+          <div className="absolute top-0 inset-x-0 z-10 flex items-center justify-between p-3 sm:p-3.5 pointer-events-none pb-6">
             {/* Left Action Buttons with Smooth Crossfade */}
             <div className={`flex items-center gap-2 pointer-events-auto transition-opacity duration-200 ${
               isHistoryOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'
             }`}>
               <button
-                className="h-10 px-3.5 flex items-center gap-1.5 border border-outline-variant bg-white/95 dark:bg-surface-low/95 backdrop-blur-md hover:border-primary text-primary transition-all rounded-xl cursor-pointer shadow-xs hover:shadow-sm"
+                className="h-10 px-3.5 flex items-center gap-1.5 border border-subtle bg-surface dark:bg-subtle hover:border-strong text-primary transition-all rounded-lg cursor-pointer shadow-xs hover:shadow-sm"
                 title="Chatverlauf öffnen"
                 onClick={() => setIsHistoryOpen(true)}
               >
-                <span className="material-symbols-outlined text-[20px]">history</span>
-                <span className="text-xs font-mono font-bold hidden sm:inline">Verlauf</span>
+                <Icon name="history" size="md" />
+                <span className="text-caption-strong font-label hidden sm:inline">Verlauf</span>
               </button>
               <button
-                className="h-10 px-3.5 flex items-center gap-1.5 bg-neutral-900 text-white hover:bg-black transition-all rounded-xl cursor-pointer shadow-xs hover:shadow-sm"
+                className="h-10 px-3.5 flex items-center gap-1.5 bg-accent text-on-accent hover:bg-accent-hover transition-all rounded-lg cursor-pointer shadow-xs hover:shadow-sm"
                 title="Neuen Chat starten"
                 onClick={handleNewChat}
               >
-                <span className="material-symbols-outlined text-[20px]">edit_square</span>
-                <span className="text-xs font-mono font-bold hidden sm:inline">Neuer Chat</span>
+                <Icon name="edit_square" size="md" />
+                <span className="text-caption-strong font-label hidden sm:inline">Neuer Chat</span>
               </button>
             </div>
 
@@ -1221,10 +1209,10 @@ ${JSON.stringify(contextData, null, 2)}
               <button
                 type="button"
                 onClick={() => openModal('settings', { initialTab: 'fio' })}
-                className="h-10 px-3 flex items-center gap-1.5 border border-outline-variant bg-white/95 dark:bg-surface-low/95 backdrop-blur-md hover:border-primary text-primary transition-all rounded-xl cursor-pointer shadow-xs hover:shadow-sm text-xs font-semibold"
+                className="h-10 px-3 flex items-center gap-1.5 border border-subtle bg-surface dark:bg-subtle hover:border-strong text-primary transition-all rounded-lg cursor-pointer shadow-xs hover:shadow-sm text-caption-strong"
                 title="Was kann Fio? Interaktiven KI-Guide öffnen"
               >
-                <span className="material-symbols-outlined text-[18px] text-amber-500">lightbulb</span>
+                <Icon name="lightbulb" size="md" className="text-warning" />
                 <span className="hidden sm:inline">Was kann Fio?</span>
               </button>
 
@@ -1239,24 +1227,20 @@ ${JSON.stringify(contextData, null, 2)}
           <div className="flex-grow overflow-y-auto px-4 pb-4 pt-16 sm:pt-16 min-h-0">
             <div className="max-w-2xl mx-auto space-y-6">
               {messages.length === 0 && isDraftSession ? null : messages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full min-h-[40vh] text-center px-4 fade-in">
-                  <div className="w-16 h-16 bg-neutral-900 text-white rounded-2xl flex items-center justify-center mb-4 shadow-md p-3.5">
-                    <FioIcon className="w-full h-full text-white" color="currentColor" />
+                <div className="flex flex-col items-center justify-center h-full min-h-[40vh] text-center px-4">
+                  <div className="w-16 h-16 bg-accent text-on-accent rounded-lg flex items-center justify-center mb-4 shadow-md p-3.5">
+                    <FioMark size={20} className="text-on-accent" />
                   </div>
-                  <h2 className="text-2xl font-bold text-on-surface mb-1.5 tracking-tight">
+                  <h2 className="text-title mb-1.5 tracking-tight">
                     Hallo{user?.displayName ? ` ${user.displayName.split(' ')[0]}` : ''}, ich bin Fio
                   </h2>
-                  <p className="text-sm text-on-surface-variant max-w-md leading-relaxed">
+                  <p className="text-body text-secondary max-w-md leading-relaxed">
                     Dein persönlicher KI-Coach. Wie kann ich dich heute bei deinen Projekten, Aufgaben, Erinnerungen und Terminen unterstützen?
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => openModal('settings', { initialTab: 'fio' })}
-                    className="mt-4 px-3.5 py-2 bg-surface-variant/40 hover:bg-surface-variant/80 text-on-surface border border-border rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs hover:shadow-sm cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-[16px] text-amber-500">lightbulb</span>
+                  <Button variant="secondary" onClick={() => openModal('settings', { initialTab: 'fio' })} className="mt-4">
+                    <Icon name="lightbulb" size="sm" className="text-warning" />
                     <span>Entdecke, was Fio alles kann</span>
-                  </button>
+                  </Button>
                 </div>
               ) : (
                 messages.map((msg) => {
@@ -1264,30 +1248,30 @@ ${JSON.stringify(contextData, null, 2)}
                   if (isBot) {
                     return (
                       <div key={msg.id} className="flex gap-3 group">
-                        <div className="w-8 h-8 flex-shrink-0 bg-neutral-900 text-white rounded-xl flex items-center justify-center p-1.5 shadow-sm">
-                          <FioIcon className="w-full h-full text-white" color="currentColor" />
+                        <div className="w-8 h-8 flex-shrink-0 bg-accent text-on-accent rounded-lg flex items-center justify-center p-1.5 shadow-sm">
+                          <FioMark size={20} className="text-on-accent" />
                         </div>
                         <div className="flex flex-col gap-1 items-start max-w-[85%]">
-                          <div className="p-4 bg-white border border-outline-variant rounded-xl text-sm shadow-sm markdown-body w-full">
+                          <div className="p-4 bg-surface border border-subtle rounded-lg text-body shadow-sm markdown-body w-full">
                             {msg.content || msg.text ? (
                               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                 {msg.content || msg.text}
                               </ReactMarkdown>
                             ) : msg.cancelled ? (
-                              <div className="flex items-center gap-1.5 py-1 text-on-surface-variant text-xs italic">
-                                <span className="material-symbols-outlined text-[14px]">pause_circle</span>
+                              <div className="flex items-center gap-1.5 py-1 text-secondary text-caption italic">
+                                <Icon name="pause_circle" size="sm" />
                                 <span>Antwort abgebrochen</span>
                               </div>
                             ) : (
-                              <div className="flex items-center gap-1.5 py-1 text-on-surface-variant text-xs">
-                                <span className="w-2 h-2 rounded-full bg-primary animate-ping" />
+                              <div className="flex items-center gap-1.5 py-1 text-secondary text-caption">
+                                <span className="w-2 h-2 rounded-full bg-accent animate-ping" />
                                 <span>Fio denkt nach...</span>
                               </div>
                             )}
 
                             {/* Render Interactive Action Results Cards */}
                             {msg.actionResults && msg.actionResults.length > 0 && (
-                              <div className="space-y-2 mt-3 pt-3 border-t border-outline-variant/60 w-full not-prose">
+                              <div className="space-y-2 mt-3 pt-3 border-t border-subtle w-full not-prose">
                                 {msg.actionResults.map((res, idx) => {
                                   const isProjAction = res.targetType === 'project' || res.type === 'ADD_PHASE' || res.type === 'ADD_TASK' || res.type === 'CREATE_PROJECT' || res.type === 'UPDATE_PROJECT';
                                   const isRemAction = res.targetType === 'reminder' || res.type === 'CREATE_REMINDER' || res.type === 'UPDATE_REMINDER';
@@ -1297,81 +1281,62 @@ ${JSON.stringify(contextData, null, 2)}
 
                                   const iconName = isNoteAction ? 'note_alt' : isMatAction ? 'attach_file' : isCalAction ? 'calendar_month' : isRemAction ? 'notifications' : isProjAction ? 'folder' : 'check_circle';
                                   const iconStyle = isNoteAction
-                                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                                    ? 'bg-accent-subtle text-accent border-accent'
                                     : isMatAction
-                                    ? 'bg-sky-50 text-sky-700 border-sky-200'
+                                    ? 'bg-info-subtle text-info border-info'
                                     : isCalAction
-                                    ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                    ? 'bg-info-subtle text-accent border-info'
                                     : isRemAction
-                                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                    ? 'bg-warning-subtle text-warning border-warning'
                                     : isProjAction
-                                    ? 'bg-primary/10 text-primary border-primary/20'
-                                    : 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                                    ? 'bg-hover text-primary border-default'
+                                    : 'bg-success-subtle text-success border-success';
 
                                   return (
                                     <div
                                       key={idx}
-                                      className="flex items-center justify-between gap-3 p-2.5 bg-surface-low border border-outline-variant rounded-xl text-xs shadow-2xs group hover:border-primary/40 transition-all"
+                                      className="flex items-center justify-between gap-3 p-2.5 bg-subtle border border-subtle rounded-lg text-caption shadow-xs group hover:border-control transition-all"
                                     >
                                       <div className="flex items-center gap-2.5 min-w-0">
-                                        <div className={`w-7 h-7 rounded-lg border flex items-center justify-center shrink-0 ${iconStyle}`}>
-                                          <span className="material-symbols-outlined text-[16px]">{iconName}</span>
+                                        <div className={`w-7 h-7 rounded-md border flex items-center justify-center shrink-0 ${iconStyle}`}>
+                                          <Icon name={iconName} size="sm" />
                                         </div>
                                         <div className="min-w-0">
-                                          <div className="font-bold text-on-surface truncate">{res.title}</div>
-                                          <div className="text-[10px] font-mono text-on-surface-variant truncate">{res.subtitle}</div>
+                                          <div className="font-semibold truncate">{res.title}</div>
+                                          <div className="text-micro font-label text-secondary truncate">{res.subtitle}</div>
                                         </div>
                                       </div>
                                       {(isCalAction || res.targetType === 'calendar') && (
-                                        <button
-                                          type="button"
-                                          onClick={() => {
+                                        <Button variant="secondary" size="sm" onClick={() => {
                                             if (setCurrentScreen) setCurrentScreen('calendar');
-                                          }}
-                                          className="px-2.5 py-1 bg-white border border-outline-variant hover:border-primary text-primary font-mono text-[11px] font-bold rounded-lg transition-all flex items-center gap-1 shrink-0 cursor-pointer shadow-2xs hover:shadow-xs"
-                                        >
+                                          }} className="shrink-0">
                                           <span>Im Kalender ansehen</span>
-                                          <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
-                                        </button>
+                                          <Icon name="arrow_forward" size="sm" />
+                                        </Button>
                                       )}
                                       {res.targetType === 'project' && res.targetId && (
-                                        <button
-                                          type="button"
-                                          onClick={() => {
+                                        <Button variant="secondary" size="sm" onClick={() => {
                                             setSelectedProjectId(res.targetId);
                                             if (setCurrentScreen) setCurrentScreen('project-detail');
-                                          }}
-                                          className="px-2.5 py-1 bg-white border border-outline-variant hover:border-primary text-primary font-mono text-[11px] font-bold rounded-lg transition-all flex items-center gap-1 shrink-0 cursor-pointer shadow-2xs hover:shadow-xs"
-                                        >
+                                          }} className="shrink-0">
                                           <span>Projekt öffnen</span>
-                                          <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
-                                        </button>
+                                          <Icon name="arrow_forward" size="sm" />
+                                        </Button>
                                       )}
                                       {res.targetType === 'reminder' && res.targetId && (
                                         <div className="flex items-center gap-1.5 shrink-0">
                                           {res.isCalendarSynced && (
-                                            <button
-                                              type="button"
-                                              onClick={() => {
+                                            <IconButton icon="calendar_month" label="Im Kalender ansehen" variant="secondary" size="sm" onClick={() => {
                                                 if (setCurrentScreen) setCurrentScreen('calendar');
-                                              }}
-                                              className="p-1 bg-white border border-outline-variant hover:border-primary text-emerald-600 rounded-lg transition-all flex items-center cursor-pointer shadow-2xs"
-                                              title="Im Kalender ansehen"
-                                            >
-                                              <span className="material-symbols-outlined text-[16px]">calendar_month</span>
-                                            </button>
+                                              }} />
                                           )}
-                                          <button
-                                            type="button"
-                                            onClick={() => {
+                                          <Button variant="secondary" size="sm" onClick={() => {
                                               setSelectedReminderId(res.targetId);
                                               if (setCurrentScreen) setCurrentScreen('reminder-detail');
-                                            }}
-                                            className="px-2.5 py-1 bg-white border border-outline-variant hover:border-primary text-primary font-mono text-[11px] font-bold rounded-lg transition-all flex items-center gap-1 shrink-0 cursor-pointer shadow-2xs hover:shadow-xs"
-                                          >
+                                            }} className="shrink-0">
                                             <span>Erinnerung öffnen</span>
-                                            <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
-                                          </button>
+                                            <Icon name="arrow_forward" size="sm" />
+                                          </Button>
                                         </div>
                                       )}
                                     </div>
@@ -1382,42 +1347,32 @@ ${JSON.stringify(contextData, null, 2)}
 
                             {/* Render 3-Way Intent Choice Pills if AI proposed an appointment/reminder */}
                             {msg.intentChoice && (
-                              <div className="mt-3 pt-2.5 border-t border-outline-variant/60 w-full space-y-2 not-prose">
-                                <div className="text-[11px] font-mono font-bold text-on-surface-variant flex items-center gap-1">
-                                  <span className="material-symbols-outlined text-[14px] text-primary">help</span>
+                              <div className="mt-3 pt-2.5 border-t border-subtle w-full space-y-2 not-prose">
+                                <div className="text-micro font-label font-semibold text-secondary flex items-center gap-1">
+                                  <Icon name="help" size="sm" className="text-primary" />
                                   <span>Wo soll der Eintrag angelegt werden?</span>
                                 </div>
                                 <div className="flex flex-wrap gap-1.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSendMessage(`Bitte erstelle die Erinnerung „${msg.intentChoice.title}“ für den ${msg.intentChoice.date}${msg.intentChoice.time ? ` um ${msg.intentChoice.time} Uhr` : ''} nur in FocusFlow.`)}
-                                    className="px-2.5 py-1.5 rounded-lg bg-surface-low hover:bg-surface-variant border border-outline-variant text-xs font-mono text-on-surface flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs hover:border-primary"
-                                  >
-                                    <span className="material-symbols-outlined text-[14px] text-amber-700">notifications</span>
+                                  <Button variant="secondary" size="sm" onClick={() => handleSendMessage(`Bitte erstelle die Erinnerung „${msg.intentChoice.title}“ für den ${msg.intentChoice.date}${msg.intentChoice.time ? ` um ${msg.intentChoice.time} Uhr` : ''} nur in FocusFlow.`)}>
+                                    <Icon name="notifications" size="sm" className="text-warning" />
                                     <span>Nur in FocusFlow</span>
-                                  </button>
+                                  </Button>
 
                                   <button
                                     type="button"
                                     disabled={user?.isGuest || !isCalendarConnected}
                                     onClick={() => handleSendMessage(`Bitte erstelle die Erinnerung „${msg.intentChoice.title}“ für den ${msg.intentChoice.date}${msg.intentChoice.time ? ` um ${msg.intentChoice.time} Uhr` : ''} in FocusFlow mit Google Kalender-Sync.`)}
                                     title={user?.isGuest ? 'Im Gastmodus nicht verfügbar' : !isCalendarConnected ? 'Google Kalender nicht verbunden' : 'Empfohlen'}
-                                    className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-xs font-mono text-emerald-800 font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="px-2.5 py-1.5 rounded-md bg-success-subtle hover:bg-success-subtle border border-success text-caption-strong font-label text-success flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
                                   >
-                                    <span className="material-symbols-outlined text-[14px] text-emerald-600">sync</span>
+                                    <Icon name="sync" size="sm" className="text-success" />
                                     <span>FocusFlow + Kalender-Sync (Empfohlen)</span>
                                   </button>
 
-                                  <button
-                                    type="button"
-                                    disabled={user?.isGuest || !isCalendarConnected}
-                                    onClick={() => handleSendMessage(`Bitte trage den Termin „${msg.intentChoice.title}“ für den ${msg.intentChoice.date}${msg.intentChoice.time ? ` um ${msg.intentChoice.time} Uhr` : ''} nur im Google Kalender ein.`)}
-                                    title={user?.isGuest ? 'Im Gastmodus nicht verfügbar' : !isCalendarConnected ? 'Google Kalender nicht verbunden' : 'Direkt im Kalender eintragen'}
-                                    className="px-2.5 py-1.5 rounded-lg bg-surface-low hover:bg-surface-variant border border-outline-variant text-xs font-mono text-on-surface flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs hover:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                                  >
-                                    <span className="material-symbols-outlined text-[14px] text-primary">calendar_month</span>
+                                  <Button variant="secondary" size="sm" disabled={user?.isGuest || !isCalendarConnected} onClick={() => handleSendMessage(`Bitte trage den Termin „${msg.intentChoice.title}“ für den ${msg.intentChoice.date}${msg.intentChoice.time ? ` um ${msg.intentChoice.time} Uhr` : ''} nur im Google Kalender ein.`)} title={user?.isGuest ? 'Im Gastmodus nicht verfügbar' : !isCalendarConnected ? 'Google Kalender nicht verbunden' : 'Direkt im Kalender eintragen'}>
+                                    <Icon name="calendar_month" size="sm" className="text-primary" />
                                     <span>Nur im Google Kalender</span>
-                                  </button>
+                                  </Button>
                                 </div>
                               </div>
                             )}
@@ -1434,27 +1389,23 @@ ${JSON.stringify(contextData, null, 2)}
                           {msg.attachments.map((att) => (
                             <div
                               key={`${att.type}_${att.id}`}
-                              className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-outline-variant rounded-lg text-[11px] font-mono text-on-surface shadow-2xs"
+                              className="flex items-center gap-1.5 px-2.5 py-1 bg-surface border border-subtle rounded-md text-micro font-label shadow-xs"
                             >
-                              <span className={`material-symbols-outlined text-[14px] ${
-                                att.type === 'project' ? 'text-primary' : att.type === 'reminder' ? 'text-amber-700' : 'text-blue-600'
-                              }`}>
-                                {att.type === 'project' ? 'folder' : att.type === 'reminder' ? 'notifications' : 'calendar_month'}
-                              </span>
+                              <Icon name={att.type === 'project' ? 'folder' : att.type === 'reminder' ? 'notifications' : 'calendar_month'} size="sm" className={`${att.type === 'project' ? 'text-primary' : att.type === 'reminder' ? 'text-warning' : 'text-accent'}`} />
                               <span className="truncate max-w-[150px] font-medium">{att.title}</span>
                             </div>
                           ))}
                         </div>
                       )}
                       <div className="flex gap-3 flex-row-reverse">
-                        <div className="w-8 h-8 flex-shrink-0 bg-neutral-900 text-white border border-neutral-700 rounded-full flex items-center justify-center text-xs font-mono font-bold shadow-xs overflow-hidden">
+                        <div className="w-8 h-8 flex-shrink-0 bg-accent text-on-accent border border-default rounded-full flex items-center justify-center text-caption-strong font-label shadow-xs overflow-hidden">
                           {user?.photoURL ? (
                             <img src={user.photoURL} alt="User" className="w-full h-full rounded-full object-cover" />
                           ) : (
-                            <span className="material-symbols-outlined text-[18px]">person</span>
+                            <Icon name="person" size="md" />
                           )}
                         </div>
-                        <div className="p-4 bg-neutral-900 text-white rounded-xl text-sm max-w-[85%] shadow-sm markdown-body">
+                        <div className="p-4 bg-accent text-on-accent rounded-lg text-body max-w-[85%] shadow-sm markdown-body">
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>
                             {msg.content || msg.text}
                           </ReactMarkdown>
@@ -1465,12 +1416,12 @@ ${JSON.stringify(contextData, null, 2)}
                 })
               )}
               {draftAwaitingDetail && (
-                <div className="rounded-2xl border border-primary/40 bg-white p-4 shadow-sm space-y-3">
+                <div className="rounded-lg border border-control bg-surface p-4 shadow-sm space-y-3">
                   <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[20px] text-primary">tune</span>
-                    <span className="font-bold text-sm">Wie detailliert soll Fio das Projekt aufteilen?</span>
+                    <Icon name="tune" size="md" className="text-primary" />
+                    <span className="text-body-strong">Wie detailliert soll Fio das Projekt aufteilen?</span>
                   </div>
-                  <p className="text-xs text-on-surface-variant">
+                  <p className="text-caption text-secondary">
                     Das gibt die Richtung vor. Später kannst du den Entwurf von Hand oder per Prompt anpassen.
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -1479,12 +1430,12 @@ ${JSON.stringify(contextData, null, 2)}
                         key={key}
                         type="button"
                         onClick={() => handlePickDetail(key)}
-                        className="flex sm:flex-col items-center sm:items-start gap-2.5 sm:gap-1 p-3 rounded-xl border border-outline-variant bg-surface-low hover:border-primary hover:bg-white text-left transition-all cursor-pointer"
+                        className="flex sm:flex-col items-center sm:items-start gap-2.5 sm:gap-1 p-3 rounded-lg border border-subtle bg-subtle hover:border-strong hover:bg-surface text-left transition-all cursor-pointer"
                       >
-                        <span className="material-symbols-outlined text-[20px] text-primary">{level.icon}</span>
+                        <Icon name={level.icon} size="md" className="text-primary" />
                         <span>
-                          <span className="block text-sm font-bold text-on-surface">{level.label}</span>
-                          <span className="block text-[11px] text-on-surface-variant">{level.hint}</span>
+                          <span className="block text-body-strong">{level.label}</span>
+                          <span className="block text-micro text-secondary">{level.hint}</span>
                         </span>
                       </button>
                     ))}
@@ -1511,51 +1462,43 @@ ${JSON.stringify(contextData, null, 2)}
           </div>
 
           {/* Floating Bottom Input Dock Island */}
-          <div className="absolute bottom-0 inset-x-0 p-3 sm:p-5 pb-4 sm:pb-6 z-20 pointer-events-none bg-gradient-to-t from-surface via-surface/85 to-transparent pt-8 flex flex-col items-center">
+          <div className="absolute bottom-0 inset-x-0 p-3 sm:p-5 pb-4 sm:pb-6 z-10 pointer-events-none pt-8 flex flex-col items-center">
             <div className="w-full max-w-2xl pointer-events-auto space-y-2">
               {/* Quick Prompts or Floating Stop Indicator */}
               {loading ? (
-                <div className="flex items-center justify-center pb-0.5 animate-fadeIn">
+                <div className="flex items-center justify-center pb-0.5">
                   <button
                     type="button"
                     onClick={handleStopGeneration}
-                    className="flex items-center gap-1.5 px-3.5 py-1.5 bg-red-500/10 border border-red-500/30 text-red-700 hover:bg-red-500/20 backdrop-blur-md rounded-full text-xs font-mono font-bold transition-all shadow-md cursor-pointer hover:scale-105 active:scale-95"
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 bg-danger-subtle border border-danger text-danger hover:bg-danger-subtle rounded-md text-caption-strong font-label transition-all shadow-md cursor-pointer hover:scale-105 active:scale-95"
                   >
-                    <span className="w-2 h-2 bg-red-600 rounded-full animate-pulse" />
+                    <span className="w-2 h-2 bg-danger rounded-full animate-pulse" />
                     <span>Antwort stoppen</span>
                   </button>
                 </div>
               ) : dynamicPrompts.length === 0 ? null : (
-                <div className="flex items-center gap-2 no-wrap-scroll text-[11px] font-mono pb-0.5 overflow-x-auto">
-                  <span className="text-on-surface-variant font-bold flex-shrink-0">PROMPTS:</span>
+                <div className="flex items-center gap-2 no-wrap-scroll text-micro font-label pb-0.5 overflow-x-auto">
+                  <span className="text-secondary font-semibold flex-shrink-0">PROMPTS:</span>
                   {dynamicPrompts.map((qp) => (
-                    <button
-                      key={qp.id}
-                      className="px-2.5 py-1 bg-white/95 backdrop-blur-md border border-outline-variant/80 rounded-lg hover:border-primary text-primary transition-all font-medium whitespace-nowrap flex-shrink-0 cursor-pointer shadow-xs hover:shadow-sm"
-                      onClick={() => handleSendMessage(qp.promptText)}
-                    >
+                    <Button variant="secondary" size="sm" key={qp.id} onClick={() => handleSendMessage(qp.promptText)}>
                       {qp.label}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               )}
 
               {/* Floating Glass Input Bar */}
-              <div className="bg-white/95 backdrop-blur-xl border border-outline-variant/80 rounded-2xl shadow-xl hover:shadow-2xl focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20 transition-all flex flex-col p-1.5">
+              <div className="bg-surface border border-subtle rounded-xl shadow-lg hover:shadow-lg focus-within:border-control focus-within:ring-2 focus-within:ring-focus transition-all flex flex-col p-1.5">
                 {/* Attached Context Chips Bar */}
                 {activeAttachments.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-1.5 px-2 pt-1 pb-2 border-b border-outline-variant/40">
+                  <div className="flex flex-wrap items-center gap-1.5 px-2 pt-1 pb-2 border-b border-subtle">
                     {activeAttachments.map((att) => (
                       <div
                         key={`${att.type}_${att.id}`}
-                        className="flex items-center gap-1.5 px-2.5 py-1 bg-surface-low border border-outline-variant rounded-lg text-xs font-mono font-medium shadow-2xs group hover:bg-white transition-colors"
+                        className="flex items-center gap-1.5 px-2.5 py-1 bg-subtle border border-subtle rounded-md text-caption-strong font-label shadow-xs group hover:bg-surface transition-colors"
                       >
-                        <span className={`material-symbols-outlined text-[15px] ${
-                          att.type === 'project' ? 'text-primary' : att.type === 'reminder' ? 'text-amber-700' : 'text-blue-600'
-                        }`}>
-                          {att.type === 'project' ? 'folder' : att.type === 'reminder' ? 'notifications' : 'calendar_month'}
-                        </span>
-                        <span className="truncate max-w-[160px] text-on-surface">{att.title}</span>
+                        <Icon name={att.type === 'project' ? 'folder' : att.type === 'reminder' ? 'notifications' : 'calendar_month'} size="sm" className={`${att.type === 'project' ? 'text-primary' : att.type === 'reminder' ? 'text-warning' : 'text-accent'}`} />
+                        <span className="truncate max-w-[160px]">{att.title}</span>
                         <button
                           type="button"
                           onClick={() => {
@@ -1564,19 +1507,19 @@ ${JSON.stringify(contextData, null, 2)}
                             else if (att.type === 'calendar') toggleCalendarContext();
                             else if (att.type === 'calendar_event') toggleCalendarEventContext(att.id);
                           }}
-                          className="text-on-surface-variant hover:text-red-600 transition-colors ml-0.5 cursor-pointer flex items-center justify-center"
+                          className="text-secondary hover:text-danger transition-colors ml-0.5 cursor-pointer flex items-center justify-center"
                           title={`${att.title} entfernen`}
                         >
-                          <span className="material-symbols-outlined text-[14px]">close</span>
+                          <Icon name="close" size="sm" />
                         </button>
                       </div>
                     ))}
                     <button
                       type="button"
                       onClick={() => setIsContextModalOpen(true)}
-                      className="text-[11px] font-mono font-medium text-primary hover:underline px-1 cursor-pointer flex items-center gap-0.5"
+                      className="text-micro font-label font-medium text-primary hover:underline px-1 cursor-pointer flex items-center gap-0.5"
                     >
-                      <span className="material-symbols-outlined text-[14px]">add</span>
+                      <Icon name="add" size="sm" />
                       <span>Weiteren Kontext hinzufügen</span>
                     </button>
                   </div>
@@ -1588,10 +1531,10 @@ ${JSON.stringify(contextData, null, 2)}
                   <button
                     type="button"
                     onClick={() => setIsContextModalOpen(true)}
-                    className={`relative flex items-center justify-center p-2 rounded-xl transition-all cursor-pointer shrink-0 ${
+                    className={`relative flex items-center justify-center p-2 rounded-lg transition-all cursor-pointer shrink-0 ${
                       hasCustomContext
-                        ? 'bg-primary/10 text-primary border border-primary/30 shadow-2xs hover:bg-primary/15'
-                        : 'text-on-surface-variant hover:text-primary hover:bg-surface-low border border-transparent'
+                        ? 'bg-hover text-primary border border-default shadow-xs hover:bg-pressed'
+                        : 'text-secondary hover:text-primary hover:bg-hover border border-transparent'
                     }`}
                     title={
                       hasCustomContext
@@ -1601,11 +1544,11 @@ ${JSON.stringify(contextData, null, 2)}
                         : 'Kontext & Daten für Fio wählen (Kalender, Projekte & Erinnerungen)'
                     }
                   >
-                    <span className={`material-symbols-outlined text-[20px] ${hasCustomContext ? 'font-bold text-primary' : ''}`}>tune</span>
+                    <Icon name="tune" size="md" className={`${hasCustomContext ? 'font-semibold text-primary' : ''}`} />
                     {hasCustomContext && (
-                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-white text-[9px] font-mono font-bold rounded-full flex items-center justify-center shadow-xs">
+                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-accent text-on-accent text-micro font-label font-semibold rounded-full flex items-center justify-center shadow-xs">
                         {isGeneralOnlySelected ? (
-                          <span className="material-symbols-outlined text-[10px]">psychology</span>
+                          <Icon name="psychology" size="sm" />
                         ) : (
                           totalActiveCustomCount
                         )}
@@ -1615,7 +1558,7 @@ ${JSON.stringify(contextData, null, 2)}
 
                   <textarea
                     ref={textareaRef}
-                    className="flex-grow border-none focus:ring-0 text-sm px-2 sm:px-3 py-2 sm:py-2.5 outline-none resize-none overflow-y-auto min-h-[44px] bg-transparent"
+                    className="flex-grow border-none focus:ring-0 text-body px-2 sm:px-3 py-2 sm:py-2.5 outline-none resize-none overflow-y-auto min-h-11 bg-transparent"
                     placeholder={
                       loading
                         ? 'Fio generiert gerade eine Antwort...'
@@ -1646,40 +1589,23 @@ ${JSON.stringify(contextData, null, 2)}
                   {!loading && (
                     <button
                       type="button"
-                      className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all cursor-pointer mr-1 ${
+                      className={`w-10 h-10 flex items-center justify-center rounded-lg transition-all cursor-pointer mr-1 ${
                         isListening
-                          ? 'bg-red-500 text-white animate-pulse shadow-md'
-                          : 'text-on-surface-variant hover:text-primary hover:bg-surface-low'
+                          ? 'bg-danger text-on-accent animate-pulse shadow-md'
+                          : 'text-secondary hover:text-primary hover:bg-hover'
                       }`}
                       title={isListening ? 'Zuhören beenden' : 'Spracheingabe starten'}
                       onClick={handleToggleListening}
                     >
-                      <span className="material-symbols-outlined text-[20px]">
-                        {isListening ? 'mic' : 'mic_none'}
-                      </span>
+                      <Icon name={isListening ? 'mic' : 'mic_none'} size="md" />
                     </button>
                   )}
 
                   {/* Send or Stop Button */}
                   {loading ? (
-                    <button
-                      type="button"
-                      className="w-10 h-10 bg-red-600 hover:bg-red-700 text-white rounded-xl transition-all flex items-center justify-center cursor-pointer shadow-md animate-scaleIn hover:scale-105 active:scale-95"
-                      title="Antwort unterbrechen"
-                      onClick={handleStopGeneration}
-                    >
-                      <span className="material-symbols-outlined text-[18px]">stop</span>
-                    </button>
+                    <IconButton icon="stop" label="Antwort unterbrechen" variant="danger" onClick={handleStopGeneration} />
                   ) : (
-                    <button
-                      type="button"
-                      className="w-10 h-10 bg-neutral-900 text-white rounded-xl hover:bg-black transition-colors flex items-center justify-center cursor-pointer shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
-                      title="Nachricht senden"
-                      disabled={!inputText.trim() || loading}
-                      onClick={() => handleSendMessage()}
-                    >
-                      <span className="material-symbols-outlined text-[20px]">send</span>
-                    </button>
+                    <IconButton icon="send" label="Nachricht senden" variant="primary" disabled={!inputText.trim() || loading} onClick={() => handleSendMessage()} />
                   )}
                 </div>
               </div>
@@ -1690,37 +1616,37 @@ ${JSON.stringify(contextData, null, 2)}
 
       {/* 1. SIDEBAR FILTER MODAL: Suche & Filter für den Chatverlauf */}
       {isSidebarFilterModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white rounded-2xl border border-outline-variant shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[85vh]">
+        <div className="fixed inset-0 z-dropdown flex items-center justify-center p-4 bg-scrim">
+          <div className="bg-surface rounded-xl border border-subtle shadow-lg w-full max-w-lg overflow-hidden flex flex-col max-h-[85vh]">
             {/* Header */}
-            <div className="p-4 border-b border-outline-variant flex items-center justify-between bg-surface-low/60">
+            <div className="p-4 border-b border-subtle flex items-center justify-between bg-subtle">
               <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-[20px] text-primary">filter_list</span>
-                <span className="font-bold text-sm text-on-surface">Chat-Verlauf durchsuchen & filtern</span>
+                <Icon name="filter_list" size="md" className="text-primary" />
+                <span className="text-body-strong">Chat-Verlauf durchsuchen & filtern</span>
               </div>
               <button
                 onClick={() => setIsSidebarFilterModalOpen(false)}
-                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-surface-low text-on-surface-variant transition-colors cursor-pointer"
+                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-hover text-secondary transition-colors cursor-pointer"
               >
-                <span className="material-symbols-outlined text-[20px]">close</span>
+                <Icon name="close" size="md" />
               </button>
             </div>
 
             {/* Search Bar */}
-            <div className="p-3 border-b border-outline-variant/60 bg-white">
-              <div className="flex items-center gap-2 bg-surface-low border border-outline-variant rounded-xl px-3 py-2 focus-within:border-primary focus-within:bg-white transition-colors">
-                <span className="material-symbols-outlined text-[18px] text-on-surface-variant">search</span>
+            <div className="p-3 border-b border-subtle bg-surface">
+              <div className="flex items-center gap-2 bg-subtle border border-subtle rounded-lg px-3 py-2 focus-within:border-strong focus-within:bg-surface transition-colors">
+                <Icon name="search" size="md" className="text-secondary" />
                 <input
                   type="text"
                   autoFocus
                   value={sidebarSearchQuery}
                   onChange={(e) => setSidebarSearchQuery(e.target.value)}
                   placeholder="Kalender, Projekte oder Erinnerungen filtern..."
-                  className="w-full text-xs bg-transparent border-none outline-none focus:ring-0 p-0 text-on-surface"
+                  className="w-full text-caption bg-transparent border-none outline-none focus:ring-0 p-0"
                 />
                 {sidebarSearchQuery && (
-                  <button onClick={() => setSidebarSearchQuery('')} className="text-on-surface-variant hover:text-primary">
-                    <span className="material-symbols-outlined text-[16px]">close</span>
+                  <button onClick={() => setSidebarSearchQuery('')} className="text-secondary hover:text-primary">
+                    <Icon name="close" size="sm" />
                   </button>
                 )}
               </div>
@@ -1729,7 +1655,7 @@ ${JSON.stringify(contextData, null, 2)}
             {/* Items List */}
             <div className="flex-1 overflow-y-auto p-3 space-y-4">
               <div className="space-y-1.5">
-                <span className="text-[10px] font-mono font-bold text-on-surface-variant/70 uppercase tracking-wider px-1">
+                <span className="font-label text-eyebrow font-semibold text-tertiary uppercase px-1">
                   Allgemein
                 </span>
                 <div
@@ -1737,21 +1663,21 @@ ${JSON.stringify(contextData, null, 2)}
                     setSidebarScopeFilter('all');
                     setIsSidebarFilterModalOpen(false);
                   }}
-                  className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                  className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between ${
                     sidebarScopeFilter === 'all'
-                      ? 'bg-primary/5 border-primary shadow-xs'
-                      : 'bg-white border-outline-variant hover:bg-surface-low/50 hover:border-primary/30'
+                      ? 'bg-hover border-strong shadow-xs'
+                      : 'bg-surface border-subtle hover:bg-hover hover:border-default'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <span className="material-symbols-outlined text-[18px] text-primary">forum</span>
+                    <Icon name="forum" size="md" className="text-primary" />
                     <div>
-                      <div className="font-bold text-xs text-on-surface">Alle Chats anzeigen</div>
-                      <div className="text-[10px] font-mono text-on-surface-variant">Gesamten Verlauf anzeigen</div>
+                      <div className="text-caption-strong">Alle Chats anzeigen</div>
+                      <div className="text-micro font-label text-secondary">Gesamten Verlauf anzeigen</div>
                     </div>
                   </div>
                   {sidebarScopeFilter === 'all' && (
-                    <span className="material-symbols-outlined text-[18px] text-primary">check</span>
+                    <Icon name="check" size="md" className="text-primary" />
                   )}
                 </div>
 
@@ -1760,21 +1686,21 @@ ${JSON.stringify(contextData, null, 2)}
                     setSidebarScopeFilter('calendar');
                     setIsSidebarFilterModalOpen(false);
                   }}
-                  className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                  className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between ${
                     sidebarScopeFilter === 'calendar'
-                      ? 'bg-blue-500/10 border-blue-500/40 shadow-xs'
-                      : 'bg-white border-outline-variant hover:bg-surface-low/50 hover:border-blue-400/30'
+                      ? 'bg-info-subtle border-info shadow-xs'
+                      : 'bg-surface border-subtle hover:bg-hover hover:border-info'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <span className="material-symbols-outlined text-[18px] text-blue-600">calendar_month</span>
+                    <Icon name="calendar_month" size="md" className="text-accent" />
                     <div>
-                      <div className="font-bold text-xs text-on-surface">Kalender & Termine</div>
-                      <div className="text-[10px] font-mono text-on-surface-variant">Chats mit Kalender- und Terminbezug</div>
+                      <div className="text-caption-strong">Kalender & Termine</div>
+                      <div className="text-micro font-label text-secondary">Chats mit Kalender- und Terminbezug</div>
                     </div>
                   </div>
                   {sidebarScopeFilter === 'calendar' && (
-                    <span className="material-symbols-outlined text-[18px] text-blue-600">check</span>
+                    <Icon name="check" size="md" className="text-accent" />
                   )}
                 </div>
 
@@ -1783,21 +1709,21 @@ ${JSON.stringify(contextData, null, 2)}
                     setSidebarScopeFilter('general');
                     setIsSidebarFilterModalOpen(false);
                   }}
-                  className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                  className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between ${
                     sidebarScopeFilter === 'general'
-                      ? 'bg-primary/5 border-primary shadow-xs'
-                      : 'bg-white border-outline-variant hover:bg-surface-low/50 hover:border-primary/30'
+                      ? 'bg-hover border-strong shadow-xs'
+                      : 'bg-surface border-subtle hover:bg-hover hover:border-default'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <span className="material-symbols-outlined text-[18px] text-primary">psychology</span>
+                    <Icon name="psychology" size="md" className="text-primary" />
                     <div>
-                      <div className="font-bold text-xs text-on-surface">Allgemeiner Coach</div>
-                      <div className="text-[10px] font-mono text-on-surface-variant">Chats ohne Projekt-/Erinnerungsbindung</div>
+                      <div className="text-caption-strong">Allgemeiner Coach</div>
+                      <div className="text-micro font-label text-secondary">Chats ohne Projekt-/Erinnerungsbindung</div>
                     </div>
                   </div>
                   {sidebarScopeFilter === 'general' && (
-                    <span className="material-symbols-outlined text-[18px] text-primary">check</span>
+                    <Icon name="check" size="md" className="text-primary" />
                   )}
                 </div>
 
@@ -1806,21 +1732,21 @@ ${JSON.stringify(contextData, null, 2)}
                     setSidebarScopeFilter('drafts');
                     setIsSidebarFilterModalOpen(false);
                   }}
-                  className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                  className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between ${
                     sidebarScopeFilter === 'drafts'
-                      ? 'bg-primary/5 border-primary shadow-xs'
-                      : 'bg-white border-outline-variant hover:bg-surface-low/50 hover:border-primary/30'
+                      ? 'bg-hover border-strong shadow-xs'
+                      : 'bg-surface border-subtle hover:bg-hover hover:border-default'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <span className="material-symbols-outlined text-[18px] text-primary">edit_note</span>
+                    <Icon name="edit_note" size="md" className="text-primary" />
                     <div>
-                      <div className="font-bold text-xs text-on-surface">Entwürfe</div>
-                      <div className="text-[10px] font-mono text-on-surface-variant">Projektanlegung mit fertigen Entwürfen</div>
+                      <div className="text-caption-strong">Entwürfe</div>
+                      <div className="text-micro font-label text-secondary">Projektanlegung mit fertigen Entwürfen</div>
                     </div>
                   </div>
                   {sidebarScopeFilter === 'drafts' && (
-                    <span className="material-symbols-outlined text-[18px] text-primary">check</span>
+                    <Icon name="check" size="md" className="text-primary" />
                   )}
                 </div>
               </div>
@@ -1835,7 +1761,7 @@ ${JSON.stringify(contextData, null, 2)}
 
                 return (
                   <div className="space-y-1.5">
-                    <span className="text-[10px] font-mono font-bold text-on-surface-variant/70 uppercase tracking-wider px-1">
+                    <span className="font-label text-eyebrow font-semibold text-tertiary uppercase px-1">
                       Projekte ({sidebarModalFilteredItems.projects.length})
                     </span>
                     {visible.map((p) => {
@@ -1847,39 +1773,33 @@ ${JSON.stringify(contextData, null, 2)}
                             setSidebarScopeFilter(p.id);
                             setIsSidebarFilterModalOpen(false);
                           }}
-                          className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                          className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between ${
                             isSelected
-                              ? 'bg-primary/5 border-primary shadow-xs'
-                              : 'bg-white border-outline-variant hover:bg-surface-low/50 hover:border-primary/30'
+                              ? 'bg-hover border-strong shadow-xs'
+                              : 'bg-surface border-subtle hover:bg-hover hover:border-default'
                           }`}
                         >
                           <div className="flex items-center gap-2.5 min-w-0">
-                            <span className="material-symbols-outlined text-[18px] text-primary shrink-0">folder</span>
+                            <Icon name="folder" size="md" className="text-primary shrink-0" />
                             <div className="min-w-0">
-                              <div className="font-bold text-xs text-on-surface truncate">{p.title}</div>
-                              <div className="text-[10px] font-mono text-on-surface-variant">
+                              <div className="text-caption-strong truncate">{p.title}</div>
+                              <div className="text-micro font-label text-secondary">
                                 {p.progress || 0}% abgeschlossen • {p.phases?.length || 0} Abschnitte
                               </div>
                             </div>
                           </div>
                           {isSelected && (
-                            <span className="material-symbols-outlined text-[18px] text-primary shrink-0">check</span>
+                            <Icon name="check" size="md" className="text-primary shrink-0" />
                           )}
                         </div>
                       );
                     })}
 
                     {hasMore && (
-                      <button
-                        type="button"
-                        onClick={() => setShowAllSidebarProjects(!showAllSidebarProjects)}
-                        className="w-full py-2 px-3 text-[11px] font-mono font-bold text-primary bg-surface-low hover:bg-white border border-outline-variant/60 hover:border-primary/40 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 mt-1"
-                      >
+                      <Button variant="secondary" fullWidth onClick={() => setShowAllSidebarProjects(!showAllSidebarProjects)} className="mt-1">
                         <span>{showAllSidebarProjects ? 'Weniger anzeigen' : `Mehr anzeigen (${sidebarModalFilteredItems.projects.length - 3} weitere)`}</span>
-                        <span className="material-symbols-outlined text-[15px]">
-                          {showAllSidebarProjects ? 'expand_less' : 'expand_more'}
-                        </span>
-                      </button>
+                        <Icon name={showAllSidebarProjects ? 'expand_less' : 'expand_more'} size="sm" />
+                      </Button>
                     )}
                   </div>
                 );
@@ -1895,7 +1815,7 @@ ${JSON.stringify(contextData, null, 2)}
 
                 return (
                   <div className="space-y-1.5">
-                    <span className="text-[10px] font-mono font-bold text-on-surface-variant/70 uppercase tracking-wider px-1">
+                    <span className="font-label text-eyebrow font-semibold text-tertiary uppercase px-1">
                       Erinnerungen ({sidebarModalFilteredItems.reminders.length})
                     </span>
                     {visible.map((r) => {
@@ -1907,39 +1827,33 @@ ${JSON.stringify(contextData, null, 2)}
                             setSidebarScopeFilter(r.id);
                             setIsSidebarFilterModalOpen(false);
                           }}
-                          className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                          className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between ${
                             isSelected
-                              ? 'bg-primary/5 border-primary shadow-xs'
-                              : 'bg-white border-outline-variant hover:bg-surface-low/50 hover:border-primary/30'
+                              ? 'bg-hover border-strong shadow-xs'
+                              : 'bg-surface border-subtle hover:bg-hover hover:border-default'
                           }`}
                         >
                           <div className="flex items-center gap-2.5 min-w-0">
-                            <span className="material-symbols-outlined text-[18px] text-amber-700 shrink-0">notifications</span>
+                            <Icon name="notifications" size="md" className="text-warning shrink-0" />
                             <div className="min-w-0">
-                              <div className="font-bold text-xs text-on-surface truncate">{r.title}</div>
-                              <div className="text-[10px] font-mono text-on-surface-variant">
+                              <div className="text-caption-strong truncate">{r.title}</div>
+                              <div className="text-micro font-label text-secondary">
                                 {r.date || 'Kein Termin'} {r.time ? `• ${r.time} Uhr` : ''} • {r.status || 'AKTIV'}
                               </div>
                             </div>
                           </div>
                           {isSelected && (
-                            <span className="material-symbols-outlined text-[18px] text-primary shrink-0">check</span>
+                            <Icon name="check" size="md" className="text-primary shrink-0" />
                           )}
                         </div>
                       );
                     })}
 
                     {hasMore && (
-                      <button
-                        type="button"
-                        onClick={() => setShowAllSidebarReminders(!showAllSidebarReminders)}
-                        className="w-full py-2 px-3 text-[11px] font-mono font-bold text-primary bg-surface-low hover:bg-white border border-outline-variant/60 hover:border-primary/40 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 mt-1"
-                      >
+                      <Button variant="secondary" fullWidth onClick={() => setShowAllSidebarReminders(!showAllSidebarReminders)} className="mt-1">
                         <span>{showAllSidebarReminders ? 'Weniger anzeigen' : `Mehr anzeigen (${sidebarModalFilteredItems.reminders.length - 3} weitere)`}</span>
-                        <span className="material-symbols-outlined text-[15px]">
-                          {showAllSidebarReminders ? 'expand_less' : 'expand_more'}
-                        </span>
-                      </button>
+                        <Icon name={showAllSidebarReminders ? 'expand_less' : 'expand_more'} size="sm" />
+                      </Button>
                     )}
                   </div>
                 );
@@ -1951,38 +1865,38 @@ ${JSON.stringify(contextData, null, 2)}
 
       {/* 2. KI-KONTEXT & ANHÄNGE MODAL (Wählt aus, welche Daten der KI als Kontext übergeben werden) */}
       {isContextModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white rounded-2xl border border-outline-variant shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[85vh]">
+        <div className="fixed inset-0 z-dropdown flex items-center justify-center p-4 bg-scrim">
+          <div className="bg-surface rounded-xl border border-subtle shadow-lg w-full max-w-lg overflow-hidden flex flex-col max-h-[85vh]">
             
             {/* Modal Header */}
-            <div className="p-4 border-b border-outline-variant flex items-center justify-between bg-surface-low/60">
+            <div className="p-4 border-b border-subtle flex items-center justify-between bg-subtle">
               <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-[20px] text-primary">tune</span>
-                <span className="font-bold text-sm text-on-surface">Kontext & Anhänge für Fio auswählen</span>
+                <Icon name="tune" size="md" className="text-primary" />
+                <span className="text-body-strong">Kontext & Anhänge für Fio auswählen</span>
               </div>
               <button
                 onClick={() => setIsContextModalOpen(false)}
-                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-surface-low text-on-surface-variant transition-colors cursor-pointer"
+                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-hover text-secondary transition-colors cursor-pointer"
               >
-                <span className="material-symbols-outlined text-[20px]">close</span>
+                <Icon name="close" size="md" />
               </button>
             </div>
 
             {/* Instant Search Bar */}
-            <div className="p-3 border-b border-outline-variant/60 bg-white">
-              <div className="flex items-center gap-2 bg-surface-low border border-outline-variant rounded-xl px-3 py-2 focus-within:border-primary focus-within:bg-white transition-colors">
-                <span className="material-symbols-outlined text-[18px] text-on-surface-variant">search</span>
+            <div className="p-3 border-b border-subtle bg-surface">
+              <div className="flex items-center gap-2 bg-subtle border border-subtle rounded-lg px-3 py-2 focus-within:border-strong focus-within:bg-surface transition-colors">
+                <Icon name="search" size="md" className="text-secondary" />
                 <input
                   type="text"
                   autoFocus
                   value={contextModalSearch}
                   onChange={(e) => setContextModalSearch(e.target.value)}
                   placeholder="Kalender, Projekte oder Erinnerungen für Fio suchen..."
-                  className="w-full text-xs bg-transparent border-none outline-none focus:ring-0 p-0 text-on-surface"
+                  className="w-full text-caption bg-transparent border-none outline-none focus:ring-0 p-0"
                 />
                 {contextModalSearch && (
-                  <button onClick={() => setContextModalSearch('')} className="text-on-surface-variant hover:text-primary">
-                    <span className="material-symbols-outlined text-[16px]">close</span>
+                  <button onClick={() => setContextModalSearch('')} className="text-secondary hover:text-primary">
+                    <Icon name="close" size="sm" />
                   </button>
                 )}
               </div>
@@ -1992,53 +1906,53 @@ ${JSON.stringify(contextData, null, 2)}
             <div className="flex-1 overflow-y-auto p-3 space-y-4">
               {/* Preset Scopes */}
               <div className="space-y-1.5">
-                <span className="text-[10px] font-mono font-bold text-on-surface-variant/70 uppercase tracking-wider px-1">
+                <span className="font-label text-eyebrow font-semibold text-tertiary uppercase px-1">
                   Voreinstellungen
                 </span>
                 
                 {/* All Context Option */}
                 <div
                   onClick={selectAllContext}
-                  className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                  className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between ${
                     isAllContextSelected && (activeSession?.contextAttachments || []).length === 0
-                      ? 'bg-primary/5 border-primary shadow-xs'
-                      : 'bg-white border-outline-variant hover:bg-surface-low/50 hover:border-primary/30'
+                      ? 'bg-hover border-strong shadow-xs'
+                      : 'bg-surface border-subtle hover:bg-hover hover:border-default'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <span className="material-symbols-outlined text-[18px] text-primary">forum</span>
+                    <Icon name="forum" size="md" className="text-primary" />
                     <div>
-                      <div className="font-bold text-xs text-on-surface">Alle Daten übergeben (Kalender, Projekte & Erinnerungen)</div>
-                      <div className="text-[10px] font-mono text-on-surface-variant">Voller Zugriff auf alle Termine, Projekte und Erinnerungen</div>
+                      <div className="text-caption-strong">Alle Daten übergeben (Kalender, Projekte & Erinnerungen)</div>
+                      <div className="text-micro font-label text-secondary">Voller Zugriff auf alle Termine, Projekte und Erinnerungen</div>
                     </div>
                   </div>
                   <div className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all ${
-                    isAllContextSelected && (activeSession?.contextAttachments || []).length === 0 ? 'bg-primary border-primary text-white' : 'border-outline-variant bg-white'
+                    isAllContextSelected && (activeSession?.contextAttachments || []).length === 0 ? 'bg-accent border-strong text-on-accent' : 'border-subtle bg-surface'
                   }`}>
-                    {isAllContextSelected && (activeSession?.contextAttachments || []).length === 0 && <span className="material-symbols-outlined text-[14px]">check</span>}
+                    {isAllContextSelected && (activeSession?.contextAttachments || []).length === 0 && <Icon name="check" size="sm" />}
                   </div>
                 </div>
 
                 {/* General Coach Only */}
                 <div
                   onClick={selectGeneralOnlyContext}
-                  className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                  className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between ${
                     isGeneralOnlySelected
-                      ? 'bg-primary/5 border-primary shadow-xs'
-                      : 'bg-white border-outline-variant hover:bg-surface-low/50 hover:border-primary/30'
+                      ? 'bg-hover border-strong shadow-xs'
+                      : 'bg-surface border-subtle hover:bg-hover hover:border-default'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <span className="material-symbols-outlined text-[18px] text-primary">psychology</span>
+                    <Icon name="psychology" size="md" className="text-primary" />
                     <div>
-                      <div className="font-bold text-xs text-on-surface">Allgemeiner Coach (Ohne Projektdaten)</div>
-                      <div className="text-[10px] font-mono text-on-surface-variant">Freies Gespräch ohne aktiven Aufgaben-Kontext</div>
+                      <div className="text-caption-strong">Allgemeiner Coach (Ohne Projektdaten)</div>
+                      <div className="text-micro font-label text-secondary">Freies Gespräch ohne aktiven Aufgaben-Kontext</div>
                     </div>
                   </div>
                   <div className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all ${
-                    isGeneralOnlySelected ? 'bg-primary border-primary text-white' : 'border-outline-variant bg-white'
+                    isGeneralOnlySelected ? 'bg-accent border-strong text-on-accent' : 'border-subtle bg-surface'
                   }`}>
-                    {isGeneralOnlySelected && <span className="material-symbols-outlined text-[14px]">check</span>}
+                    {isGeneralOnlySelected && <Icon name="check" size="sm" />}
                   </div>
                 </div>
               </div>
@@ -2055,7 +1969,7 @@ ${JSON.stringify(contextData, null, 2)}
                 return (
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between px-1">
-                      <span className="text-[10px] font-mono font-bold text-on-surface-variant/70 uppercase tracking-wider">
+                      <span className="font-label text-eyebrow font-semibold text-tertiary uppercase">
                         Kalender ({contextModalFilteredItems.calendarEvents.length} Termine)
                       </span>
                     </div>
@@ -2063,25 +1977,25 @@ ${JSON.stringify(contextData, null, 2)}
                     {/* Master Calendar Option */}
                     <div
                       onClick={toggleCalendarContext}
-                      className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                      className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between ${
                         isMasterCalChecked
-                          ? 'bg-blue-500/10 border-blue-500/40 shadow-xs'
-                          : 'bg-white border-outline-variant hover:bg-surface-low/50 hover:border-blue-400/30'
+                          ? 'bg-info-subtle border-info shadow-xs'
+                          : 'bg-surface border-subtle hover:bg-hover hover:border-info'
                       }`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
-                        <span className="material-symbols-outlined text-[18px] text-blue-600 shrink-0">calendar_month</span>
+                        <Icon name="calendar_month" size="md" className="text-accent shrink-0" />
                         <div className="min-w-0">
-                          <div className="font-bold text-xs text-on-surface truncate">Gesamter Kalender</div>
-                          <div className="text-[10px] font-mono text-on-surface-variant">
+                          <div className="text-caption-strong truncate">Gesamter Kalender</div>
+                          <div className="text-micro font-label text-secondary">
                             {isCalendarConnected ? `${calendarEvents.length} Termine geladen • Google Kalender aktiv` : (user?.isGuest ? 'Gastmodus (kein Google Kalender)' : 'Kalender nicht verknüpft')}
                           </div>
                         </div>
                       </div>
                       <div className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all shrink-0 ml-2 ${
-                        isMasterCalChecked ? 'bg-blue-600 border-blue-600 text-white' : 'border-outline-variant bg-white'
+                        isMasterCalChecked ? 'bg-accent border-accent text-on-accent' : 'border-subtle bg-surface'
                       }`}>
-                        {isMasterCalChecked && <span className="material-symbols-outlined text-[14px]">check</span>}
+                        {isMasterCalChecked && <Icon name="check" size="sm" />}
                       </div>
                     </div>
 
@@ -2105,41 +2019,35 @@ ${JSON.stringify(contextData, null, 2)}
                         <div
                           key={evt.id}
                           onClick={() => toggleCalendarEventContext(evt.id)}
-                          className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                          className={`p-2.5 rounded-lg border transition-all cursor-pointer flex items-center justify-between ${
                             isChecked
-                              ? 'bg-blue-50/70 border-blue-400/40 shadow-xs'
-                              : 'bg-white border-outline-variant hover:bg-surface-low/50 hover:border-blue-400/30'
+                              ? 'bg-info-subtle border-info shadow-xs'
+                              : 'bg-surface border-subtle hover:bg-hover hover:border-info'
                           }`}
                         >
                           <div className="flex items-center gap-2.5 min-w-0">
-                            <span className="material-symbols-outlined text-[16px] text-blue-500 shrink-0">event</span>
+                            <Icon name="event" size="sm" className="text-accent shrink-0" />
                             <div className="min-w-0">
-                              <div className="font-bold text-xs text-on-surface truncate">{evt.summary || evt.title || 'Termin'}</div>
-                              <div className="text-[10px] font-mono text-on-surface-variant">
+                              <div className="text-caption-strong truncate">{evt.summary || evt.title || 'Termin'}</div>
+                              <div className="text-micro font-label text-secondary">
                                 {timeDisplay || 'Termin'}
                               </div>
                             </div>
                           </div>
                           <div className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all shrink-0 ml-2 ${
-                            isChecked ? 'bg-blue-600 border-blue-600 text-white' : 'border-outline-variant bg-white'
+                            isChecked ? 'bg-accent border-accent text-on-accent' : 'border-subtle bg-surface'
                           }`}>
-                            {isChecked && <span className="material-symbols-outlined text-[14px]">check</span>}
+                            {isChecked && <Icon name="check" size="sm" />}
                           </div>
                         </div>
                       );
                     })}
 
                     {hasMoreEvents && (
-                      <button
-                        type="button"
-                        onClick={() => setShowAllContextCalendar(!showAllContextCalendar)}
-                        className="w-full py-2 px-3 text-[11px] font-mono font-bold text-primary bg-surface-low hover:bg-white border border-outline-variant/60 hover:border-primary/40 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs hover:shadow-xs mt-1"
-                      >
+                      <Button variant="secondary" fullWidth onClick={() => setShowAllContextCalendar(!showAllContextCalendar)} className="mt-1">
                         <span>{showAllContextCalendar ? 'Weniger anzeigen' : `Mehr anzeigen (${contextModalFilteredItems.calendarEvents.length - 3} weitere)`}</span>
-                        <span className="material-symbols-outlined text-[15px]">
-                          {showAllContextCalendar ? 'expand_less' : 'expand_more'}
-                        </span>
-                      </button>
+                        <Icon name={showAllContextCalendar ? 'expand_less' : 'expand_more'} size="sm" />
+                      </Button>
                     )}
                   </div>
                 );
@@ -2156,7 +2064,7 @@ ${JSON.stringify(contextData, null, 2)}
                 return (
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between px-1">
-                      <span className="text-[10px] font-mono font-bold text-on-surface-variant/70 uppercase tracking-wider">
+                      <span className="font-label text-eyebrow font-semibold text-tertiary uppercase">
                         Projekte ({contextModalFilteredItems.projects.length})
                       </span>
                     </div>
@@ -2167,41 +2075,35 @@ ${JSON.stringify(contextData, null, 2)}
                         <div
                           key={p.id}
                           onClick={() => toggleProjectContext(p.id)}
-                          className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                          className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between ${
                             isChecked
-                              ? 'bg-primary/5 border-primary/40 shadow-xs'
-                              : 'bg-white border-outline-variant hover:bg-surface-low/50 hover:border-primary/30'
+                              ? 'bg-hover border-control shadow-xs'
+                              : 'bg-surface border-subtle hover:bg-hover hover:border-default'
                           }`}
                         >
                           <div className="flex items-center gap-2.5 min-w-0">
-                            <span className="material-symbols-outlined text-[18px] text-primary shrink-0">folder</span>
+                            <Icon name="folder" size="md" className="text-primary shrink-0" />
                             <div className="min-w-0">
-                              <div className="font-bold text-xs text-on-surface truncate">{p.title}</div>
-                              <div className="text-[10px] font-mono text-on-surface-variant">
+                              <div className="text-caption-strong truncate">{p.title}</div>
+                              <div className="text-micro font-label text-secondary">
                                 {p.progress || 0}% abgeschlossen • {p.phases?.length || 0} Abschnitte
                               </div>
                             </div>
                           </div>
                           <div className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all shrink-0 ml-2 ${
-                            isChecked ? 'bg-primary border-primary text-white' : 'border-outline-variant bg-white'
+                            isChecked ? 'bg-accent border-strong text-on-accent' : 'border-subtle bg-surface'
                           }`}>
-                            {isChecked && <span className="material-symbols-outlined text-[14px]">check</span>}
+                            {isChecked && <Icon name="check" size="sm" />}
                           </div>
                         </div>
                       );
                     })}
 
                     {hasMoreProjects && (
-                      <button
-                        type="button"
-                        onClick={() => setShowAllContextProjects(!showAllContextProjects)}
-                        className="w-full py-2 px-3 text-[11px] font-mono font-bold text-primary bg-surface-low hover:bg-white border border-outline-variant/60 hover:border-primary/40 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs hover:shadow-xs mt-1"
-                      >
+                      <Button variant="secondary" fullWidth onClick={() => setShowAllContextProjects(!showAllContextProjects)} className="mt-1">
                         <span>{showAllContextProjects ? 'Weniger anzeigen' : `Mehr anzeigen (${contextModalFilteredItems.projects.length - 3} weitere)`}</span>
-                        <span className="material-symbols-outlined text-[15px]">
-                          {showAllContextProjects ? 'expand_less' : 'expand_more'}
-                        </span>
-                      </button>
+                        <Icon name={showAllContextProjects ? 'expand_less' : 'expand_more'} size="sm" />
+                      </Button>
                     )}
                   </div>
                 );
@@ -2218,7 +2120,7 @@ ${JSON.stringify(contextData, null, 2)}
                 return (
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between px-1">
-                      <span className="text-[10px] font-mono font-bold text-on-surface-variant/70 uppercase tracking-wider">
+                      <span className="font-label text-eyebrow font-semibold text-tertiary uppercase">
                         Erinnerungen ({contextModalFilteredItems.reminders.length})
                       </span>
                     </div>
@@ -2229,61 +2131,52 @@ ${JSON.stringify(contextData, null, 2)}
                         <div
                           key={r.id}
                           onClick={() => toggleReminderContext(r.id)}
-                          className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                          className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between ${
                             isChecked
-                              ? 'bg-primary/5 border-primary/40 shadow-xs'
-                              : 'bg-white border-outline-variant hover:bg-surface-low/50 hover:border-primary/30'
+                              ? 'bg-hover border-control shadow-xs'
+                              : 'bg-surface border-subtle hover:bg-hover hover:border-default'
                           }`}
                         >
                           <div className="flex items-center gap-2.5 min-w-0">
-                            <span className="material-symbols-outlined text-[18px] text-amber-700 shrink-0">notifications</span>
+                            <Icon name="notifications" size="md" className="text-warning shrink-0" />
                             <div className="min-w-0">
-                              <div className="font-bold text-xs text-on-surface truncate">{r.title}</div>
-                              <div className="text-[10px] font-mono text-on-surface-variant">
+                              <div className="text-caption-strong truncate">{r.title}</div>
+                              <div className="text-micro font-label text-secondary">
                                 {r.date || 'Kein Termin'} {r.time ? `• ${r.time} Uhr` : ''} • {r.status || 'AKTIV'}
                               </div>
                             </div>
                           </div>
                           <div className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all shrink-0 ml-2 ${
-                            isChecked ? 'bg-primary border-primary text-white' : 'border-outline-variant bg-white'
+                            isChecked ? 'bg-accent border-strong text-on-accent' : 'border-subtle bg-surface'
                           }`}>
-                            {isChecked && <span className="material-symbols-outlined text-[14px]">check</span>}
+                            {isChecked && <Icon name="check" size="sm" />}
                           </div>
                         </div>
                       );
                     })}
 
                     {hasMoreReminders && (
-                      <button
-                        type="button"
-                        onClick={() => setShowAllContextReminders(!showAllContextReminders)}
-                        className="w-full py-2 px-3 text-[11px] font-mono font-bold text-primary bg-surface-low hover:bg-white border border-outline-variant/60 hover:border-primary/40 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs hover:shadow-xs mt-1"
-                      >
+                      <Button variant="secondary" fullWidth onClick={() => setShowAllContextReminders(!showAllContextReminders)} className="mt-1">
                         <span>{showAllContextReminders ? 'Weniger anzeigen' : `Mehr anzeigen (${contextModalFilteredItems.reminders.length - 3} weitere)`}</span>
-                        <span className="material-symbols-outlined text-[15px]">
-                          {showAllContextReminders ? 'expand_less' : 'expand_more'}
-                        </span>
-                      </button>
+                        <Icon name={showAllContextReminders ? 'expand_less' : 'expand_more'} size="sm" />
+                      </Button>
                     )}
                   </div>
                 );
               })()}
 
               {contextModalFilteredItems.projects.length === 0 && contextModalFilteredItems.reminders.length === 0 && contextModalFilteredItems.calendarEvents.length === 0 && (
-                <div className="p-8 text-center text-xs text-on-surface-variant italic">
+                <div className="p-8 text-center text-caption text-secondary italic">
                   Keine Termine, Projekte oder Erinnerungen für „{contextModalSearch}“ gefunden.
                 </div>
               )}
             </div>
 
             {/* Modal Footer with Action Button */}
-            <div className="p-3 border-t border-outline-variant flex items-center justify-end bg-surface-low/50">
-              <button
-                onClick={() => setIsContextModalOpen(false)}
-                className="px-4 py-2 bg-neutral-900 text-white rounded-xl text-xs font-mono font-bold hover:bg-black transition-all cursor-pointer shadow-xs"
-              >
+            <div className="p-3 border-t border-subtle flex items-center justify-end bg-subtle">
+              <Button onClick={() => setIsContextModalOpen(false)}>
                 Auswahl anwenden
-              </button>
+              </Button>
             </div>
 
           </div>

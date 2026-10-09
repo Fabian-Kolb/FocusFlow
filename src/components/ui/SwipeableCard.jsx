@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 
+import { Icon } from '../ds';
 const AXIS_LOCK_PX = 10;      // ab hier wird entschieden: horizontal wischen oder vertikal scrollen
 const COMMIT_RATIO = 0.35;    // Anteil der Kartenbreite, ab dem die Aktion ausgelöst wird
 const COMMIT_MIN_PX = 90;
@@ -108,7 +109,7 @@ export default function SwipeableCard({ left, right, disabled = false, children,
   return (
     <div
       ref={containerRef}
-      className={`relative ${active ? 'overflow-hidden rounded-xl' : ''} ${className}`}
+      className={`relative ${active ? 'overflow-hidden rounded-lg' : ''} ${className}`}
       style={{ touchAction: 'pan-y' }}
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
@@ -124,12 +125,12 @@ export default function SwipeableCard({ left, right, disabled = false, children,
       {active && shown && (
         <div
           aria-hidden="true"
-          className={`absolute inset-0 flex items-center px-5 text-white text-sm font-bold transition-colors ${
+          className={`absolute inset-0 flex items-center px-5 text-on-accent text-body-strong transition-colors ${
             dx > 0 ? 'justify-start' : 'justify-end'
-          } ${armedNow ? shown.className : 'bg-neutral-400'}`}
+          } ${armedNow ? shown.className : 'bg-control'}`}
         >
           <span className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[22px]">{shown.icon}</span>
+            <Icon name={shown.icon} size="lg" />
             {shown.label}
           </span>
         </div>

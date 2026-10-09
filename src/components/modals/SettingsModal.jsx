@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useModal } from '../../context/ModalContext';
 import { useAuth } from '../../context/AuthContext';
-import FioIcon from '../ui/FioIcon';
 
 // Subsections
 import AccountSection from './settings/AccountSection';
@@ -9,6 +8,7 @@ import FioGuideSection from './settings/FioGuideSection';
 import TutorialsSection from './settings/TutorialsSection';
 import AboutSection from './settings/AboutSection';
 
+import { Button, FioMark, Icon, IconButton } from '../ds';
 export const VALID_TABS = ['account', 'fio', 'tutorials', 'about'];
 export const DEFAULT_TAB = 'account';
 
@@ -188,49 +188,40 @@ export default function SettingsModal() {
   if (!isOpen) return null;
 
   return (
-    <div 
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fadeIn"
+    <div
+      className="fixed inset-0 z-dialog flex items-center justify-center bg-scrim"
       role="presentation"
       onClick={(e) => {
         if (e.target === e.currentTarget) handleClose();
       }}
     >
-      <div 
+      <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="settings-dialog-title"
-        className="bg-surface border border-border sm:rounded-2xl w-full h-[100dvh] sm:h-[640px] sm:max-h-[85vh] sm:max-w-4xl shadow-2xl flex flex-col overflow-hidden text-on-surface pb-[env(safe-area-inset-bottom,16px)] sm:pb-0 pt-[env(safe-area-inset-top,0px)] sm:pt-0"
+        className="flex h-[100dvh] w-full flex-col overflow-hidden border border-subtle bg-surface pb-[env(safe-area-inset-bottom,16px)] pt-[env(safe-area-inset-top,0px)] shadow-lg sm:h-[640px] sm:max-h-[85vh] sm:max-w-4xl sm:rounded-xl sm:pb-0 sm:pt-0"
       >
         {/* Header */}
-        <div className="px-5 py-4 border-b border-border flex items-center justify-between shrink-0 bg-surface">
-          <div className="flex items-center gap-2.5">
-            <span className="material-symbols-outlined text-xl sm:text-2xl text-primary">
-              settings
-            </span>
-            <h2 id="settings-dialog-title" className="text-base sm:text-lg font-bold tracking-tight text-on-surface">
-              Einstellungen & Hilfe
-            </h2>
-          </div>
-          <button 
-            type="button"
-            onClick={handleClose}
-            aria-label="Einstellungen schließen"
-            className="text-on-surface-variant hover:text-on-surface transition-colors p-1.5 rounded-lg hover:bg-surface-variant/40 cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-[20px]">close</span>
-          </button>
+        <div className="flex shrink-0 items-center justify-between border-b border-subtle px-5 py-4">
+        <div className="flex items-center gap-2.5">
+          <Icon name="settings" size="lg" className="text-secondary" />
+          <h2 id="settings-dialog-title" className="text-heading text-primary">
+            Einstellungen und Hilfe
+          </h2>
+        </div>
+        <IconButton icon="close" label="Einstellungen schließen" size="sm" onClick={handleClose} />
         </div>
 
         {/* Modal Body: Tabs + Panel */}
         <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
           {/* Tablist Navigation */}
-          <div 
+          <div
             role="tablist"
             aria-orientation={isMdScreen ? 'vertical' : 'horizontal'}
             aria-label="Einstellungen und Hilfe Reiterauswahl"
             onKeyDown={handleTablistKeyDown}
-            className="w-full md:w-60 bg-surface-variant/15 border-b md:border-b-0 md:border-r border-border p-2 md:p-3 flex md:flex-col gap-1 shrink-0 overflow-x-auto md:overflow-x-visible no-scrollbar"
+            className="no-scrollbar flex w-full shrink-0 gap-1 overflow-x-auto border-b border-subtle bg-subtle p-2 md:w-60 md:flex-col md:overflow-x-visible md:border-b-0 md:border-r md:p-3"
           >
             {TABS.map((tab) => {
               const isSelected = activeTab === tab.id;
@@ -244,19 +235,19 @@ export default function SettingsModal() {
                   aria-controls={`panel-${tab.id}`}
                   tabIndex={isSelected ? 0 : -1}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2.5 px-3 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all shrink-0 cursor-pointer ${
-                    isSelected 
-                      ? 'bg-primary text-on-primary shadow-sm' 
-                      : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-variant/40'
+                  className={`flex h-10 shrink-0 items-center gap-2.5 rounded-md px-3 text-label transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
+                  isSelected
+                    ? 'bg-accent-subtle text-accent'
+                    : 'text-secondary hover:bg-hover hover:text-primary'
                   }`}
-                >
-                  <div className="w-5 h-5 flex items-center justify-center shrink-0">
-                    {tab.id === 'fio' ? (
-                      <FioIcon className="w-4 h-4" color="currentColor" />
-                    ) : (
-                      <span className="material-symbols-outlined text-[18px] sm:text-[20px]">{tab.icon}</span>
-                    )}
-                  </div>
+                  >
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center">
+                  {tab.id === 'fio' ? (
+                    <FioMark size={20} />
+                  ) : (
+                    <Icon name={tab.icon} size="md" filled={isSelected} />
+                  )}
+                  </span>
                   <span className="whitespace-nowrap">{tab.label}</span>
                 </button>
               );
@@ -264,15 +255,15 @@ export default function SettingsModal() {
           </div>
 
           {/* Tab Content Panels */}
-          <div 
+          <div
             role="tabpanel"
             id={`panel-${activeTab}`}
             aria-labelledby={`tab-${activeTab}`}
             tabIndex={0}
-            className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 focus:outline-none overscroll-contain"
+            className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 focus:outline-none sm:p-6"
           >
             {activeTab === 'account' && (
-              <AccountSection 
+              <AccountSection
                 formState={accountFormState}
                 setFormState={setAccountFormState}
                 onLogout={handleLogout}
@@ -292,22 +283,13 @@ export default function SettingsModal() {
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3.5 border-t border-border bg-surface-variant/10 flex items-center justify-between shrink-0">
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-[16px] sm:text-[18px]">logout</span>
-            {user?.isGuest ? 'Gast-Modus beenden' : 'Abmelden'}
-          </button>
-          <button
-            type="button"
-            onClick={handleClose}
-            className="px-4 py-1.5 sm:py-2 border border-border rounded-xl text-xs sm:text-sm font-semibold text-on-surface hover:bg-surface-variant/40 transition-colors cursor-pointer"
-          >
-            Schließen
-          </button>
+        <div className="flex shrink-0 items-center justify-between border-t border-subtle bg-subtle px-5 py-3">
+        <Button variant="danger-ghost" size="sm" leadingIcon="logout" onClick={handleLogout}>
+          {user?.isGuest ? 'Gast-Modus beenden' : 'Abmelden'}
+        </Button>
+        <Button variant="secondary" size="sm" onClick={handleClose}>
+          Schließen
+        </Button>
         </div>
       </div>
     </div>

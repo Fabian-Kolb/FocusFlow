@@ -1,11 +1,12 @@
 import React, { useEffect } from 'react';
 import { LEGAL_OPERATOR, LEGAL_LAST_UPDATED, LEGAL_PATHS, hasLegalPlaceholders } from '../../lib/legal';
+import { Alert, FOCUS, Icon, cx } from '../ds';
 
 function Section({ title, children }) {
   return (
     <section className="space-y-2">
-      <h2 className="text-base font-bold text-primary">{title}</h2>
-      <div className="space-y-2 text-sm text-on-surface-variant leading-relaxed">{children}</div>
+      <h2 className="text-subheading text-primary">{title}</h2>
+      <div className="space-y-2 text-body text-secondary">{children}</div>
     </section>
   );
 }
@@ -165,31 +166,31 @@ export default function LegalPage({ page }) {
   }, [config.title]);
 
   return (
-    <div className="min-h-[100dvh] bg-surface text-primary antialiased font-sans">
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(2rem,env(safe-area-inset-bottom))] space-y-6">
+    <div className="min-h-[100dvh] bg-canvas font-sans text-primary antialiased">
+      <div className="mx-auto max-w-reading space-y-6 px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))] sm:px-6">
         <a
           href="/"
-          className="inline-flex items-center gap-1 min-h-[44px] text-sm font-semibold text-on-surface-variant hover:text-primary transition-colors"
+          className={cx('inline-flex min-h-11 items-center gap-1 rounded-md text-body-strong text-secondary transition-colors duration-fast hover:text-primary', FOCUS)}
         >
-          <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+          <Icon name="arrow_back" size="md" />
           Zurück zu FocusFlow
         </a>
 
-        <h1 className="text-2xl font-bold tracking-tight">{config.title}</h1>
+        <h1 className="text-title text-primary">{config.title}</h1>
 
         {hasLegalPlaceholders() && (
-          <div role="note" className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 text-xs text-amber-500 leading-relaxed">
-            Entwurf: Die Angaben zum Betreiber sind noch nicht ausgefüllt (<code>src/lib/legal.js</code>).
-          </div>
+          <Alert tone="warning" title="Entwurf">
+          Die Angaben zum Betreiber sind noch nicht ausgefüllt (<code className="font-code">src/lib/legal.js</code>).
+          </Alert>
         )}
 
         <div className="space-y-6">
           <Component />
         </div>
 
-        <footer className="pt-4 border-t border-outline-variant flex flex-wrap items-center justify-between gap-2 text-xs text-on-surface-variant">
+        <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-subtle pt-4 text-caption text-secondary">
           <span>Stand: {LEGAL_LAST_UPDATED}</span>
-          <a href={LEGAL_PATHS[config.other]} className="underline hover:text-primary">
+          <a href={LEGAL_PATHS[config.other]} className={cx('rounded-xs underline underline-offset-2 transition-colors duration-fast hover:text-primary', FOCUS)}>
             {config.otherLabel}
           </a>
         </footer>

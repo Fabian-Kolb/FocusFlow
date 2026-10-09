@@ -38,7 +38,7 @@ export const projects = [
     "phasesTotal": 3,
     "tasksCompleted": 9,
     "tasksTotal": 20,
-    "warning": "⚠️ 4 TAGE RÜCKSTAND",
+    "warning": "4 Tage Rückstand",
     "recommendedSteps": [],
     "materials": [],
     "history": [],
@@ -853,7 +853,7 @@ export const quickPrompts = [
   },
   {
     id: "qp2",
-    label: "🎯 Naechsten Schritt finden",
+    label: "Nächsten Schritt finden",
     promptText: "Welche Aufgabe sollte ich heute zuerst erledigen?"
   },
   {
@@ -864,17 +864,17 @@ export const quickPrompts = [
 ];
 
 export const weeklyReport = {
-  weekLabel: "BERICHT KW 19",
+  weekLabel: "Bericht KW 19",
   title: "Dein Erfolg dieser Woche",
   subtitle: "Überblick über deine Ergebnisse und fertigen Meilensteine (keine Zeitmessung).",
   dailyStats: [
-    { day: "MON", heightPct: 45, isWeekend: false },
-    { day: "DIE", heightPct: 70, isWeekend: false },
-    { day: "MIT", heightPct: 95, isWeekend: false },
-    { day: "DON", heightPct: 50, isWeekend: false },
-    { day: "FRE", heightPct: 80, isWeekend: false },
-    { day: "SAM", heightPct: 25, isWeekend: true },
-    { day: "SON", heightPct: 15, isWeekend: true }
+    { day: "Mo", heightPct: 45, isWeekend: false },
+    { day: "Di", heightPct: 70, isWeekend: false },
+    { day: "Mi", heightPct: 95, isWeekend: false },
+    { day: "Do", heightPct: 50, isWeekend: false },
+    { day: "Fr", heightPct: 80, isWeekend: false },
+    { day: "Sa", heightPct: 25, isWeekend: true },
+    { day: "So", heightPct: 15, isWeekend: true }
   ],
   totalCompletedTasks: 48,
   totalMilestones: 3,

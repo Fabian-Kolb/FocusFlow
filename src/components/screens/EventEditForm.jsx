@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import Card from '../ui/Card';
+import { Button, Card, Icon } from '../ds';
 
 const GOOGLE_COLORS = [
   { id: "1", bg: "#a4bdfc", name: "Lavender" },
@@ -113,19 +113,16 @@ const EventEditForm = ({ initialEvent, selectedDateObj, onSave, onCancel }) => {
   };
 
   return (
-    <div className="animate-fadeIn pb-20">
+    <div className="pb-20">
       <div className="flex items-center gap-4 mb-6">
-        <button onClick={onCancel} className="p-2 hover:bg-surface-low rounded-full transition-colors">
-          <span className="material-symbols-outlined text-on-surface-variant text-2xl">close</span>
+        <button onClick={onCancel} className="p-2 hover:bg-hover rounded-full transition-colors">
+          <Icon name="close" size="lg" className="text-secondary" />
         </button>
-        <h2 className="text-2xl font-bold">{initialEvent ? 'Termin bearbeiten' : 'Neuer Termin'}</h2>
+        <h2 className="text-title">{initialEvent ? 'Termin bearbeiten' : 'Neuer Termin'}</h2>
         <div className="flex-grow"></div>
-        <button 
-          onClick={handleSubmit} 
-          className="bg-primary text-white px-6 py-2 rounded-xl font-bold hover:bg-black transition-colors"
-        >
+        <Button onClick={handleSubmit}>
           Speichern
-        </button>
+        </Button>
       </div>
 
       <div className="max-w-3xl mx-auto space-y-6">
@@ -139,15 +136,15 @@ const EventEditForm = ({ initialEvent, selectedDateObj, onSave, onCancel }) => {
               onChange={(e) => { setTitle(e.target.value); if (titleError) setTitleError(''); }}
               aria-invalid={Boolean(titleError)}
               aria-describedby={titleError ? 'event-title-error' : undefined}
-              className="w-full text-3xl font-bold bg-transparent border-b-2 border-transparent hover:border-outline-variant focus:border-primary outline-none py-2 transition-colors placeholder:text-on-surface-variant/50"
+              className="w-full text-title-lg bg-transparent border-b-2 border-transparent hover:border-subtle focus:border-strong outline-none py-2 transition-colors placeholder:text-tertiary"
               autoFocus
             />
-            {titleError && <p id="event-title-error" role="alert" className="mt-1 text-sm text-danger">{titleError}</p>}
+            {titleError && <p id="event-title-error" role="alert" className="mt-1 text-body text-danger">{titleError}</p>}
           </div>
 
           {/* Zeitraum */}
           <div className="flex items-start gap-4">
-            <span className="material-symbols-outlined text-on-surface-variant mt-2">schedule</span>
+            <Icon name="schedule" size="lg" className="text-secondary mt-2" />
             <div className="flex-grow space-y-4">
               
               <div className="flex flex-wrap items-center gap-3">
@@ -155,30 +152,30 @@ const EventEditForm = ({ initialEvent, selectedDateObj, onSave, onCancel }) => {
                   type="date" 
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="bg-surface-low border border-outline-variant rounded-lg px-3 py-2 outline-none focus:border-primary text-sm font-medium"
+                  className="bg-subtle border border-subtle rounded-md px-3 py-2 outline-none focus:border-strong text-label"
                 />
                 {!isAllDay && (
                   <input 
                     type="time" 
                     value={startTime}
                     onChange={(e) => setStartTime(e.target.value)}
-                    className="bg-surface-low border border-outline-variant rounded-lg px-3 py-2 outline-none focus:border-primary text-sm font-medium"
+                    className="bg-subtle border border-subtle rounded-md px-3 py-2 outline-none focus:border-strong text-label"
                   />
                 )}
-                <span className="text-on-surface-variant font-medium">bis</span>
+                <span className="text-secondary font-medium">bis</span>
                 {!isAllDay && (
                   <input 
                     type="time" 
                     value={endTime}
                     onChange={(e) => setEndTime(e.target.value)}
-                    className="bg-surface-low border border-outline-variant rounded-lg px-3 py-2 outline-none focus:border-primary text-sm font-medium"
+                    className="bg-subtle border border-subtle rounded-md px-3 py-2 outline-none focus:border-strong text-label"
                   />
                 )}
                 <input 
                   type="date" 
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="bg-surface-low border border-outline-variant rounded-lg px-3 py-2 outline-none focus:border-primary text-sm font-medium"
+                  className="bg-subtle border border-subtle rounded-md px-3 py-2 outline-none focus:border-strong text-label"
                 />
               </div>
 
@@ -187,9 +184,9 @@ const EventEditForm = ({ initialEvent, selectedDateObj, onSave, onCancel }) => {
                   type="checkbox" 
                   checked={isAllDay}
                   onChange={(e) => setIsAllDay(e.target.checked)}
-                  className="w-4 h-4 rounded border-outline-variant text-primary focus:ring-primary"
+                  className="w-4 h-4 rounded-xs border-subtle text-primary focus:ring-focus"
                 />
-                <span className="text-sm font-medium text-on-surface">Ganztägig</span>
+                <span className="text-label">Ganztägig</span>
               </label>
 
             </div>
@@ -199,29 +196,29 @@ const EventEditForm = ({ initialEvent, selectedDateObj, onSave, onCancel }) => {
         <Card padding="large" className="space-y-8">
           {/* Farbe */}
           <div className="flex items-start gap-4">
-            <span className="material-symbols-outlined text-on-surface-variant mt-1.5">palette</span>
+            <Icon name="palette" size="lg" className="text-secondary mt-1.5" />
             <div className="flex-grow">
-              <p className="text-sm font-bold text-on-surface mb-3">Farbe auswählen</p>
+              <p className="text-body-strong mb-3">Farbe auswählen</p>
               <div className="flex flex-wrap gap-3">
                 <button
                   type="button"
                   onClick={() => setColorId('')}
-                  className={`w-8 h-8 rounded-full border-2 transition-all flex items-center justify-center ${colorId === '' ? 'border-primary' : 'border-transparent'}`}
+                  className={`w-8 h-8 rounded-full border-2 transition-all flex items-center justify-center ${colorId === '' ? 'border-strong' : 'border-transparent'}`}
                   style={{ backgroundColor: 'var(--primary)' }}
                   title="Standard"
                 >
-                  {colorId === '' && <span className="material-symbols-outlined text-white text-[16px]">check</span>}
+                  {colorId === '' && <Icon name="check" size="sm" className="text-on-accent" />}
                 </button>
                 {GOOGLE_COLORS.map(color => (
                   <button
                     key={color.id}
                     type="button"
                     onClick={() => setColorId(color.id)}
-                    className={`w-8 h-8 rounded-full border-2 transition-all flex items-center justify-center ${colorId === color.id ? 'border-primary' : 'border-transparent'}`}
+                    className={`w-8 h-8 rounded-full border-2 transition-all flex items-center justify-center ${colorId === color.id ? 'border-strong' : 'border-transparent'}`}
                     style={{ backgroundColor: color.bg }}
                     title={color.name}
                   >
-                    {colorId === color.id && <span className="material-symbols-outlined text-[16px]" style={{ color: '#000' }}>check</span>}
+                    {colorId === color.id && <Icon name="check" size="sm" style={{ color: '#000' }} />}
                   </button>
                 ))}
               </div>
@@ -230,13 +227,13 @@ const EventEditForm = ({ initialEvent, selectedDateObj, onSave, onCancel }) => {
 
           {/* Benachrichtigung / Erinnerung */}
           <div className="flex items-start gap-4">
-            <span className="material-symbols-outlined text-on-surface-variant mt-1.5">notifications</span>
+            <Icon name="notifications" size="lg" className="text-secondary mt-1.5" />
             <div className="flex-grow">
-               <p className="text-sm font-bold text-on-surface mb-3">Erinnerung</p>
+               <p className="text-body-strong mb-3">Erinnerung</p>
                <select 
                  value={reminderMinutes} 
                  onChange={(e) => setReminderMinutes(e.target.value)}
-                 className="bg-surface-low border border-outline-variant rounded-lg px-4 py-2 outline-none focus:border-primary text-sm font-medium w-full md:w-auto"
+                 className="bg-subtle border border-subtle rounded-md px-4 py-2 outline-none focus:border-strong text-label w-full md:w-auto"
                >
                  <option value="">Standard (Kalender-Einstellung)</option>
                  <option value="5">5 Minuten vorher</option>
@@ -251,14 +248,14 @@ const EventEditForm = ({ initialEvent, selectedDateObj, onSave, onCancel }) => {
 
           {/* Beschreibung */}
           <div className="flex items-start gap-4">
-            <span className="material-symbols-outlined text-on-surface-variant mt-2">notes</span>
+            <Icon name="notes" size="lg" className="text-secondary mt-2" />
             <div className="flex-grow">
               <textarea 
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Beschreibung hinzufügen"
                 rows="6"
-                className="w-full bg-surface-low border border-outline-variant rounded-xl p-4 outline-none focus:border-primary text-sm resize-y"
+                className="w-full bg-subtle border border-subtle rounded-lg p-4 outline-none focus:border-strong text-body resize-y"
               ></textarea>
             </div>
           </div>

@@ -38,13 +38,13 @@ export const Button = forwardRef(function Button(
 
 /** Square icon-only button. `label` is required: it becomes the accessible name and the native tooltip. */
 export const IconButton = forwardRef(function IconButton(
-  { icon, label, variant = 'ghost', size = 'md', filled = false, type = 'button', className = '', ...rest }, ref,
+  { icon, label, variant = 'ghost', size = 'md', filled = false, loading = false, disabled, type = 'button', className = '', ...rest }, ref,
 ) {
   const s = SIZES[size] || SIZES.md;
   return (
-    <button ref={ref} type={type} aria-label={label} title={label}
+    <button ref={ref} type={type} aria-label={label} title={label} disabled={disabled || loading} aria-busy={loading || undefined}
       className={cx(BASE, VARIANTS[variant] || VARIANTS.ghost, s.square, 'p-0', className)} {...rest}>
-      <Icon name={icon} size={size === 'lg' ? 'lg' : s.icon} filled={filled} />
+      {loading ? <Spinner size={s.icon} label="" /> : <Icon name={icon} size={size === 'lg' ? 'lg' : s.icon} filled={filled} />}
     </button>
   );
 });

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { Button, Chip, FOCUS, Icon, IconButton, Input, Menu, MenuItem, MenuLabel, PageHeader, cx } from '../ds';
 
 // Gemeinsame, kompakte Werkzeugleisten für die Übersichten "Projekte" und "Erinnerungen" (Regel 02: Parität).
 
@@ -16,12 +17,12 @@ export const PROJECT_VIEW_OPTIONS = [
   { value: 'board', label: 'Board', icon: 'view_kanban' },
 ];
 
-const iconButton = 'shrink-0 w-10 h-10 md:w-9 md:h-9 flex items-center justify-center rounded-lg border transition-colors cursor-pointer';
-
 /**
  * Zeile 1: Suche, Papierkorb, Neu.  Zeile 2: optionaler Ansichts-Umschalter + Statusfilter.
  */
 export function ListToolbar({
+  title,
+  description,
   searchValue,
   onSearchChange,
   searchPlaceholder,
@@ -33,64 +34,46 @@ export function ListToolbar({
   viewToggle = null,
 }) {
   return (
-    <div className="space-y-2 mb-5">
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1 min-w-0 md:max-w-md">
-          <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px] pointer-events-none">
-            search
-          </span>
-          <input
-            type="search"
-            value={searchValue}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder={searchPlaceholder}
-            aria-label={searchPlaceholder}
-            className="w-full h-10 md:h-9 pl-9 pr-3 rounded-lg border border-outline-variant bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all placeholder:text-on-surface-variant"
-          />
-        </div>
-        <div className="flex-1 hidden md:block" />
-        <button
-          type="button"
-          onClick={onOpenTrash}
-          title="Papierkorb öffnen"
-          aria-label="Papierkorb öffnen"
-          className={`${iconButton} border-outline-variant bg-white text-on-surface-variant hover:text-red-600 hover:border-red-200 hover:bg-red-50`}
-        >
-          <span className="material-symbols-outlined text-[20px]">delete</span>
-        </button>
-        <button
-          type="button"
-          onClick={onCreate}
-          title={createLabel}
-          aria-label={createLabel}
-          className="shrink-0 h-10 md:h-9 w-10 sm:w-auto sm:px-3.5 flex items-center justify-center gap-1.5 rounded-lg bg-primary text-on-primary text-sm font-bold hover:bg-black transition-colors cursor-pointer"
-        >
-          <span className="material-symbols-outlined text-[20px]">add</span>
-          <span className="hidden sm:inline">{createLabel}</span>
-        </button>
-      </div>
+    <div className="mb-5 space-y-4">
+    {title && (
+      <PageHeader
+        title={title}
+        description={description}
+        className="md:items-center"
+        actions={(
+          <>
+            <IconButton
+              icon="delete"
+              label="Papierkorb öffnen"
+              variant="secondary"
+              onClick={onOpenTrash}
+              className="hover:!border-danger hover:!bg-danger-subtle hover:!text-danger"
+            />
+            <IconButton icon="add" label={createLabel} variant="primary" onClick={onCreate} className="sm:hidden" />
+            <Button leadingIcon="add" onClick={onCreate} className="hidden sm:inline-flex">{createLabel}</Button>
+          </>
+        )}
+      />
+    )}
+    <div className="min-w-0 md:max-w-md">
+      <Input
+        type="search"
+        leadingIcon="search"
+        value={searchValue}
+        onChange={(e) => onSearchChange(e.target.value)}
+        placeholder={searchPlaceholder}
+        aria-label={searchPlaceholder}
+      />
+    </div>
 
       <div className="flex items-center gap-2">
         {viewToggle}
-        <div className="flex-1 min-w-0 flex items-center gap-1.5 overflow-x-auto no-wrap-scroll -my-1 py-1">
-          {STATUS_FILTERS.map((f) => {
-            const active = statusFilter === f.value;
-            return (
-              <button
-                key={f.value}
-                type="button"
-                onClick={() => onStatusFilterChange(f.value)}
-                aria-pressed={active}
-                className={`shrink-0 h-8 px-3 rounded-full text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
-                  active
-                    ? 'bg-primary text-white'
-                    : 'bg-surface-low text-on-surface-variant border border-outline-variant hover:border-primary hover:text-primary'
-                }`}
-              >
-                {f.label}
-              </button>
-            );
-          })}
+        <div className="no-wrap-scroll -my-1.5 flex min-w-0 flex-1 items-center gap-2 py-1.5">
+          {STATUS_FILTERS.map((f) => (
+            <Chip key={f.value} selected={statusFilter === f.value} onClick={() => onStatusFilterChange(f.value)}>
+              {f.label}
+            </Chip>
+          ))}
         </div>
       </div>
     </div>
@@ -100,7 +83,7 @@ export function ListToolbar({
 /** Umschalter zwischen zwei Ansichten, nur Icons + Tooltip, damit er auch am Handy in die Filterzeile passt */
 export function ViewToggle({ value, onChange, options }) {
   return (
-    <div role="radiogroup" aria-label="Ansicht" className="shrink-0 flex items-center p-0.5 rounded-lg bg-surface-low border border-outline-variant">
+    <div role="radiogroup" aria-label="Ansicht" className="flex shrink-0 items-center gap-0.5 rounded-md border border-default bg-subtle p-0.5">
       {options.map((o) => {
         const active = value === o.value;
         return (
@@ -112,11 +95,13 @@ export function ViewToggle({ value, onChange, options }) {
             aria-label={o.label}
             title={o.label}
             onClick={() => onChange(o.value)}
-            className={`h-8 md:h-7 px-2.5 md:px-2 flex items-center gap-1 rounded-md text-xs font-bold transition-colors cursor-pointer ${
-              active ? 'bg-white text-primary shadow-sm' : 'text-on-surface-variant hover:text-primary'
-            }`}
+            className={cx(
+              'flex h-8 items-center gap-1 rounded-sm px-2.5 text-label-sm transition-colors duration-fast',
+              FOCUS,
+              active ? 'bg-surface text-primary shadow-xs' : 'text-secondary hover:text-primary',
+            )}
           >
-            <span className="material-symbols-outlined text-[18px]">{o.icon}</span>
+            <Icon name={o.icon} size="md" filled={active} />
             <span className="hidden lg:inline">{o.label}</span>
           </button>
         );
@@ -149,43 +134,39 @@ export function SortMenu({ value, options, onChange }) {
 
   return (
     <div ref={ref} className="relative">
-      <button
-        type="button"
+      <Button
+        variant="ghost"
+        size="sm"
+        leadingIcon="swap_vert"
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={`Sortierung: ${active.label}`}
         title={`Sortierung: ${active.label}`}
-        className="h-10 md:h-9 px-2.5 flex items-center gap-1 rounded-lg border border-transparent text-on-surface-variant hover:text-primary hover:bg-surface-low text-xs font-bold transition-colors cursor-pointer"
       >
-        <span className="material-symbols-outlined text-[20px]">swap_vert</span>
         <span className="hidden sm:inline">{active.label}</span>
-      </button>
+      </Button>
       {open && (
-        <div role="menu" className="absolute right-0 top-full mt-1 z-30 w-56 bg-white border border-outline-variant rounded-xl shadow-xl p-1.5">
-          <p className="px-3 pt-1 pb-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-on-surface-variant">Sortierung in Kategorien</p>
+        <Menu label="Sortierung in Kategorien" className="absolute right-0 top-full z-dropdown mt-1 w-60">
+          <MenuLabel>Sortierung in Kategorien</MenuLabel>
           {options.map((o) => (
-            <button
+            <MenuItem
               key={o.value}
-              type="button"
+              icon={o.icon}
+              selected={o.value === value}
               role="menuitemradio"
               aria-checked={o.value === value}
               onClick={() => { onChange(o.value); setOpen(false); }}
-              className={`w-full min-h-[40px] px-3 py-2 flex items-center gap-2.5 rounded-lg text-sm text-left transition-colors cursor-pointer ${
-                o.value === value ? 'bg-primary/10 text-primary font-bold' : 'text-primary hover:bg-surface-low font-semibold'
-              }`}
             >
-              <span className="material-symbols-outlined text-[18px]">{o.icon}</span>
-              <span className="flex-1">{o.label}</span>
-              {o.value === value && <span className="material-symbols-outlined text-[18px]">check</span>}
-            </button>
+              {o.label}
+            </MenuItem>
           ))}
           {value !== 'custom' && (
-            <p className="px-3 pt-1.5 pb-1 text-[11px] text-on-surface-variant leading-snug">
+            <p className="px-2.5 pb-1 pt-1.5 text-micro text-tertiary">
               Beim Ziehen einer Karte wechselt die Sortierung auf „Benutzerdefiniert“.
             </p>
           )}
-        </div>
+        </Menu>
       )}
     </div>
   );
@@ -194,41 +175,23 @@ export function SortMenu({ value, options, onChange }) {
 /** Kopfzeile über den Kategorien: Anzahl links, rechts Sortierung, Ein-/Ausklappen und Bearbeiten als Icons */
 export function CategoryToolbar({ count, isEditMode, onToggleEdit, anyExpanded, onCollapseAll, onExpandAll, sortValue, sortOptions, onSortChange }) {
   return (
-    <div className="flex items-center gap-1 pb-1.5 border-b border-outline-variant/40">
-      <span className="flex-1 text-xs font-bold text-on-surface-variant uppercase tracking-wider">
-        Kategorien ({count})
-      </span>
+    <div className="flex items-center gap-1 border-b border-subtle pb-1.5">
+      <h2 className="flex-1 font-label text-eyebrow uppercase text-secondary">
+        Kategorien <span className="text-caption-strong normal-case tracking-normal text-tertiary">{count}</span>
+      </h2>
       {!isEditMode && sortOptions && <SortMenu value={sortValue} options={sortOptions} onChange={onSortChange} />}
       {!isEditMode && (
-        <button
-          type="button"
+        <IconButton
+          icon={anyExpanded ? 'unfold_less' : 'unfold_more'}
+          label={anyExpanded ? 'Alle Kategorien einklappen' : 'Alle Kategorien ausklappen'}
+          size="sm"
           onClick={anyExpanded ? onCollapseAll : onExpandAll}
-          title={anyExpanded ? 'Alle einklappen' : 'Alle ausklappen'}
-          aria-label={anyExpanded ? 'Alle Kategorien einklappen' : 'Alle Kategorien ausklappen'}
-          className={`${iconButton} border-transparent text-on-surface-variant hover:text-primary hover:bg-surface-low`}
-        >
-          <span className="material-symbols-outlined text-[20px]">{anyExpanded ? 'unfold_less' : 'unfold_more'}</span>
-        </button>
+        />
       )}
       {isEditMode ? (
-        <button
-          type="button"
-          onClick={onToggleEdit}
-          className="h-9 px-3 flex items-center gap-1 rounded-lg bg-primary text-white text-xs font-bold cursor-pointer"
-        >
-          <span className="material-symbols-outlined text-[16px]">check</span>
-          Fertig
-        </button>
+        <Button size="sm" leadingIcon="check" onClick={onToggleEdit}>Fertig</Button>
       ) : (
-        <button
-          type="button"
-          onClick={onToggleEdit}
-          title="Kategorien bearbeiten und sortieren"
-          aria-label="Kategorien bearbeiten und sortieren"
-          className={`${iconButton} border-transparent text-on-surface-variant hover:text-primary hover:bg-surface-low`}
-        >
-          <span className="material-symbols-outlined text-[20px]">edit</span>
-        </button>
+        <IconButton icon="edit" label="Kategorien bearbeiten und sortieren" size="sm" onClick={onToggleEdit} />
       )}
     </div>
   );

@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useModalContext } from '../../context/ModalContext';
 import { useCardTouchDrag } from '../ui/useCardTouchDrag';
-import Card from '../ui/Card';
+import { Alert, Badge, Button, Card, Chip, Icon, PageHeader, Tabs } from '../ds';
 import { ViewToggle, PROJECT_VIEW_OPTIONS } from '../ui/ListToolbar';
 import { ProjectCardContent, ReminderCardContent } from '../ui/ItemCardContent';
 import CardContextMenu from '../ui/CardContextMenu';
@@ -194,16 +194,16 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
   const handleDragOver = (e, column) => {
     e.preventDefault();
     handleKanbanHtml5DragOver(e, column);
-    e.currentTarget.classList.add('bg-surface-variant/30');
+    e.currentTarget.classList.add('bg-hover');
   };
   
   const handleDragLeave = (e) => {
-    e.currentTarget.classList.remove('bg-surface-variant/30');
+    e.currentTarget.classList.remove('bg-hover');
   };
 
   const handleDrop = (e, column) => {
     e.preventDefault();
-    e.currentTarget.classList.remove('bg-surface-variant/30');
+    e.currentTarget.classList.remove('bg-hover');
     handleKanbanHtml5DragEnd();
     if (draggedItem) {
       setTimeout(() => {
@@ -241,10 +241,10 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
         >
           <Card
             interactive
-            padding="small"
+            padding="sm"
             className={`flex flex-col h-full transition-all ${
               project.isPaused
-                ? '!bg-blue-100 !border-blue-300 ring-1 ring-blue-300/40'
+                ? '!border-dashed !border-control !bg-subtle'
                 : ''
             }`}
             onClick={() => handleItemClick(project)}
@@ -283,10 +283,10 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
         >
           <Card
             interactive
-            padding="small"
+            padding="sm"
             className={`flex flex-col h-full transition-all ${reminder.status === 'ABGESCHLOSSEN' ? 'opacity-60' : ''} ${
               reminder.isPaused
-                ? '!bg-blue-100 !border-blue-300 ring-1 ring-blue-300/40'
+                ? '!border-dashed !border-control !bg-subtle'
                 : ''
             }`}
             onClick={() => handleItemClick(reminder)}
@@ -329,298 +329,154 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
     activeViewLabel = `${pCount} Proj. + ${rCount} Erinn.`;
   }
 
-  return (
-    <div className="h-full flex flex-col w-full min-h-0">
-      {/* Top Header Bar: Ansicht (Liste | Board), Quick Tabs & Drawer Trigger */}
-      <div className="flex items-center justify-between gap-2 mb-3 bg-surface-low border border-outline-variant p-1.5 rounded-2xl shadow-xs shrink-0">
-        <ViewToggle
-          value="board"
-          onChange={(v) => v === 'list' && setCurrentScreen('projects')}
-          options={PROJECT_VIEW_OPTIONS}
-        />
-        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5 flex-1 min-w-0">
-          {/* Quick Tab 1: Alle */}
-          <button
-            type="button"
-            onClick={() => {
-              setIsCustomFilter(false);
-              setActiveKanbanViewId('system_all');
-            }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-              !isCustomFilter && activeKanbanViewId === 'system_all'
-                ? 'bg-primary text-white shadow-xs'
-                : 'text-on-surface-variant hover:bg-surface-variant hover:text-on-surface'
-            }`}
-          >
-            <span className="material-symbols-outlined text-[16px]">view_kanban</span>
-            <span>Alle</span>
-          </button>
+  // Spalten: Farbe nur als Statuspunkt (Regel 01): geplant = Stahlblau, in Arbeit = Grün, erledigt = Grau
+  const columns = [
+    { id: 'TODO', label: 'Geplant', dot: 'bg-info', items: todoItems, empty: 'Keine geplanten Elemente' },
+    { id: 'IN_PROGRESS', label: 'In Arbeit', dot: 'bg-success', items: inProgressItems, empty: 'Keine Elemente in Arbeit' },
+    { id: 'DONE', label: 'Abgeschlossen', dot: 'bg-control', items: doneItems, empty: 'Keine abgeschlossenen Elemente' },
+  ];
 
-          {/* Quick Tab 2: Nur Projekte */}
-          <button
-            type="button"
+  const resetFilter = () => {
+    setIsCustomFilter(false);
+    setActiveKanbanViewId('system_all');
+  };
+
+  return (
+    <div className="flex h-full min-h-0 w-full flex-col">
+      <PageHeader
+        title="Projekte"
+        description="Kanban-Board"
+        className="mb-4 shrink-0 md:items-center"
+        actions={(
+          <ViewToggle
+            value="board"
+            onChange={(v) => v === 'list' && setCurrentScreen('projects')}
+            options={PROJECT_VIEW_OPTIONS}
+          />
+        )}
+      />
+
+      {/* Ansichten: schnelle Auswahl + Filter-Drawer */}
+      <div className="mb-3 flex shrink-0 items-center justify-between gap-2">
+        <div className="no-wrap-scroll -my-1.5 flex min-w-0 flex-1 items-center gap-2 py-1.5">
+          <Chip
+            selected={!isCustomFilter && activeKanbanViewId === 'system_all'}
+            leadingIcon="view_kanban"
+            onClick={resetFilter}
+          >
+            Alle
+          </Chip>
+          <Chip
+            selected={!isCustomFilter && activeKanbanViewId === 'system_projects'}
+            leadingIcon="folder"
             onClick={() => {
               setIsCustomFilter(false);
               setActiveKanbanViewId('system_projects');
             }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-              !isCustomFilter && activeKanbanViewId === 'system_projects'
-                ? 'bg-primary text-white shadow-xs'
-                : 'text-on-surface-variant hover:bg-surface-variant hover:text-on-surface'
-            }`}
           >
-            <span className="material-symbols-outlined text-[16px]">folder</span>
-            <span>Nur Projekte</span>
-          </button>
-
-          {/* Quick Tab 3: Custom View (if available) */}
+            Nur Projekte
+          </Chip>
           {activeCustomView && (
-            <button
-              type="button"
+            <Chip
+              selected={!isCustomFilter && activeKanbanViewId === activeCustomView.id}
+              leadingIcon={activeCustomView.icon || 'star'}
+              className="max-w-[10rem]"
+              title={activeCustomView.name}
               onClick={() => {
                 setIsCustomFilter(false);
                 setActiveKanbanViewId(activeCustomView.id);
               }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer max-w-[160px] truncate ${
-                !isCustomFilter && activeKanbanViewId === activeCustomView.id
-                  ? 'bg-primary text-white shadow-xs'
-                  : 'text-on-surface-variant hover:bg-surface-variant hover:text-on-surface'
-              }`}
-              title={activeCustomView.name}
             >
-              <span className="material-symbols-outlined text-[16px]">{activeCustomView.icon || 'star'}</span>
               <span className="truncate">{activeCustomView.name}</span>
-            </button>
+            </Chip>
           )}
-
-          {/* If a custom multi-select filter is active, show filter chip */}
           {isCustomFilter && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-primary/10 text-primary border border-primary/30 text-xs font-bold shrink-0">
-              <span className="material-symbols-outlined text-[14px]">tune</span>
-              <span className="truncate max-w-[180px]">
-                Filter: {Array.isArray(selectedProjectCategoryIds) ? selectedProjectCategoryIds.length : projectCategories.length}P + {Array.isArray(selectedReminderCategoryIds) ? selectedReminderCategoryIds.length : reminderCategories.length}E
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsCustomFilter(false);
-                  setActiveKanbanViewId('system_all');
-                }}
-                className="hover:bg-primary/20 rounded-full p-0.5 transition-colors cursor-pointer"
-                title="Filter zurücksetzen"
-              >
-                <span className="material-symbols-outlined text-[14px]">close</span>
-              </button>
-            </div>
+            <Chip selected leadingIcon="tune" onClick={resetFilter} title="Filter zurücksetzen">
+              Filter: {Array.isArray(selectedProjectCategoryIds) ? selectedProjectCategoryIds.length : projectCategories.length} Projekte, {Array.isArray(selectedReminderCategoryIds) ? selectedReminderCategoryIds.length : reminderCategories.length} Erinnerungen
+              <Icon name="close" size="sm" />
+            </Chip>
           )}
         </div>
 
-        {/* Right Section: Drawer Button */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            type="button"
-            onClick={() => setIsFilterDrawerOpen(true)}
-            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-              isFilterActive
-                ? 'bg-primary/10 border-primary text-primary shadow-xs ring-1 ring-primary/40'
-                : 'bg-surface border-outline-variant text-on-surface hover:bg-surface-variant'
-            }`}
-            title="Ansichten und Filter verwalten"
-          >
-            <span className="material-symbols-outlined text-[17px]">tune</span>
-            <span className="hidden sm:inline">Ansichten</span>
-            <span className="max-w-[120px] truncate text-[11px] font-normal opacity-80">
-              ({activeViewLabel})
-            </span>
-            <span className="material-symbols-outlined text-[15px]">expand_more</span>
-          </button>
-        </div>
+        <Button
+          variant="secondary"
+          size="sm"
+          leadingIcon="tune"
+          trailingIcon="expand_more"
+          className={isFilterActive ? '!border-strong' : ''}
+          onClick={() => setIsFilterDrawerOpen(true)}
+          title="Ansichten und Filter verwalten"
+        >
+          <span className="hidden sm:inline">Ansichten</span>
+          <span className="max-w-[7.5rem] truncate text-secondary">{activeViewLabel}</span>
+        </Button>
       </div>
 
       {/* Mobile Column Navigation Tabs */}
-      <div className="flex lg:hidden items-center justify-between gap-1.5 mb-3 bg-surface-low border border-outline-variant p-1.5 rounded-2xl shadow-xs shrink-0">
-        <button
-          type="button"
-          onClick={() => scrollToColumn('TODO')}
-          className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl text-xs font-bold transition-all truncate ${
-            activeTab === 'TODO'
-              ? 'bg-amber-500 text-white shadow-xs ring-1 ring-amber-400/50'
-              : 'text-on-surface-variant hover:bg-on-surface/5'
-          }`}
-        >
-          <span className={`w-2 h-2 rounded-full shrink-0 ${activeTab === 'TODO' ? 'bg-white' : 'bg-amber-400'}`}></span>
-          <span className="truncate">Geplant</span>
-          <span className={`text-[10px] font-mono shrink-0 ${activeTab === 'TODO' ? 'text-amber-100' : 'opacity-70'}`}>
-            ({todoItems.length})
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => scrollToColumn('IN_PROGRESS')}
-          className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl text-xs font-bold transition-all truncate ${
-            activeTab === 'IN_PROGRESS'
-              ? 'bg-emerald-600 text-white shadow-xs ring-1 ring-emerald-400/50'
-              : 'text-on-surface-variant hover:bg-on-surface/5'
-          }`}
-        >
-          <span className={`w-2 h-2 rounded-full shrink-0 ${activeTab === 'IN_PROGRESS' ? 'bg-white' : 'bg-emerald-400'}`}></span>
-          <span className="truncate">In Arbeit</span>
-          <span className={`text-[10px] font-mono shrink-0 ${activeTab === 'IN_PROGRESS' ? 'text-emerald-100' : 'opacity-70'}`}>
-            ({inProgressItems.length})
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => scrollToColumn('DONE')}
-          className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl text-xs font-bold transition-all truncate ${
-            activeTab === 'DONE'
-              ? 'bg-neutral-700 text-white shadow-xs ring-1 ring-neutral-400/50'
-              : 'text-on-surface-variant hover:bg-on-surface/5'
-          }`}
-        >
-          <span className={`w-2 h-2 rounded-full shrink-0 ${activeTab === 'DONE' ? 'bg-white' : 'bg-neutral-400'}`}></span>
-          <span className="truncate">Erledigt</span>
-          <span className={`text-[10px] font-mono shrink-0 ${activeTab === 'DONE' ? 'text-neutral-200' : 'opacity-70'}`}>
-            ({doneItems.length})
-          </span>
-        </button>
-      </div>
+      <Tabs
+        className="mb-3 shrink-0 lg:hidden"
+        value={activeTab}
+        onChange={scrollToColumn}
+        tabs={columns.map((c) => ({ value: c.id, label: c.label, count: c.items.length }))}
+      />
 
       {/* Empty State Banner if 0 items across the board */}
       {kanbanItems.length === 0 && (
-        <div className="mb-3 p-3 sm:p-4 rounded-2xl border border-dashed border-outline-variant bg-surface-low flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-surface-variant flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-[24px] text-on-surface-variant">filter_alt_off</span>
-            </div>
-            <div>
-              <p className="font-bold text-sm text-on-surface">Keine Elemente in dieser Ansicht</p>
-              <p className="text-xs text-on-surface-variant">
-                {isCustomFilter
-                  ? 'Mit der gewählten Kategorie-Kombination wurden keine aktiven Kanban-Elemente gefunden.'
-                  : `In der Ansicht "${currentView.name}" wurden keine passenden Kategorien oder Elemente gefunden.`}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => {
-                setIsCustomFilter(false);
-                setActiveKanbanViewId('system_all');
-              }}
-              className="px-3 py-1.5 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary/90 transition-colors cursor-pointer"
-            >
-              Alle anzeigen
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsFilterDrawerOpen(true)}
-              className="px-3 py-1.5 rounded-xl border border-outline-variant text-on-surface text-xs font-semibold hover:bg-surface-variant transition-colors cursor-pointer"
-            >
-              Filter öffnen
-            </button>
-          </div>
-        </div>
+        <Alert
+          tone="neutral"
+          icon="filter_alt_off"
+          title="Keine Elemente in dieser Ansicht"
+          className="mb-3 shrink-0"
+          action={(
+            <>
+              <Button size="sm" onClick={resetFilter}>Alle anzeigen</Button>
+              <Button variant="ghost" size="sm" onClick={() => setIsFilterDrawerOpen(true)}>Filter öffnen</Button>
+            </>
+          )}
+        >
+          {isCustomFilter
+            ? 'Mit der gewählten Kategorie-Kombination wurden keine aktiven Kanban-Elemente gefunden.'
+            : `In der Ansicht „${currentView.name}“ wurden keine passenden Kategorien oder Elemente gefunden.`}
+        </Alert>
       )}
 
       {/* Main Kanban Board Container */}
-      <div 
+      <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="flex-1 flex gap-3 sm:gap-4 overflow-x-auto overflow-y-hidden snap-x snap-mandatory lg:snap-none pb-2 no-scrollbar min-h-0"
+        className="no-scrollbar flex min-h-0 flex-1 snap-x snap-mandatory gap-3 overflow-x-auto overflow-y-hidden pb-2 sm:gap-4 lg:snap-none"
       >
-        {/* Column 1: Geplant (TODO) */}
-        <div
-          id="kanban-col-TODO"
-          onDragOver={(e) => handleDragOver(e, 'TODO')}
-          onDragLeave={handleDragLeave}
-          onDrop={(e) => handleDrop(e, 'TODO')}
-          className="flex-1 min-w-[85vw] sm:min-w-[320px] lg:min-w-0 flex flex-col bg-surface border border-outline-variant rounded-2xl p-2.5 sm:p-3 snap-center shadow-xs transition-colors"
-        >
-          <div className="flex items-center gap-2 mb-2 px-1">
-            <div className="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
-            <h3 className="font-bold text-sm">Geplant</h3>
-            <span className="ml-auto bg-surface-low border border-outline-variant text-on-surface-variant text-[10px] font-mono px-2 py-0.5 rounded-full">
-              {todoItems.length}
-            </span>
+        {columns.map((col) => (
+          <div
+            key={col.id}
+            id={`kanban-col-${col.id}`}
+            onDragOver={(e) => handleDragOver(e, col.id)}
+            onDragLeave={handleDragLeave}
+            onDrop={(e) => handleDrop(e, col.id)}
+            className="flex min-w-[85vw] flex-1 snap-center flex-col rounded-lg border border-subtle bg-subtle p-3 transition-colors duration-fast sm:min-w-[320px] lg:min-w-0"
+          >
+            <div className="mb-3 flex items-center gap-2 px-1">
+              <span className={`h-2.5 w-2.5 rounded-full ${col.dot}`} aria-hidden="true" />
+              <h2 className="text-body-strong text-primary">{col.label}</h2>
+              <Badge tone="neutral" size="sm" className="ml-auto">{col.items.length}</Badge>
+            </div>
+            <div
+              className={`min-h-0 flex-1 overflow-y-auto rounded-md border border-dashed p-2 transition-colors duration-fast ${
+                touchKanbanColTarget === col.id ? 'border-strong bg-hover ring-2 ring-focus' : 'border-transparent'
+              }`}
+            >
+              {col.items.map(renderCard)}
+              {col.items.length === 0 && (
+                <div className="flex h-28 items-center justify-center text-caption text-tertiary lg:h-full">
+                  {col.empty}
+                </div>
+              )}
+            </div>
           </div>
-          <div className={`flex-1 overflow-y-auto rounded-xl p-2 sm:p-3 border border-dashed transition-all ${
-            touchKanbanColTarget === 'TODO' 
-              ? 'border-primary bg-primary/10 ring-2 ring-primary/40' 
-              : 'border-outline-variant/60 bg-surface-low/30'
-          }`}>
-            {todoItems.map(renderCard)}
-            {todoItems.length === 0 && (
-              <div className="h-28 lg:h-full flex items-center justify-center text-on-surface-variant/50 text-xs italic font-mono border-2 border-dashed border-transparent">
-                Keine geplanten Elemente
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Column 2: In Arbeit (IN_PROGRESS) */}
-        <div
-          id="kanban-col-IN_PROGRESS"
-          onDragOver={(e) => handleDragOver(e, 'IN_PROGRESS')}
-          onDragLeave={handleDragLeave}
-          onDrop={(e) => handleDrop(e, 'IN_PROGRESS')}
-          className="flex-1 min-w-[85vw] sm:min-w-[320px] lg:min-w-0 flex flex-col bg-surface border border-outline-variant rounded-2xl p-2.5 sm:p-3 snap-center shadow-xs transition-colors"
-        >
-          <div className="flex items-center gap-2 mb-2 px-1">
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
-            <h3 className="font-bold text-sm">In Arbeit</h3>
-            <span className="ml-auto bg-surface-low border border-outline-variant text-on-surface-variant text-[10px] font-mono px-2 py-0.5 rounded-full">
-              {inProgressItems.length}
-            </span>
-          </div>
-          <div className={`flex-1 overflow-y-auto rounded-xl p-2 sm:p-3 border border-dashed transition-all ${
-            touchKanbanColTarget === 'IN_PROGRESS'
-              ? 'border-primary bg-primary/10 ring-2 ring-primary/40'
-              : 'border-outline-variant/60 bg-surface-low/30'
-          }`}>
-            {inProgressItems.map(renderCard)}
-            {inProgressItems.length === 0 && (
-              <div className="h-28 lg:h-full flex items-center justify-center text-on-surface-variant/50 text-xs italic font-mono border-2 border-dashed border-transparent">
-                Keine Elemente in Arbeit
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Column 3: Abgeschlossen (DONE) */}
-        <div
-          id="kanban-col-DONE"
-          onDragOver={(e) => handleDragOver(e, 'DONE')}
-          onDragLeave={handleDragLeave}
-          onDrop={(e) => handleDrop(e, 'DONE')}
-          className="flex-1 min-w-[85vw] sm:min-w-[320px] lg:min-w-0 flex flex-col bg-surface border border-outline-variant rounded-2xl p-2.5 sm:p-3 snap-center shadow-xs transition-colors"
-        >
-          <div className="flex items-center gap-2 mb-2 px-1">
-            <div className="w-2.5 h-2.5 rounded-full bg-neutral-400"></div>
-            <h3 className="font-bold text-sm">Abgeschlossen</h3>
-            <span className="ml-auto bg-surface-low border border-outline-variant text-on-surface-variant text-[10px] font-mono px-2 py-0.5 rounded-full">
-              {doneItems.length}
-            </span>
-          </div>
-          <div className={`flex-1 overflow-y-auto rounded-xl p-2 sm:p-3 border border-dashed transition-all ${
-            touchKanbanColTarget === 'DONE'
-              ? 'border-primary bg-primary/10 ring-2 ring-primary/40'
-              : 'border-outline-variant/60 bg-surface-low/30'
-          }`}>
-            {doneItems.map(renderCard)}
-            {doneItems.length === 0 && (
-              <div className="h-28 lg:h-full flex items-center justify-center text-on-surface-variant/50 text-xs italic font-mono border-2 border-dashed border-transparent">
-                Keine abgeschlossenen Elemente
-              </div>
-            )}
-          </div>
-        </div>
+        ))}
       </div>
 
-      {/* Dedicated Responsive Kanban Filter Drawer (Rule 04 Root Level Placement) */}
+      {/* Ansichten und Filter (Regel 01: Overlay über Sheet) */}
       <KanbanFilterDrawer
         isOpen={isFilterDrawerOpen}
         onClose={() => setIsFilterDrawerOpen(false)}
