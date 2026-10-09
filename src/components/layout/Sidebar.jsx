@@ -4,6 +4,7 @@ import { useModal } from '../../context/ModalContext';
 import FioIcon from '../ui/FioIcon';
 import { BREAKPOINTS } from '../../lib/breakpoints';
 import { areaOf } from '../../lib/areas';
+import BrandLockup from '../brand/BrandLockup';
 
 const Sidebar = ({ currentScreen, setCurrentScreen, collapsed, setCollapsed }) => {
   const { user } = useAuth();
@@ -103,40 +104,22 @@ const Sidebar = ({ currentScreen, setCurrentScreen, collapsed, setCollapsed }) =
               : 'w-[256px] shadow-2xl lg:shadow-none'
           }`}
         >
-          {/* Logo / Header - Deterministic 48px slot with center at X=36px */}
+          {/* Logo / Header: ein einziges Logo, das beim Einklappen zur FF-Bildmarke wird (BrandLockup) */}
           <div className="flex items-center h-16 sm:h-20 flex-shrink-0 px-3 overflow-hidden relative">
-            {/* Collapsed Monogram (FF) - centered at exactly 36px (12px px-3 + 24px half of w-12 = 36px) */}
-            <div
-              className={`w-12 h-12 flex items-center justify-center flex-shrink-0 transition-opacity duration-200 motion-reduce:transition-none ${
-                collapsed
-                  ? 'opacity-100 scale-100'
-                  : 'opacity-0 scale-95 absolute pointer-events-none'
-              }`}
-              aria-hidden={!collapsed}
-            >
-              <span className="text-xl font-black tracking-tighter text-primary select-none">FF</span>
-            </div>
-
-            {/* Expanded Brand + Tablet Close Button */}
-            <div
-              className={`flex items-center justify-between flex-1 min-w-0 pl-1 pr-1 transition-all ease-in-out motion-reduce:transition-none ${
-                collapsed
-                  ? 'opacity-0 pointer-events-none -translate-x-2 duration-150'
-                  : 'opacity-100 translate-x-0 duration-200 delay-100'
-              }`}
-              aria-hidden={collapsed}
-            >
-              <span className="text-2xl font-black tracking-tighter text-primary block leading-tight truncate select-none">
-                FocusFlow
-              </span>
+            <div className="flex items-center justify-between flex-1 min-w-0 pl-1 pr-1">
+              <BrandLockup collapsed={collapsed} />
               {/* Close Button on Tablet when expanded */}
               <button
                 type="button"
                 ref={closeButtonRef}
                 onClick={() => setCollapsed(true)}
-                className="hidden md:flex lg:hidden p-1.5 text-on-surface-variant hover:text-primary rounded-lg hover:bg-surface-low transition-colors flex-shrink-0 cursor-pointer"
+                className={`hidden md:flex lg:hidden p-1.5 text-on-surface-variant hover:text-primary rounded-lg hover:bg-surface-low transition-[opacity,colors] flex-shrink-0 cursor-pointer ${
+                  collapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'
+                }`}
                 title="Sidebar schließen"
                 aria-label="Sidebar schließen"
+                aria-hidden={collapsed}
+                tabIndex={collapsed ? -1 : undefined}
               >
                 <span className="material-symbols-outlined text-[20px]">close</span>
               </button>

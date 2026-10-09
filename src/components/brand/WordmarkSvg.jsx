@@ -1,22 +1,13 @@
 import React from 'react';
-import { WORDMARK, WORDMARK_FRAME } from './focusFlowWordmarkData';
-
-// Punkte [x0, y0, x1, y1, ...] als geschlossener SVG-Pfad (SVG-Y zeigt nach unten)
-function toPath(flat) {
-  let d = '';
-  for (let i = 0; i < flat.length; i += 2) {
-    d += `${i === 0 ? 'M' : 'L'}${flat[i]} ${-flat[i + 1]}`;
-  }
-  return `${d}Z`;
-}
+import { WORDMARK_FRAME } from './focusFlowWordmarkData';
+import { wordmarkPathData } from './wordmarkPaths';
 
 /**
  * Flache 2D-Version eines Wortes der Wortmarke (FOCUS oder FLOW).
  * Dient als Platzhalter, solange Three.js lädt, und als Ersatz ohne WebGL.
- * Färbt sich über `currentColor`.
+ * Färbt sich über `currentColor`. `onlyFirst`: nur der erste Buchstabe (das F), im Rahmen des ganzen Wortes.
  */
-function WordmarkSvg({ word, className = '' }) {
-  const { letters } = WORDMARK[word];
+function WordmarkSvg({ word, className = '', onlyFirst = false }) {
   const w = WORDMARK_FRAME.width;
   const h = WORDMARK_FRAME.height;
 
@@ -27,12 +18,8 @@ function WordmarkSvg({ word, className = '' }) {
       fill="currentColor"
       aria-hidden="true"
     >
-      {letters.map((letter, i) => (
-        <path
-          key={`${letter.char}-${i}`}
-          fillRule="evenodd"
-          d={letter.shapes.map((s) => [toPath(s.outer), ...s.holes.map(toPath)].join(' ')).join(' ')}
-        />
+      {wordmarkPathData(word).slice(0, onlyFirst ? 1 : undefined).map(({ key, d }) => (
+        <path key={key} fillRule="evenodd" d={d} />
       ))}
     </svg>
   );

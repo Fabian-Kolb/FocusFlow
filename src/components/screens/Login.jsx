@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import WordmarkWord from '../brand/WordmarkWord';
+import LoginMarquee from '../brand/LoginMarquee';
 import { LEGAL_PATHS } from '../../lib/legal';
 import { getDevCredentials } from '../../lib/devAccount';
+import { captureBrandHandoff, clearBrandHandoff } from '../../lib/brandTransition';
 
 const THEME_STORAGE_KEY = 'focusflow_theme';
 
@@ -34,6 +36,39 @@ function Login() {
   const theme = storedTheme || osTheme;
   const isDark = theme === 'dark';
 
+  // Wortmarke reagiert auf das Formular: richtet sich auf die Karte aus und hüpft bei jedem Tastendruck
+  const [formEngaged, setFormEngaged] = useState(false);
+  const [typingPulse, setTypingPulse] = useState(0);
+  const focusWordRef = useRef(null);
+  const flowWordRef = useRef(null);
+  const formRef = useRef(null);
+  const typed = (setter) => (e) => {
+    setter(e.target.value);
+    setTypingPulse((n) => n + 1);
+  };
+  // Vor dem Login merken, wo die Wörter stehen, damit die App sie in die Kopfzeile fliegen lässt
+  const focusCtl = useRef(null);
+  const flowCtl = useRef(null);
+  const leavingRef = useRef(false);
+  const prepareLeave = async (immediate = false) => {
+    leavingRef.current = true;
+    const [focusImage, flowImage] = await Promise.all([
+      focusCtl.current?.prepareExit?.(immediate),
+      flowCtl.current?.prepareExit?.(immediate),
+    ]);
+    captureBrandHandoff(
+      { FOCUS: { el: focusWordRef.current, image: focusImage }, FLOW: { el: flowWordRef.current, image: flowImage } },
+      theme,
+    );
+  };
+  // Login hat nicht geklappt: Wörter dürfen wieder dem Cursor folgen
+  const cancelLeave = () => {
+    leavingRef.current = false;
+    clearBrandHandoff();
+    focusCtl.current?.resume?.();
+    flowCtl.current?.resume?.();
+  };
+
   // Ohne eigene Wahl folgt der Login-Screen dem System-Design
   useEffect(() => {
     const media = window.matchMedia?.('(prefers-color-scheme: dark)');
@@ -57,6 +92,7 @@ function Login() {
     const handleAuthError = (e) => {
       setError(e.detail);
       setLoading(false);
+      cancelLeave();
     };
     
     window.addEventListener('auth-error', handleAuthError);
@@ -68,9 +104,11 @@ function Login() {
     setError('');
     setResetSuccess('');
     setLoading(true);
+    await prepareLeave();
     try {
       await loginWithEmail(email, password);
     } catch (err) {
+      cancelLeave();
       console.error(err);
       setError('Fehler beim Login. Bitte überprüfe deine Daten.');
     }
@@ -98,29 +136,37 @@ function Login() {
   const handleGoogleLogin = async () => {
     setError('');
     setLoading(true);
+    await prepareLeave(true);
     try {
       await loginWithGoogle();
     } catch (err) {
+      cancelLeave();
       console.error(err);
       setError('Fehler beim Google-Login.');
     }
     setLoading(false);
   };
 
-  const handleGuestLogin = () => {
+  const handleGuestLogin = async () => {
+    if (leavingRef.current) return;
     setError('');
+    await prepareLeave();
     loginAsGuest();
   };
 
   // Nur Entwicklung (npm run dev) mit .env.development.local: lokaler Test-Account, kein Netzwerk
   const devCredentials = getDevCredentials();
-  const handleDevLogin = () => {
-    if (devCredentials) loginWithEmail(devCredentials.email, devCredentials.password);
+  const handleDevLogin = async () => {
+    if (leavingRef.current || !devCredentials) return;
+    await prepareLeave();
+    loginWithEmail(devCredentials.email, devCredentials.password);
   };
 
   return (
     <div className={isDark ? 'dark' : ''}>
-    <div className="relative min-h-screen overflow-x-hidden bg-surface dark:bg-[#090a0f] transition-colors duration-300 motion-reduce:transition-none px-4 pt-16 pb-8 lg:py-8 flex flex-col items-center justify-center gap-6 lg:flex-row lg:gap-10 xl:gap-14">
+    <div className="relative isolate min-h-screen overflow-x-hidden bg-surface dark:bg-[#090a0f] transition-colors duration-300 motion-reduce:transition-none px-4 pt-16 pb-8 lg:py-8 flex flex-col items-center justify-center gap-6 lg:flex-row lg:gap-10 xl:gap-14">
+      <LoginMarquee />
+
       {/* Blaues Leuchten hinter der Wortmarke (nur im dunklen Design) */}
       <div
         aria-hidden="true"
@@ -138,10 +184,10 @@ function Login() {
       </button>
 
       {/* Wortmarke: Mobil/Tablet zweizeilig über der Karte, Desktop FOCUS | Karte | FLOW */}
-      <WordmarkWord word="FOCUS" theme={theme} className="order-1 w-full max-w-[17rem] sm:max-w-xs lg:max-w-[22rem] lg:flex-1 -mb-8 lg:mb-0" />
-      <WordmarkWord word="FLOW" theme={theme} className="order-2 lg:order-3 w-full max-w-[17rem] sm:max-w-xs lg:max-w-[22rem] lg:flex-1" />
+      <WordmarkWord ref={focusWordRef} controlRef={focusCtl} word="FOCUS" theme={theme} attention={formEngaged} attentionTargetRef={formRef} pulse={typingPulse} className="order-1 w-full max-w-[24rem] sm:max-w-[30rem] lg:max-w-[32rem] xl:max-w-[36rem] lg:flex-1 -mb-8 lg:mb-0" />
+      <WordmarkWord ref={flowWordRef} controlRef={flowCtl} word="FLOW" theme={theme} attention={formEngaged} attentionTargetRef={formRef} pulse={typingPulse} className="order-2 lg:order-3 w-full max-w-[24rem] sm:max-w-[30rem] lg:max-w-[32rem] xl:max-w-[36rem] lg:flex-1" />
 
-      <Card padding="large" className="relative order-3 lg:order-2 w-full max-w-md shrink-0 space-y-6 bg-surface/50 backdrop-blur-sm border-outline-variant dark:bg-[#12131a] dark:border-white/10">
+      <Card padding="large" className="relative order-3 lg:order-2 w-full max-w-md lg:max-w-sm xl:max-w-md shrink-0 space-y-6 bg-surface/50 backdrop-blur-sm border-outline-variant dark:bg-[#12131a] dark:border-white/10">
         <div className="text-center">
           {/* Sichtbar übernimmt die 3D-Wortmarke den Titel, für Screenreader bleibt er erhalten */}
           <h1 className="sr-only">FocusFlow</h1>
@@ -195,7 +241,13 @@ function Login() {
           </div>
         </div>
 
-        <form className="space-y-4" onSubmit={handleEmailLogin}>
+        <form
+          ref={formRef}
+          className="space-y-4"
+          onSubmit={handleEmailLogin}
+          onFocus={() => setFormEngaged(true)}
+          onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setFormEngaged(false); }}
+        >
           <div className="space-y-3">
             <div>
               <label className="block text-xs font-bold text-primary mb-1 dark:text-white">E-Mail</label>
@@ -205,7 +257,7 @@ function Login() {
                 className="dark:bg-white/5 dark:border-white/10 dark:text-white dark:placeholder:text-neutral-500 dark:focus:ring-white/60"
                 placeholder="deine.email@beispiel.de"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={typed(setEmail)}
               />
             </div>
             <div>
@@ -225,7 +277,7 @@ function Login() {
                 className="dark:bg-white/5 dark:border-white/10 dark:text-white dark:placeholder:text-neutral-500 dark:focus:ring-white/60"
                 placeholder="••••••••"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={typed(setPassword)}
               />
             </div>
           </div>

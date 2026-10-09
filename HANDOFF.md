@@ -141,3 +141,120 @@
 - Wirkt wie ein normales Konto (kein Gast-Hinweis, Name „Test-Konto“), speichert aber nur im Browser (`focusflow_guest_*`). Beispieldaten sind relativ zu heute; zurücksetzen mit `ffDev.reset()` in der Konsole.
 - Grenzen: kein Firebase-Token, also keine Fio/Gemini-Antworten, kein Google Kalender, keine Firestore-Regeln. Gegen das echte Firebase wird nicht angemeldet; es wurde kein Firebase-Konto angelegt oder freigeschaltet.
 - `Button` kennt jetzt `variant="outline"` (Login-Gastknopf nutzte es, sonst wäre er blau geworden).
+
+---
+
+## Nachtrag 2026-10-09 (Claude Code): Promo-Video 16:9
+
+### Getan
+- Motion-Graphics-Vorstellung der App: `promo/focusflow-intro.mp4` (1920×1080, 30 fps, ca. 24 s, ohne Ton). Quelle: `promo/focusflow-intro.html`.
+- Die Bildschirme (Home, Gedanken, Kanban, Erinnerungen) sind mit den Tokens aus `tailwind.config.js` nachgebaut. Inhalte stammen aus dem Dev-Account (`src/lib/devSeed.js`).
+- Die Animation ist eine reine Funktion der Zeit (`frame(t)`), keine Abhängigkeiten. Das Render-Skript (puppeteer-core + Chrome, ffmpeg) liegt nur im Scratchpad und nicht im Repo.
+- Keine Änderungen an App-Code.
+
+### Tests
+- Standbilder geprüft, Render ohne Seitenfehler, Kontrollbild aus der fertigen MP4 geprüft. Keine Unit-Tests betroffen.
+
+### Next Steps
+1. Entscheiden: Sprachaufnahme, Musik und Texte (Intro „Vom Gedanken zum erledigten Schritt.“, Outro „Fio, dein KI-Coach, räumt deine Gedanken auf.“).
+2. Optional: 9:16-Schnitt für Social Media.
+
+### Fallstricke
+- Die HTML lädt Google Fonts und Material Symbols. Ohne Internet fehlen Schrift und Icons.
+- Zeiten, Kamera (`CAM`), Cursor (`CUR`) und Captions sind in der HTML fest verdrahtet. Nach Änderungen neu rendern.
+
+---
+
+## Nachtrag 2026-10-09 (Claude Code): 2D-Hintergrundband auf dem Login
+
+### Getan
+- Neu: `src/components/brand/LoginMarquee.jsx`. Fünf Zeilen „FOCUSFLOW“ in der Wortmarken-Geometrie, abwechselnd links und rechts, endlos, sehr leise, hinter der Karte. Ausblenden beim Scrollen.
+- `src/components/brand/wordmarkPaths.js`: Pfad-Umrechnung, von `WordmarkSvg.jsx` und dem Band gemeinsam genutzt (Darstellung der Wortmarke unverändert).
+- `tailwind.config.js`: Keyframes `band-ltr` / `band-rtl`. `Login.jsx`: Band eingebaut, Wurzel mit `isolate`.
+- Doku: `docs/Wissen/12_3D_Branding_und_Landingpage/01-3D-Schriftzug-und-Interaktive-Landingpage.md` (Status und Next Steps).
+
+### Tests & Build
+- Lint sauber. `vite build` ok.
+- Vitest: 179/180. Rot ist `tests/calendar_events_hook.test.jsx` („automatisch erneut geladen“). Der Test ist unabhängig vom Band und wackelt bekannt. Allein gelaufen: 2 von 3 Läufen grün.
+- Browser (Headless-Chrome, Dev-Server): Zeilen laufen gegenläufig, Light und Dark umgeschaltet, auf dem Handy blendet das Band beim Scrollen aus, Konsole ohne Fehler.
+
+### Offen
+1. Blauer Radialverlauf im Dark Mode des Logins (`Login.jsx`): Regel 01 verbietet Verläufe. Der Nutzer hat noch nicht entschieden, deshalb unverändert.
+2. Calendar-Hook-Test stabilisieren (siehe oben).
+
+### Fallstricke
+- Der eingebettete Browser-Pane rendert CSS-Animationen nur bei Bedarf. Für Bewegungstests den Headless-Chrome aus dem Render-Setup nutzen, nicht den Pane.
+
+---
+
+## Nachtrag 2026-10-09 (Claude Code): Login-Band an Rand, Wortmarke größer
+
+### Getan
+- `LoginMarquee.jsx`: Bänder nur noch oben (zwei Zeilen) und unten (zwei Zeilen), die Mitte bleibt frei. Auf dem Handy nur eine Zeile oben.
+- `Login.jsx`: 3D-Wörter größer (Desktop bis 28/30 rem statt 22 rem, Handy bis 21/26 rem statt 17/20 rem).
+
+### Tests
+- Lint sauber, `vite build` ok. Browser-Messung: 1440 px ~424 px je Wort, 1920 px 480 px. Keine Überlappung von Bändern und Karte.
+
+### Offen
+1. Blauer Radialverlauf im Dark Mode weiterhin ungeklärt (siehe vorheriger Nachtrag).
+
+---
+
+## Nachtrag 2026-10-09 (Claude Code): Login-Band eine Zeile, 3D-Wörter größer
+
+### Getan
+- `LoginMarquee.jsx`: oben eine Zeile FOCUS, unten eine Zeile FLOW (statt je zwei Zeilen FOCUSFLOW), deutlich größer (`h-16 sm:h-24 xl:h-28`). Handy: nur oben.
+- `Login.jsx`: 3D-Wörter größer (`lg:max-w-[32rem]`, `xl:max-w-[36rem]`), Karte am Desktop schmaler (`lg:max-w-sm`, `xl:max-w-md`), damit mehr Platz für die Wörter bleibt.
+
+### Tests
+- Lint ohne neue Warnungen, Sichtprüfung bei 1440 px im Browser. Kein Build/Vitest gelaufen.
+
+### Offen
+- Ideen für 3D-Mehrwert (Cursor-Interaktion, Opening-Animation) mit dem Nutzer besprechen.
+
+## Nachtrag 2026-10-09 (Claude Code): 3D-Wortmarke mit Interaktionen
+
+### Getan
+- `Wordmark3D.jsx`: Einflug beim Laden (FOCUS, dann FLOW), Spotlight (Buchstaben am Cursor hell, Rest transparenter und zurückgesetzt, kein echter Blur), Punktlicht am Cursor, Klick/schnelles Maus-Wischen wirbelt die Buchstaben durcheinander und lässt sie per Feder einrasten, Ausrichtung auf die Login-Karte solange ein Formularfeld Fokus hat, Hüpfer pro Tastendruck, Gyroskop am Handy (iOS fragt nach der ersten Berührung um Erlaubnis). Pro Buchstabe ein eigenes Material.
+- Neu: `BrandFlight.jsx` + `src/lib/brandTransition.js`: Der Login merkt sich vor dem Login die Positionen der Wörter, nach dem Login fliegen sie als flaches SVG zum Namen in der Sidebar (`data-brand-mark`), auf dem Handy nach oben aus dem Bild.
+- `WordmarkWord` reicht `ref` und Effekt-Props durch; `Login.jsx` verdrahtet Fokus, Tippen und Merken der Position.
+
+### Tests
+- `vite build` ok, Lint ohne neue Warnungen, Vitest 178/180 (rot: der bekannte wacklige Kalender-Hook-Test, bei jedem Lauf ein anderer Fall).
+- Browser (Dev, Mausereignisse): Spotlight/Licht, Ausrichtung beim Tippen und Flug nach Gast-Login geprüft. Nicht geprüft: Gyroskop, Touch, Stärke des Lichts im Hell-Modus, Flug auf dem Handy.
+
+### Offen
+- Stärken feinjustieren (`CURSOR_LIGHT_INTENSITY`, Dimmen 0.62, Wisch-Schwelle 2.4 px/ms).
+
+## Nachtrag 2026-10-09 (Claude Code): Wortmarke nachgeschärft
+
+### Getan
+- Kein 2D-Vorbild mehr beim Laden (`WordmarkWord`: Suspense-Fallback leer), der Einflug der 3D-Buchstaben bleibt sichtbar. Nur ohne WebGL erscheint das flache SVG.
+- Kein Ausweichen/Zittern der Buchstaben am Cursor mehr, kein Ergrauen. Stattdessen Glow: Buchstaben in Cursornähe leuchten blau und bekommen einen Schein (zwei vergrößerte Rückseiten-Hüllen je Buchstabe, `HALO_SCALES`), dazu das Punktlicht.
+- Login → App: Die Wörter richten sich vor dem Login gerade aus (`prepareExit` in `Wordmark3D`, max. ~0,8 s), werden als PNG festgehalten und fliegen in `BrandFlight.jsx` mit weicher Kurve ins neue Logo der Sidebar; das Standbild blendet dabei in die flache Fassung über. Google-Login hält sofort fest (Popup braucht direkte Nutzergeste).
+- Neu: `BrandLogo.jsx` (FOCUS FLOW als Logo statt Text „FocusFlow“ in der Sidebar, Ziel per `data-brand-word`).
+
+### Tests
+- `vite build` ok, Lint ohne neue Fehler. Headless-Chrome: Hover-Glow, Einflug, Flug nach Gast-Login (Einzelbilder) geprüft, keine Konsolenfehler. Nicht geprüft: Touch/Gyro, Hell-Modus, Handy-Flug, E-Mail/Google-Login.
+
+### Offen
+- Das Gast-Willkommensfenster erscheint gleichzeitig mit dem Flug; ggf. Fenster erst nach dem Flug öffnen.
+- Zugeklappte Sidebar (nur „FF“): Wörter fliegen dann nach oben aus dem Bild.
+
+## Nachtrag 2026-10-09 (Claude Code): Zug zum Cursor, FF-Bildmarke, Zeichenfläche
+
+### Getan
+- **Abgeschnittene Buchstaben beim Einflug:** Die 3D-Zeichenfläche ragt jetzt über den Layout-Kasten hinaus (`wordmarkStage.js`: `STAGE_PAD_X/Y`), Kasten, Klickfläche und Flug bleiben gleich. Die Fläche selbst hat `pointer-events: none`.
+- **Wirbeln beim Drüberfahren entfernt** (das war die Wisch-Erkennung). Es wirbelt nur noch bei Klick/Tipp auf das Wort.
+- **Zug zum Cursor** (`Wordmark3D.jsx`, `PULL_*`): Buchstaben bleiben fest, werden aber über eine weiche Extra-Feder Richtung (geglättetem) Zeiger gezogen, am stärksten im mittleren Abstand, Nachbarn gehen anteilig mit, das ganze Wort driftet leicht mit, Buchstaben lehnen sich in Zugrichtung.
+- **FF-Bildmarke:** Neu `BrandMark.jsx` (zwei kursive F aus der Wortmarke, ligaturartig verbunden) in der eingeklappten Sidebar statt „FF“-Text. App-Icons neu erzeugt (`public/icons/app-icon*.svg`, `icon-192/512`, `icon-maskable-512`, `apple-touch-icon`), das Favicon nutzt `app-icon-rounded.svg`. Die Erzeugung lief mit einem Skript im Session-Scratchpad (nicht im Repo): F-Pfad aus `focusFlowWordmarkData.js`, `FF_OFFSET` = 62 in `wordmarkPaths.js`.
+- **Flug bei eingeklappter Sidebar:** `BrandFlight.jsx` wählt das Ziel selbst: offenes Logo (`data-brand-word`), sonst die beiden F der Bildmarke (`data-brand-f`; Wort schrumpft so, dass sein F auf dem Ziel-F landet, die übrigen Buchstaben verschwinden), sonst nach oben raus.
+
+### Tests
+- `vite build` ok, Lint ohne neue Fehler. Headless-Chrome: Einflug ohne Abschneiden, Zug beim Durchfahren mit der Maus, Flug mit offener und eingeklappter Sidebar, keine Konsolenfehler.
+- Nicht geprüft: Touch/Gyro, Hell-Modus, Handy, PWA-Installation mit neuen Icons (Service Worker evtl. cacht alte Icons), Stärke des Zugs am echten Mauszeiger.
+
+### Offen
+- Stellschrauben: `PULL_MAX`, `PULL_COUPLING`, `PULL_STIFFNESS`/`PULL_DAMPING`, `FF_OFFSET`.
+- `shortcut-*.png` und Manifest-Farben unverändert.

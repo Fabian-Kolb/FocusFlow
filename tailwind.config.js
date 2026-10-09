@@ -66,6 +66,21 @@ export default {
         fast: '150ms',
         panel: '250ms',
       },
+      // Login-Hintergrundband (LoginMarquee): Zeilen laufen je nach Richtung nach rechts oder links
+      keyframes: {
+        'band-ltr': {
+          '0%': { transform: 'translate3d(-50%, 0, 0)' },
+          '100%': { transform: 'translate3d(0, 0, 0)' },
+        },
+        'band-rtl': {
+          '0%': { transform: 'translate3d(0, 0, 0)' },
+          '100%': { transform: 'translate3d(-50%, 0, 0)' },
+        },
+      },
+      animation: {
+        'band-ltr': 'band-ltr 80s linear infinite',
+        'band-rtl': 'band-rtl 80s linear infinite',
+      },
     },
   },
   plugins: [

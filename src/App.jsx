@@ -32,6 +32,7 @@ import Dashboard from './components/screens/Dashboard';
 import Inbox from './components/screens/Inbox';
 import Projects from './components/screens/Projects';
 import Login from './components/screens/Login';
+import BrandFlight from './components/brand/BrandFlight';
 import Reminders from './components/screens/Reminders';
 import EmailVerificationScreen from './components/screens/EmailVerificationScreen';
 import {
@@ -286,6 +287,7 @@ function AppContent() {
         onOpenThoughts={() => setCurrentScreen('inbox')}
       />
       <ShortcutsHelp open={overlay === 'shortcuts'} onClose={closeOverlay} />
+      <BrandFlight />
     </div>
   );
 }

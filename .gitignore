@@ -47,3 +47,7 @@ scripts/__pycache__/
 scripts/*.py
 scripts/*.png
 scripts/*.mjs
+
+
+# promo
+promo/
