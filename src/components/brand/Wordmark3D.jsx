@@ -279,10 +279,12 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
         camera.clearViewOffset();
         Object.assign(style, {
           position: 'absolute',
-          left: `${-STAGE_PAD_X * 100}%`,
-          top: `${-STAGE_PAD_Y * 100}%`,
-          width: `${(1 + 2 * STAGE_PAD_X) * 100}%`,
-          height: `${(1 + 2 * STAGE_PAD_Y) * 100}%`,
+          // Feste Pixelwerte statt Prozent: Nach dem Wechsel von `fixed` löst Chrome Prozentwerte sonst
+          // gegen das Fenster statt gegen den Kasten auf (Wortmarke erschien riesig).
+          left: `${-boxW * STAGE_PAD_X}px`,
+          top: `${-boxH * STAGE_PAD_Y}px`,
+          width: `${stageW}px`,
+          height: `${stageH}px`,
           zIndex: '',
         });
         renderer.setSize(stageW, stageH, false);

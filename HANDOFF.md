@@ -289,3 +289,7 @@
 ### Offen
 - Echtes Ziehen/Loslassen mit Maus und Touch von Hand ausprobieren, Stellschrauben: `DRAG_*`, `RETURN_*`, `MIN_GAP_ACTIVE`, Nachbar-Faktoren (0,14 / 0,05).
 - Hell-Modus, Handy und Tablet-Drawer ungeprüft.
+
+### Bugfix 2026-10-09: Wortmarke riesig nach dem Ziehen
+- Ursache: Nach dem Wechsel der Zeichenfläche von `position: fixed` (Ziehen) zurück auf `absolute` hat Chrome die Prozentwerte (`left/top/width/height` in %) gegen das Fenster statt gegen den Kasten aufgelöst (Fläche 3040×2250 statt 958×520), das Wort erschien ~3× zu groß. Kamera und Szene waren korrekt.
+- Fix in `Wordmark3D.jsx` (`layout`): Im Normalmodus feste Pixelwerte aus `boxW/boxH` statt Prozent. Im Headless-Chrome reproduziert (U ziehen, loslassen) und nach dem Fix geprüft.
