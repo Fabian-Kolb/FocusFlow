@@ -187,9 +187,11 @@ export function registerTier1Tests(runner) {
       assert(calSrc.includes('bg-white') || calSrc.includes('border') || protoHtml.includes('grid'), 'Calendar layout must be enclosed in card/grid container');
     });
 
-    runner.test('T1-CAL-05: Calendar renders screen transition animation wrapper', () => {
-      const calSrc = context.getComponentSource('src/components/screens/Calendar.jsx');
-      assertContains(calSrc, 'screen-transition', 'Calendar must include screen-transition class for smooth view transitions');
+    runner.test('T1-CAL-05: Calendar is rendered inside the screen transition wrapper', () => {
+      const appSrc = context.getComponentSource('src/App.jsx');
+      const cssSrc = context.getComponentSource('src/index.css');
+      assertContains(appSrc, 'screen-transition', 'App must wrap every screen (incl. Calendar) in the screen-transition container');
+      assertContains(cssSrc, '.screen-transition', 'index.css must define the quiet screen-transition fade');
     });
   });
 
@@ -259,9 +261,12 @@ export function registerTier1Tests(runner) {
       assert(dashSrc.includes('Nächste 7 Tage') && dashSrc.includes('Überfällig') && dashSrc.includes('title="Heute"'), 'Dashboard must render Heute, Überfällig and the 7-day strip');
     });
 
-    runner.test('T1-REV-05: Review component uses standard screen transition container', () => {
-      const revSrc = context.getComponentSource('src/components/screens/Review.jsx');
-      assertContains(revSrc, 'screen-transition', 'Review screen must include screen-transition animation container');
+    runner.test('T1-REV-05: Review is rendered inside the screen transition wrapper and honours reduced motion', () => {
+      const appSrc = context.getComponentSource('src/App.jsx');
+      const cssSrc = context.getComponentSource('src/index.css');
+      assertContains(appSrc, "{currentScreen === 'review' && <Review />}", 'App must render the Review screen');
+      assertContains(appSrc, 'screen-transition', 'App must wrap every screen in the screen-transition container');
+      assert(/prefers-reduced-motion[\s\S]*\.screen-transition/.test(cssSrc), 'screen-transition must be switched off under prefers-reduced-motion');
     });
   });
 

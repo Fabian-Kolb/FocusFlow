@@ -5,8 +5,8 @@ import { useModalContext } from '../../context/ModalContext';
 import { useChat } from '../../context/ChatContext';
 import { askGeminiCoach } from '../../lib/gemini';
 import { ACTION_ENGINE_SYSTEM_PROMPT, parseAiActions, executeAiActions, parseIntentChoice } from '../../lib/aiActionEngine';
+import { Badge, Button, Chip, FOCUS, Icon, IconButton, IconTile, Spinner, cx } from '../ds';
 
-import { Button, FioMark, Icon, IconButton } from '../ds';
 const ProjectAiChat = ({
   projectData,
   contextScope = 'project', // 'project' | 'section' | 'task' | 'reminder'
@@ -202,7 +202,7 @@ REGELN:
       return [
         'Wie gehe ich das am besten an?',
         'Notizen zu dieser Erinnerung',
-        'Termin & Priorität einschätzen',
+        'Termin und Priorität einschätzen',
         'In ein Projekt umwandeln'
       ];
     }
@@ -211,7 +211,7 @@ REGELN:
         'Wie setze ich das am besten um?',
         'In 3 Teilaufgaben aufteilen',
         'Checkliste für die Umsetzung',
-        'Mögliche Risiken & Tipps'
+        'Mögliche Risiken und Tipps'
       ];
     }
     if (contextScope === 'section') {
@@ -354,7 +354,7 @@ REGELN:
       }
       console.error('Fio Chat Error:', err);
       const errMsg = err?.message || 'Fehler bei der Kommunikation mit dem KI-Coach.';
-      updateStreamingMessage(targetSessionId, botMsgId, `⚠️ **Fehler:** ${errMsg}`, false);
+      updateStreamingMessage(targetSessionId, botMsgId, `**Fehler:** ${errMsg}`, false);
     } finally {
       if (generationRef.current === generation) {
         abortControllerRef.current = null;
@@ -385,134 +385,94 @@ REGELN:
     }
   };
 
+  const scopeIcon = contextScope === 'reminder' ? 'notifications' : contextScope === 'task' ? 'check_circle' : 'folder';
+  const choiceDisabled = user?.isGuest || !isCalendarConnected;
+  const choiceHint = user?.isGuest ? 'Im Gastmodus nicht verfügbar' : !isCalendarConnected ? 'Google Kalender nicht verbunden' : undefined;
+  const intentWhen = (c) => `für den ${c.date}${c.time ? ` um ${c.time} Uhr` : ''}`;
+
   return (
-    <div className="flex-1 flex flex-col h-full bg-subtle overflow-hidden relative">
+    <div className="relative flex h-full flex-1 flex-col overflow-hidden bg-canvas">
 
-      {/* Synchronized History Slide-Down Overlay */}
-      <div 
-        className={`absolute inset-0 z-10 bg-surface flex flex-col overflow-hidden transition-all duration-200 ease-in-out ${
-          isHistoryOpen 
-            ? 'opacity-100 translate-y-0 pointer-events-auto' 
-            : 'opacity-0 -translate-y-2 pointer-events-none'
-        }`}
+      {/* Verlauf: gleitet von oben über den Chat */}
+      <div
+        inert={!isHistoryOpen}
+        className={cx(
+          'absolute inset-0 z-10 flex flex-col overflow-hidden bg-surface transition-[opacity,transform] duration-base ease-standard motion-reduce:transition-none',
+          isHistoryOpen ? 'pointer-events-auto translate-y-0 opacity-100' : 'pointer-events-none -translate-y-2 opacity-0'
+        )}
       >
-        {/* History Header & Scope Toggle */}
-        <div className="p-3 border-b border-subtle flex flex-col gap-2 bg-subtle">
-          <div className="flex items-center w-full">
-            <Button fullWidth onClick={handleNewChat}>
-              <Icon name="edit_square" size="md" />
-              <span>NEUER CHAT</span>
-            </Button>
-          </div>
+        <div className="flex flex-col gap-3 border-b border-subtle p-3">
+          <Button fullWidth leadingIcon="edit_square" onClick={handleNewChat}>
+            Neuer Chat
+          </Button>
 
-          {/* Scope Filter Segmented Tabs */}
-          <div className="flex items-center p-1 bg-subtle border border-subtle rounded-lg gap-1 shadow-xs">
-            <button
-              onClick={() => setHistoryScopeFilter('context')}
-              className={`flex-1 py-1.5 px-2 rounded-md text-caption-strong font-label transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                historyScopeFilter === 'context'
-                  ? 'bg-surface dark:bg-canvas text-primary shadow-xs border border-subtle'
-                  : 'text-secondary hover:bg-surface border border-transparent'
-              }`}
-            >
-              <Icon name={contextScope === 'reminder' ? 'notifications' : contextScope === 'task' ? 'check_circle' : 'folder'} size="sm" />
-              <span>Aktueller Bereich</span>
-            </button>
-            <button
-              onClick={() => setHistoryScopeFilter('all')}
-              className={`flex-1 py-1.5 px-2 rounded-md text-caption-strong font-label transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                historyScopeFilter === 'all'
-                  ? 'bg-surface dark:bg-canvas text-primary shadow-xs border border-subtle'
-                  : 'text-secondary hover:bg-surface border border-transparent'
-              }`}
-            >
-              <Icon name="all_inbox" size="sm" />
-              <span>Alle Chats</span>
-              <span className={`text-micro px-1.5 py-0.5 rounded-md font-label ${
-                historyScopeFilter === 'all' ? 'bg-hover text-primary font-semibold' : 'bg-subtle text-secondary'
-              }`}>
-                {sessions.length}
-              </span>
-            </button>
+          <div className="flex flex-wrap gap-2">
+            <Chip selected={historyScopeFilter === 'context'} leadingIcon={scopeIcon} onClick={() => setHistoryScopeFilter('context')}>
+              Aktueller Bereich
+            </Chip>
+            <Chip selected={historyScopeFilter === 'all'} leadingIcon="all_inbox" count={sessions.length} onClick={() => setHistoryScopeFilter('all')}>
+              Alle Chats
+            </Chip>
           </div>
         </div>
 
-          {/* Session List */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-2">
-            {displayedSessions.map((sess) => {
-              const isActive = sess.id === activeSessionId;
-              const isReminder = sess.contextScope === 'reminder' || sess.contextScope === 'reminders';
-              const isProject = sess.contextScope === 'project' || sess.contextScope === 'task' || sess.contextScope === 'section';
+        <div className="flex-1 space-y-2 overflow-y-auto p-3">
+          {displayedSessions.map((sess) => {
+            const isActive = sess.id === activeSessionId;
+            const isReminder = sess.contextScope === 'reminder' || sess.contextScope === 'reminders';
+            const isProject = sess.contextScope === 'project' || sess.contextScope === 'task' || sess.contextScope === 'section';
+            const select = () => {
+              selectSession(sess.id);
+              if (setIsHistoryOpen) setIsHistoryOpen(false);
+            };
 
-              return (
-                <div
-                  key={sess.id}
-                  onClick={() => {
-                    selectSession(sess.id);
-                    if (setIsHistoryOpen) setIsHistoryOpen(false);
-                  }}
-                  className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between gap-2.5 group ${
-                    isActive
-                      ? 'bg-hover border-control shadow-xs'
-                      : 'bg-surface border-subtle hover:border-default hover:bg-hover'
-                  }`}
+            return (
+              <div
+                key={sess.id}
+                className={cx(
+                  'group flex items-center gap-1 rounded-lg border transition-colors duration-fast',
+                  isActive ? 'border-accent bg-selected' : 'border-subtle bg-surface hover:border-default hover:bg-hover'
+                )}
+              >
+                <button
+                  type="button"
+                  onClick={select}
+                  aria-current={isActive ? 'true' : undefined}
+                  className={cx('flex min-w-0 flex-1 items-center gap-3 rounded-lg p-3 text-left', FOCUS)}
                 >
-                  {/* Left / Main: Icon + Title */}
-                  <div className="min-w-0 flex-1 flex items-center gap-2.5">
-                    <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${
-                      isReminder
-                        ? 'bg-warning-subtle text-warning border border-warning'
-                        : isProject
-                        ? 'bg-hover text-primary border border-default'
-                        : 'bg-subtle text-secondary border border-subtle'
-                    }`}>
-                      <Icon name={isReminder ? 'notifications' : isProject ? 'folder' : 'psychology'} size="sm" />
-                    </div>
-
-                    <span className={`text-caption-strong block truncate ${isActive ? 'text-primary' : ''}`}>
-                      {sess.title || 'Gespräch'}
-                    </span>
-                  </div>
-
-                  {/* Right: Time on Top, Message count below */}
-                  <div className="flex flex-col items-end shrink-0 text-right gap-0.5">
-                    <span className="text-micro font-label text-secondary font-medium">
-                      {formatDate(sess.updatedAt || sess.createdAt)}
-                    </span>
-                    <span className="text-micro font-label text-tertiary">
-                      {sess.messages?.length || 0} Nachr.
-                    </span>
-                  </div>
-
-                  {/* Delete Button */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      deleteSession(sess.id);
-                    }}
-                    className="w-7 h-7 flex items-center justify-center rounded-md text-secondary hover:text-danger hover:bg-danger-subtle transition-colors opacity-60 group-hover:opacity-100 cursor-pointer shrink-0"
-                    title="Gespräch löschen"
-                  >
-                    <Icon name="delete" size="sm" />
-                  </button>
-                </div>
-              );
-            })}
-
-            {displayedSessions.length === 0 && (
-              <div className="p-8 text-center text-caption text-secondary italic">
-                Keine Chats in dieser Auswahl vorhanden.
+                  <IconTile area={isReminder ? 'reminders' : isProject ? 'projects' : 'neutral'} icon={isReminder ? 'notifications' : isProject ? 'folder' : 'psychology'} size="sm" />
+                  <span className="min-w-0 flex-1 truncate text-body-strong text-primary">{sess.title || 'Gespräch'}</span>
+                  <span className="flex shrink-0 flex-col items-end gap-0.5 text-right">
+                    <span className="text-micro text-secondary">{formatDate(sess.updatedAt || sess.createdAt)}</span>
+                    <span className="text-micro text-tertiary">{sess.messages?.length || 0} Nachr.</span>
+                  </span>
+                </button>
+                <IconButton
+                  icon="delete"
+                  size="sm"
+                  variant="danger-ghost"
+                  label="Gespräch löschen"
+                  className="mr-2 shrink-0"
+                  onClick={() => deleteSession(sess.id)}
+                />
               </div>
-            )}
-          </div>
-        </div>
+            );
+          })}
 
-      {/* Context Scope Indicator */}
+          {displayedSessions.length === 0 && (
+            <div className="p-8 text-center text-body text-secondary">
+              Keine Chats in dieser Auswahl.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Fokus-Hinweis */}
       {contextScope !== 'general' && (
-        <div className="shrink-0 bg-surface border-b border-subtle px-4 py-2 flex items-center justify-between text-caption font-label text-secondary">
-          <div className="flex items-center gap-2 truncate">
-            <Icon name={contextScope === 'reminder' ? 'notifications' : contextScope === 'task' ? 'check_circle' : 'folder'} size="sm" className="text-primary" />
-            <span className="font-semibold truncate">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-subtle bg-surface px-4 py-2 text-caption text-secondary">
+          <div className="flex min-w-0 items-center gap-2">
+            <Icon name={scopeIcon} size="sm" className="shrink-0 text-secondary" />
+            <span className="truncate text-caption-strong text-primary">
               {contextScope === 'reminder'
                 ? `Erinnerung: ${contextData?.title || 'Aktive Erinnerung'}`
                 : contextScope === 'task'
@@ -522,24 +482,20 @@ REGELN:
                 : `Projekt: ${projectData?.title || 'Aktives Projekt'}`}
             </span>
           </div>
-          <span className="font-label text-eyebrow text-secondary uppercase font-semibold shrink-0 bg-hover px-2 py-0.5 rounded-xs border border-default">
-            Fokus
-          </span>
+          <Badge tone="neutral" size="sm">Fokus</Badge>
         </div>
       )}
 
-      {/* Chat Messages Area */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 relative">
+      {/* Nachrichten */}
+      <div ref={scrollContainerRef} className="relative flex flex-1 flex-col gap-4 overflow-y-auto p-4">
         {messages.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-6 max-w-sm mx-auto my-auto">
-            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl bg-surface border border-subtle flex items-center justify-center shadow-md p-4 sm:p-5 mb-4">
-              <FioMark size={20} className="text-primary" />
-            </div>
-            <p className="text-caption text-secondary leading-relaxed">
+          <div className="mx-auto my-auto flex max-w-sm flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
+            <IconTile area="coach" size="lg" />
+            <p className="text-body text-secondary">
               {contextScope === 'reminder'
-                ? `Frag mich etwas zur Erinnerung „${contextData?.title || 'Aktive Erinnerung'}“ oder wähle einen Quick-Prompt.`
-                : contextScope === 'task' 
-                ? `Frag mich etwas zur Aufgabe „${contextData?.task?.title || 'Aktive Aufgabe'}“ oder wähle einen Quick-Prompt.`
+                ? `Frag mich etwas zur Erinnerung „${contextData?.title || 'Aktive Erinnerung'}“ oder wähle einen Vorschlag.`
+                : contextScope === 'task'
+                ? `Frag mich etwas zur Aufgabe „${contextData?.task?.title || 'Aktive Aufgabe'}“ oder wähle einen Vorschlag.`
                 : contextScope === 'section'
                 ? `Frag mich etwas zum Abschnitt „${contextData?.title || 'Aktiver Abschnitt'}“ oder zur Planung.`
                 : 'Frag mich etwas zum Projektverlauf, Zeitplan oder nächsten Schritten.'}
@@ -549,32 +505,24 @@ REGELN:
           messages.map((msg) => {
             const isBot = msg.role === 'assistant' || msg.sender === 'bot';
             return (
-              <div 
-                key={msg.id} 
-                className={`flex gap-2.5 ${isBot ? 'justify-start' : 'justify-end'}`}
-              >
-                {isBot && (
-                  <div className="w-7 h-7 shrink-0 rounded-lg bg-accent text-on-accent flex items-center justify-center p-1.5 shadow-sm mt-0.5">
-                    <FioMark size={20} className="text-on-accent" />
-                  </div>
-                )}
-                <div 
-                  className={`max-w-[85%] rounded-lg px-4 py-2.5 text-body shadow-sm leading-relaxed ${
-                    !isBot 
-                      ? 'bg-accent text-on-accent rounded-br-xs' 
-                      : 'bg-surface border border-subtle rounded-bl-xs'
-                  }`}
+              <div key={msg.id} className={cx('flex gap-2.5', isBot ? 'justify-start' : 'justify-end')}>
+                {isBot && <IconTile area="coach" size="sm" className="mt-0.5 !h-7 !w-7" />}
+                <div
+                  className={cx(
+                    'max-w-[85%] rounded-lg px-4 py-2.5 text-body',
+                    isBot ? 'rounded-bl-xs border border-subtle bg-surface text-primary' : 'rounded-br-xs bg-selected text-primary'
+                  )}
                 >
                   {isBot ? (
                     msg.content || msg.text ? (
-                      <div className="markdown-body text-body space-y-2">
+                      <div className="markdown-body space-y-2 text-body">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
                           {msg.content || msg.text}
                         </ReactMarkdown>
 
-                        {/* Render Interactive Action Results Cards */}
+                        {/* Ausgeführte Aktionen als Karten */}
                         {msg.actionResults && msg.actionResults.length > 0 && (
-                          <div className="space-y-1.5 mt-2.5 pt-2.5 border-t border-subtle not-prose">
+                          <div className="not-prose mt-3 space-y-2 border-t border-subtle pt-3">
                             {msg.actionResults.map((res, idx) => {
                               const isProjAction = res.targetType === 'project' || res.type === 'ADD_PHASE' || res.type === 'ADD_TASK' || res.type === 'CREATE_PROJECT' || res.type === 'UPDATE_PROJECT';
                               const isRemAction = res.targetType === 'reminder' || res.type === 'CREATE_REMINDER' || res.type === 'UPDATE_REMINDER';
@@ -583,29 +531,14 @@ REGELN:
                               const isMatAction = res.type === 'ADD_MATERIAL';
 
                               const iconName = isNoteAction ? 'note_alt' : isMatAction ? 'attach_file' : isCalAction ? 'calendar_month' : isRemAction ? 'notifications' : isProjAction ? 'folder' : 'check_circle';
-                              const iconStyle = isNoteAction
-                                ? 'bg-accent-subtle text-accent border-accent'
-                                : isMatAction
-                                ? 'bg-info-subtle text-info border-info'
-                                : isCalAction
-                                ? 'bg-info-subtle text-accent border-info'
-                                : isRemAction
-                                ? 'bg-warning-subtle text-warning border-warning'
-                                : isProjAction
-                                ? 'bg-hover text-primary border-default'
-                                : 'bg-success-subtle text-success border-success';
+                              const area = isCalAction ? 'calendar' : isRemAction ? 'reminders' : isProjAction ? 'projects' : 'neutral';
 
                               return (
-                                <div
-                                  key={idx}
-                                  className="flex items-center gap-2 p-2 bg-subtle border border-subtle rounded-lg text-caption shadow-xs"
-                                >
-                                  <div className={`w-6 h-6 rounded-md border flex items-center justify-center shrink-0 ${iconStyle}`}>
-                                    <Icon name={iconName} size="sm" />
-                                  </div>
+                                <div key={idx} className="flex items-center gap-3 rounded-lg border border-subtle bg-subtle p-2">
+                                  <IconTile area={area} icon={iconName} size="sm" />
                                   <div className="min-w-0 flex-1">
-                                    <div className="font-semibold truncate text-micro">{res.title}</div>
-                                    <div className="text-micro font-label text-secondary truncate">{res.subtitle}</div>
+                                    <div className="truncate text-caption-strong text-primary">{res.title}</div>
+                                    <div className="truncate text-micro text-secondary">{res.subtitle}</div>
                                   </div>
                                 </div>
                               );
@@ -613,51 +546,58 @@ REGELN:
                           </div>
                         )}
 
-                        {/* Render 3-Way Intent Choice Pills if AI proposed an appointment/reminder */}
+                        {/* Auswahl, wo ein Termin oder eine Erinnerung angelegt wird */}
                         {msg.intentChoice && (
-                          <div className="mt-2.5 pt-2 border-t border-subtle w-full space-y-1.5 not-prose">
-                            <div className="text-micro font-label font-semibold text-secondary flex items-center gap-1">
-                              <Icon name="help" size="sm" className="text-primary" />
+                          <div className="not-prose mt-3 w-full space-y-2 border-t border-subtle pt-3">
+                            <div className="flex items-center gap-1.5 text-label-sm text-secondary">
+                              <Icon name="help" size="sm" />
                               <span>Wo soll der Eintrag angelegt werden?</span>
                             </div>
-                            <div className="flex flex-wrap gap-1">
-                              <Button variant="secondary" size="sm" onClick={() => handleSend(`Bitte erstelle die Erinnerung „${msg.intentChoice.title}“ für den ${msg.intentChoice.date}${msg.intentChoice.time ? ` um ${msg.intentChoice.time} Uhr` : ''} nur in FocusFlow.`)}>
-                                <Icon name="notifications" size="sm" className="text-warning" />
-                                <span>Nur in FocusFlow</span>
-                              </Button>
-
-                              <button
-                                type="button"
-                                disabled={user?.isGuest || !isCalendarConnected}
-                                onClick={() => handleSend(`Bitte erstelle die Erinnerung „${msg.intentChoice.title}“ für den ${msg.intentChoice.date}${msg.intentChoice.time ? ` um ${msg.intentChoice.time} Uhr` : ''} in FocusFlow mit Google Kalender-Sync.`)}
-                                title={user?.isGuest ? 'Im Gastmodus nicht verfügbar' : !isCalendarConnected ? 'Google Kalender nicht verbunden' : 'Empfohlen'}
-                                className="px-2 py-1 rounded-md bg-success-subtle hover:bg-success-subtle border border-success text-micro font-label text-success font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                leadingIcon="notifications"
+                                onClick={() => handleSend(`Bitte erstelle die Erinnerung „${msg.intentChoice.title}“ ${intentWhen(msg.intentChoice)} nur in FocusFlow.`)}
                               >
-                                <Icon name="sync" size="sm" className="text-success" />
-                                <span>FocusFlow + Kalender-Sync</span>
-                              </button>
-
-                              <Button variant="secondary" size="sm" disabled={user?.isGuest || !isCalendarConnected} onClick={() => handleSend(`Bitte trage den Termin „${msg.intentChoice.title}“ für den ${msg.intentChoice.date}${msg.intentChoice.time ? ` um ${msg.intentChoice.time} Uhr` : ''} nur im Google Kalender ein.`)} title={user?.isGuest ? 'Im Gastmodus nicht verfügbar' : !isCalendarConnected ? 'Google Kalender nicht verbunden' : 'Direkt im Kalender eintragen'}>
-                                <Icon name="calendar_month" size="sm" className="text-primary" />
-                                <span>Nur im Google Kalender</span>
+                                Nur in FocusFlow
+                              </Button>
+                              <Button
+                                size="sm"
+                                leadingIcon="sync"
+                                disabled={choiceDisabled}
+                                title={choiceHint || 'Empfohlen'}
+                                onClick={() => handleSend(`Bitte erstelle die Erinnerung „${msg.intentChoice.title}“ ${intentWhen(msg.intentChoice)} in FocusFlow mit Google Kalender-Sync.`)}
+                              >
+                                FocusFlow + Kalender-Sync
+                              </Button>
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                leadingIcon="calendar_month"
+                                disabled={choiceDisabled}
+                                title={choiceHint || 'Direkt im Kalender eintragen'}
+                                onClick={() => handleSend(`Bitte trage den Termin „${msg.intentChoice.title}“ ${intentWhen(msg.intentChoice)} nur im Google Kalender ein.`)}
+                              >
+                                Nur im Google Kalender
                               </Button>
                             </div>
                           </div>
                         )}
                       </div>
                     ) : msg.isStreaming ? (
-                      <div className="flex items-center gap-1.5 py-1 text-secondary text-caption">
-                        <span className="w-2 h-2 rounded-full bg-accent animate-ping" />
-                        <span>Fio denkt nach...</span>
+                      <div className="flex items-center gap-2 py-1 text-caption text-secondary">
+                        <Spinner size="sm" label="" />
+                        <span>Fio denkt nach …</span>
                       </div>
                     ) : msg.cancelled ? (
-                      <div className="flex items-center gap-1.5 py-1 text-secondary text-caption italic">
+                      <div className="flex items-center gap-1.5 py-1 text-caption text-secondary">
                         <Icon name="pause_circle" size="sm" />
                         <span>Antwort abgebrochen</span>
                       </div>
                     ) : (
-                      <div className="text-secondary text-caption italic">
-                        (Keine Antwort erhalten)
+                      <div className="text-caption text-secondary">
+                        Keine Antwort erhalten.
                       </div>
                     )
                   ) : (
@@ -671,40 +611,33 @@ REGELN:
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Area (Sticky Bottom) */}
-      <div 
-        className="shrink-0 bg-surface border-t border-subtle p-3 flex flex-col gap-2"
+      {/* Eingabe */}
+      <div
+        className="flex shrink-0 flex-col gap-2 border-t border-subtle bg-surface p-3"
         style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}
       >
-        {/* Quick Prompts or Floating Stop Indicator */}
         {isLoading ? (
           <div className="flex items-center justify-center pb-1">
-            <button
-              type="button"
-              onClick={handleStopGeneration}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-danger-subtle border border-danger text-danger hover:bg-danger-subtle rounded-md text-caption-strong font-label transition-all shadow-xs cursor-pointer hover:scale-105 active:scale-95"
-            >
-              <span className="w-2.5 h-2.5 bg-danger rounded-xs animate-pulse" />
-              <span>Antwort stoppen</span>
-            </button>
+            <Button variant="secondary" size="sm" leadingIcon="stop" onClick={handleStopGeneration}>
+              Antwort stoppen
+            </Button>
           </div>
         ) : (
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
-            {quickPrompts.map((prompt, idx) => (
-              <Button variant="secondary" size="sm" key={idx} onClick={() => handleSend(prompt)} disabled={isLoading} className="shrink-0">
-                <Icon name="bolt" size="sm" />
-                <span>{prompt}</span>
+          <div className="no-scrollbar flex items-center gap-2 overflow-x-auto pb-1">
+            {quickPrompts.map((prompt) => (
+              <Button variant="secondary" size="sm" key={prompt} leadingIcon="bolt" onClick={() => handleSend(prompt)} disabled={isLoading} className="shrink-0">
+                {prompt}
               </Button>
             ))}
           </div>
         )}
 
-        {/* Input Box */}
-        <div className="flex items-end gap-2 bg-subtle border border-subtle focus-within:border-strong focus-within:bg-surface rounded-lg p-1.5 transition-all">
+        <div className="flex items-end gap-2 rounded-lg border border-control bg-surface p-1.5 transition-[border-color,box-shadow] duration-fast focus-within:border-transparent focus-within:ring-2 focus-within:ring-focus">
           <textarea
             ref={textareaRef}
             value={inputText}
             disabled={isLoading}
+            aria-label="Nachricht an Fio"
             onChange={(e) => {
               setInputText(e.target.value);
               e.target.style.height = 'auto';
@@ -718,23 +651,21 @@ REGELN:
             }}
             placeholder={
               isLoading
-                ? 'Fio generiert gerade eine Antwort...'
+                ? 'Fio generiert gerade eine Antwort …'
                 : contextScope === 'reminder'
-                ? 'Frag Fio zu dieser Erinnerung...'
+                ? 'Frag Fio zu dieser Erinnerung …'
                 : contextScope === 'task'
-                ? 'Frag Fio zu dieser Aufgabe...'
-                : 'Frag Fio zum Projekt...'
+                ? 'Frag Fio zu dieser Aufgabe …'
+                : 'Frag Fio zum Projekt …'
             }
-            className="flex-1 max-h-[120px] bg-transparent border-none outline-none focus:ring-0 resize-none text-body p-2"
+            className="max-h-[120px] min-h-9 flex-1 resize-none border-none bg-transparent p-2 text-body text-primary outline-none placeholder:text-tertiary focus:outline-none focus:ring-0 disabled:text-disabled"
             rows={1}
-            style={{ minHeight: '36px' }}
           />
 
-          {/* Send or Stop Button */}
           {isLoading ? (
-            <IconButton icon="stop" label="Antwort unterbrechen" variant="danger" className="shrink-0 mb-0.5 mr-0.5" onClick={handleStopGeneration} />
+            <IconButton icon="stop" label="Antwort unterbrechen" variant="danger" className="mb-0.5 mr-0.5 shrink-0" onClick={handleStopGeneration} />
           ) : (
-            <IconButton icon="send" label="Nachricht senden" variant="primary" className="shrink-0 mb-0.5 mr-0.5" onClick={() => handleSend()} disabled={!inputText.trim() || isLoading} />
+            <IconButton icon="send" label="Nachricht senden" variant="primary" className="mb-0.5 mr-0.5 shrink-0" onClick={() => handleSend()} disabled={!inputText.trim() || isLoading} />
           )}
         </div>
       </div>

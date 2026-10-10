@@ -4,7 +4,6 @@ import { useModal } from '../../context/ModalContext';
 import { BREAKPOINTS } from '../../lib/breakpoints';
 import { areaOf } from '../../lib/areas';
 import BrandLockup from '../brand/BrandLockup';
-
 import { FioMark, Icon } from '../ds';
 
 const Sidebar = ({ currentScreen, setCurrentScreen, collapsed, setCollapsed }) => {
@@ -190,8 +189,8 @@ const Sidebar = ({ currentScreen, setCurrentScreen, collapsed, setCollapsed }) =
                 type="button"
                 onClick={handleProfileClick}
                 className="w-full h-11 flex items-center p-0 rounded-md overflow-hidden cursor-pointer text-left"
-                title={isPlainGuest ? 'Gast-Modus (Einstellungen & Hilfe)' : 'Einstellungen & Profil'}
-                aria-label={isPlainGuest ? 'Gast-Modus (Einstellungen & Hilfe)' : 'Einstellungen & Profil'}
+                title={isPlainGuest ? 'Gast-Modus (Einstellungen und Hilfe)' : 'Einstellungen und Profil'}
+                aria-label={isPlainGuest ? 'Gast-Modus (Einstellungen und Hilfe)' : 'Einstellungen und Profil'}
               >
                 {/* Fixed 48px Avatar Slot: center is at 12px (p-3) + 24px = 36px from aside outer edge */}
                 <div className="w-12 h-11 flex items-center justify-center flex-shrink-0">

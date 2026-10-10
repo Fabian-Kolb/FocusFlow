@@ -3,8 +3,8 @@ import { useSwipeToClose } from '../../hooks/useSwipeToClose';
 import { useChat } from '../../context/ChatContext';
 import ProjectAiChat from './ProjectAiChat';
 import ModelSelectorDropdown from './ModelSelectorDropdown';
-
 import { IconButton, IconTile } from '../ds';
+
 const GlobalChatDrawer = ({
   isOpen,
   onClose,

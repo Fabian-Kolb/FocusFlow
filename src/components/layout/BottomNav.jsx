@@ -85,7 +85,7 @@ const BottomNav = ({ currentScreen, setCurrentScreen }) => {
                   <span className={cx('absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full', area.dot)} aria-hidden="true" />
                 )}
               </span>
-              <span className={cx('text-micro mt-1 truncate max-w-[72px]', isActive && 'font-semibold')}>
+              <span className={cx('text-micro mt-1 truncate max-w-[72px]', isActive && 'text-primary')}>
                 {item.label}
               </span>
             </button>

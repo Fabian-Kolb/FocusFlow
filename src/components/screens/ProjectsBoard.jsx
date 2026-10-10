@@ -1,11 +1,11 @@
 import React, { useState, useRef } from 'react';
 import { useModalContext } from '../../context/ModalContext';
 import { useCardTouchDrag } from '../ui/useCardTouchDrag';
-import { Alert, Badge, Button, Card, Chip, Icon, PageHeader, Tabs } from '../ds';
 import { ViewToggle, PROJECT_VIEW_OPTIONS } from '../ui/ListToolbar';
 import { ProjectCardContent, ReminderCardContent } from '../ui/ItemCardContent';
 import CardContextMenu from '../ui/CardContextMenu';
 import KanbanFilterDrawer from '../ui/KanbanFilterDrawer';
+import { Alert, Badge, Button, Card, Chip, Icon, PageHeader, Tabs } from '../ds';
 
 const ProjectsBoard = ({ setCurrentScreen }) => {
   const { 

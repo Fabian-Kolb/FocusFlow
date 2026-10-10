@@ -139,7 +139,7 @@ export async function askGeminiCoach({ prompt, messages, systemInstruction, onCh
           try {
             const parsed = JSON.parse(dataStr);
             if (parsed.error) {
-              fullText = `⚠️ ${parsed.error}`;
+              fullText = `**Fehler:** ${parsed.error}`;
               if (onChunk) onChunk(fullText);
               break;
             }

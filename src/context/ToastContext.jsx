@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-
 import { Toast, ToastAction } from '../components/ds';
+
 const ToastContext = createContext(null);
 
 const DEFAULT_DURATION = 5000;

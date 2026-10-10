@@ -7,8 +7,8 @@ import AccountSection from './settings/AccountSection';
 import FioGuideSection from './settings/FioGuideSection';
 import TutorialsSection from './settings/TutorialsSection';
 import AboutSection from './settings/AboutSection';
-
 import { Button, FioMark, Icon, IconButton } from '../ds';
+
 export const VALID_TABS = ['account', 'fio', 'tutorials', 'about'];
 export const DEFAULT_TAB = 'account';
 
@@ -23,7 +23,7 @@ export function resolveSettingsTab(activeModal, payload) {
 const TABS = [
   { id: 'account', label: 'Mein Account', icon: 'account_circle' },
   { id: 'fio', label: 'Fio KI-Guide', icon: 'fio' },
-  { id: 'tutorials', label: 'Hilfe & Guides', icon: 'school' },
+  { id: 'tutorials', label: 'Hilfe und Guides', icon: 'school' },
   { id: 'about', label: 'Über FocusFlow', icon: 'info' }
 ];
 

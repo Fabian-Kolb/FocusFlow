@@ -4,7 +4,7 @@ import { useSwipeToClose } from '../../hooks/useSwipeToClose';
 import { cx, Icon } from './core.jsx';
 import { IconButton } from './actions.jsx';
 
-// Overlays (Regel 01 §6): Portal in den body, Esc, Fokus-Falle, Fokus-Rückgabe, Scroll-Sperre,
+// Overlays (Regel 01 §12): Portal in den body, Esc, Fokus-Falle, Fokus-Rückgabe, Scroll-Sperre,
 // role="dialog" + aria-modal. Ebenen laufen über die Tokens z-sheet / z-dialog.
 //  - Sheet:  Inhalt zeigen oder bearbeiten. Ab sm Seitenpanel rechts, darunter Bottom Sheet mit Swipe (Regel 07).
 //  - Dialog: kurze Entscheidung oder kleines Formular, zentriert (am Handy unten).

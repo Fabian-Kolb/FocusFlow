@@ -206,7 +206,7 @@ export async function reviseDraftWithFio({ source, draft, instruction, model, pr
 
   const parsed = extractJson(text || '');
   if (!parsed) {
-    throw new Error(text?.startsWith('⚠️') ? text.replace(/^⚠️\s*/, '') : 'Fio hat keinen gültigen Entwurf geliefert. Bitte versuche es noch einmal.');
+    throw new Error(text?.startsWith('**Fehler:**') ? text.replace(/^\*\*Fehler:\*\*\s*/, '') : 'Fio hat keinen gültigen Entwurf geliefert. Bitte versuche es noch einmal.');
   }
   return {
     reply: str(parsed.reply) || 'Entwurf aktualisiert.',

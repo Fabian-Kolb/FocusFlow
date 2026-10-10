@@ -1,7 +1,7 @@
 import React from 'react';
 import { useModalContext } from '../../context/ModalContext';
-import { Button, Icon, Sheet, cx } from '../ds';
 import { HISTORY_MARK_CLASS, historyTone } from '../../lib/historyStyle';
+import { Button, Icon, Sheet, cx } from '../ds';
 
 const defaultHistoryItems = [
   {

@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 
-import { Alert, Badge, Button, Chip, Field, Icon, IconTile, Input, SectionHeader } from '../../ds';
 import { THEME_CHOICES, useThemePreference } from '../../../lib/theme';
+import { Alert, Badge, Button, Chip, Field, Icon, IconTile, Input, SectionHeader } from '../../ds';
+
 const DELETE_CONFIRM_WORD = 'LÖSCHEN';
 
 function getDeleteErrorText(err) {

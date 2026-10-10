@@ -46,7 +46,8 @@ const DRAG_DAMPING = 0.74;
 const DRAG_LIFT = 46; // wird beim Ziehen nach vorn gehoben
 const RETURN_STIFFNESS = 0.1;
 const RETURN_DAMPING = 0.8;
-const HIT_TOLERANCE = 5; // Welteinheiten um die Silhouette
+const HIT_TOLERANCE = 5; // Welteinheiten um die Silhouette (Maus)
+const HIT_TOLERANCE_TOUCH = 18; // Finger sind ungenauer: größere Trefferfläche
 const HALO_SCALES = [
   { scale: 1.07, opacity: 0.85 },
   { scale: 1.17, opacity: 0.35 },
@@ -251,6 +252,9 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
     // nicht abgeschnitten). Beim Ziehen deckt sie das ganze Fenster ab (`wide`), damit der Buchstabe überall sichtbar bleibt.
     // Die Kamera bleibt dabei gleich, nur der Bildausschnitt (setViewOffset) wandert mit.
     let wide = false;
+    // Fenstergröße so, wie `position: fixed` sie tatsächlich nutzt (ohne Scrollbalken, mit dynamischer Adressleiste am Handy)
+    const viewW = () => document.documentElement.clientWidth || window.innerWidth;
+    const viewH = () => window.innerHeight;
     const tan = Math.tan(THREE.MathUtils.degToRad(FOV / 2));
     const viewOffset = () => {
       const boxW = Math.max(container.clientWidth, 1);
@@ -258,7 +262,9 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
       const stageW = boxW * (1 + 2 * STAGE_PAD_X);
       const stageH = boxH * (1 + 2 * STAGE_PAD_Y);
       const r = container.getBoundingClientRect();
-      camera.setViewOffset(stageW, stageH, -(r.left - boxW * STAGE_PAD_X), -(r.top - boxH * STAGE_PAD_Y), window.innerWidth, window.innerHeight);
+      renderer.domElement.style.left = `${-r.left}px`;
+      renderer.domElement.style.top = `${-r.top}px`;
+      camera.setViewOffset(stageW, stageH, -(r.left - boxW * STAGE_PAD_X), -(r.top - boxH * STAGE_PAD_Y), viewW(), viewH());
     };
     const layout = () => {
       const boxW = Math.max(container.clientWidth, 1);
@@ -272,8 +278,10 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
       camera.position.set(0, 0, Math.max(distH, distW) + EXTRUDE.depth);
       camera.lookAt(0, 0, 0);
       if (wide) {
-        Object.assign(style, { position: 'fixed', left: '0px', top: '0px', width: `${window.innerWidth}px`, height: `${window.innerHeight}px`, zIndex: '30' });
-        renderer.setSize(window.innerWidth, window.innerHeight, false);
+        // Fensterfüllend, aber `absolute` statt `fixed`: Am Handy ließ `fixed` beim Zurückschalten das Layout-Viewport
+        // wachsen (Seite sprang auf andere Größe). Die Fläche liegt im Kasten und wird auf das Fenster zurückversetzt.
+        Object.assign(style, { position: 'absolute', width: `${viewW()}px`, height: `${viewH()}px`, zIndex: '30' });
+        renderer.setSize(viewW(), viewH(), false);
         viewOffset();
       } else {
         camera.clearViewOffset();
@@ -322,10 +330,10 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
     // Cursor/Finger global verfolgen: Das Wort reagiert auch, wenn der Cursor neben ihm ist
     const pointer = { x: 0, y: 0, active: false };
     let usingMouse = false;
-    const drag = { letter: null, grabX: 0, grabY: 0, pointerId: null };
+    const drag = { letter: null, grabX: 0, grabY: 0, pointerId: null, startX: 0, startY: 0 };
 
     // Buchstabe unter dem Zeiger (Silhouette plus Toleranz), sonst null
-    const hitLetter = (clientX, clientY) => {
+    const hitLetter = (clientX, clientY, tolerance = HIT_TOLERANCE) => {
       const r = container.getBoundingClientRect();
       const k = WORDMARK_FRAME.width / Math.max(r.width, 1);
       const wx = (clientX - (r.left + r.width / 2)) * k;
@@ -339,7 +347,15 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
         const row = Math.round(sy - ROW_Y0);
         if (row < 0 || row >= ROW_N) return;
         const prof = profiles[l.index];
-        if (sx < prof.left[row] - HIT_TOLERANCE || sx > prof.right[row] + HIT_TOLERANCE) return;
+        // Treffer, wenn nahe genug an der Silhouette dieser Zeile (bei Fingern auch knapp daneben)
+        let hit = sx >= prof.left[row] - tolerance && sx <= prof.right[row] + tolerance;
+        if (!hit && tolerance > HIT_TOLERANCE) {
+          for (let dy = -tolerance; dy <= tolerance && !hit; dy += 6) {
+            const r2 = Math.round(sy + dy - ROW_Y0);
+            hit = r2 >= 0 && r2 < ROW_N && sx >= prof.left[r2] - tolerance && sx <= prof.right[r2] + tolerance;
+          }
+        }
+        if (!hit) return;
         const d = Math.hypot(sx - l.base.x, sy - l.base.y);
         if (d < bestDist) {
           best = l;
@@ -355,6 +371,7 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
       drag.letter = null;
       drag.pointerId = null;
       document.body.style.userSelect = '';
+      document.documentElement.style.overscrollBehavior = '';
       container.style.cursor = '';
     };
     const onPointerMove = (e) => {
@@ -362,6 +379,8 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
       pointer.x = e.clientX;
       pointer.y = e.clientY;
       pointer.active = true;
+      // Die fensterfüllende Fläche erst, wenn wirklich gezogen wird (ein bloßes Antippen verändert nichts am Layout)
+      if (drag.letter && !wide && Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) > 6) setWide(true);
       if (!drag.letter && usingMouse && !reducedMotion) {
         const r = container.getBoundingClientRect();
         const inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
@@ -371,7 +390,7 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
     const onPointerLeave = () => { pointer.active = false; };
     const onPointerDown = (e) => {
       if (reducedMotion || exiting || (e.pointerType === 'mouse' && e.button !== 0)) return;
-      const hit = hitLetter(e.clientX, e.clientY);
+      const hit = hitLetter(e.clientX, e.clientY, e.pointerType === 'mouse' ? HIT_TOLERANCE : HIT_TOLERANCE_TOUCH);
       if (!hit) return;
       const { letter } = hit;
       drag.letter = letter;
@@ -380,12 +399,14 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
       drag.grabY = hit.wy - letter.base.y - letter.offset.y - letter.pull.y;
       letter.dragging = true;
       letter.returning = false;
+      drag.startX = e.clientX;
+      drag.startY = e.clientY;
       pointer.x = e.clientX;
       pointer.y = e.clientY;
       pointer.active = true;
       document.body.style.userSelect = 'none';
+      document.documentElement.style.overscrollBehavior = 'none'; // kein Pull-to-Refresh beim Ziehen
       container.style.cursor = 'grabbing';
-      setWide(true);
     };
     window.addEventListener('pointermove', onPointerMove, { passive: true });
     document.documentElement.addEventListener('pointerleave', onPointerLeave);
@@ -393,7 +414,12 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
     window.addEventListener('pointerup', endDrag);
     window.addEventListener('pointercancel', endDrag);
     window.addEventListener('blur', endDrag);
-    container.style.touchAction = 'pan-y';
+    // Fängt der Finger einen Buchstaben, gehört die Geste ihm: kein Scrollen, kein Neuladen per Runterziehen.
+    // (Die Entscheidung fällt erst beim Berühren, deshalb per touchstart statt per CSS `touch-action`.)
+    const onTouchStart = (e) => { if (drag.letter && e.cancelable) e.preventDefault(); };
+    const onTouchMove = (e) => { if (drag.letter && e.cancelable) e.preventDefault(); };
+    container.addEventListener('touchstart', onTouchStart, { passive: false });
+    window.addEventListener('touchmove', onTouchMove, { passive: false });
 
     // Handy: Neigen des Geräts ersetzt den Mauszeiger
     const onOrientation = (e) => {
@@ -721,6 +747,9 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
       if (askPermission) window.removeEventListener('pointerdown', askPermission);
       document.documentElement.removeEventListener('pointerleave', onPointerLeave);
       container.removeEventListener('pointerdown', onPointerDown);
+      container.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchmove', onTouchMove);
+      document.documentElement.style.overscrollBehavior = '';
       window.removeEventListener('pointerup', endDrag);
       window.removeEventListener('pointercancel', endDrag);
       window.removeEventListener('blur', endDrag);

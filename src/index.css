@@ -406,6 +406,11 @@
   animation: fadeIn var(--duration-base) var(--easing-standard) forwards;
 }
 
+/* Bildschirmwechsel: nur ein leises Einblenden, ohne Bewegung. `backwards`, damit danach kein Stapelkontext bleibt. */
+.screen-transition {
+  animation: fadeIn var(--duration-base) var(--easing-enter) backwards;
+}
+
 /* Unten auf dem Handy, rechts ab sm */
 .drawer-slide-in {
   animation: slideInBottom var(--duration-slower) var(--easing-enter) forwards;
@@ -445,6 +450,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .screen-transition,
   .drawer-replace-in,
   .drawer-replace-out,
   .drawer-slide-in,

@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSwipeToClose } from '../../hooks/useSwipeToClose';
 import { useModalContext } from '../../context/ModalContext';
 import CalendarDesyncModal from '../modals/CalendarDesyncModal';
+import { Alert, Badge, Button, FioMark, Icon, IconButton } from '../ds';
 
-import { Alert, Button, FioMark, Icon, IconButton } from '../ds';
 const TaskDetailDrawer = ({
   projectData,
   task,
@@ -338,14 +338,9 @@ const TaskDetailDrawer = ({
                     Google Kalender
                   </span>
                   {currentTask.isCalendarSynced ? (
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs bg-success-subtle text-success border border-success text-micro font-semibold">
-                      <Icon name="check_circle" size="sm" />
-                      Synchronisiert
-                    </span>
+                    <Badge tone="success" size="sm" icon="check_circle">Synchronisiert</Badge>
                   ) : (
-                    <span className="text-micro text-secondary font-label">
-                      Nicht synchronisiert
-                    </span>
+                    <Badge size="sm">Nicht synchronisiert</Badge>
                   )}
                 </div>
 
@@ -401,9 +396,7 @@ const TaskDetailDrawer = ({
                 Verknüpfte Notizen
               </h3>
               {(linkedNotes.length + phaseLinkedNotes.length) > 0 && (
-                <span className="text-micro font-label bg-subtle px-2 py-0.5 rounded-md text-secondary font-semibold border border-subtle">
-                  {linkedNotes.length + phaseLinkedNotes.length}
-                </span>
+                <Badge size="sm">{linkedNotes.length + phaseLinkedNotes.length}</Badge>
               )}
             </div>
 
@@ -466,9 +459,7 @@ const TaskDetailDrawer = ({
                 Materialien & Links
               </h3>
               {(webLinks.length + phaseMaterials.length) > 0 && (
-                <span className="text-micro font-label bg-subtle px-2 py-0.5 rounded-md text-secondary font-semibold border border-subtle">
-                  {webLinks.length + phaseMaterials.length}
-                </span>
+                <Badge size="sm">{webLinks.length + phaseMaterials.length}</Badge>
               )}
             </div>
 

@@ -210,7 +210,7 @@ const MobileDaySheet = ({
                     className="absolute z-10 select-none overflow-hidden rounded-r-md border-l-[3px] px-2 text-left shadow-xs transition-[filter] duration-fast hover:brightness-95"
                   >
                     <span className="block whitespace-nowrap text-micro tabular-nums opacity-80">{evt.startFormatted}</span>
-                    <span className="block truncate text-micro font-semibold leading-tight">{evt.summary || '(Ohne Titel)'}</span>
+                    <span className="block truncate text-micro leading-tight">{evt.summary || '(Ohne Titel)'}</span>
                   </button>
                 );
               })}

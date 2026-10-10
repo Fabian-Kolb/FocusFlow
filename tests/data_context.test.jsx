@@ -66,7 +66,7 @@ describe('DataProvider guest business mutations', () => {
     const project = probe.value.projects[0];
     expect(project.title).toBe('New project');
     expect(project.phases).toHaveLength(1);
-    expect(project.phases[0].title).toBe('FIRST PHASE');
+    expect(project.phases[0].title).toBe('first phase');
     expect(project.phases[0].tasks[0]).toMatchObject({
       title: 'first task',
       date: 'Demnächst',

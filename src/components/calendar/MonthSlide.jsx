@@ -16,7 +16,7 @@ const MonthSlide = ({ days, isCenter, selectedDay, getEventsForCell, onCellClick
         {WEEKDAYS.map((wd) => (
           <div
             key={wd.short}
-            className={`py-2 text-center text-micro md:text-caption font-semibold ${
+            className={`py-2 text-center text-micro md:text-caption ${
               wd.isSunday ? 'text-danger' : 'text-tertiary'
             }`}
           >
@@ -63,7 +63,7 @@ const MonthSlide = ({ days, isCenter, selectedDay, getEventsForCell, onCellClick
                     className={`text-caption-strong md:text-body leading-none ${
                       isSunday
                         ? cell.isCurrentMonth ? 'text-danger' : 'text-danger'
-                        : cell.isCurrentMonth ? 'text-primary' : 'text-disabled font-normal'
+                        : cell.isCurrentMonth ? 'text-primary' : 'text-disabled'
                     }`}
                   >
                     {cell.day}
@@ -105,7 +105,7 @@ const MonthSlide = ({ days, isCenter, selectedDay, getEventsForCell, onCellClick
                         }}
                         title={evt.summary || '(Ohne Titel)'}
                       >
-                        <div className="w-full font-medium break-all line-clamp-2">
+                        <div className="w-full break-all line-clamp-2">
                           {evt.summary || '(Ohne Titel)'}
                         </div>
                       </div>
@@ -113,7 +113,7 @@ const MonthSlide = ({ days, isCenter, selectedDay, getEventsForCell, onCellClick
                   })}
 
                   {count > 4 && (
-                    <div className="text-micro font-semibold text-tertiary text-center leading-none pt-0.5">
+                    <div className="text-micro text-tertiary text-center leading-none pt-0.5">
                       +{count - 4}
                     </div>
                   )}

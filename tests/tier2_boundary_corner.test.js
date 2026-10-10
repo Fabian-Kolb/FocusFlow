@@ -29,7 +29,9 @@ export function registerTier2Tests(runner) {
 
     runner.test('T2-NAV-04: Material Symbols icons use proper font class names without typos', () => {
       const sidebarSrc = context.getComponentSource('src/components/layout/Sidebar.jsx');
-      assertContains(sidebarSrc, 'material-symbols-outlined', 'Sidebar icons must specify material-symbols-outlined CSS class');
+      const coreSrc = context.getComponentSource('src/components/ds/core.jsx');
+      assertContains(sidebarSrc, '<Icon', 'Sidebar icons must be rendered through the design-system Icon component');
+      assertContains(coreSrc, 'material-symbols-outlined', 'The design-system Icon must specify the material-symbols-outlined CSS class');
     });
 
     runner.test('T2-NAV-05: Sidebar text elements prevent accidental text selection during rapid button clicks', () => {
@@ -93,7 +95,7 @@ export function registerTier2Tests(runner) {
     runner.test('T2-RESP-08: Sidebar implements tablet drawer backdrop overlay for screen widths < 1024px', () => {
       const sidebarSrc = context.getComponentSource('src/components/layout/Sidebar.jsx');
       assert(
-        sidebarSrc.includes('backdrop-blur') && sidebarSrc.includes('lg:hidden'),
+        sidebarSrc.includes('bg-scrim') && sidebarSrc.includes('lg:hidden'),
         'Sidebar must render a dimmed backdrop overlay for tablet drawer mode'
       );
     });
@@ -154,7 +156,8 @@ export function registerTier2Tests(runner) {
 
     runner.test('T2-CAL-04: Calendar grid scales smoothly on mobile viewports without horizontal scrollbar leak', () => {
       const calSrc = context.getComponentSource('src/components/screens/Calendar.jsx');
-      assert(calSrc.includes('p-4') || calSrc.includes('sm:p-6'), 'Calendar container must use responsive padding classes');
+      const appSrc = context.getComponentSource('src/App.jsx');
+      assert(calSrc.includes('px-3') && calSrc.includes('md:px-6') || appSrc.includes('md:px-6 md:py-6'), 'Calendar container must use responsive padding classes');
     });
 
     runner.test('T2-CAL-05: Unscheduled items display fallback status label', () => {
@@ -356,7 +359,7 @@ export function registerTier2Tests(runner) {
       assert(boardSrc.includes('container.scrollTo'), 'scrollToColumn must use container.scrollTo to scroll horizontally without vertical page jump');
       assert(boardSrc.includes('activeTab'), 'ProjectsBoard must track activeTab state');
       assert(boardSrc.includes('snap-x') && boardSrc.includes('overflow-x-auto'), 'ProjectsBoard container must feature horizontal scroll-snap layout');
-      assert(boardSrc.includes('Geplant') && boardSrc.includes('In Arbeit') && boardSrc.includes('Erledigt'), 'Mobile tab bar must contain buttons for Geplant, In Arbeit, and Erledigt');
+      assert(boardSrc.includes('Geplant') && boardSrc.includes('In Arbeit') && boardSrc.includes('Abgeschlossen'), 'Mobile tab bar must contain tabs for Geplant, In Arbeit, and Abgeschlossen');
     });
 
     // Mobile Phone Link Prevention Meta Tag

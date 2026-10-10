@@ -1,7 +1,7 @@
 import React from 'react';
 import { WEEKDAY_NAMES, MONTH_NAMES_SHORT, getEventColors, isAllDayEvent, formatClock } from '../../lib/calendarUtils';
-
 import { EmptyState, FOCUS, IconButton, cx } from '../ds';
+
 /** Tagesansicht für Desktop/Tablet (ab 768 px): Termine des gewählten Tages als Liste */
 const DesktopDayPanel = ({ selectedDateObj, dayEvents, sideBySide, onSelectEvent, onAddEvent }) => {
   const day = selectedDateObj.getDate();

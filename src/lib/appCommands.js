@@ -17,7 +17,7 @@ export const ACTION_COMMANDS = [
   { action: 'new-thought', label: 'Neuer Gedanke', icon: 'lightbulb', keys: 'n', key: 'n', keywords: 'schnell erfassen notiz idee' },
   { action: 'new-reminder', label: 'Neue Erinnerung', icon: 'add_alert', keys: 'e', key: 'e', keywords: 'aufgabe todo' },
   { action: 'new-project', label: 'Neues Projekt', icon: 'create_new_folder', keys: 'p', key: 'p' },
-  { action: 'settings', label: 'Einstellungen & Hilfe', icon: 'settings', keys: ',', key: ',', keywords: 'account profil konto' },
+  { action: 'settings', label: 'Einstellungen und Hilfe', icon: 'settings', keys: ',', key: ',', keywords: 'account profil konto' },
   { action: 'shortcuts', label: 'Tastenkürzel anzeigen', icon: 'keyboard', keys: '?', key: '?', keywords: 'hilfe shortcuts' },
 ];
 

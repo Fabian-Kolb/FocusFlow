@@ -293,3 +293,44 @@
 ### Bugfix 2026-10-09: Wortmarke riesig nach dem Ziehen
 - Ursache: Nach dem Wechsel der Zeichenfläche von `position: fixed` (Ziehen) zurück auf `absolute` hat Chrome die Prozentwerte (`left/top/width/height` in %) gegen das Fenster statt gegen den Kasten aufgelöst (Fläche 3040×2250 statt 958×520), das Wort erschien ~3× zu groß. Kamera und Szene waren korrekt.
 - Fix in `Wordmark3D.jsx` (`layout`): Im Normalmodus feste Pixelwerte aus `boxW/boxH` statt Prozent. Im Headless-Chrome reproduziert (U ziehen, loslassen) und nach dem Fix geprüft.
+
+## Nachtrag 2026-10-10 (Claude Code): Wortmarke am Handy
+- **Buchstaben am Handy ziehen** (`Wordmark3D.jsx`): Trifft der Finger einen Buchstaben (größere Trefferfläche `HIT_TOLERANCE_TOUCH`, auch knapp daneben), gehört die Geste ihm: `touchstart`/`touchmove` (nicht passiv) rufen `preventDefault`, dazu `overscroll-behavior: none` während des Ziehens. Dadurch weder Scrollen noch Pull-to-Refresh. `touch-action: pan-y` entfernt (Entscheidung erst beim Berühren).
+- **Riesige Wortmarke nach Antippen:** Dasselbe Prozent-Problem wie beim Ziehen am Desktop (siehe Bugfix oben), am Handy löst schon ein Tippen den Fenster-Modus aus. Fenstermaße jetzt über `viewW()`/`viewH()` (`clientWidth` ohne Scrollbalken, `innerHeight`) für Canvas und Kamera.
+- **Login-Hintergrundband** (`LoginMarquee.jsx`): Nach dem Design-System-Umbau sind Farben CSS-Variablen ohne Alpha, `text-primary/[0.055]` wirkte nicht mehr und das Band war voll deckend weiß. Jetzt `text-primary` plus `opacity-[0.055] dark:opacity-[0.07]` auf einer inneren Ebene.
+- Geprüft im Headless-Chrome (Handy-Emulation 390×844, Touch): Ziehen des C quer über die Karte, Seite bleibt bei `scrollY` 0, danach normale Größe. Nicht auf einem echten Gerät getestet (iOS-Gyro-Erlaubnis, Adressleiste).
+
+### Bugfix 2026-10-10 (2): Seite springt/streckt sich am Handy nach dem Antippen/Ziehen eines Buchstabens
+- Ursache (per Bisektion im Handy-Emulator belegt): Der Fenstermodus nutzte `position: fixed`. Nach dem Zurückschalten auf `absolute` wuchs das Layout-Viewport von Chrome (innerWidth 390 → 519, innerHeight 844 → 1124), die ganze Seite wurde dadurch neu skaliert. Ohne den Fenstermodus trat es nicht auf.
+- Fix (`Wordmark3D.jsx`): Der Fenstermodus bleibt `position: absolute` im Kasten und wird per `left/top = -Kasten.left/top` auf das Fenster versetzt (jeden Frame nachgeführt), kein `fixed` mehr. Zusätzlich beginnt der Fenstermodus erst, wenn der Zeiger sich mehr als 6 px bewegt hat: Ein bloßes Antippen ändert am Layout nichts.
+- Außerdem `Login.jsx`: Der Theme-Umschalter hing in der Mitte/links, weil `IconButton` selbst `relative` setzt und `absolute` aus `className` verdrängt. Jetzt in eigenem `absolute`-Wrapper (oben rechts).
+- Geprüft im Handy-Emulator (390×844, Touch): Antippen und Ziehen, Viewport bleibt 390×844, Seite stabil; Desktop: Ziehen, Loslassen, Flug nach Login ohne Fehler.
+
+---
+
+## Nachtrag 2026-10-10 (Claude Code): Design System vollständig umgesetzt
+
+### Getan
+- **Regel 01** (`.agents/rules/01-ui-guidelines.md`) komplett ersetzt, abgeleitet aus dem Claude-Design-System-Artefakt (Warmes Neutral plus Kobalt). Regel 05 (Verweis auf Abschnitt 12) und 07 (Pfad `ds/overlays.jsx`, Griff-Klassen), `CLAUDE.md`-Tabelle, `docs/INDEX.md` und `docs/Wissen/00_System_und_Design/01-UI-Design-System.md` angepasst.
+- **Fundament:** `src/styles/tokens.css` (Hell/Dunkel über `data-theme`), `src/styles/tailwind-preset.js` (entfernt die Roh-Palette, Farben sind CSS-Variablen), Schriften lokal in `src/assets/fonts/`, `src/lib/theme.js` (System/Hell/Dunkel, Key `focusflow_theme`), `src/lib/historyStyle.js`. Bausteine in `src/components/ds/` (`core`, `actions`, `forms`, `display`, `feedback`, `navigation`, `overlays`). Gelöscht: `ui/Button`, `Card`, `Badge`, `Input`, `EmptyState`, `Skeleton`, `Overlay`, `FioIcon`.
+- **Umgestellt:** alle Screens (Home, Gedanken, Erinnerungen, Projekte, Kanban, Detailseiten, Kalender samt `EventEditForm`, Coach, Wochenrückblick, Papierkorb, Login, E-Mail-Bestätigung, Rechtsseiten), alle Modals und Einstellungen (Account, Fio-Guide, Hilfe, Über), Sidebar, BottomNav, Toast, Befehlsleiste, Schnellerfassung, Kürzel-Übersicht, `ProjectAiChat`, `ProjectDraftCard` (am Handy als `Sheet`). Im Coach sind Verlauf, Kontext-Auswahl und Verlaufsfilter jetzt `Dialog` mit gemeinsamen Auswahlzeilen.
+- **Inhalte:** Emoji aus UI, Fio-Prompts (`Coach.jsx`, `aiActionEngine.js`), Quick-Prompts und Fehlermeldungen entfernt; Satzschreibung statt Versalien (Phasentitel, Datumsangaben, `projectProgress.js`-Labels); „&“ in UI-Labels durch „und“. Fehlerpräfix der KI jetzt `**Fehler:**` (`gemini.js`, `projectDraft.js` abgestimmt). Screen-Wechsel blendet über `.screen-transition` ein (`index.css`, `App.jsx`).
+
+### Tests & Build
+- `npx vitest run`: 14 Dateien, 180/180 grün. Im Gesamtlauf ist `tests/calendar_events_hook.test.jsx` manchmal wacklig, einzeln grün.
+- `node scripts/run-e2e-tests.js`: 142/142. `calendar_security` 20/20, `firestore_security` 16/16. `vite build` ok, `oxlint` nur alte Warnungen.
+- Angepasst wurden Tests, die alte Klassen oder Versalien-Labels prüften (`calendar_ui`, `project_progress`, `data_context`, `settings_modal`, `tier1`, `tier2`, `responsive_drawers`). Der Tages-Sheet-Test in `calendar_ui` klickt nicht mehr „10“, denn der Heute-Knopf zeigt am 10.10. dieselbe Zahl und der Test brach am Datumswechsel.
+- Browser (Dev-Konto, 1280 und 375 px, Hell und Dunkel): Home, Gedanken, Erinnerungen (mit „Neue Erinnerung“-Sheet), Projektliste, Kanban, Papierkorb, Wochenrückblick, Coach (Verlauf, Kontext-Dialog), Befehlsleiste, Kürzel-Dialog, Einstellungen (Fio-Guide, Hilfe), Projektdetail am Handy.
+
+### Offen / Next Steps
+1. Echte Geräte prüfen (Wischen, Langdruck, iOS). Kalender-Raster und `CalendarHeader` nur per Tests, weil das Dev-Konto keinen Google-Token hat.
+2. `TaskDetailDrawer`, `SectionDetailDrawer`, `GlobalChatDrawer` bleiben eigene Seitenpanels (stehen in `ProjectDetail` nebeneinander); bei Bedarf auf `Sheet` heben.
+3. Rich-Text-Editor und Markdown-Stile in `index.css` sind nicht Teil des Systems.
+4. Noch nicht neu angesehen nach dem letzten Umbau: Projekt- und Aufgaben-Modal, Login im Hellen.
+5. Nichts committet; die Änderungen liegen im Arbeitsbaum (parallele Sitzung im selben Checkout, `src/components/brand/*` unberührt).
+
+### Fallstricke
+- Farben sind CSS-Variablen: keine Deckkraft-Zusätze wie `bg-accent/50`, dafür `-subtle`-Töne. Rohe Tailwind-Farben kompilieren nicht.
+- `IconButton` und `Button` setzen selbst `relative`; `absolute` per `className` wird verdrängt, also in einen Wrapper legen.
+- `Dialog` und `Sheet` ziehen den Startfokus auf das Element mit `data-autofocus`, nicht auf `autoFocus`.
+- Skripte mit Backslashes oder `$` als Datei schreiben, nicht per Heredoc.

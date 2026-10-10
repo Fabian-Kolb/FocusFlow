@@ -62,7 +62,7 @@ describe('Calendar UI & Mobile Interaction Tests', () => {
 
     const sundayHeaders = screen.getAllByText('SO.');
     expect(sundayHeaders.length).toBeGreaterThan(0);
-    expect(sundayHeaders[0].className).toContain('text-red-500');
+    expect(sundayHeaders[0].className).toContain('text-danger');
   });
 
   it('renders the today button in header showing today date number', async () => {
@@ -84,7 +84,7 @@ describe('Calendar UI & Mobile Interaction Tests', () => {
     const searchBtn = screen.getByRole('button', { name: /Termine suchen/i });
     fireEvent.click(searchBtn);
 
-    expect(screen.getByPlaceholderText(/Termine suchen/i)).toBeDefined();
+    expect(screen.getByPlaceholderText(/Titel, Beschreibung/i)).toBeDefined();
   });
 
   it('opens mobile day detail sheet when clicking on a day cell', async () => {
@@ -127,17 +127,19 @@ describe('Calendar UI & Mobile Interaction Tests', () => {
       render(<Calendar />);
     });
 
-    const day10Elements = screen.getAllByText('10');
-    fireEvent.click(day10Elements[0]);
+    // Ein Tag, der nicht „heute“ ist (der Heute-Knopf zeigt dieselbe Zahl)
+    const pickedDay = new Date().getDate() === 20 ? '21' : '20';
+    const dayElements = screen.getAllByText(pickedDay);
+    fireEvent.click(dayElements[0]);
 
-    const switchBtn = screen.getByRole('button', { name: /Ansicht umschalten/i });
-    expect(switchBtn).toBeDefined();
+    const toTimelineBtn = screen.getByRole('button', { name: /Zeitstrahl anzeigen/i });
+    expect(toTimelineBtn).toBeDefined();
 
     // Toggle to timeline
-    fireEvent.click(switchBtn);
+    fireEvent.click(toTimelineBtn);
 
     // Toggle back to list
-    fireEvent.click(switchBtn);
+    fireEvent.click(screen.getByRole('button', { name: /Liste anzeigen/i }));
     expect(screen.getByText(/hinzufüg/i)).toBeDefined();
   });
 
@@ -218,9 +220,9 @@ describe('Calendar UI & Mobile Interaction Tests', () => {
     fireEvent.click(eventA[0]);
 
     const dialog = screen.getByRole('dialog');
-    // Find all start-time divs (w-12 shrink-0 font-mono) in the timed events list
+    // Find all start-time cells (w-12 shrink-0 tabular-nums) in the timed events list
     const timeDivs = within(dialog).getAllByText((content, element) => {
-      return element.tagName.toLowerCase() === 'div' && element.className.includes('w-12') && element.className.includes('font-mono');
+      return element.tagName.toLowerCase() === 'span' && element.className.includes('w-12') && element.className.includes('tabular-nums');
     });
     expect(timeDivs.length).toBe(2);
     // First event shows formatted start time, second event at same time has empty string
@@ -288,13 +290,13 @@ describe('Calendar UI & Mobile Interaction Tests', () => {
     expect(timedEl.parentElement.style.backgroundColor).toBe('');
 
     // Verify all-day event card (Einzelsitzung Vertrag on day 6) has h-auto, does NOT have flex-1 or h-full,
-    // has line-clamp-2 & break-all, has rounded-[4px] chip styling, and has a pastel background fill
+    // has line-clamp-2 & break-all, has rounded-xs chip styling, and has a pastel background fill
     const alldayElements = await screen.findAllByText('Einzelsitzung Vertrag');
     const alldayEl = alldayElements[0];
     expect(alldayEl.className).toContain('line-clamp-2');
     expect(alldayEl.className).toContain('break-all');
     expect(alldayEl.parentElement.className).toContain('h-auto');
-    expect(alldayEl.parentElement.className).toContain('rounded-[4px]');
+    expect(alldayEl.parentElement.className).toContain('rounded-xs');
     expect(alldayEl.parentElement.className).not.toContain('flex-1');
     expect(alldayEl.parentElement.className).not.toContain('h-full');
     expect(alldayEl.parentElement.style.backgroundColor).not.toBe('');

@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
-
 import { Icon } from '../ds';
+
 const AXIS_LOCK_PX = 10;      // ab hier wird entschieden: horizontal wischen oder vertikal scrollen
 const COMMIT_RATIO = 0.35;    // Anteil der Kartenbreite, ab dem die Aktion ausgelöst wird
 const COMMIT_MIN_PX = 90;

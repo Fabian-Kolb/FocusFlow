@@ -1,17 +1,18 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import { draftId, clearNewFlags, countNew } from '../../lib/projectDraft';
-import { useSwipeToClose } from '../../hooks/useSwipeToClose';
+import { Button, Checkbox, Field, Icon, IconButton, Input, Select, SectionHeader, Sheet, Textarea, cx } from '../ds';
 
-import { Button, Icon, IconButton } from '../ds';
 // Entwurfskarte für "Projektanlegung": Handänderungen und Fio-Prompts arbeiten am selben Entwurf.
 // Desktop: Editor direkt in der Karte. Handy: Bottom-Drawer (Regel 07, per Portal wegen Regel 04).
 // Reihenfolge ändern: Ziehen am Griff (Pointer-Events, funktioniert mit Maus und Touch; keine Pfeile, spart Platz am Handy).
 
-const inputCls = 'w-full rounded-md border border-subtle bg-surface px-2 py-1 text-body focus:outline-none focus:ring-2 focus:ring-focus focus:border-transparent min-h-8';
-const iconBtn = 'w-6 h-6 flex items-center justify-center rounded-md text-secondary hover:text-primary hover:bg-hover disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors shrink-0';
-const dangerBtn = `${iconBtn} hover:!text-red-600 hover:!bg-red-50`;
-const icon = 'material-symbols-outlined text-body-lg';
+// Kompakte Zeilenfelder (32 px), gleiche Tokens wie ds/Input. Breite je nach Rolle, damit sich w-* nicht beißt.
+const control = 'h-8 rounded-md border border-control bg-surface px-2 text-primary placeholder:text-tertiary transition-[border-color,box-shadow] duration-fast hover:border-strong focus:border-transparent focus:outline-none focus:ring-2 focus:ring-focus disabled:cursor-not-allowed disabled:border-subtle disabled:bg-subtle disabled:text-disabled';
+const rowInput = `${control} text-body min-w-0 flex-1`;
+const rowInputStrong = `${control} text-body-strong min-w-0 flex-1`;
+const dateInline = `${control} text-body hidden w-[8.5rem] shrink-0 sm:block`;
+const dateStacked = `${control} text-body ml-5 w-[calc(100%-1.25rem)] sm:hidden`;
+const addLink = 'inline-flex items-center gap-0.5 rounded-xs text-label-sm text-accent hover:underline disabled:opacity-40 disabled:no-underline';
 
 /** Verschiebt einen Abschnitt oder eine Aufgabe. target.index = Position in der Liste OHNE das verschobene Element. */
 const moveInDraft = (draft, kind, id, target) => {
@@ -64,7 +65,7 @@ function DragHandle({ onStart, label, disabled }) {
       disabled={disabled}
       onPointerDown={onStart}
       style={{ touchAction: 'none' }}
-      className="w-5 h-7 flex items-center justify-center text-tertiary hover:text-primary cursor-grab active:cursor-grabbing disabled:opacity-30 disabled:cursor-not-allowed shrink-0 select-none"
+      className="flex h-7 w-5 shrink-0 cursor-grab select-none items-center justify-center rounded-xs text-tertiary transition-colors duration-fast hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-40"
     >
       <Icon name="drag_indicator" size="md" />
     </button>
@@ -269,7 +270,7 @@ function DraftEditor({ draft, categories, source, disabled, onChange, onConfirm,
 
   const hl = (isNew) => (isNew ? 'bg-success-subtle ring-1 ring-focus' : '');
   const lift = (kind, id) =>
-    drag?.kind === kind && drag.id === id ? 'relative z-10 !bg-white shadow-lg ring-1 ring-focus cursor-grabbing' : '';
+    drag?.kind === kind && drag.id === id ? 'relative z-10 !bg-raised shadow-lg ring-1 ring-focus cursor-grabbing' : '';
 
   const canConfirm = !disabled && draft.title.trim().length > 0;
   const notes = draft.includeNotes || {};
@@ -280,81 +281,76 @@ function DraftEditor({ draft, categories, source, disabled, onChange, onConfirm,
   ].filter((o) => o.available);
 
   const actions = (
-    <div className={stickyActions ? 'sticky bottom-0 -mx-3 px-3 pt-2 pb-1 bg-surface border-t border-subtle' : 'pt-1'}>
-      <div className="flex flex-wrap items-center gap-2">
-        <Button disabled={!canConfirm} onClick={onConfirm}>
-          <Icon name="check" size="md" />
-          Projekt anlegen
+    <div className={stickyActions ? 'sticky bottom-0 -mx-5 -mb-5 border-t border-subtle bg-surface px-5 py-3' : 'pt-1'}>
+    <div className="flex flex-wrap items-center gap-2">
+      <Button leadingIcon="check" disabled={!canConfirm} onClick={onConfirm}>
+        Projekt anlegen
+      </Button>
+      {versions.length > 1 && (
+        <Button variant="secondary" leadingIcon="history" onClick={() => setShowVersions((v) => !v)} aria-expanded={showVersions}>
+          Versionen ({versions.length})
         </Button>
-        {versions.length > 1 && (
-          <Button variant="secondary" onClick={() => setShowVersions((v) => !v)} aria-expanded={showVersions}>
-            <Icon name="history" size="md" />
-            Versionen ({versions.length})
-          </Button>
-        )}
-      </div>
+      )}
+    </div>
     </div>
   );
 
   return (
     <div ref={rootRef} className="space-y-3">
-      <div className="space-y-1.5">
-        <input
-          aria-label="Projektname"
-          className={`${inputCls} font-semibold`}
-          value={draft.title}
-          disabled={disabled}
-          onChange={(e) => set({ title: e.target.value })}
-          placeholder="Projektname"
-        />
-        <textarea
-          aria-label="Beschreibung"
-          className={`${inputCls} resize-none`}
-          rows={2}
-          value={draft.description}
-          disabled={disabled}
-          onChange={(e) => set({ description: e.target.value })}
-          placeholder="Kurzbeschreibung (optional)"
-        />
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-          <label className="font-label text-eyebrow uppercase text-secondary space-y-0.5">
-            Start
-            <input type="date" className={inputCls} value={draft.startDate} disabled={disabled} onChange={(e) => set({ startDate: e.target.value })} />
-          </label>
-          <label className="font-label text-eyebrow uppercase text-secondary space-y-0.5">
-            Ende
-            <input type="date" className={inputCls} value={draft.endDate} disabled={disabled} onChange={(e) => set({ endDate: e.target.value })} />
-          </label>
-          <label className="font-label text-eyebrow uppercase text-secondary space-y-0.5 col-span-2 sm:col-span-1">
-            Kategorie
-            <select className={inputCls} value={draft.categoryId} disabled={disabled} onChange={(e) => set({ categoryId: e.target.value })}>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </label>
-        </div>
+      <div className="space-y-2">
+      <Input
+        size="sm"
+        aria-label="Projektname"
+        value={draft.title}
+        disabled={disabled}
+        onChange={(e) => set({ title: e.target.value })}
+        placeholder="Projektname"
+      />
+      <Textarea
+        aria-label="Beschreibung"
+        rows={3}
+        value={draft.description}
+        disabled={disabled}
+        onChange={(e) => set({ description: e.target.value })}
+        placeholder="Kurzbeschreibung (optional)"
+      />
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <Field label="Start">
+          <Input size="sm" type="date" value={draft.startDate} disabled={disabled} onChange={(e) => set({ startDate: e.target.value })} />
+        </Field>
+        <Field label="Ende">
+          <Input size="sm" type="date" value={draft.endDate} disabled={disabled} onChange={(e) => set({ endDate: e.target.value })} />
+        </Field>
+        <Field label="Kategorie" className="col-span-2 sm:col-span-1">
+          <Select size="sm" value={draft.categoryId} disabled={disabled} onChange={(e) => set({ categoryId: e.target.value })}>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </Select>
+        </Field>
+      </div>
       </div>
 
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between">
-          <span className="font-label text-eyebrow font-semibold uppercase text-secondary">
-            Abschnitte ({view.phases.length})
-          </span>
-          <button
-            type="button"
+      <div className="space-y-2">
+      <SectionHeader
+        title="Abschnitte"
+        count={view.phases.length}
+        action={(
+          <Button
+            variant="ghost"
+            size="sm"
+            leadingIcon="add"
             disabled={disabled}
             onClick={() => set({ phases: [...draft.phases, { id: draftId('dph'), title: '', date: '', tasks: [] }] })}
-            className="text-caption-strong text-primary hover:underline flex items-center gap-0.5 cursor-pointer disabled:opacity-40"
           >
-            <Icon name="add" size="sm" />
             Abschnitt
-          </button>
-        </div>
-
-        {view.phases.length === 0 && (
-          <p className="text-caption text-secondary italic">Noch keine Abschnitte. Bitte Fio darum oder füge einen von Hand hinzu.</p>
+          </Button>
         )}
+      />
+
+      {view.phases.length === 0 && (
+        <p className="text-caption text-secondary">Noch keine Abschnitte. Bitte Fio darum oder füge einen von Hand hinzu.</p>
+      )}
 
         {view.phases.map((phase, pi) => (
           <React.Fragment key={phase.id}>
@@ -362,67 +358,59 @@ function DraftEditor({ draft, categories, source, disabled, onChange, onConfirm,
               data-phase-id={phase.id}
               data-flip={phase.id}
               data-flip-kind="phase"
-              className={`rounded-lg border border-subtle bg-subtle p-1.5 space-y-1 transition-colors will-change-transform ${hl(phase.isNew)} ${lift('phase', phase.id)}`}
+              className={cx('space-y-1.5 rounded-lg border border-subtle bg-subtle p-2 transition-colors will-change-transform', hl(phase.isNew), lift('phase', phase.id))}
             >
               <div className="flex items-center gap-0.5">
                 <DragHandle label={`Abschnitt ${pi + 1} verschieben`} disabled={disabled} onStart={(e) => startDrag(e, 'phase', phase.id)} />
                 <input
-                  aria-label={`Abschnitt ${pi + 1}`}
-                  className={`${inputCls} font-semibold`}
-                  value={phase.title}
+                aria-label={`Abschnitt ${pi + 1}`}
+                className={rowInputStrong}
+                value={phase.title}
                   disabled={disabled}
                   onChange={(e) => setPhase(phase.id, { title: e.target.value })}
                   placeholder="Abschnittsname"
                 />
-                <input type="date" aria-label="Abschnitt-Datum" className={`${inputCls} w-[8.5rem] shrink-0 hidden sm:block`} value={phase.date} disabled={disabled} onChange={(e) => setPhase(phase.id, { date: e.target.value })} />
-                <button type="button" className={`${iconBtn} sm:hidden`} aria-label="Abschnitt-Datum" title="Datum" disabled={disabled} onClick={() => setOpenDates((o) => ({ ...o, [phase.id]: !o[phase.id] }))}>
-                  <span className={icon}>calendar_today</span>
-                </button>
-                <button type="button" className={dangerBtn} disabled={disabled} aria-label="Abschnitt löschen" onClick={() => set({ phases: draft.phases.filter((p) => p.id !== phase.id) })}>
-                  <span className={icon}>delete</span>
-                </button>
+                <input type="date" aria-label="Abschnitt-Datum" className={dateInline} value={phase.date} disabled={disabled} onChange={(e) => setPhase(phase.id, { date: e.target.value })} />
+                <IconButton icon="calendar_today" size="sm" label="Abschnitt-Datum" className="sm:hidden" disabled={disabled} onClick={() => setOpenDates((o) => ({ ...o, [phase.id]: !o[phase.id] }))} />
+                <IconButton icon="delete" size="sm" variant="danger-ghost" label="Abschnitt löschen" disabled={disabled} onClick={() => set({ phases: draft.phases.filter((p) => p.id !== phase.id) })} />
               </div>
               {(openDates[phase.id] || phase.date) && (
-                <input type="date" aria-label="Abschnitt-Datum" className={`${inputCls} ml-5 w-[calc(100%-1.25rem)] sm:hidden`} value={phase.date} disabled={disabled} onChange={(e) => setPhase(phase.id, { date: e.target.value })} />
+                <input type="date" aria-label="Abschnitt-Datum" className={dateStacked} value={phase.date} disabled={disabled} onChange={(e) => setPhase(phase.id, { date: e.target.value })} />
               )}
 
               <ul className="space-y-0.5 pl-1">
                 {phase.tasks.map((task) => (
                   <React.Fragment key={task.id}>
-                    <li data-task-id={task.id} data-flip={task.id} data-flip-kind="task" className={`rounded-md p-0.5 transition-colors will-change-transform ${hl(task.isNew)} ${lift('task', task.id)}`}>
+                    <li data-task-id={task.id} data-flip={task.id} data-flip-kind="task" className={cx('rounded-md p-0.5 transition-colors will-change-transform', hl(task.isNew), lift('task', task.id))}>
                       <div className="flex items-center gap-0.5">
                         <DragHandle label="Aufgabe verschieben" disabled={disabled} onStart={(e) => startDrag(e, 'task', task.id)} />
                         <input
-                          aria-label="Aufgabe"
-                          className={inputCls}
-                          value={task.title}
+                        aria-label="Aufgabe"
+                        className={rowInput}
+                        value={task.title}
                           disabled={disabled}
                           onChange={(e) => setTask(phase.id, task.id, { title: e.target.value })}
                           placeholder="Aufgabe"
                         />
-                        <input type="date" aria-label="Aufgaben-Datum" className={`${inputCls} w-[8.5rem] shrink-0 hidden sm:block`} value={task.date} disabled={disabled} onChange={(e) => setTask(phase.id, task.id, { date: e.target.value })} />
-                        <button type="button" className={`${iconBtn} sm:hidden`} aria-label="Aufgaben-Datum" title="Datum" disabled={disabled} onClick={() => setOpenDates((o) => ({ ...o, [task.id]: !o[task.id] }))}>
-                          <span className={icon}>calendar_today</span>
-                        </button>
-                        <button type="button" className={dangerBtn} disabled={disabled} aria-label="Aufgabe löschen" onClick={() => setPhase(phase.id, { tasks: phase.tasks.filter((t) => t.id !== task.id) })}>
-                          <span className={icon}>close</span>
-                        </button>
+                        <input type="date" aria-label="Aufgaben-Datum" className={dateInline} value={task.date} disabled={disabled} onChange={(e) => setTask(phase.id, task.id, { date: e.target.value })} />
+                        <IconButton icon="calendar_today" size="sm" label="Aufgaben-Datum" className="sm:hidden" disabled={disabled} onClick={() => setOpenDates((o) => ({ ...o, [task.id]: !o[task.id] }))} />
+                        <IconButton icon="close" size="sm" variant="danger-ghost" label="Aufgabe löschen" disabled={disabled} onClick={() => setPhase(phase.id, { tasks: phase.tasks.filter((t) => t.id !== task.id) })} />
                       </div>
                       {(openDates[task.id] || task.date) && (
-                        <input type="date" aria-label="Aufgaben-Datum" className={`${inputCls} ml-5 mt-0.5 w-[calc(100%-1.25rem)] sm:hidden`} value={task.date} disabled={disabled} onChange={(e) => setTask(phase.id, task.id, { date: e.target.value })} />
+                        <input type="date" aria-label="Aufgaben-Datum" className={`${dateStacked} mt-0.5`} value={task.date} disabled={disabled} onChange={(e) => setTask(phase.id, task.id, { date: e.target.value })} />
                       )}
                     </li>
                   </React.Fragment>
                 ))}
               </ul>
               <button
-                type="button"
-                disabled={disabled}
-                onClick={() => setPhase(phase.id, { tasks: [...phase.tasks, { id: draftId('dt'), title: '', date: '' }] })}
-                className="ml-6 text-caption-strong text-primary hover:underline flex items-center gap-0.5 cursor-pointer disabled:opacity-40"
+              type="button"
+              disabled={disabled}
+              onClick={() => setPhase(phase.id, { tasks: [...phase.tasks, { id: draftId('dt'), title: '', date: '' }] })}
+              className={cx(addLink, 'ml-6')}
               >
-                <span className={icon}>add</span>
-                Aufgabe
+              <Icon name="add" size="sm" />
+              Aufgabe
               </button>
             </div>
           </React.Fragment>
@@ -430,48 +418,43 @@ function DraftEditor({ draft, categories, source, disabled, onChange, onConfirm,
       </div>
 
       {noteOptions.length > 0 && (
-        <fieldset className="space-y-1" disabled={disabled}>
-          <legend className="font-label text-eyebrow font-semibold uppercase text-secondary mb-1">Als Notizen übernehmen</legend>
-          {noteOptions.map((o) => (
-            <label key={o.key} className="flex items-center gap-2 text-body cursor-pointer">
-              <input
-                type="checkbox"
-                className="rounded-xs border-subtle text-primary focus:ring-focus h-4 w-4"
-                checked={!!notes[o.key]}
-                onChange={(e) => set({ includeNotes: { ...notes, [o.key]: e.target.checked } })}
-              />
-              {o.label}
-            </label>
-          ))}
-          <label className="flex items-center gap-2 text-body cursor-pointer pt-0.5">
-            <input
-              type="checkbox"
-              className="rounded-xs border-subtle text-primary focus:ring-focus h-4 w-4"
-              checked={!!draft.keepThought}
-              onChange={(e) => set({ keepThought: e.target.checked })}
-            />
-            Gedanken behalten
-          </label>
+        <fieldset className="space-y-2" disabled={disabled}>
+        <legend className="mb-1 text-label text-primary">Als Notizen übernehmen</legend>
+        {noteOptions.map((o) => (
+          <Checkbox
+            key={o.key}
+            className="flex"
+            label={o.label}
+            checked={!!notes[o.key]}
+            onChange={(e) => set({ includeNotes: { ...notes, [o.key]: e.target.checked } })}
+          />
+        ))}
+        <Checkbox
+          className="flex"
+          label="Gedanken behalten"
+          checked={!!draft.keepThought}
+          onChange={(e) => set({ keepThought: e.target.checked })}
+        />
         </fieldset>
       )}
 
       {showVersions && (
-        <ul className="rounded-lg border border-subtle divide-y divide-subtle bg-surface">
-          {[...versions].reverse().map((v, i) => (
-            <li key={v.id} className="flex items-center justify-between gap-2 px-3 py-1.5 text-caption">
-              <span className="min-w-0 truncate">
-                <span className="font-semibold">{i === 0 ? 'Aktuell' : v.label}</span>
-                <span className="text-secondary font-label ml-2">
-                  {new Date(v.at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
-                </span>
+        <ul className="divide-y divide-subtle rounded-lg border border-subtle bg-surface">
+        {[...versions].reverse().map((v, i) => (
+          <li key={v.id} className="flex items-center justify-between gap-2 px-3 py-2 text-caption">
+            <span className="min-w-0 truncate">
+              <span className="text-caption-strong text-primary">{i === 0 ? 'Aktuell' : v.label}</span>
+              <span className="ml-2 text-secondary">
+                {new Date(v.at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
               </span>
-              {i !== 0 && (
-                <button type="button" className="font-semibold text-primary hover:underline cursor-pointer shrink-0" onClick={() => { onRestore(v); setShowVersions(false); }}>
-                  Wiederherstellen
-                </button>
-              )}
-            </li>
-          ))}
+            </span>
+            {i !== 0 && (
+              <Button variant="ghost" size="sm" onClick={() => { onRestore(v); setShowVersions(false); }}>
+                Wiederherstellen
+              </Button>
+            )}
+          </li>
+        ))}
         </ul>
       )}
 
@@ -480,52 +463,18 @@ function DraftEditor({ draft, categories, source, disabled, onChange, onConfirm,
   );
 }
 
-// Handy: Bottom-Drawer nach Regel 07 (Griff, max-h-[85vh], scrollbarer Body, Swipe zum Schließen)
+// Handy: Bottom Sheet (ds/Sheet: Griff, Swipe zum Schließen, Escape, Fokusfalle)
 function DraftDrawer({ onClose, disabled, children }) {
-  const drawerPanelRef = useRef(null);
-  const scrollBodyRef = useRef(null);
-  const { drawerStyle, entryAnimActive } = useSwipeToClose({
-    isOpen: true,
-    onClose,
-    drawerRef: drawerPanelRef,
-    scrollContainerRef: scrollBodyRef,
-    threshold: 120,
-  });
-
-  useEffect(() => {
-    const onKey = (e) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  return createPortal(
-    <div className="fixed inset-0 z-palette bg-scrim flex items-end" onClick={onClose}>
-      <div
-        ref={drawerPanelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Projekt-Entwurf"
-        style={drawerStyle}
-        onClick={(e) => e.stopPropagation()}
-        className={`bg-canvas rounded-t-xl w-full max-h-[85vh] shadow-lg flex flex-col overflow-hidden ${entryAnimActive ? 'drawer-slide-in' : ''}`}
-      >
-        <div className="pt-3 pb-1 flex justify-center flex-shrink-0">
-          <div className="h-1 w-9 rounded-full bg-control" />
-        </div>
-        <div className="flex items-center justify-between px-3 pb-2 flex-shrink-0">
-          <span className="text-body-strong flex items-center gap-2">
-            <Icon name="edit_note" size="md" className="text-primary" />
-            Projekt-Entwurf
-            {disabled && <span className="text-micro font-label text-secondary animate-pulse">Fio arbeitet …</span>}
-          </span>
-          <IconButton icon="close" label="Schließen" size="sm" onClick={onClose} />
-        </div>
-        <div ref={scrollBodyRef} className="flex-1 overflow-y-auto overscroll-contain px-3 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))]">
-          {children}
-        </div>
-      </div>
-    </div>,
-    document.body
+  return (
+    <Sheet
+      open
+      onClose={onClose}
+      side="bottom"
+      title="Projekt-Entwurf"
+      headerAction={disabled ? <span className="animate-pulse text-caption text-secondary">Fio arbeitet …</span> : null}
+    >
+      {children}
+    </Sheet>
   );
 }
 
@@ -538,9 +487,9 @@ const ProjectDraftCard = (props) => {
 
   if (confirmed) {
     return (
-      <div className="rounded-lg border border-success bg-success-subtle p-3 flex items-center gap-2 text-body text-success">
-        <Icon name="check_circle" size="md" />
-        <span className="min-w-0 truncate"><strong>{draft.title}</strong> wurde als Projekt angelegt.</span>
+      <div className="flex items-center gap-2 rounded-lg border border-success bg-success-subtle p-3 text-body text-secondary">
+      <Icon name="check_circle" size="md" className="shrink-0 text-success" />
+      <span className="min-w-0 truncate"><strong className="text-primary">{draft.title}</strong> wurde als Projekt angelegt.</span>
       </div>
     );
   }
@@ -548,12 +497,12 @@ const ProjectDraftCard = (props) => {
   if (!isDesktop) {
     return (
       <>
-        <div className="rounded-lg border border-control bg-surface p-3 space-y-2 shadow-sm">
-          <div className="flex items-center gap-2">
-            <Icon name="edit_note" size="md" className="text-primary" />
-            <span className="text-body-strong truncate">{draft.title || 'Entwurf'}</span>
-            {disabled && <span className="text-micro font-label text-secondary animate-pulse">Fio arbeitet …</span>}
-          </div>
+        <div className="space-y-2 rounded-lg border border-subtle bg-surface p-3 shadow-sm">
+        <div className="flex items-center gap-2">
+          <Icon name="edit_note" size="md" className="text-secondary" />
+          <span className="truncate text-body-strong text-primary">{draft.title || 'Entwurf'}</span>
+          {disabled && <span className="animate-pulse text-caption text-secondary">Fio arbeitet …</span>}
+        </div>
           <p className="text-caption text-secondary">{draft.phases.length} Abschnitte · {taskCount} Aufgaben</p>
           <Button fullWidth onClick={() => setDrawerOpen(true)}>
             Entwurf öffnen
@@ -576,12 +525,12 @@ const ProjectDraftCard = (props) => {
   }
 
   return (
-    <div className="rounded-lg border border-control bg-surface p-3 shadow-sm">
-      <div className="flex items-center gap-2 mb-2">
-        <Icon name="edit_note" size="md" className="text-primary" />
-        <span className="text-body-strong">Projekt-Entwurf</span>
-        {disabled && <span className="text-micro font-label text-secondary animate-pulse">Fio arbeitet …</span>}
-      </div>
+    <div className="rounded-lg border border-subtle bg-surface p-3 shadow-sm">
+    <div className="mb-3 flex items-center gap-2">
+      <Icon name="edit_note" size="md" className="text-secondary" />
+      <span className="text-body-strong text-primary">Projekt-Entwurf</span>
+      {disabled && <span className="animate-pulse text-caption text-secondary">Fio arbeitet …</span>}
+    </div>
       <DraftEditor {...props} />
     </div>
   );

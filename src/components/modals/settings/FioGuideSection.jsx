@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
+import { Alert, Button, Card, Icon, IconTile, SectionHeader } from '../../ds';
 
-import { FioMark, Icon } from '../../ds';
-// High impact, user-tested prompts
+// Bewährte Prompt-Vorlagen
 const PROMPT_TEMPLATES = [
   {
     id: 'plan_project',
@@ -35,24 +35,24 @@ const PROMPT_TEMPLATES = [
   },
   {
     id: 'weekly_review',
-    title: 'Fokus & Wochenreflexion',
+    title: 'Fokus und Wochenreflexion',
     desc: 'Analysiert deine offenen Baustellen und gibt dir eine klare Prioritätenempfehlung.',
     prompt: 'Schau dir bitte meine aktuellen Projekte und Erinnerungen an. Was sind meine wichtigsten 3 Prioritäten für diese Woche und wo gibt es Überfälligkeiten?'
   }
 ];
 
-// Validated capabilities mapped to real aiActionEngine actions
+// Fähigkeiten, abgebildet auf die echten aiActionEngine-Aktionen
 const CAPABILITIES = [
   {
     icon: 'folder_open',
-    title: 'Projekte & Abschnitte initialisieren',
+    title: 'Projekte und Abschnitte anlegen',
     desc: 'Fio kann komplette Projekte anlegen und neue Etappen (Abschnitte) zu bestehenden Projekten hinzufügen.',
     actionType: 'CREATE_PROJECT / ADD_PHASE',
-    params: 'Titel, Beschreibung, Zeitplan, Phasen & Aufgaben'
+    params: 'Titel, Beschreibung, Zeitplan, Phasen und Aufgaben'
   },
   {
     icon: 'add_task',
-    title: 'Aufgaben anlegen & terminieren',
+    title: 'Aufgaben anlegen und terminieren',
     desc: 'Füge neue Aufgaben gezielt zu Projekten oder spezifischen Abschnitten hinzu – inklusive Fälligkeitsdatum und Notizen.',
     actionType: 'ADD_TASK',
     params: 'Projekt-ID, Abschnitt-ID, Titel, Datum, Notiz'
@@ -73,28 +73,28 @@ const CAPABILITIES = [
   },
   {
     icon: 'calendar_month',
-    title: 'Google Kalender Termine eintragen',
+    title: 'Termine im Google Kalender eintragen',
     desc: 'Fio kann Kalendertermine direkt in deinen verknüpften Google Kalender schreiben (nach deiner Bestätigung).',
     actionType: 'CREATE_CALENDAR_EVENT',
     params: 'Titel, Datum, Startzeit, Endzeit'
   },
   {
     icon: 'note_add',
-    title: 'Notizen & Recherchen verknüpfen',
+    title: 'Notizen und Recherchen verknüpfen',
     desc: 'Lass Fio strukturierte Protokolle, Checklisten oder Notizen an Projekte und Erinnerungen heften.',
     actionType: 'CREATE_NOTE',
     params: 'Zieltyp (Projekt/Erinnerung), Titel, HTML-Inhalt'
   },
   {
     icon: 'attach_file',
-    title: 'Materialien & Links ablegen',
+    title: 'Materialien und Links ablegen',
     desc: 'Verlinke Dokumente, Figma-Dateien oder Links direkt mit der relevanten Etappe eines Projekts.',
     actionType: 'ADD_MATERIAL',
     params: 'Projekt-ID, Phase-ID, Name, URL, Typ'
   },
   {
     icon: 'tune',
-    title: 'Details & Status aktualisieren',
+    title: 'Details und Status aktualisieren',
     desc: 'Ändere Projektzeiträume, Beschreibungen oder verschiebe Projekte auf Aktiv, Geplant oder Abgeschlossen.',
     actionType: 'UPDATE_PROJECT / SET_PROJECT_STATUS',
     params: 'Projekt-/Reminder-ID, Statuswerte'
@@ -155,77 +155,55 @@ export default function FioGuideSection({ onSelectPrompt }) {
         {copyError || ''}
       </div>
 
-      {/* Header Banner */}
-      <div className="p-5 rounded-lg bg-hover border border-default flex flex-col sm:flex-row items-start sm:items-center gap-4">
-        <div className="w-12 h-12 rounded-lg bg-accent text-on-accent flex items-center justify-center p-2.5 shadow-sm shrink-0">
-          <FioMark size={20} className="text-on-accent" />
-        </div>
-        <div>
-          <h3 className="text-subheading">Fio ist mehr als nur ein Chatbot</h3>
-          <p className="text-caption sm:text-body text-secondary mt-0.5 leading-relaxed">
-            Fio versteht deine Projekte und Aufgaben und kann echte Aktionen direkt in deiner FocusFlow-App ausführen. Du sagst einfach, was du brauchst – Fio erledigt die Fleißarbeit.
-          </p>
-        </div>
-      </div>
-
-      {/* Safety & Confirmation Principle */}
-      <div className="p-4 rounded-lg bg-subtle border border-subtle space-y-2">
-        <div className="flex items-center gap-2 font-label text-eyebrow text-primary uppercase">
-          <Icon name="verified_user" size="md" />
-          Sicherheit & Bestätigung
-        </div>
-        <p className="text-caption text-secondary leading-relaxed">
-          <strong>Transparenz zuerst:</strong> Jede von Fio durchgeführte Änderung wird im Chat mit einer interaktiven Karte visualisiert und im Projekt-Verlauf protokolliert. Bei Kalendereinträgen fragt Fio dich vorab, ob der Termin nur lokal oder im Google Kalender synchronisiert werden soll. Fio löscht keine Daten selbstständig.
+      <Card variant="filled" padding="md" className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
+      <IconTile area="coach" size="lg" />
+      <div className="min-w-0">
+        <h3 className="text-subheading text-primary">Fio ist mehr als ein Chatbot</h3>
+        <p className="mt-0.5 text-body text-secondary">
+          Fio versteht deine Projekte und Aufgaben und führt echte Aktionen direkt in FocusFlow aus. Du sagst, was du brauchst – Fio erledigt die Fleißarbeit.
         </p>
       </div>
+      </Card>
+
+      {/* Safety & Confirmation Principle */}
+      <Alert tone="info" icon="verified_user" title="Sicherheit und Bestätigung">
+      <strong className="text-primary">Transparenz zuerst:</strong> Jede Änderung von Fio erscheint im Chat als Karte und wird im Projekt-Verlauf protokolliert. Bei Kalendereinträgen fragt Fio vorab, ob der Termin nur lokal oder im Google Kalender angelegt werden soll. Fio löscht keine Daten selbstständig.
+      </Alert>
 
       {/* Copy Error Notice */}
       {copyError && (
-        <div role="alert" className="p-3 rounded-lg bg-danger-subtle border border-danger text-caption text-danger">
-          {copyError}
-        </div>
+        <Alert tone="danger">{copyError}</Alert>
       )}
 
       {/* Prompt Templates */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="font-label text-eyebrow text-secondary uppercase">
-            Inspirierende Prompt-Vorlagen
-          </h3>
-          <span className="text-micro text-secondary">1-Klick kopieren</span>
-        </div>
+        <SectionHeader title="Prompt-Vorlagen" action={<span className="text-caption text-tertiary">Mit einem Klick kopieren</span>} />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {PROMPT_TEMPLATES.map((tpl) => {
             const isCopied = copiedId === tpl.id;
             return (
-              <div 
-                key={tpl.id}
-                className="p-3.5 rounded-lg border border-subtle bg-canvas hover:border-control transition-all flex flex-col justify-between gap-3 shadow-xs hover:shadow-sm"
-              >
-                <div>
-                  <h4 className="text-caption-strong">{tpl.title}</h4>
-                  <p className="text-micro text-secondary mt-0.5 leading-relaxed">{tpl.desc}</p>
-                  <p className="text-caption font-label bg-subtle border border-subtle rounded-md p-2 mt-2 leading-relaxed italic">
-                    „{tpl.prompt}“
-                  </p>
-                </div>
-                <div className="flex items-center justify-end gap-2 pt-1 border-t border-subtle">
-                  <button
-                    type="button"
-                    onClick={() => handleCopyPrompt(tpl.id, tpl.prompt)}
-                    className={`px-3 py-1.5 rounded-md text-caption-strong flex items-center gap-1.5 transition-all cursor-pointer ${
-                      isCopied 
-                        ? 'bg-success-subtle text-success border border-success' 
-                        : 'bg-subtle hover:bg-hover border border-subtle'
-                    }`}
-                    title="Prompt in Zwischenablage kopieren"
-                  >
-                    <Icon name={isCopied ? 'check' : 'content_copy'} size="sm" />
-                    {isCopied ? 'Kopiert!' : 'Kopieren'}
-                  </button>
-                </div>
+              <Card key={tpl.id} variant="outlined" padding="md" className="flex flex-col justify-between gap-3">
+              <div className="space-y-2">
+                <h4 className="text-body-strong text-primary">{tpl.title}</h4>
+                <p className="text-caption text-secondary">{tpl.desc}</p>
+                <p className="rounded-md border border-subtle bg-subtle p-2.5 text-caption text-primary">
+                  „{tpl.prompt}“
+                </p>
               </div>
+              <div className="flex items-center justify-end border-t border-subtle pt-3">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  leadingIcon={isCopied ? 'check' : 'content_copy'}
+                  onClick={() => handleCopyPrompt(tpl.id, tpl.prompt)}
+                  title="Prompt in Zwischenablage kopieren"
+                  className={isCopied ? '!border-success !text-success' : ''}
+                >
+                  {isCopied ? 'Kopiert' : 'Kopieren'}
+                </Button>
+              </div>
+              </Card>
             );
           })}
         </div>
@@ -233,37 +211,29 @@ export default function FioGuideSection({ onSelectPrompt }) {
 
       {/* Capability Matrix */}
       <div className="space-y-3 pt-2">
-        <div className="flex items-center justify-between">
-          <h3 className="font-label text-eyebrow text-secondary uppercase">
-            Fähigkeiten im Überblick
-          </h3>
-          <button
-            type="button"
-            onClick={() => setShowTechDetails(!showTechDetails)}
-            className="text-micro text-primary hover:underline cursor-pointer flex items-center gap-1"
-          >
-            <Icon name={showTechDetails ? 'visibility_off' : 'code'} size="sm" />
+        <SectionHeader
+        title="Fähigkeiten im Überblick"
+        action={(
+          <Button variant="ghost" size="sm" leadingIcon={showTechDetails ? 'visibility_off' : 'code'} onClick={() => setShowTechDetails(!showTechDetails)}>
             {showTechDetails ? 'Details ausblenden' : 'Technische Details'}
-          </button>
-        </div>
+          </Button>
+        )}
+        />
 
         <div className="space-y-2">
           {CAPABILITIES.map((cap, idx) => (
-            <div 
-              key={idx}
-              className="p-3 rounded-lg border border-subtle bg-subtle flex items-start gap-3"
-            >
-              <Icon name={cap.icon} size="md" className="text-primary shrink-0 mt-0.5" />
-              <div className="min-w-0 flex-1">
-                <p className="text-caption-strong sm:text-body">{cap.title}</p>
-                <p className="text-caption text-secondary mt-0.5 leading-relaxed">{cap.desc}</p>
-                {showTechDetails && (
-                  <div className="mt-2 pt-2 border-t border-subtle text-micro font-label text-secondary flex flex-wrap gap-x-4 gap-y-1">
-                    <span><strong className="text-primary">Action:</strong> {cap.actionType}</span>
-                    <span><strong className="">Parameter:</strong> {cap.params}</span>
-                  </div>
-                )}
-              </div>
+            <div key={cap.actionType} className="flex items-start gap-3 rounded-lg border border-subtle bg-subtle p-3">
+            <Icon name={cap.icon} size="md" className="mt-0.5 shrink-0 text-secondary" />
+            <div className="min-w-0 flex-1">
+              <p className="text-body-strong text-primary">{cap.title}</p>
+              <p className="mt-0.5 text-caption text-secondary">{cap.desc}</p>
+              {showTechDetails && (
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 border-t border-subtle pt-2 font-code text-micro text-secondary">
+                  <span><strong className="text-primary">Action:</strong> {cap.actionType}</span>
+                  <span><strong className="text-primary">Parameter:</strong> {cap.params}</span>
+                </div>
+              )}
+            </div>
             </div>
           ))}
         </div>

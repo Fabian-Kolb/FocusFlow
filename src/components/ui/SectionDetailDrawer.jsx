@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSwipeToClose } from '../../hooks/useSwipeToClose';
 import { useModalContext } from '../../context/ModalContext';
+import { Alert, Badge, Button, FioMark, Icon, IconButton } from '../ds';
 
-import { Alert, Button, FioMark, Icon, IconButton } from '../ds';
 const SectionDetailDrawer = ({
   projectData,
   phase,
@@ -315,9 +315,7 @@ const SectionDetailDrawer = ({
                   Kalender-Synchronisation
                 </span>
               </div>
-              <span className="text-micro font-label bg-surface px-2 py-0.5 rounded-md text-secondary font-semibold border border-subtle">
-                {syncedTasks.length} / {datedTasks.length} synchronisiert
-              </span>
+              <Badge size="sm">{syncedTasks.length} / {datedTasks.length} synchronisiert</Badge>
             </div>
 
             <p className="text-caption text-secondary leading-relaxed">
@@ -375,9 +373,7 @@ const SectionDetailDrawer = ({
                 Verknüpfte Notizen
               </h3>
               {linkedNotes.length > 0 && (
-                <span className="text-micro font-label bg-subtle px-2 py-0.5 rounded-md text-secondary font-semibold border border-subtle">
-                  {linkedNotes.length}
-                </span>
+                <Badge size="sm">{linkedNotes.length}</Badge>
               )}
             </div>
 
@@ -436,9 +432,7 @@ const SectionDetailDrawer = ({
                 Materialien
               </h3>
               {webMaterials.length > 0 && (
-                <span className="text-micro font-label bg-subtle px-2 py-0.5 rounded-md text-secondary font-semibold border border-subtle">
-                  {webMaterials.length}
-                </span>
+                <Badge size="sm">{webMaterials.length}</Badge>
               )}
             </div>
 

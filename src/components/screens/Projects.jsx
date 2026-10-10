@@ -3,11 +3,11 @@ import { useBoardSort, LIFT_CLASS } from '../ui/useBoardSort';
 import { groupByCategory, sortItems, PROJECT_SORT_OPTIONS } from '../../lib/itemOrder';
 import { usePersistedChoice } from '../../hooks/usePersistedChoice';
 import { useModalContext } from '../../context/ModalContext';
-import { Button, Card, Icon, IconButton, Input, SectionHeader } from '../ds';
 import { ProjectCardContent } from '../ui/ItemCardContent';
 import CardContextMenu from '../ui/CardContextMenu';
 import { ListToolbar, CategoryToolbar, ViewToggle, PROJECT_VIEW_OPTIONS } from '../ui/ListToolbar';
 import SwipeableCard from '../ui/SwipeableCard';
+import { Badge, Button, Card, Icon, IconButton, Input, SectionHeader } from '../ds';
 
 const Projects = ({ setCurrentScreen }) => {
   const {
@@ -329,10 +329,7 @@ const Projects = ({ setCurrentScreen }) => {
                           {cat.name} <span className="text-secondary text-caption">({catProjects.length})</span>
                         </h2>
                         {isCardHoveringThisCat && (
-                          <span className="text-micro font-semibold text-primary bg-pressed border border-default px-2 py-0.5 rounded-md flex items-center gap-1 animate-pulse">
-                            <Icon name="arrow_downward" size="sm" />
-                            Hier ablegen
-                          </span>
+                          <Badge tone="accent" size="sm" icon="arrow_downward" className="animate-pulse">Hier ablegen</Badge>
                         )}
                       </div>
                     )}
@@ -403,7 +400,7 @@ const Projects = ({ setCurrentScreen }) => {
                     ) : (
                       <div className={`col-span-full py-8 border-2 border-dashed rounded-lg flex items-center justify-center transition-colors ${
                         isCardHoveringThisCat
-                          ? 'border-strong bg-pressed text-primary font-semibold'
+                          ? 'border-accent bg-selected text-primary'
                           : 'border-subtle text-secondary'
                       }`}>
                         <Icon name={isCardHoveringThisCat ? 'arrow_downward' : 'drag_indicator'} size="md" className="mr-2" />

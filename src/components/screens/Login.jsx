@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Alert, Button, Card, Dialog, Divider, Field, IconButton, Input } from '../ds';
 import WordmarkWord from '../brand/WordmarkWord';
 import LoginMarquee from '../brand/LoginMarquee';
 import { LEGAL_PATHS } from '../../lib/legal';
 import { getDevCredentials } from '../../lib/devAccount';
 import { captureBrandHandoff, clearBrandHandoff } from '../../lib/brandTransition';
 import { resolveTheme, useThemePreference } from '../../lib/theme';
+import { Alert, Button, Card, Dialog, Divider, Field, IconButton, Input } from '../ds';
 
 const LINK_CLASS = 'rounded-xs py-1 text-caption text-secondary underline underline-offset-2 transition-colors duration-fast hover:text-primary';
 
@@ -136,13 +136,15 @@ function Login() {
     <div className="relative isolate flex min-h-screen flex-col items-center justify-center gap-6 overflow-x-hidden bg-canvas px-4 pb-8 pt-16 lg:flex-row lg:gap-10 lg:py-8 xl:gap-14">
       <LoginMarquee />
 
-      <IconButton
-        icon={isDark ? 'light_mode' : 'dark_mode'}
-        label={isDark ? 'Helles Design aktivieren' : 'Dunkles Design aktivieren'}
-        variant="secondary"
-        className="absolute right-4 top-4 z-10"
-        onClick={toggleTheme}
-      />
+      {/* Eigener Wrapper: `IconButton` bringt selbst `relative` mit, das `absolute` aus className verdrängte */}
+      <div className="absolute right-4 top-4 z-10">
+        <IconButton
+          icon={isDark ? 'light_mode' : 'dark_mode'}
+          label={isDark ? 'Helles Design aktivieren' : 'Dunkles Design aktivieren'}
+          variant="secondary"
+          onClick={toggleTheme}
+        />
+      </div>
 
       {/* Wortmarke: Mobil/Tablet zweizeilig über der Karte, Desktop FOCUS | Karte | FLOW */}
       <WordmarkWord ref={focusWordRef} controlRef={focusCtl} word="FOCUS" theme={theme} attention={formEngaged} attentionTargetRef={formRef} pulse={typingPulse} className="order-1 -mb-8 w-full max-w-[24rem] sm:max-w-[30rem] lg:mb-0 lg:max-w-[32rem] lg:flex-1 xl:max-w-[36rem]" />

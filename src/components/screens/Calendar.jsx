@@ -22,8 +22,8 @@ import MonthSlide from '../calendar/MonthSlide';
 import DesktopDayPanel from '../calendar/DesktopDayPanel';
 import MobileDaySheet from '../calendar/MobileDaySheet';
 import { SearchModal, MonthPickerModal, EventDetailModal } from '../calendar/CalendarModals';
-
 import { Button, EmptyState } from '../ds';
+
 // Orchestrierung des Kalenders: Zustand (Monat/Tag/Dialoge), Laden über useCalendarEvents, Karussell über useMonthCarousel.
 // Darstellung liegt in src/components/calendar/*, reine Logik in src/lib/calendarUtils.js.
 

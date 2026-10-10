@@ -2,8 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useData } from '../../context/DataContext';
 import { searchCommands } from '../../lib/commandSearch';
 import { NAV_COMMANDS, ACTION_COMMANDS } from '../../lib/appCommands';
-
 import { FioMark, Icon, Kbd, cx } from '../ds';
+
 const GROUP_LABELS = {
   action: 'Aktionen',
   nav: 'Gehe zu',
@@ -12,8 +12,6 @@ const GROUP_LABELS = {
   thought: 'Gedanken',
 };
 const GROUP_ORDER = ['action', 'nav', 'project', 'reminder', 'thought'];
-
-
 
 export function KeyHint({ keys }) {
   return (

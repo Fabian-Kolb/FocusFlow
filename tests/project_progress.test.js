@@ -45,16 +45,16 @@ describe('normalizeProjectStatus', () => {
 describe('getPhaseStats', () => {
   it('zählt erledigte Aufgaben live statt gespeichertem badgeText', () => {
     const phase = { badgeText: '0/0 ERLEDIGT', tasks: [task(1, true), task(2, true), task(3)] };
-    expect(getPhaseStats(phase)).toMatchObject({ total: 3, completed: 2, isDone: false, label: '2/3 ERLEDIGT' });
+    expect(getPhaseStats(phase)).toMatchObject({ total: 3, completed: 2, isDone: false, label: '2/3 erledigt' });
   });
 
-  it('meldet ERLEDIGT, wenn alle Aufgaben abgehakt sind', () => {
+  it('meldet Erledigt, wenn alle Aufgaben abgehakt sind', () => {
     const phase = { completed: false, tasks: [task(1, true), task(2, true)] };
-    expect(getPhaseStats(phase)).toMatchObject({ isDone: true, label: 'ERLEDIGT' });
+    expect(getPhaseStats(phase)).toMatchObject({ isDone: true, label: 'Erledigt' });
   });
 
   it('nutzt ohne Aufgaben das gespeicherte Häkchen', () => {
-    expect(getPhaseStats({ tasks: [] }).label).toBe('KEINE AUFGABEN');
+    expect(getPhaseStats({ tasks: [] }).label).toBe('Keine Aufgaben');
     expect(getPhaseStats({ completed: true, tasks: [] }).isDone).toBe(true);
   });
 });
@@ -67,7 +67,7 @@ describe('getProjectTimeline', () => {
     expect(t.timeElapsed).toBe(100);
     expect(t.isOverdue).toBe(true);
     expect(t.daysLeft).toBe(-9);
-    expect(t.deadlineLabel).toBe('9 TAGE ÜBERFÄLLIG');
+    expect(t.deadlineLabel).toBe('9 Tage überfällig');
     expect(t.dateRange).toBe('01.08.26 – 30.09.26');
     expect(t.dayLabel).toBe('');
   });
@@ -76,16 +76,16 @@ describe('getProjectTimeline', () => {
     // 1.–10. Oktober = 10 Tage; am 6. Oktober um 0 Uhr sind 5 Tage vorbei
     const t = getProjectTimeline({ startDate: '2026-10-01', endDate: '2026-10-10' }, at(2026, 10, 6, 0));
     expect(t.timeElapsed).toBe(50);
-    expect(t.dayLabel).toBe('TAG 6 VON 10');
-    expect(t.deadlineLabel).toBe('NOCH 4 TAGE');
+    expect(t.dayLabel).toBe('Tag 6 von 10');
+    expect(t.deadlineLabel).toBe('Noch 4 Tage');
     expect(t.isOverdue).toBe(false);
   });
 
   it('kennt morgen, heute und den Start in der Zukunft', () => {
-    expect(getProjectTimeline({ endDate: '2026-10-10' }, at(2026, 10, 9)).deadlineLabel).toBe('BIS MORGEN');
-    expect(getProjectTimeline({ endDate: '2026-10-09' }, at(2026, 10, 9, 23)).deadlineLabel).toBe('HEUTE FÄLLIG');
+    expect(getProjectTimeline({ endDate: '2026-10-10' }, at(2026, 10, 9)).deadlineLabel).toBe('Bis morgen');
+    expect(getProjectTimeline({ endDate: '2026-10-09' }, at(2026, 10, 9, 23)).deadlineLabel).toBe('Heute fällig');
     expect(getProjectTimeline({ startDate: '2026-10-12', endDate: '2026-10-30' }, at(2026, 10, 9)).deadlineLabel)
-      .toBe('START IN 3 TAGEN');
+      .toBe('Start in 3 Tagen');
   });
 
   it('meldet abgeschlossene Projekte nicht als überfällig', () => {

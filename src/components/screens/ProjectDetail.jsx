@@ -386,24 +386,6 @@ const ProjectDetail = ({ setCurrentScreen }) => {
     });
   };
 
-  const getStatusButtonClass = (status, isActive) => {
-    if (!isActive) {
-      return "bg-subtle text-secondary border-subtle hover:border-strong hover:text-primary opacity-60 hover:opacity-100";
-    }
-    if (status === 'GEPLANT') return "bg-warning-subtle text-warning border-warning ring-1 ring-focus opacity-100";
-    if (status === 'AKTIV') return "bg-success-subtle text-success border-success ring-1 ring-focus opacity-100";
-    if (status === 'PAUSIERT') return "bg-info-subtle text-accent border-info ring-1 ring-focus opacity-100";
-    if (status === 'ABGESCHLOSSEN') return "bg-muted text-primary border-control ring-1 ring-focus opacity-100";
-    return "";
-  };
-
-  const getStatusDotClass = (status) => {
-    if (status === 'GEPLANT') return "bg-warning";
-    if (status === 'AKTIV') return "bg-success animate-pulse";
-    if (status === 'PAUSIERT') return "bg-accent";
-    if (status === 'ABGESCHLOSSEN') return "bg-control";
-  };
-
   // Collapse / Expand All Phases
   const isAllCollapsed = projectPhases.length > 0 &&
     projectPhases.every((p) => collapsedPhases[p.id]);

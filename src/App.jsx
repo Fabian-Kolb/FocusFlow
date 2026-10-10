@@ -7,7 +7,6 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ChatProvider } from './context/ChatContext';
 import { ToastProvider } from './context/ToastContext';
 import { ConfirmProvider } from './context/ConfirmContext';
-import { SkeletonList } from './components/ds';
 import FirestoreErrorBanner from './components/ui/FirestoreErrorBanner';
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -43,6 +42,7 @@ import {
 } from './lib/breakpoints';
 import { getLegalPageFromPath } from './lib/legal';
 import { consumeLaunchAction } from './lib/launchAction';
+import { SkeletonList } from './components/ds';
 
 // Große bzw. seltener genutzte Screens erst bei Bedarf laden (Code-Splitting)
 const ProjectDetail = lazy(() => import('./components/screens/ProjectDetail'));
@@ -223,7 +223,7 @@ function AppContent() {
             ? 'overflow-hidden' 
             : 'overflow-y-auto no-scrollbar'
         }`}>
-          <div className={`mx-auto w-full flex-grow flex flex-col ${
+          <div key={currentScreen} className={`screen-transition mx-auto w-full flex-grow flex flex-col ${
             currentScreen === 'coach' 
               ? 'p-0 max-w-none h-full overflow-hidden' 
               : currentScreen === 'calendar'

@@ -45,7 +45,7 @@ export function registerResponsiveDrawerTests(runner) {
       assert(content.includes("'--chat-offset': isSecondaryPanel ? '444px' : '12px'"), 'Offset must be 12px when replacing detail drawer');
       assert(content.includes('drawer-replace-in'), 'Must use drawer-replace-in for in-place display instead of sliding across screen');
       assert(content.includes('drawer-replace-out'), 'Must use drawer-replace-out when closing from replacement mode');
-      assert(content.includes("${isSecondaryPanel ? 'sm:z-40' : 'sm:z-50'}"), 'Must render z-50 in replace mode over detail drawer');
+      assert(content.includes("${isSecondaryPanel ? 'sm:z-nav' : 'sm:z-dropdown'}"), 'Must render above the detail drawer (z-dropdown) in replace mode');
     });
 
     // -------------------------------------------------------------------------
@@ -60,7 +60,7 @@ export function registerResponsiveDrawerTests(runner) {
       assert(content.includes('isChatReplacing ? \'pointer-events-none opacity-0'), 'Must disable interaction when chat replaces it');
       assert(content.includes('if (!isOpen || isChatReplacing) return'), 'Click outside must ignore when chat is replacing');
       assert(content.includes('onOpenGlobalChat'), 'Header must support onOpenGlobalChat trigger');
-      assert(content.includes('FioIcon'), 'Header must render FioIcon button');
+      assert(content.includes('FioMark'), 'Header must render the Fio mark button');
     });
 
     runner.test('DRAWER-SEC-01: SectionDetailDrawer supports isChatReplacing and Fio header button', () => {
@@ -72,7 +72,7 @@ export function registerResponsiveDrawerTests(runner) {
       assert(content.includes('isChatReplacing ? \'pointer-events-none opacity-0'), 'Must disable interaction when chat replaces it');
       assert(content.includes('if (!isOpen || isChatReplacing) return'), 'Click outside must ignore when chat is replacing');
       assert(content.includes('onOpenGlobalChat'), 'Header must support onOpenGlobalChat trigger');
-      assert(content.includes('FioIcon'), 'Header must render FioIcon button');
+      assert(content.includes('FioMark'), 'Header must render the Fio mark button');
     });
 
     // -------------------------------------------------------------------------

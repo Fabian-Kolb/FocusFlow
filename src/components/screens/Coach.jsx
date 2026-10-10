@@ -11,8 +11,101 @@ import remarkGfm from 'remark-gfm';
 import ModelSelectorDropdown from '../ui/ModelSelectorDropdown';
 import ProjectDraftCard from '../ui/ProjectDraftCard';
 import { reviseDraftWithFio, draftToProjectData, clearNewFlags, DETAIL_LEVELS } from '../../lib/projectDraft';
+import { Avatar, Button, Card, Dialog, FOCUS, Icon, IconButton, IconTile, Input, SectionHeader, Spinner, cx } from '../ds';
 
-import { Button, FioMark, Icon, IconButton } from '../ds';
+const statusLabel = (s) => {
+  const v = s || 'AKTIV';
+  return v.charAt(0) + v.slice(1).toLowerCase();
+};
+const projectMeta = (p) => `${p.progress || 0}% abgeschlossen · ${p.phases?.length || 0} Abschnitte`;
+const reminderMeta = (r) => `${r.date || 'Kein Termin'}${r.time ? ` · ${r.time} Uhr` : ''} · ${statusLabel(r.status)}`;
+const ATTACHMENT_ICONS = { project: 'folder', reminder: 'notifications' };
+
+/** Auswahlzeile in den Kontext-/Filter-Dialogen. `multi`: Kästchen (mehrere wählbar), sonst Haken (genau eine). */
+function PickRow({ icon, area = 'neutral', title, meta, selected, multi = false, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={selected}
+      className={cx(
+        'flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors duration-fast',
+        FOCUS,
+        selected ? 'border-accent bg-selected' : 'border-subtle bg-surface hover:border-default hover:bg-hover'
+      )}
+    >
+      <IconTile area={area} icon={icon} size="sm" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-body-strong text-primary">{title}</span>
+        {meta && <span className="block truncate text-caption text-secondary">{meta}</span>}
+      </span>
+      {multi ? (
+        <span
+          aria-hidden="true"
+          className={cx(
+            'flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-xs border',
+            selected ? 'border-transparent bg-accent text-on-accent' : 'border-control bg-surface'
+          )}
+        >
+          {selected && <Icon name="check" size="sm" />}
+        </span>
+      ) : (
+        selected && <Icon name="check" size="md" className="shrink-0 text-accent" />
+      )}
+    </button>
+  );
+}
+
+/** Gruppe von Auswahlzeilen mit Überschrift und „Mehr anzeigen“ */
+function PickSection({ title, count, hiddenCount = 0, expanded, onToggle, children }) {
+  return (
+    <section className="space-y-2">
+      <SectionHeader title={title} count={count} />
+      {children}
+      {hiddenCount > 0 && (
+        <Button variant="ghost" size="sm" fullWidth trailingIcon={expanded ? 'expand_less' : 'expand_more'} onClick={onToggle}>
+          {expanded ? 'Weniger anzeigen' : `Mehr anzeigen (${hiddenCount} weitere)`}
+        </Button>
+      )}
+    </section>
+  );
+}
+
+function SearchField({ value, onChange, placeholder, label, autoFocus = false }) {
+  return (
+    <Input
+      leadingIcon="search"
+      aria-label={label}
+      placeholder={placeholder}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      data-autofocus={autoFocus ? '' : undefined}
+      trailing={value ? <IconButton icon="close" size="sm" label="Suche leeren" onClick={() => onChange('')} /> : null}
+    />
+  );
+}
+
+/** Kontext-Anhang als kleine Marke; mit `onRemove` entfernbar */
+function AttachmentChip({ att, onRemove }) {
+  return (
+    <span className={cx('inline-flex h-7 max-w-full items-center gap-1.5 rounded-md border border-subtle bg-subtle text-caption-strong text-primary', onRemove ? 'pl-2 pr-1' : 'px-2')}>
+      <Icon name={ATTACHMENT_ICONS[att.type] || 'calendar_month'} size="sm" className="shrink-0 text-secondary" />
+      <span className="max-w-[160px] truncate">{att.title}</span>
+      {onRemove && (
+        <button
+          type="button"
+          onClick={onRemove}
+          title={`${att.title} entfernen`}
+          aria-label={`${att.title} entfernen`}
+          className={cx('flex h-5 w-5 items-center justify-center rounded-xs text-secondary transition-colors duration-fast hover:text-danger', FOCUS)}
+        >
+          <Icon name="close" size="sm" />
+        </button>
+      )}
+    </span>
+  );
+}
+
 const Coach = ({ setCurrentScreen }) => {
   const modalContext = useModalContext();
   const { projects, reminders = [], setSelectedProjectId, setSelectedReminderId, isCalendarConnected, openModal, addProject, projectCategories = [] } = modalContext;
@@ -72,7 +165,7 @@ const Coach = ({ setCurrentScreen }) => {
           });
       });
   }, [isCalendarConnected, user?.isGuest]);
-  
+
   // 1. SIDEBAR FILTER & SEARCH (Filtert die Chatverlauf-Liste auf der linken Seite)
   const [isSidebarFilterModalOpen, setIsSidebarFilterModalOpen] = useState(false);
   const [sidebarSearchQuery, setSidebarSearchQuery] = useState('');
@@ -177,7 +270,7 @@ const Coach = ({ setCurrentScreen }) => {
     if (isGeneralOnlySelected || isAllContextSelected) return [];
     const list = [];
     if (isCalendarContextSelected) {
-      list.push({ type: 'calendar', id: 'calendar', title: 'Kalender & Termine' });
+      list.push({ type: 'calendar', id: 'calendar', title: 'Kalender und Termine' });
     }
     selectedCalendarEventIds.forEach((eid) => {
       const evt = (calendarEvents || []).find((item) => item.id === eid);
@@ -446,15 +539,15 @@ Deine Mission ist es, dem Nutzer zu helfen, seinen Tag mit maximalem Fokus, Klar
 
 DAS DREI-SÄULEN-SYSTEM VON FOCUSFLOW:
  basiert auf DREI gleichwertigen, zentralen Säulen:
-1. 📅 KALENDER: Feste Termine, feste Uhrzeiten heute Vorbereitung für anstehende Termine morgen.
-2. 🔔 ERINNERUNGEN: Zeitkritische To-Dos, Fristen Prioritäten den heutigen Tag.
-3. 🎯 PROJEKTE: Strategischer Fortschritt – welcher konkrete nächste Schritt im wichtigsten Vorhaben bringt größten Hebel?
+1. Kalender: Feste Termine, feste Uhrzeiten heute Vorbereitung für anstehende Termine morgen.
+2. Erinnerungen: Zeitkritische To-Dos, Fristen Prioritäten den heutigen Tag.
+3. Projekte: Strategischer Fortschritt – welcher konkrete nächste Schritt im wichtigsten Vorhaben bringt größten Hebel?
 
 WICHTIGE VERHALTENSREGELN FÜR TAGESFRAGEN (z. B. „Was sollte ich noch machen?“, steht an?“, „Tagesplan“):
  PRÄZISION STATT REIZÜBERFLUTUNG (WENIGER IST MEHR):
    - Wenn nach seinem oder Empfehlungen fragt: Schütte ihn NIEMALS einer endlosen Liste aller Projekte Aufgaben zu! Keine Textwüsten.
  Gib WENIGER, aber dafür PRÄZISER aus: Wähle maximal 2 bis 3 konkrete, hochrelevante Fokus-Punkte aus.
- Strukturiere übersichtlich, ansprechend sofort scannbar Emojis:
+ Strukturiere übersichtlich, ansprechend und sofort scannbar mit schlichten Zwischenüberschriften (Verwende keine Emojis):
      • Kalender-Check: Heutige + kurzer Blick morgen (insb. wenn nötig ist).
   Fokus-Erinnerung: Maximal 1 (höchstens 2) überfällige fällige Erinnerungen.
   Projekt-Fokus: Genau wichtigster nächster aus aktivsten bzw. Projekt (nicht 5 gleichzeitig).
@@ -464,7 +557,7 @@ WICHTIGE VERHALTENSREGELN FÜR TAGESFRAGEN (z. B. „Was sollte ich noch machen?
   heute: Berücksichtige die Tagesstruktur.
   morgen: Untersuche ganz gezielt, ob stehen Meeting, Präsentation, Kundentermin, Arzt, Deadline, Abgabe).
  Vorbereitungs-Check: Prüfe, in Projekten bereits dazu vorbereitet wurden gar nichts gemacht wurde.
-   einen morgigen Termin wurde: Weise kurz aufmerksam darauf hin B.: „📅 Kalender-Hinweis hast um 10:00 Uhr ‚Meeting X‘. Da keine hinterlegt ist: Sollen wir 20 Minuten einplanen, Unterlagen vorzubereiten?“).
+   einen morgigen Termin wurde: Weise kurz aufmerksam darauf hin B.: „Kalender-Hinweis hast um 10:00 Uhr ‚Meeting X‘. Da keine hinterlegt ist: Sollen wir 20 Minuten einplanen, Unterlagen vorzubereiten?“).
 
  IMMER MIT EINER PROAKTIVEN RÜCKFRAGE ABSCHLIESSEN:
  Beende deine Antwort genau konkreten, motivierenden Rückfrage bezüglich des vorgeschlagenen Projekts, nächsten Schritts Kalendertermins „Möchtest du, dass direkt [Aufgabe X] [Y] starten, soll dir Teilaufgaben anlegen?“ „Sollen [Z] eine kurze Vorbereitungs-Erinnerung einstellen?“).
@@ -491,7 +584,7 @@ ${JSON.stringify(contextData, null, 2)}
     }
     return [
       { id: 'qp_1', label: 'Was heute tun?', promptText: 'Was sollte ich heute noch machen? Gib mir einen kurzen, präzisen Fokus aus Kalender, Erinnerungen und Projekten.' },
-      { id: 'qp_2', label: 'Engpässe & Termine', promptText: 'Welche anstehenden Termine (heute & morgen), Erinnerungen oder Aufgaben benötigen meine Aufmerksamkeit?' },
+      { id: 'qp_2', label: 'Engpässe und Termine', promptText: 'Welche anstehenden Termine (heute & morgen), Erinnerungen oder Aufgaben benötigen meine Aufmerksamkeit?' },
       { id: 'qp_3', label: 'Ziele priorisieren', promptText: 'Was ist der wichtigste nächste Schritt für heute?' }
     ];
   };
@@ -642,7 +735,7 @@ ${JSON.stringify(contextData, null, 2)}
     } catch (err) {
       if (err.name === 'AbortError' || abortController.signal.aborted) return;
       console.error('Fio-Entwurf Fehler:', err);
-      updateStreamingMessage(session.id, botMsgId, `⚠️ **KI-Fehler:** ${err?.message || 'Der Entwurf konnte nicht aktualisiert werden.'}`, false);
+      updateStreamingMessage(session.id, botMsgId, `**KI-Fehler:** ${err?.message || 'Der Entwurf konnte nicht aktualisiert werden.'}`, false);
     } finally {
       if (generationRef.current === generation) {
         abortControllerRef.current = null;
@@ -808,7 +901,7 @@ ${JSON.stringify(contextData, null, 2)}
       }
       console.error('Gemini Error:', err);
       const errMsg = err?.message || 'Fehler beim Aufruf der Gemini API.';
-      updateStreamingMessage(activeSession.id, botMsgId, `⚠️ **KI-Fehler:** ${errMsg}`, false);
+      updateStreamingMessage(activeSession.id, botMsgId, `**KI-Fehler:** ${errMsg}`, false);
     } finally {
       if (generationRef.current === generation) {
         abortControllerRef.current = null;
@@ -830,12 +923,12 @@ ${JSON.stringify(contextData, null, 2)}
       filtered = filtered.filter((s) => s.contextScope === 'draft');
     } else if (sidebarScopeFilter === 'calendar') {
       filtered = filtered.filter((s) =>
-        s.contextScope === 'calendar' || 
+        s.contextScope === 'calendar' ||
         (s.contextAttachments && s.contextAttachments.some(a => a.type === 'calendar' || a.type === 'calendar_event'))
       );
     } else if (sidebarScopeFilter !== 'all') {
       filtered = filtered.filter((s) =>
-        s.contextId === sidebarScopeFilter || 
+        s.contextId === sidebarScopeFilter ||
         (s.contextAttachments && s.contextAttachments.some(a => a.id === sidebarScopeFilter))
       );
     }
@@ -927,7 +1020,7 @@ ${JSON.stringify(contextData, null, 2)}
     if (isInSession) {
       removeSessionAttachment(activeSession.id, pId, 'project');
     }
-    setSelectedProjectIds((prev) => 
+    setSelectedProjectIds((prev) =>
       prev.includes(pId) ? prev.filter(id => id !== pId) : (isInSession ? prev : [...prev, pId])
     );
   };
@@ -939,7 +1032,7 @@ ${JSON.stringify(contextData, null, 2)}
     if (isInSession) {
       removeSessionAttachment(activeSession.id, rId, 'reminder');
     }
-    setSelectedReminderIds((prev) => 
+    setSelectedReminderIds((prev) =>
       prev.includes(rId) ? prev.filter(id => id !== rId) : (isInSession ? prev : [...prev, rId])
     );
   };
@@ -961,7 +1054,7 @@ ${JSON.stringify(contextData, null, 2)}
     if (isInSession) {
       removeSessionAttachment(activeSession.id, eId, 'calendar_event');
     }
-    setSelectedCalendarEventIds((prev) => 
+    setSelectedCalendarEventIds((prev) =>
       prev.includes(eId) ? prev.filter(id => id !== eId) : (isInSession ? prev : [...prev, eId])
     );
   };
@@ -1005,241 +1098,169 @@ ${JSON.stringify(contextData, null, 2)}
     return (
       <div
         key={sess.id}
-        onClick={() => selectSession(sess.id)}
-        className={`p-2.5 sm:p-3 cursor-pointer transition-all flex items-center justify-between gap-2.5 rounded-lg border group relative ${
-          isActive
-            ? 'bg-hover border-strong shadow-xs'
-            : 'bg-surface border-subtle hover:border-default hover:bg-hover'
-        }`}
+        className={cx(
+          'group flex items-center gap-1 rounded-lg border transition-colors duration-fast',
+          isActive ? 'border-accent bg-selected' : 'border-subtle bg-surface hover:border-default hover:bg-hover'
+        )}
       >
-        {/* Left / Main: Icon + Title */}
-        <div className="min-w-0 flex-1 flex items-center gap-2.5">
-          <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${
-            isReminder
-              ? 'bg-warning-subtle text-warning border border-warning'
-              : isProject || isDraft
-              ? 'bg-hover text-primary border border-default'
-              : 'bg-subtle text-secondary border border-subtle'
-          }`}>
-            <Icon name={isReminder ? 'notifications' : isDraft ? 'edit_note' : isProject ? 'folder' : 'psychology'} size="sm" />
-          </div>
-
-          <span className={`text-caption block truncate ${isActive ? 'font-semibold' : 'font-medium'}`}>
-            {sess.title || 'Gespräch'}
-          </span>
-        </div>
-
-        {/* Right: Time on Top, Message Count below */}
-        <div className="flex flex-col items-end shrink-0 text-right gap-0.5">
-          <span className="text-micro font-label text-secondary font-medium">
-            {formatSessionTime(sess.updatedAt || sess.createdAt)}
-          </span>
-          <span className="text-micro font-label text-tertiary">
-            {sess.messages?.length || 0} Nachr.
-          </span>
-        </div>
-
-        {/* Delete Button */}
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            deleteSession(sess.id);
-          }}
-          className="w-7 h-7 flex items-center justify-center rounded-md text-disabled hover:text-danger hover:bg-danger-subtle transition-colors opacity-0 group-hover:opacity-100 cursor-pointer shrink-0"
-          title="Gespräch löschen"
+          type="button"
+          onClick={() => selectSession(sess.id)}
+          aria-current={isActive ? 'true' : undefined}
+          className={cx('flex min-w-0 flex-1 items-center gap-3 rounded-lg p-2.5 text-left', FOCUS)}
         >
-          <Icon name="delete" size="sm" />
+          <IconTile
+            area={isReminder ? 'reminders' : isProject || isDraft ? 'projects' : 'neutral'}
+            icon={isReminder ? 'notifications' : isDraft ? 'edit_note' : isProject ? 'folder' : 'psychology'}
+            size="sm"
+          />
+          <span className="min-w-0 flex-1 truncate text-caption-strong text-primary">{sess.title || 'Gespräch'}</span>
+          <span className="flex shrink-0 flex-col items-end text-right">
+            <span className="text-micro text-secondary">{formatSessionTime(sess.updatedAt || sess.createdAt)}</span>
+            <span className="text-micro text-tertiary">{sess.messages?.length || 0} Nachr.</span>
+          </span>
         </button>
+        <IconButton
+          icon="delete"
+          size="sm"
+          variant="danger-ghost"
+          label="Gespräch löschen"
+          className="mr-2 shrink-0 md:opacity-0 md:focus-visible:opacity-100 md:group-hover:opacity-100"
+          onClick={() => deleteSession(sess.id)}
+        />
       </div>
     );
   };
 
+  const sessionGroups = [
+    ['Heute', groupedSessions.today],
+    ['Gestern', groupedSessions.yesterday],
+    ['Letzte 7 Tage', groupedSessions.lastWeek],
+    ['Älter', groupedSessions.older],
+  ];
+
+  const closeFilterDialog = () => setIsSidebarFilterModalOpen(false);
+  const pickScope = (value) => {
+    setSidebarScopeFilter(value);
+    closeFilterDialog();
+  };
+  const noContextAttachments = (activeSession?.contextAttachments || []).length === 0;
+
+  /** Drei sichtbare Einträge, der Rest hinter „Mehr anzeigen“ (außer bei aktiver Suche) */
+  const limited = (list, searchText, showAll) => {
+    const isSearching = !!searchText.trim();
+    return {
+      visible: isSearching || showAll ? list : list.slice(0, 3),
+      hiddenCount: !isSearching && list.length > 3 ? list.length - 3 : 0,
+    };
+  };
+
   return (
-    <div className="flex flex-col h-full w-full relative overflow-hidden bg-canvas">
-      <div className="flex h-full w-full relative overflow-hidden">
-        {/* Mobile-Only Overlay (Tap to close on small screens) */}
-        <div 
-          className={`fixed inset-0 bg-scrim z-sheet md:hidden transition-opacity duration-300 ${
-            isHistoryOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-          }`}
+    <div className="relative flex h-full w-full flex-col overflow-hidden bg-canvas">
+      <div className="relative flex h-full w-full overflow-hidden">
+        {/* Handy: Tippen außerhalb schließt den Verlauf */}
+        <div
+          className={cx(
+            'fixed inset-0 z-sheet bg-scrim transition-opacity duration-slow md:hidden',
+            isHistoryOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
+          )}
           onClick={() => setIsHistoryOpen(false)}
           aria-hidden="true"
         />
-        
-        {/* Left Floating History Panel (Slides out smoothly, stable inner width prevents wrapping during close) */}
-        <div
-          className={`
-            fixed inset-y-0 left-0 z-sheet h-full
-            md:relative md:inset-auto md:z-10
-            transition-[width,transform,opacity] duration-300 ease-in-out overflow-hidden
-            ${isHistoryOpen
-              ? 'w-[85%] sm:w-80 max-w-[340px] md:w-80 translate-x-0 opacity-100 pointer-events-auto'
-              : 'w-[85%] sm:w-80 max-w-[340px] md:w-0 -translate-x-full md:translate-x-0 md:opacity-0 pointer-events-none'
-            }
-          `}
+
+        {/* Verlauf: Handy als Panel von links, ab md als einklappbare Spalte */}
+        <aside
+          inert={!isHistoryOpen}
+          aria-label="Chat-Verlauf"
+          className={cx(
+            'fixed inset-y-0 left-0 z-sheet h-full overflow-hidden transition-[width,transform,opacity] duration-slow ease-standard motion-reduce:transition-none md:relative md:inset-auto md:z-10',
+            isHistoryOpen
+              ? 'pointer-events-auto w-[85%] max-w-[340px] translate-x-0 opacity-100 sm:w-80 md:w-80'
+              : 'pointer-events-none w-[85%] max-w-[340px] -translate-x-full sm:w-80 md:w-0 md:translate-x-0 md:opacity-0'
+          )}
         >
-          {/* Inner Container with fixed width so contents never squish/wrap */}
-          <div className={`w-[85vw] sm:w-80 max-w-[340px] md:w-80 h-full p-2.5 sm:p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] md:pb-3 flex flex-col shrink-0 transition-transform duration-300 ease-in-out ${
-            isHistoryOpen ? 'translate-x-0' : '-translate-x-full md:-translate-x-full'
-          }`}>
-            {/* Inner Rounded Floating Pill Card */}
-            <div className="w-full h-full flex flex-col bg-surface dark:bg-subtle border border-subtle rounded-xl sm:rounded-xl shadow-lg overflow-hidden">
-              {/* Header with Neuer Chat & Verkleinern Button */}
-              <div className="p-3 sm:p-3.5 border-b border-subtle flex items-center gap-2 bg-subtle">
-                {/* Neuer Chat Button (Prominent, Touch-Friendly 40px) */}
-                <Button title="Neuen Chat starten" onClick={handleNewChat}>
-                  <Icon name="edit_square" size="md" />
-                  <span>Neuer Chat</span>
-                </Button>
-
-                {/* Button zum Verkleinern des Chats (Matching 40px x 40px UI Button) */}
-                <IconButton icon="left_panel_close" label="Verlauf einklappen" variant="secondary" className="shrink-0" onClick={() => setIsHistoryOpen(false)} />
-              </div>
-
-            {/* Search Bar for Sessions */}
-            <div className="p-2.5 border-b border-subtle">
-              <div className="flex items-center gap-1.5 bg-surface border border-subtle rounded-lg px-2.5 py-1.5 focus-within:border-strong transition-colors shadow-xs">
-                <Icon name="search" size="sm" className="text-secondary" />
-                <input
-                  type="text"
-                  value={sessionSearchText}
-                  onChange={(e) => setSessionSearchText(e.target.value)}
-                  placeholder="Gespräche durchsuchen..."
-                  className="w-full text-caption bg-transparent border-none outline-none focus:ring-0 p-0 placeholder:text-tertiary"
-                />
-                {sessionSearchText && (
-                  <button
-                    onClick={() => setSessionSearchText('')}
-                    className="text-secondary hover:text-primary cursor-pointer"
-                  >
-                    <Icon name="close" size="sm" />
-                  </button>
-                )}
-              </div>
+          <div className="flex h-full w-[85vw] max-w-[340px] shrink-0 flex-col border-r border-subtle bg-surface shadow-lg sm:w-80 md:shadow-none">
+            <div className="flex items-center gap-2 border-b border-subtle p-3">
+              <Button leadingIcon="edit_square" title="Neuen Chat starten" onClick={handleNewChat} className="flex-1">
+                Neuer Chat
+              </Button>
+              <IconButton icon="left_panel_close" label="Verlauf einklappen" variant="secondary" className="shrink-0" onClick={() => setIsHistoryOpen(false)} />
             </div>
 
-            {/* Sidebar Scope / Filter Button */}
-            <div className="px-2.5 py-2 border-b border-subtle">
-              <button
+            <div className="space-y-2 border-b border-subtle p-3">
+              <SearchField value={sessionSearchText} onChange={setSessionSearchText} label="Gespräche durchsuchen" placeholder="Gespräche durchsuchen …" />
+              <Button
+                variant="secondary"
+                fullWidth
+                leadingIcon="filter_list"
+                title="Chat-Verlauf filtern"
                 onClick={() => setIsSidebarFilterModalOpen(true)}
-                className="w-full flex items-center gap-2 px-3 py-2 bg-surface border border-subtle rounded-lg text-caption-strong font-label hover:border-control hover:bg-hover transition-all cursor-pointer shadow-xs text-left"
-                title="Chat-Verlauf filtern / Suche"
+                className="!justify-start"
               >
-                <Icon name="filter_list" size="sm" className="text-primary shrink-0" />
-                <span className="truncate">{sidebarScopeLabel}</span>
-              </button>
+                <span className="min-w-0 truncate">{sidebarScopeLabel}</span>
+              </Button>
             </div>
 
-            {/* Chronological Session Groups */}
-            <div className="space-y-4 p-2.5 overflow-y-auto flex-grow">
-              {groupedSessions.today.length > 0 && (
-                <div className="space-y-1.5">
-                  <span className="font-label text-eyebrow font-semibold text-tertiary uppercase px-1">
-                    Heute
-                  </span>
-                  {groupedSessions.today.map(renderSessionCard)}
-                </div>
-              )}
-
-              {groupedSessions.yesterday.length > 0 && (
-                <div className="space-y-1.5">
-                  <span className="font-label text-eyebrow font-semibold text-tertiary uppercase px-1">
-                    Gestern
-                  </span>
-                  {groupedSessions.yesterday.map(renderSessionCard)}
-                </div>
-              )}
-
-              {groupedSessions.lastWeek.length > 0 && (
-                <div className="space-y-1.5">
-                  <span className="font-label text-eyebrow font-semibold text-tertiary uppercase px-1">
-                    Letzte 7 Tage
-                  </span>
-                  {groupedSessions.lastWeek.map(renderSessionCard)}
-                </div>
-              )}
-
-              {groupedSessions.older.length > 0 && (
-                <div className="space-y-1.5">
-                  <span className="font-label text-eyebrow font-semibold text-tertiary uppercase px-1">
-                    Älter
-                  </span>
-                  {groupedSessions.older.map(renderSessionCard)}
-                </div>
-              )}
+            <div className="flex-1 space-y-4 overflow-y-auto p-3">
+              {sessionGroups.map(([label, list]) => list.length > 0 && (
+                <section key={label} className="space-y-2">
+                  <SectionHeader title={label} />
+                  {list.map(renderSessionCard)}
+                </section>
+              ))}
 
               {sessions.length === 0 && (
-                <div className="p-6 text-center text-caption text-secondary italic">
+                <div className="p-6 text-center text-body text-secondary">
                   Keine gespeicherten Gespräche vorhanden.
                 </div>
               )}
             </div>
           </div>
-        </div>
-      </div>
+        </aside>
 
-        {/* Right Main Chat Panel (Adapts Width Dynamically, Keeps Centered Input & Messages) */}
-        <div className="flex-grow min-w-0 flex flex-col h-full relative overflow-hidden bg-canvas">
-          {/* Fixed Top Controls Bar with Soft Gradient */}
-          <div className="absolute top-0 inset-x-0 z-10 flex items-center justify-between p-3 sm:p-3.5 pointer-events-none pb-6">
-            {/* Left Action Buttons with Smooth Crossfade */}
-            <div className={`flex items-center gap-2 pointer-events-auto transition-opacity duration-200 ${
-              isHistoryOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'
-            }`}>
-              <button
-                className="h-10 px-3.5 flex items-center gap-1.5 border border-subtle bg-surface dark:bg-subtle hover:border-strong text-primary transition-all rounded-lg cursor-pointer shadow-xs hover:shadow-sm"
-                title="Chatverlauf öffnen"
-                onClick={() => setIsHistoryOpen(true)}
-              >
-                <Icon name="history" size="md" />
-                <span className="text-caption-strong font-label hidden sm:inline">Verlauf</span>
-              </button>
-              <button
-                className="h-10 px-3.5 flex items-center gap-1.5 bg-accent text-on-accent hover:bg-accent-hover transition-all rounded-lg cursor-pointer shadow-xs hover:shadow-sm"
-                title="Neuen Chat starten"
-                onClick={handleNewChat}
-              >
-                <Icon name="edit_square" size="md" />
-                <span className="text-caption-strong font-label hidden sm:inline">Neuer Chat</span>
-              </button>
+        {/* Chat */}
+        <div className="relative flex h-full min-w-0 flex-grow flex-col overflow-hidden bg-canvas">
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-subtle bg-canvas px-3 py-2 sm:px-4">
+            <div
+              inert={isHistoryOpen}
+              className={cx('flex items-center gap-2 transition-opacity duration-base', isHistoryOpen && 'pointer-events-none opacity-0')}
+            >
+              <Button variant="secondary" leadingIcon="history" title="Chatverlauf öffnen" aria-label="Chatverlauf öffnen" onClick={() => setIsHistoryOpen(true)}>
+                <span className="hidden sm:inline">Verlauf</span>
+              </Button>
+              <Button leadingIcon="edit_square" title="Neuen Chat starten" aria-label="Neuen Chat starten" onClick={handleNewChat}>
+                <span className="hidden sm:inline">Neuer Chat</span>
+              </Button>
             </div>
 
-            {/* Right Header Controls (Fio Guide Button & Model Dropdown) */}
-            <div className="flex items-center gap-2 pointer-events-auto ml-auto">
-              <button
-                type="button"
-                onClick={() => openModal('settings', { initialTab: 'fio' })}
-                className="h-10 px-3 flex items-center gap-1.5 border border-subtle bg-surface dark:bg-subtle hover:border-strong text-primary transition-all rounded-lg cursor-pointer shadow-xs hover:shadow-sm text-caption-strong"
+            <div className="ml-auto flex items-center gap-2">
+              <Button
+                variant="secondary"
+                leadingIcon="lightbulb"
                 title="Was kann Fio? Interaktiven KI-Guide öffnen"
+                aria-label="Was kann Fio?"
+                onClick={() => openModal('settings', { initialTab: 'fio' })}
               >
-                <Icon name="lightbulb" size="md" className="text-warning" />
                 <span className="hidden sm:inline">Was kann Fio?</span>
-              </button>
+              </Button>
 
-              <ModelSelectorDropdown
-                activeModel={activeModel}
-                onSelectModel={setActiveModel}
-              />
+              <ModelSelectorDropdown activeModel={activeModel} onSelectModel={setActiveModel} />
             </div>
           </div>
 
-          {/* Message Stream */}
-          <div className="flex-grow overflow-y-auto px-4 pb-4 pt-16 sm:pt-16 min-h-0">
-            <div className="max-w-2xl mx-auto space-y-6">
+          <div className="min-h-0 flex-grow overflow-y-auto px-4 py-6">
+            <div className="mx-auto max-w-reading space-y-6">
               {messages.length === 0 && isDraftSession ? null : messages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full min-h-[40vh] text-center px-4">
-                  <div className="w-16 h-16 bg-accent text-on-accent rounded-lg flex items-center justify-center mb-4 shadow-md p-3.5">
-                    <FioMark size={20} className="text-on-accent" />
-                  </div>
-                  <h2 className="text-title mb-1.5 tracking-tight">
+                <div className="flex min-h-[40vh] flex-col items-center justify-center px-4 text-center">
+                  <IconTile area="coach" size="lg" className="mb-4" />
+                  <h2 className="mb-1.5 text-title text-primary">
                     Hallo{user?.displayName ? ` ${user.displayName.split(' ')[0]}` : ''}, ich bin Fio
                   </h2>
-                  <p className="text-body text-secondary max-w-md leading-relaxed">
+                  <p className="max-w-md text-body text-secondary">
                     Dein persönlicher KI-Coach. Wie kann ich dich heute bei deinen Projekten, Aufgaben, Erinnerungen und Terminen unterstützen?
                   </p>
-                  <Button variant="secondary" onClick={() => openModal('settings', { initialTab: 'fio' })} className="mt-4">
-                    <Icon name="lightbulb" size="sm" className="text-warning" />
-                    <span>Entdecke, was Fio alles kann</span>
+                  <Button variant="secondary" leadingIcon="lightbulb" onClick={() => openModal('settings', { initialTab: 'fio' })} className="mt-4">
+                    Entdecke, was Fio alles kann
                   </Button>
                 </div>
               ) : (
@@ -1247,31 +1268,29 @@ ${JSON.stringify(contextData, null, 2)}
                   const isBot = msg.role === 'assistant' || msg.sender === 'bot';
                   if (isBot) {
                     return (
-                      <div key={msg.id} className="flex gap-3 group">
-                        <div className="w-8 h-8 flex-shrink-0 bg-accent text-on-accent rounded-lg flex items-center justify-center p-1.5 shadow-sm">
-                          <FioMark size={20} className="text-on-accent" />
-                        </div>
-                        <div className="flex flex-col gap-1 items-start max-w-[85%]">
-                          <div className="p-4 bg-surface border border-subtle rounded-lg text-body shadow-sm markdown-body w-full">
+                      <div key={msg.id} className="flex gap-3">
+                        <IconTile area="coach" size="md" className="mt-0.5" />
+                        <div className="flex min-w-0 max-w-[85%] flex-col items-start gap-1">
+                          <div className="markdown-body w-full rounded-lg border border-subtle bg-surface p-4 text-body-lg text-primary">
                             {msg.content || msg.text ? (
                               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                 {msg.content || msg.text}
                               </ReactMarkdown>
                             ) : msg.cancelled ? (
-                              <div className="flex items-center gap-1.5 py-1 text-secondary text-caption italic">
+                              <div className="flex items-center gap-1.5 py-1 text-caption text-secondary">
                                 <Icon name="pause_circle" size="sm" />
                                 <span>Antwort abgebrochen</span>
                               </div>
                             ) : (
-                              <div className="flex items-center gap-1.5 py-1 text-secondary text-caption">
-                                <span className="w-2 h-2 rounded-full bg-accent animate-ping" />
-                                <span>Fio denkt nach...</span>
+                              <div className="flex items-center gap-2 py-1 text-caption text-secondary">
+                                <Spinner size="sm" label="" />
+                                <span>Fio denkt nach …</span>
                               </div>
                             )}
 
-                            {/* Render Interactive Action Results Cards */}
+                            {/* Ausgeführte Aktionen als Karten */}
                             {msg.actionResults && msg.actionResults.length > 0 && (
-                              <div className="space-y-2 mt-3 pt-3 border-t border-subtle w-full not-prose">
+                              <div className="not-prose mt-3 w-full space-y-2 border-t border-subtle pt-3">
                                 {msg.actionResults.map((res, idx) => {
                                   const isProjAction = res.targetType === 'project' || res.type === 'ADD_PHASE' || res.type === 'ADD_TASK' || res.type === 'CREATE_PROJECT' || res.type === 'UPDATE_PROJECT';
                                   const isRemAction = res.targetType === 'reminder' || res.type === 'CREATE_REMINDER' || res.type === 'UPDATE_REMINDER';
@@ -1280,62 +1299,52 @@ ${JSON.stringify(contextData, null, 2)}
                                   const isMatAction = res.type === 'ADD_MATERIAL';
 
                                   const iconName = isNoteAction ? 'note_alt' : isMatAction ? 'attach_file' : isCalAction ? 'calendar_month' : isRemAction ? 'notifications' : isProjAction ? 'folder' : 'check_circle';
-                                  const iconStyle = isNoteAction
-                                    ? 'bg-accent-subtle text-accent border-accent'
-                                    : isMatAction
-                                    ? 'bg-info-subtle text-info border-info'
-                                    : isCalAction
-                                    ? 'bg-info-subtle text-accent border-info'
-                                    : isRemAction
-                                    ? 'bg-warning-subtle text-warning border-warning'
-                                    : isProjAction
-                                    ? 'bg-hover text-primary border-default'
-                                    : 'bg-success-subtle text-success border-success';
+                                  const area = isCalAction ? 'calendar' : isRemAction ? 'reminders' : isProjAction ? 'projects' : 'neutral';
 
                                   return (
-                                    <div
-                                      key={idx}
-                                      className="flex items-center justify-between gap-3 p-2.5 bg-subtle border border-subtle rounded-lg text-caption shadow-xs group hover:border-control transition-all"
-                                    >
-                                      <div className="flex items-center gap-2.5 min-w-0">
-                                        <div className={`w-7 h-7 rounded-md border flex items-center justify-center shrink-0 ${iconStyle}`}>
-                                          <Icon name={iconName} size="sm" />
-                                        </div>
+                                    <div key={idx} className="flex items-center justify-between gap-3 rounded-lg border border-subtle bg-subtle p-2.5">
+                                      <div className="flex min-w-0 items-center gap-3">
+                                        <IconTile area={area} icon={iconName} size="sm" />
                                         <div className="min-w-0">
-                                          <div className="font-semibold truncate">{res.title}</div>
-                                          <div className="text-micro font-label text-secondary truncate">{res.subtitle}</div>
+                                          <div className="truncate text-caption-strong text-primary">{res.title}</div>
+                                          <div className="truncate text-micro text-secondary">{res.subtitle}</div>
                                         </div>
                                       </div>
                                       {(isCalAction || res.targetType === 'calendar') && (
-                                        <Button variant="secondary" size="sm" onClick={() => {
-                                            if (setCurrentScreen) setCurrentScreen('calendar');
-                                          }} className="shrink-0">
-                                          <span>Im Kalender ansehen</span>
-                                          <Icon name="arrow_forward" size="sm" />
+                                        <Button variant="secondary" size="sm" trailingIcon="arrow_forward" className="shrink-0" onClick={() => { if (setCurrentScreen) setCurrentScreen('calendar'); }}>
+                                          Im Kalender ansehen
                                         </Button>
                                       )}
                                       {res.targetType === 'project' && res.targetId && (
-                                        <Button variant="secondary" size="sm" onClick={() => {
+                                        <Button
+                                          variant="secondary"
+                                          size="sm"
+                                          trailingIcon="arrow_forward"
+                                          className="shrink-0"
+                                          onClick={() => {
                                             setSelectedProjectId(res.targetId);
                                             if (setCurrentScreen) setCurrentScreen('project-detail');
-                                          }} className="shrink-0">
-                                          <span>Projekt öffnen</span>
-                                          <Icon name="arrow_forward" size="sm" />
+                                          }}
+                                        >
+                                          Projekt öffnen
                                         </Button>
                                       )}
                                       {res.targetType === 'reminder' && res.targetId && (
-                                        <div className="flex items-center gap-1.5 shrink-0">
+                                        <div className="flex shrink-0 items-center gap-1.5">
                                           {res.isCalendarSynced && (
-                                            <IconButton icon="calendar_month" label="Im Kalender ansehen" variant="secondary" size="sm" onClick={() => {
-                                                if (setCurrentScreen) setCurrentScreen('calendar');
-                                              }} />
+                                            <IconButton icon="calendar_month" label="Im Kalender ansehen" variant="secondary" size="sm" onClick={() => { if (setCurrentScreen) setCurrentScreen('calendar'); }} />
                                           )}
-                                          <Button variant="secondary" size="sm" onClick={() => {
+                                          <Button
+                                            variant="secondary"
+                                            size="sm"
+                                            trailingIcon="arrow_forward"
+                                            className="shrink-0"
+                                            onClick={() => {
                                               setSelectedReminderId(res.targetId);
                                               if (setCurrentScreen) setCurrentScreen('reminder-detail');
-                                            }} className="shrink-0">
-                                            <span>Erinnerung öffnen</span>
-                                            <Icon name="arrow_forward" size="sm" />
+                                            }}
+                                          >
+                                            Erinnerung öffnen
                                           </Button>
                                         </div>
                                       )}
@@ -1345,33 +1354,40 @@ ${JSON.stringify(contextData, null, 2)}
                               </div>
                             )}
 
-                            {/* Render 3-Way Intent Choice Pills if AI proposed an appointment/reminder */}
+                            {/* Auswahl, wo ein Termin oder eine Erinnerung angelegt wird */}
                             {msg.intentChoice && (
-                              <div className="mt-3 pt-2.5 border-t border-subtle w-full space-y-2 not-prose">
-                                <div className="text-micro font-label font-semibold text-secondary flex items-center gap-1">
-                                  <Icon name="help" size="sm" className="text-primary" />
+                              <div className="not-prose mt-3 w-full space-y-2 border-t border-subtle pt-3">
+                                <div className="flex items-center gap-1.5 text-label-sm text-secondary">
+                                  <Icon name="help" size="sm" />
                                   <span>Wo soll der Eintrag angelegt werden?</span>
                                 </div>
-                                <div className="flex flex-wrap gap-1.5">
-                                  <Button variant="secondary" size="sm" onClick={() => handleSendMessage(`Bitte erstelle die Erinnerung „${msg.intentChoice.title}“ für den ${msg.intentChoice.date}${msg.intentChoice.time ? ` um ${msg.intentChoice.time} Uhr` : ''} nur in FocusFlow.`)}>
-                                    <Icon name="notifications" size="sm" className="text-warning" />
-                                    <span>Nur in FocusFlow</span>
-                                  </Button>
-
-                                  <button
-                                    type="button"
-                                    disabled={user?.isGuest || !isCalendarConnected}
-                                    onClick={() => handleSendMessage(`Bitte erstelle die Erinnerung „${msg.intentChoice.title}“ für den ${msg.intentChoice.date}${msg.intentChoice.time ? ` um ${msg.intentChoice.time} Uhr` : ''} in FocusFlow mit Google Kalender-Sync.`)}
-                                    title={user?.isGuest ? 'Im Gastmodus nicht verfügbar' : !isCalendarConnected ? 'Google Kalender nicht verbunden' : 'Empfohlen'}
-                                    className="px-2.5 py-1.5 rounded-md bg-success-subtle hover:bg-success-subtle border border-success text-caption-strong font-label text-success flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                                <div className="flex flex-wrap gap-2">
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    leadingIcon="notifications"
+                                    onClick={() => handleSendMessage(`Bitte erstelle die Erinnerung „${msg.intentChoice.title}“ für den ${msg.intentChoice.date}${msg.intentChoice.time ? ` um ${msg.intentChoice.time} Uhr` : ''} nur in FocusFlow.`)}
                                   >
-                                    <Icon name="sync" size="sm" className="text-success" />
-                                    <span>FocusFlow + Kalender-Sync (Empfohlen)</span>
-                                  </button>
-
-                                  <Button variant="secondary" size="sm" disabled={user?.isGuest || !isCalendarConnected} onClick={() => handleSendMessage(`Bitte trage den Termin „${msg.intentChoice.title}“ für den ${msg.intentChoice.date}${msg.intentChoice.time ? ` um ${msg.intentChoice.time} Uhr` : ''} nur im Google Kalender ein.`)} title={user?.isGuest ? 'Im Gastmodus nicht verfügbar' : !isCalendarConnected ? 'Google Kalender nicht verbunden' : 'Direkt im Kalender eintragen'}>
-                                    <Icon name="calendar_month" size="sm" className="text-primary" />
-                                    <span>Nur im Google Kalender</span>
+                                    Nur in FocusFlow
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    leadingIcon="sync"
+                                    disabled={user?.isGuest || !isCalendarConnected}
+                                    title={user?.isGuest ? 'Im Gastmodus nicht verfügbar' : !isCalendarConnected ? 'Google Kalender nicht verbunden' : 'Empfohlen'}
+                                    onClick={() => handleSendMessage(`Bitte erstelle die Erinnerung „${msg.intentChoice.title}“ für den ${msg.intentChoice.date}${msg.intentChoice.time ? ` um ${msg.intentChoice.time} Uhr` : ''} in FocusFlow mit Google Kalender-Sync.`)}
+                                  >
+                                    FocusFlow + Kalender-Sync (empfohlen)
+                                  </Button>
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    leadingIcon="calendar_month"
+                                    disabled={user?.isGuest || !isCalendarConnected}
+                                    title={user?.isGuest ? 'Im Gastmodus nicht verfügbar' : !isCalendarConnected ? 'Google Kalender nicht verbunden' : 'Direkt im Kalender eintragen'}
+                                    onClick={() => handleSendMessage(`Bitte trage den Termin „${msg.intentChoice.title}“ für den ${msg.intentChoice.date}${msg.intentChoice.time ? ` um ${msg.intentChoice.time} Uhr` : ''} nur im Google Kalender ein.`)}
+                                  >
+                                    Nur im Google Kalender
                                   </Button>
                                 </div>
                               </div>
@@ -1382,30 +1398,17 @@ ${JSON.stringify(contextData, null, 2)}
                     );
                   }
                   return (
-                    <div key={msg.id} className="flex flex-col items-end gap-1.5">
-                      {/* Attached Context Chips in User Bubble */}
+                    <div key={msg.id} className="flex flex-col items-end gap-2">
                       {msg.attachments && msg.attachments.length > 0 && (
-                        <div className="flex flex-wrap items-center justify-end gap-1.5 max-w-[85%] pr-1">
+                        <div className="flex max-w-[85%] flex-wrap items-center justify-end gap-1.5 pr-1">
                           {msg.attachments.map((att) => (
-                            <div
-                              key={`${att.type}_${att.id}`}
-                              className="flex items-center gap-1.5 px-2.5 py-1 bg-surface border border-subtle rounded-md text-micro font-label shadow-xs"
-                            >
-                              <Icon name={att.type === 'project' ? 'folder' : att.type === 'reminder' ? 'notifications' : 'calendar_month'} size="sm" className={`${att.type === 'project' ? 'text-primary' : att.type === 'reminder' ? 'text-warning' : 'text-accent'}`} />
-                              <span className="truncate max-w-[150px] font-medium">{att.title}</span>
-                            </div>
+                            <AttachmentChip key={`${att.type}_${att.id}`} att={att} />
                           ))}
                         </div>
                       )}
-                      <div className="flex gap-3 flex-row-reverse">
-                        <div className="w-8 h-8 flex-shrink-0 bg-accent text-on-accent border border-default rounded-full flex items-center justify-center text-caption-strong font-label shadow-xs overflow-hidden">
-                          {user?.photoURL ? (
-                            <img src={user.photoURL} alt="User" className="w-full h-full rounded-full object-cover" />
-                          ) : (
-                            <Icon name="person" size="md" />
-                          )}
-                        </div>
-                        <div className="p-4 bg-accent text-on-accent rounded-lg text-body max-w-[85%] shadow-sm markdown-body">
+                      <div className="flex flex-row-reverse gap-3">
+                        <Avatar name={user?.displayName || user?.email || 'Du'} src={user?.photoURL} size="md" />
+                        <div className="markdown-body max-w-[85%] rounded-lg bg-selected p-4 text-body-lg text-primary">
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>
                             {msg.content || msg.text}
                           </ReactMarkdown>
@@ -1416,31 +1419,31 @@ ${JSON.stringify(contextData, null, 2)}
                 })
               )}
               {draftAwaitingDetail && (
-                <div className="rounded-lg border border-control bg-surface p-4 shadow-sm space-y-3">
+                <Card variant="outlined" padding="md" className="space-y-3">
                   <div className="flex items-center gap-2">
-                    <Icon name="tune" size="md" className="text-primary" />
-                    <span className="text-body-strong">Wie detailliert soll Fio das Projekt aufteilen?</span>
+                    <Icon name="tune" size="md" className="text-secondary" />
+                    <span className="text-body-strong text-primary">Wie detailliert soll Fio das Projekt aufteilen?</span>
                   </div>
                   <p className="text-caption text-secondary">
                     Das gibt die Richtung vor. Später kannst du den Entwurf von Hand oder per Prompt anpassen.
                   </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                     {Object.entries(DETAIL_LEVELS).map(([key, level]) => (
                       <button
                         key={key}
                         type="button"
                         onClick={() => handlePickDetail(key)}
-                        className="flex sm:flex-col items-center sm:items-start gap-2.5 sm:gap-1 p-3 rounded-lg border border-subtle bg-subtle hover:border-strong hover:bg-surface text-left transition-all cursor-pointer"
+                        className={cx('flex items-center gap-3 rounded-lg border border-subtle bg-surface p-3 text-left transition-colors duration-fast hover:border-strong hover:bg-hover sm:flex-col sm:items-start sm:gap-1', FOCUS)}
                       >
-                        <Icon name={level.icon} size="md" className="text-primary" />
+                        <Icon name={level.icon} size="md" className="text-secondary" />
                         <span>
-                          <span className="block text-body-strong">{level.label}</span>
-                          <span className="block text-micro text-secondary">{level.hint}</span>
+                          <span className="block text-body-strong text-primary">{level.label}</span>
+                          <span className="block text-caption text-secondary">{level.hint}</span>
                         </span>
                       </button>
                     ))}
                   </div>
-                </div>
+                </Card>
               )}
               {isDraftSession && activeSession.draft && !draftAwaitingDetail && (
                 <ProjectDraftCard
@@ -1455,118 +1458,83 @@ ${JSON.stringify(contextData, null, 2)}
                   onRestore={handleRestoreVersion}
                 />
               )}
-              {/* Bottom Spacer so the latest message always sits comfortably above the floating pill dock */}
-              <div className="h-44 sm:h-52 shrink-0 pointer-events-none" />
               <div ref={messagesEndRef} />
             </div>
           </div>
 
-          {/* Floating Bottom Input Dock Island */}
-          <div className="absolute bottom-0 inset-x-0 p-3 sm:p-5 pb-4 sm:pb-6 z-10 pointer-events-none pt-8 flex flex-col items-center">
-            <div className="w-full max-w-2xl pointer-events-auto space-y-2">
-              {/* Quick Prompts or Floating Stop Indicator */}
+          {/* Eingabe */}
+          <div className="shrink-0 bg-canvas px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 sm:px-5 sm:pb-5">
+            <div className="mx-auto w-full max-w-reading space-y-2">
               {loading ? (
                 <div className="flex items-center justify-center pb-0.5">
-                  <button
-                    type="button"
-                    onClick={handleStopGeneration}
-                    className="flex items-center gap-1.5 px-3.5 py-1.5 bg-danger-subtle border border-danger text-danger hover:bg-danger-subtle rounded-md text-caption-strong font-label transition-all shadow-md cursor-pointer hover:scale-105 active:scale-95"
-                  >
-                    <span className="w-2 h-2 bg-danger rounded-full animate-pulse" />
-                    <span>Antwort stoppen</span>
-                  </button>
+                  <Button variant="secondary" size="sm" leadingIcon="stop" onClick={handleStopGeneration}>
+                    Antwort stoppen
+                  </Button>
                 </div>
               ) : dynamicPrompts.length === 0 ? null : (
-                <div className="flex items-center gap-2 no-wrap-scroll text-micro font-label pb-0.5 overflow-x-auto">
-                  <span className="text-secondary font-semibold flex-shrink-0">PROMPTS:</span>
+                <div className="no-scrollbar flex items-center gap-2 overflow-x-auto pb-0.5">
                   {dynamicPrompts.map((qp) => (
-                    <Button variant="secondary" size="sm" key={qp.id} onClick={() => handleSendMessage(qp.promptText)}>
+                    <Button variant="secondary" size="sm" key={qp.id} onClick={() => handleSendMessage(qp.promptText)} className="shrink-0">
                       {qp.label}
                     </Button>
                   ))}
                 </div>
               )}
 
-              {/* Floating Glass Input Bar */}
-              <div className="bg-surface border border-subtle rounded-xl shadow-lg hover:shadow-lg focus-within:border-control focus-within:ring-2 focus-within:ring-focus transition-all flex flex-col p-1.5">
-                {/* Attached Context Chips Bar */}
+              <div className="flex flex-col rounded-lg border border-control bg-surface p-1.5 shadow-sm transition-[border-color,box-shadow] duration-fast focus-within:border-transparent focus-within:ring-2 focus-within:ring-focus">
                 {activeAttachments.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-1.5 px-2 pt-1 pb-2 border-b border-subtle">
+                  <div className="flex flex-wrap items-center gap-1.5 border-b border-subtle px-2 pb-2 pt-1">
                     {activeAttachments.map((att) => (
-                      <div
+                      <AttachmentChip
                         key={`${att.type}_${att.id}`}
-                        className="flex items-center gap-1.5 px-2.5 py-1 bg-subtle border border-subtle rounded-md text-caption-strong font-label shadow-xs group hover:bg-surface transition-colors"
-                      >
-                        <Icon name={att.type === 'project' ? 'folder' : att.type === 'reminder' ? 'notifications' : 'calendar_month'} size="sm" className={`${att.type === 'project' ? 'text-primary' : att.type === 'reminder' ? 'text-warning' : 'text-accent'}`} />
-                        <span className="truncate max-w-[160px]">{att.title}</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (att.type === 'project') toggleProjectContext(att.id);
-                            else if (att.type === 'reminder') toggleReminderContext(att.id);
-                            else if (att.type === 'calendar') toggleCalendarContext();
-                            else if (att.type === 'calendar_event') toggleCalendarEventContext(att.id);
-                          }}
-                          className="text-secondary hover:text-danger transition-colors ml-0.5 cursor-pointer flex items-center justify-center"
-                          title={`${att.title} entfernen`}
-                        >
-                          <Icon name="close" size="sm" />
-                        </button>
-                      </div>
+                        att={att}
+                        onRemove={() => {
+                          if (att.type === 'project') toggleProjectContext(att.id);
+                          else if (att.type === 'reminder') toggleReminderContext(att.id);
+                          else if (att.type === 'calendar') toggleCalendarContext();
+                          else if (att.type === 'calendar_event') toggleCalendarEventContext(att.id);
+                        }}
+                      />
                     ))}
-                    <button
-                      type="button"
-                      onClick={() => setIsContextModalOpen(true)}
-                      className="text-micro font-label font-medium text-primary hover:underline px-1 cursor-pointer flex items-center gap-0.5"
-                    >
-                      <Icon name="add" size="sm" />
-                      <span>Weiteren Kontext hinzufügen</span>
-                    </button>
+                    <Button variant="ghost" size="sm" leadingIcon="add" onClick={() => setIsContextModalOpen(true)}>
+                      Weiteren Kontext hinzufügen
+                    </Button>
                   </div>
                 )}
 
-                {/* Main Input Controls Row */}
-                <div className="flex items-center w-full">
-                  {/* Context Selector Button with Active Status */}
-                  <button
-                    type="button"
-                    onClick={() => setIsContextModalOpen(true)}
-                    className={`relative flex items-center justify-center p-2 rounded-lg transition-all cursor-pointer shrink-0 ${
-                      hasCustomContext
-                        ? 'bg-hover text-primary border border-default shadow-xs hover:bg-pressed'
-                        : 'text-secondary hover:text-primary hover:bg-hover border border-transparent'
-                    }`}
-                    title={
-                      hasCustomContext
-                        ? isGeneralOnlySelected
-                          ? 'KI-Kontext: Allgemeiner Coach (aktiv)'
-                          : `KI-Kontext: ${totalActiveCustomCount} Element(e) ausgewählt (aktiv)`
-                        : 'Kontext & Daten für Fio wählen (Kalender, Projekte & Erinnerungen)'
-                    }
-                  >
-                    <Icon name="tune" size="md" className={`${hasCustomContext ? 'font-semibold text-primary' : ''}`} />
+                <div className="flex w-full items-center">
+                  <div className="relative shrink-0">
+                    <IconButton
+                      icon="tune"
+                      variant={hasCustomContext ? 'secondary' : 'ghost'}
+                      label={
+                        hasCustomContext
+                          ? isGeneralOnlySelected
+                            ? 'KI-Kontext: Allgemeiner Coach (aktiv)'
+                            : `KI-Kontext: ${totalActiveCustomCount} Element(e) ausgewählt (aktiv)`
+                          : 'Kontext und Daten für Fio wählen (Kalender, Projekte, Erinnerungen)'
+                      }
+                      onClick={() => setIsContextModalOpen(true)}
+                    />
                     {hasCustomContext && (
-                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-accent text-on-accent text-micro font-label font-semibold rounded-full flex items-center justify-center shadow-xs">
-                        {isGeneralOnlySelected ? (
-                          <Icon name="psychology" size="sm" />
-                        ) : (
-                          totalActiveCustomCount
-                        )}
+                      <span className="pointer-events-none absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-micro text-on-accent">
+                        {isGeneralOnlySelected ? <Icon name="psychology" size="sm" /> : totalActiveCustomCount}
                       </span>
                     )}
-                  </button>
+                  </div>
 
                   <textarea
                     ref={textareaRef}
-                    className="flex-grow border-none focus:ring-0 text-body px-2 sm:px-3 py-2 sm:py-2.5 outline-none resize-none overflow-y-auto min-h-11 bg-transparent"
+                    aria-label="Nachricht an Fio"
+                    className="min-h-11 flex-grow resize-none overflow-y-auto border-none bg-transparent px-2 py-2 text-body text-primary outline-none placeholder:text-tertiary focus:ring-0 disabled:text-disabled sm:px-3 sm:py-2.5"
                     placeholder={
                       loading
-                        ? 'Fio generiert gerade eine Antwort...'
+                        ? 'Fio generiert gerade eine Antwort …'
                         : draftAwaitingDetail
                         ? 'Wähle oben die Detailtiefe …'
                         : draftOpen
                         ? 'Sag Fio, was am Entwurf anders sein soll …'
-                        : 'Frage deinen Coach...'
+                        : 'Frage deinen Coach …'
                     }
                     value={inputText}
                     rows={1}
@@ -1585,23 +1553,16 @@ ${JSON.stringify(contextData, null, 2)}
                     }}
                   />
 
-                  {/* Voice Input Button */}
                   {!loading && (
-                    <button
-                      type="button"
-                      className={`w-10 h-10 flex items-center justify-center rounded-lg transition-all cursor-pointer mr-1 ${
-                        isListening
-                          ? 'bg-danger text-on-accent animate-pulse shadow-md'
-                          : 'text-secondary hover:text-primary hover:bg-hover'
-                      }`}
-                      title={isListening ? 'Zuhören beenden' : 'Spracheingabe starten'}
+                    <IconButton
+                      icon={isListening ? 'mic' : 'mic_none'}
+                      variant={isListening ? 'danger' : 'ghost'}
+                      label={isListening ? 'Zuhören beenden' : 'Spracheingabe starten'}
+                      className={cx('mr-1', isListening && 'animate-pulse')}
                       onClick={handleToggleListening}
-                    >
-                      <Icon name={isListening ? 'mic' : 'mic_none'} size="md" />
-                    </button>
+                    />
                   )}
 
-                  {/* Send or Stop Button */}
                   {loading ? (
                     <IconButton icon="stop" label="Antwort unterbrechen" variant="danger" onClick={handleStopGeneration} />
                   ) : (
@@ -1614,574 +1575,170 @@ ${JSON.stringify(contextData, null, 2)}
         </div>
       </div>
 
-      {/* 1. SIDEBAR FILTER MODAL: Suche & Filter für den Chatverlauf */}
-      {isSidebarFilterModalOpen && (
-        <div className="fixed inset-0 z-dropdown flex items-center justify-center p-4 bg-scrim">
-          <div className="bg-surface rounded-xl border border-subtle shadow-lg w-full max-w-lg overflow-hidden flex flex-col max-h-[85vh]">
-            {/* Header */}
-            <div className="p-4 border-b border-subtle flex items-center justify-between bg-subtle">
-              <div className="flex items-center gap-2">
-                <Icon name="filter_list" size="md" className="text-primary" />
-                <span className="text-body-strong">Chat-Verlauf durchsuchen & filtern</span>
-              </div>
-              <button
-                onClick={() => setIsSidebarFilterModalOpen(false)}
-                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-hover text-secondary transition-colors cursor-pointer"
-              >
-                <Icon name="close" size="md" />
-              </button>
-            </div>
+      {/* Chat-Verlauf durchsuchen und filtern */}
+      <Dialog open={isSidebarFilterModalOpen} onClose={closeFilterDialog} size="md" title="Chat-Verlauf filtern">
+        <div className="space-y-4">
+          <SearchField value={sidebarSearchQuery} onChange={setSidebarSearchQuery} label="Chats filtern" placeholder="Kalender, Projekte oder Erinnerungen filtern …" autoFocus />
 
-            {/* Search Bar */}
-            <div className="p-3 border-b border-subtle bg-surface">
-              <div className="flex items-center gap-2 bg-subtle border border-subtle rounded-lg px-3 py-2 focus-within:border-strong focus-within:bg-surface transition-colors">
-                <Icon name="search" size="md" className="text-secondary" />
-                <input
-                  type="text"
-                  autoFocus
-                  value={sidebarSearchQuery}
-                  onChange={(e) => setSidebarSearchQuery(e.target.value)}
-                  placeholder="Kalender, Projekte oder Erinnerungen filtern..."
-                  className="w-full text-caption bg-transparent border-none outline-none focus:ring-0 p-0"
-                />
-                {sidebarSearchQuery && (
-                  <button onClick={() => setSidebarSearchQuery('')} className="text-secondary hover:text-primary">
-                    <Icon name="close" size="sm" />
-                  </button>
-                )}
-              </div>
-            </div>
+          <div className="-mx-6 max-h-[55vh] space-y-5 overflow-y-auto px-6 pb-1">
+            <section className="space-y-2">
+              <SectionHeader title="Allgemein" />
+              <PickRow icon="forum" title="Alle Chats anzeigen" meta="Gesamten Verlauf anzeigen" selected={sidebarScopeFilter === 'all'} onClick={() => pickScope('all')} />
+              <PickRow icon="calendar_month" area="calendar" title="Kalender und Termine" meta="Chats mit Kalender- und Terminbezug" selected={sidebarScopeFilter === 'calendar'} onClick={() => pickScope('calendar')} />
+              <PickRow icon="psychology" title="Allgemeiner Coach" meta="Chats ohne Projekt- oder Erinnerungsbindung" selected={sidebarScopeFilter === 'general'} onClick={() => pickScope('general')} />
+              <PickRow icon="edit_note" area="projects" title="Entwürfe" meta="Projektanlegung mit fertigen Entwürfen" selected={sidebarScopeFilter === 'drafts'} onClick={() => pickScope('drafts')} />
+            </section>
 
-            {/* Items List */}
-            <div className="flex-1 overflow-y-auto p-3 space-y-4">
-              <div className="space-y-1.5">
-                <span className="font-label text-eyebrow font-semibold text-tertiary uppercase px-1">
-                  Allgemein
-                </span>
-                <div
-                  onClick={() => {
-                    setSidebarScopeFilter('all');
-                    setIsSidebarFilterModalOpen(false);
-                  }}
-                  className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between ${
-                    sidebarScopeFilter === 'all'
-                      ? 'bg-hover border-strong shadow-xs'
-                      : 'bg-surface border-subtle hover:bg-hover hover:border-default'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Icon name="forum" size="md" className="text-primary" />
-                    <div>
-                      <div className="text-caption-strong">Alle Chats anzeigen</div>
-                      <div className="text-micro font-label text-secondary">Gesamten Verlauf anzeigen</div>
-                    </div>
-                  </div>
-                  {sidebarScopeFilter === 'all' && (
-                    <Icon name="check" size="md" className="text-primary" />
-                  )}
-                </div>
+            {sidebarModalFilteredItems.projects.length > 0 && (() => {
+              const { visible, hiddenCount } = limited(sidebarModalFilteredItems.projects, sidebarSearchQuery, showAllSidebarProjects);
+              return (
+                <PickSection title="Projekte" count={sidebarModalFilteredItems.projects.length} hiddenCount={hiddenCount} expanded={showAllSidebarProjects} onToggle={() => setShowAllSidebarProjects(!showAllSidebarProjects)}>
+                  {visible.map((p) => (
+                    <PickRow key={p.id} icon="folder" area="projects" title={p.title} meta={projectMeta(p)} selected={sidebarScopeFilter === p.id} onClick={() => pickScope(p.id)} />
+                  ))}
+                </PickSection>
+              );
+            })()}
 
-                <div
-                  onClick={() => {
-                    setSidebarScopeFilter('calendar');
-                    setIsSidebarFilterModalOpen(false);
-                  }}
-                  className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between ${
-                    sidebarScopeFilter === 'calendar'
-                      ? 'bg-info-subtle border-info shadow-xs'
-                      : 'bg-surface border-subtle hover:bg-hover hover:border-info'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Icon name="calendar_month" size="md" className="text-accent" />
-                    <div>
-                      <div className="text-caption-strong">Kalender & Termine</div>
-                      <div className="text-micro font-label text-secondary">Chats mit Kalender- und Terminbezug</div>
-                    </div>
-                  </div>
-                  {sidebarScopeFilter === 'calendar' && (
-                    <Icon name="check" size="md" className="text-accent" />
-                  )}
-                </div>
-
-                <div
-                  onClick={() => {
-                    setSidebarScopeFilter('general');
-                    setIsSidebarFilterModalOpen(false);
-                  }}
-                  className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between ${
-                    sidebarScopeFilter === 'general'
-                      ? 'bg-hover border-strong shadow-xs'
-                      : 'bg-surface border-subtle hover:bg-hover hover:border-default'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Icon name="psychology" size="md" className="text-primary" />
-                    <div>
-                      <div className="text-caption-strong">Allgemeiner Coach</div>
-                      <div className="text-micro font-label text-secondary">Chats ohne Projekt-/Erinnerungsbindung</div>
-                    </div>
-                  </div>
-                  {sidebarScopeFilter === 'general' && (
-                    <Icon name="check" size="md" className="text-primary" />
-                  )}
-                </div>
-
-                <div
-                  onClick={() => {
-                    setSidebarScopeFilter('drafts');
-                    setIsSidebarFilterModalOpen(false);
-                  }}
-                  className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between ${
-                    sidebarScopeFilter === 'drafts'
-                      ? 'bg-hover border-strong shadow-xs'
-                      : 'bg-surface border-subtle hover:bg-hover hover:border-default'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Icon name="edit_note" size="md" className="text-primary" />
-                    <div>
-                      <div className="text-caption-strong">Entwürfe</div>
-                      <div className="text-micro font-label text-secondary">Projektanlegung mit fertigen Entwürfen</div>
-                    </div>
-                  </div>
-                  {sidebarScopeFilter === 'drafts' && (
-                    <Icon name="check" size="md" className="text-primary" />
-                  )}
-                </div>
-              </div>
-
-              {/* Projects */}
-              {sidebarModalFilteredItems.projects.length > 0 && (() => {
-                const isSearching = !!sidebarSearchQuery.trim();
-                const visible = isSearching || showAllSidebarProjects
-                  ? sidebarModalFilteredItems.projects
-                  : sidebarModalFilteredItems.projects.slice(0, 3);
-                const hasMore = !isSearching && sidebarModalFilteredItems.projects.length > 3;
-
-                return (
-                  <div className="space-y-1.5">
-                    <span className="font-label text-eyebrow font-semibold text-tertiary uppercase px-1">
-                      Projekte ({sidebarModalFilteredItems.projects.length})
-                    </span>
-                    {visible.map((p) => {
-                      const isSelected = sidebarScopeFilter === p.id;
-                      return (
-                        <div
-                          key={p.id}
-                          onClick={() => {
-                            setSidebarScopeFilter(p.id);
-                            setIsSidebarFilterModalOpen(false);
-                          }}
-                          className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between ${
-                            isSelected
-                              ? 'bg-hover border-strong shadow-xs'
-                              : 'bg-surface border-subtle hover:bg-hover hover:border-default'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <Icon name="folder" size="md" className="text-primary shrink-0" />
-                            <div className="min-w-0">
-                              <div className="text-caption-strong truncate">{p.title}</div>
-                              <div className="text-micro font-label text-secondary">
-                                {p.progress || 0}% abgeschlossen • {p.phases?.length || 0} Abschnitte
-                              </div>
-                            </div>
-                          </div>
-                          {isSelected && (
-                            <Icon name="check" size="md" className="text-primary shrink-0" />
-                          )}
-                        </div>
-                      );
-                    })}
-
-                    {hasMore && (
-                      <Button variant="secondary" fullWidth onClick={() => setShowAllSidebarProjects(!showAllSidebarProjects)} className="mt-1">
-                        <span>{showAllSidebarProjects ? 'Weniger anzeigen' : `Mehr anzeigen (${sidebarModalFilteredItems.projects.length - 3} weitere)`}</span>
-                        <Icon name={showAllSidebarProjects ? 'expand_less' : 'expand_more'} size="sm" />
-                      </Button>
-                    )}
-                  </div>
-                );
-              })()}
-
-              {/* Reminders */}
-              {sidebarModalFilteredItems.reminders.length > 0 && (() => {
-                const isSearching = !!sidebarSearchQuery.trim();
-                const visible = isSearching || showAllSidebarReminders
-                  ? sidebarModalFilteredItems.reminders
-                  : sidebarModalFilteredItems.reminders.slice(0, 3);
-                const hasMore = !isSearching && sidebarModalFilteredItems.reminders.length > 3;
-
-                return (
-                  <div className="space-y-1.5">
-                    <span className="font-label text-eyebrow font-semibold text-tertiary uppercase px-1">
-                      Erinnerungen ({sidebarModalFilteredItems.reminders.length})
-                    </span>
-                    {visible.map((r) => {
-                      const isSelected = sidebarScopeFilter === r.id;
-                      return (
-                        <div
-                          key={r.id}
-                          onClick={() => {
-                            setSidebarScopeFilter(r.id);
-                            setIsSidebarFilterModalOpen(false);
-                          }}
-                          className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between ${
-                            isSelected
-                              ? 'bg-hover border-strong shadow-xs'
-                              : 'bg-surface border-subtle hover:bg-hover hover:border-default'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <Icon name="notifications" size="md" className="text-warning shrink-0" />
-                            <div className="min-w-0">
-                              <div className="text-caption-strong truncate">{r.title}</div>
-                              <div className="text-micro font-label text-secondary">
-                                {r.date || 'Kein Termin'} {r.time ? `• ${r.time} Uhr` : ''} • {r.status || 'AKTIV'}
-                              </div>
-                            </div>
-                          </div>
-                          {isSelected && (
-                            <Icon name="check" size="md" className="text-primary shrink-0" />
-                          )}
-                        </div>
-                      );
-                    })}
-
-                    {hasMore && (
-                      <Button variant="secondary" fullWidth onClick={() => setShowAllSidebarReminders(!showAllSidebarReminders)} className="mt-1">
-                        <span>{showAllSidebarReminders ? 'Weniger anzeigen' : `Mehr anzeigen (${sidebarModalFilteredItems.reminders.length - 3} weitere)`}</span>
-                        <Icon name={showAllSidebarReminders ? 'expand_less' : 'expand_more'} size="sm" />
-                      </Button>
-                    )}
-                  </div>
-                );
-              })()}
-            </div>
+            {sidebarModalFilteredItems.reminders.length > 0 && (() => {
+              const { visible, hiddenCount } = limited(sidebarModalFilteredItems.reminders, sidebarSearchQuery, showAllSidebarReminders);
+              return (
+                <PickSection title="Erinnerungen" count={sidebarModalFilteredItems.reminders.length} hiddenCount={hiddenCount} expanded={showAllSidebarReminders} onToggle={() => setShowAllSidebarReminders(!showAllSidebarReminders)}>
+                  {visible.map((r) => (
+                    <PickRow key={r.id} icon="notifications" area="reminders" title={r.title} meta={reminderMeta(r)} selected={sidebarScopeFilter === r.id} onClick={() => pickScope(r.id)} />
+                  ))}
+                </PickSection>
+              );
+            })()}
           </div>
         </div>
-      )}
+      </Dialog>
 
-      {/* 2. KI-KONTEXT & ANHÄNGE MODAL (Wählt aus, welche Daten der KI als Kontext übergeben werden) */}
-      {isContextModalOpen && (
-        <div className="fixed inset-0 z-dropdown flex items-center justify-center p-4 bg-scrim">
-          <div className="bg-surface rounded-xl border border-subtle shadow-lg w-full max-w-lg overflow-hidden flex flex-col max-h-[85vh]">
-            
-            {/* Modal Header */}
-            <div className="p-4 border-b border-subtle flex items-center justify-between bg-subtle">
-              <div className="flex items-center gap-2">
-                <Icon name="tune" size="md" className="text-primary" />
-                <span className="text-body-strong">Kontext & Anhänge für Fio auswählen</span>
-              </div>
-              <button
-                onClick={() => setIsContextModalOpen(false)}
-                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-hover text-secondary transition-colors cursor-pointer"
-              >
-                <Icon name="close" size="md" />
-              </button>
-            </div>
+      {/* Kontext und Anhänge: welche Daten Fio bekommt */}
+      <Dialog
+        open={isContextModalOpen}
+        onClose={() => setIsContextModalOpen(false)}
+        size="md"
+        title="Kontext für Fio auswählen"
+        footer={<Button onClick={() => setIsContextModalOpen(false)}>Auswahl anwenden</Button>}
+      >
+        <div className="space-y-4">
+          <SearchField value={contextModalSearch} onChange={setContextModalSearch} label="Kontext suchen" placeholder="Kalender, Projekte oder Erinnerungen suchen …" autoFocus />
 
-            {/* Instant Search Bar */}
-            <div className="p-3 border-b border-subtle bg-surface">
-              <div className="flex items-center gap-2 bg-subtle border border-subtle rounded-lg px-3 py-2 focus-within:border-strong focus-within:bg-surface transition-colors">
-                <Icon name="search" size="md" className="text-secondary" />
-                <input
-                  type="text"
-                  autoFocus
-                  value={contextModalSearch}
-                  onChange={(e) => setContextModalSearch(e.target.value)}
-                  placeholder="Kalender, Projekte oder Erinnerungen für Fio suchen..."
-                  className="w-full text-caption bg-transparent border-none outline-none focus:ring-0 p-0"
-                />
-                {contextModalSearch && (
-                  <button onClick={() => setContextModalSearch('')} className="text-secondary hover:text-primary">
-                    <Icon name="close" size="sm" />
-                  </button>
-                )}
-              </div>
-            </div>
+          <div className="-mx-6 max-h-[50vh] space-y-5 overflow-y-auto px-6 pb-1">
+            <section className="space-y-2">
+              <SectionHeader title="Voreinstellungen" />
+              <PickRow
+                icon="forum"
+                title="Alle Daten übergeben"
+                meta="Voller Zugriff auf alle Termine, Projekte und Erinnerungen"
+                selected={isAllContextSelected && noContextAttachments}
+                onClick={selectAllContext}
+              />
+              <PickRow
+                icon="psychology"
+                title="Allgemeiner Coach"
+                meta="Freies Gespräch ohne Projektdaten"
+                selected={isGeneralOnlySelected}
+                onClick={selectGeneralOnlyContext}
+              />
+            </section>
 
-            {/* Scrollable Items List with Multi-Select Checkboxes */}
-            <div className="flex-1 overflow-y-auto p-3 space-y-4">
-              {/* Preset Scopes */}
-              <div className="space-y-1.5">
-                <span className="font-label text-eyebrow font-semibold text-tertiary uppercase px-1">
-                  Voreinstellungen
-                </span>
-                
-                {/* All Context Option */}
-                <div
-                  onClick={selectAllContext}
-                  className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between ${
-                    isAllContextSelected && (activeSession?.contextAttachments || []).length === 0
-                      ? 'bg-hover border-strong shadow-xs'
-                      : 'bg-surface border-subtle hover:bg-hover hover:border-default'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Icon name="forum" size="md" className="text-primary" />
-                    <div>
-                      <div className="text-caption-strong">Alle Daten übergeben (Kalender, Projekte & Erinnerungen)</div>
-                      <div className="text-micro font-label text-secondary">Voller Zugriff auf alle Termine, Projekte und Erinnerungen</div>
-                    </div>
-                  </div>
-                  <div className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all ${
-                    isAllContextSelected && (activeSession?.contextAttachments || []).length === 0 ? 'bg-accent border-strong text-on-accent' : 'border-subtle bg-surface'
-                  }`}>
-                    {isAllContextSelected && (activeSession?.contextAttachments || []).length === 0 && <Icon name="check" size="sm" />}
-                  </div>
-                </div>
+            {(contextModalFilteredItems.calendarEvents.length > 0 || isCalendarConnected) && (() => {
+              const { visible, hiddenCount } = limited(contextModalFilteredItems.calendarEvents, contextModalSearch, showAllContextCalendar);
+              const isMasterCalChecked = isCalendarContextSelected || (activeSession?.contextAttachments || []).some(a => a.type === 'calendar');
 
-                {/* General Coach Only */}
-                <div
-                  onClick={selectGeneralOnlyContext}
-                  className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between ${
-                    isGeneralOnlySelected
-                      ? 'bg-hover border-strong shadow-xs'
-                      : 'bg-surface border-subtle hover:bg-hover hover:border-default'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Icon name="psychology" size="md" className="text-primary" />
-                    <div>
-                      <div className="text-caption-strong">Allgemeiner Coach (Ohne Projektdaten)</div>
-                      <div className="text-micro font-label text-secondary">Freies Gespräch ohne aktiven Aufgaben-Kontext</div>
-                    </div>
-                  </div>
-                  <div className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all ${
-                    isGeneralOnlySelected ? 'bg-accent border-strong text-on-accent' : 'border-subtle bg-surface'
-                  }`}>
-                    {isGeneralOnlySelected && <Icon name="check" size="sm" />}
-                  </div>
-                </div>
-              </div>
-
-              {/* Kalender & Termine Multi-Select Section */}
-              {(contextModalFilteredItems.calendarEvents.length > 0 || isCalendarConnected) && (() => {
-                const isSearching = !!contextModalSearch.trim();
-                const visibleEvents = isSearching || showAllContextCalendar
-                  ? contextModalFilteredItems.calendarEvents
-                  : contextModalFilteredItems.calendarEvents.slice(0, 3);
-                const hasMoreEvents = !isSearching && contextModalFilteredItems.calendarEvents.length > 3;
-                const isMasterCalChecked = isCalendarContextSelected || (activeSession?.contextAttachments || []).some(a => a.type === 'calendar');
-
-                return (
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between px-1">
-                      <span className="font-label text-eyebrow font-semibold text-tertiary uppercase">
-                        Kalender ({contextModalFilteredItems.calendarEvents.length} Termine)
-                      </span>
-                    </div>
-
-                    {/* Master Calendar Option */}
-                    <div
-                      onClick={toggleCalendarContext}
-                      className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between ${
-                        isMasterCalChecked
-                          ? 'bg-info-subtle border-info shadow-xs'
-                          : 'bg-surface border-subtle hover:bg-hover hover:border-info'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <Icon name="calendar_month" size="md" className="text-accent shrink-0" />
-                        <div className="min-w-0">
-                          <div className="text-caption-strong truncate">Gesamter Kalender</div>
-                          <div className="text-micro font-label text-secondary">
-                            {isCalendarConnected ? `${calendarEvents.length} Termine geladen • Google Kalender aktiv` : (user?.isGuest ? 'Gastmodus (kein Google Kalender)' : 'Kalender nicht verknüpft')}
-                          </div>
-                        </div>
-                      </div>
-                      <div className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all shrink-0 ml-2 ${
-                        isMasterCalChecked ? 'bg-accent border-accent text-on-accent' : 'border-subtle bg-surface'
-                      }`}>
-                        {isMasterCalChecked && <Icon name="check" size="sm" />}
-                      </div>
-                    </div>
-
-                    {/* Individual Events */}
-                    {visibleEvents.map((evt) => {
-                      const isChecked = isMasterCalChecked || selectedCalendarEventIds.includes(evt.id) || (activeSession?.contextAttachments || []).some(a => a.id === evt.id && a.type === 'calendar_event');
-                      const rawStart = evt.start?.dateTime || evt.start?.date || '';
-                      let timeDisplay = '';
-                      if (rawStart) {
-                        try {
-                          const d = new Date(rawStart);
-                          timeDisplay = d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
-                          if (rawStart.includes('T')) {
-                            timeDisplay += ` • ${d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`;
-                          }
-                        } catch {
-                          timeDisplay = rawStart;
+              return (
+                <PickSection title="Kalender" count={contextModalFilteredItems.calendarEvents.length} hiddenCount={hiddenCount} expanded={showAllContextCalendar} onToggle={() => setShowAllContextCalendar(!showAllContextCalendar)}>
+                  <PickRow
+                    multi
+                    icon="calendar_month"
+                    area="calendar"
+                    title="Gesamter Kalender"
+                    meta={isCalendarConnected ? `${calendarEvents.length} Termine geladen · Google Kalender aktiv` : (user?.isGuest ? 'Gastmodus (kein Google Kalender)' : 'Kalender nicht verknüpft')}
+                    selected={isMasterCalChecked}
+                    onClick={toggleCalendarContext}
+                  />
+                  {visible.map((evt) => {
+                    const isChecked = isMasterCalChecked || selectedCalendarEventIds.includes(evt.id) || (activeSession?.contextAttachments || []).some(a => a.id === evt.id && a.type === 'calendar_event');
+                    const rawStart = evt.start?.dateTime || evt.start?.date || '';
+                    let timeDisplay = '';
+                    if (rawStart) {
+                      try {
+                        const d = new Date(rawStart);
+                        timeDisplay = d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
+                        if (rawStart.includes('T')) {
+                          timeDisplay += ` · ${d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`;
                         }
+                      } catch {
+                        timeDisplay = rawStart;
                       }
-                      return (
-                        <div
-                          key={evt.id}
-                          onClick={() => toggleCalendarEventContext(evt.id)}
-                          className={`p-2.5 rounded-lg border transition-all cursor-pointer flex items-center justify-between ${
-                            isChecked
-                              ? 'bg-info-subtle border-info shadow-xs'
-                              : 'bg-surface border-subtle hover:bg-hover hover:border-info'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <Icon name="event" size="sm" className="text-accent shrink-0" />
-                            <div className="min-w-0">
-                              <div className="text-caption-strong truncate">{evt.summary || evt.title || 'Termin'}</div>
-                              <div className="text-micro font-label text-secondary">
-                                {timeDisplay || 'Termin'}
-                              </div>
-                            </div>
-                          </div>
-                          <div className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all shrink-0 ml-2 ${
-                            isChecked ? 'bg-accent border-accent text-on-accent' : 'border-subtle bg-surface'
-                          }`}>
-                            {isChecked && <Icon name="check" size="sm" />}
-                          </div>
-                        </div>
-                      );
-                    })}
+                    }
+                    return (
+                      <PickRow
+                        key={evt.id}
+                        multi
+                        icon="event"
+                        area="calendar"
+                        title={evt.summary || evt.title || 'Termin'}
+                        meta={timeDisplay || 'Termin'}
+                        selected={isChecked}
+                        onClick={() => toggleCalendarEventContext(evt.id)}
+                      />
+                    );
+                  })}
+                </PickSection>
+              );
+            })()}
 
-                    {hasMoreEvents && (
-                      <Button variant="secondary" fullWidth onClick={() => setShowAllContextCalendar(!showAllContextCalendar)} className="mt-1">
-                        <span>{showAllContextCalendar ? 'Weniger anzeigen' : `Mehr anzeigen (${contextModalFilteredItems.calendarEvents.length - 3} weitere)`}</span>
-                        <Icon name={showAllContextCalendar ? 'expand_less' : 'expand_more'} size="sm" />
-                      </Button>
-                    )}
-                  </div>
-                );
-              })()}
+            {contextModalFilteredItems.projects.length > 0 && (() => {
+              const { visible, hiddenCount } = limited(contextModalFilteredItems.projects, contextModalSearch, showAllContextProjects);
+              return (
+                <PickSection title="Projekte" count={contextModalFilteredItems.projects.length} hiddenCount={hiddenCount} expanded={showAllContextProjects} onToggle={() => setShowAllContextProjects(!showAllContextProjects)}>
+                  {visible.map((p) => (
+                    <PickRow
+                      key={p.id}
+                      multi
+                      icon="folder"
+                      area="projects"
+                      title={p.title}
+                      meta={projectMeta(p)}
+                      selected={selectedProjectIds.includes(p.id) || (activeSession?.contextAttachments || []).some(a => a.id === p.id && a.type === 'project')}
+                      onClick={() => toggleProjectContext(p.id)}
+                    />
+                  ))}
+                </PickSection>
+              );
+            })()}
 
-              {/* Projects Multi-Select Section */}
-              {contextModalFilteredItems.projects.length > 0 && (() => {
-                const isSearching = !!contextModalSearch.trim();
-                const visibleProjects = isSearching || showAllContextProjects
-                  ? contextModalFilteredItems.projects
-                  : contextModalFilteredItems.projects.slice(0, 3);
-                const hasMoreProjects = !isSearching && contextModalFilteredItems.projects.length > 3;
+            {contextModalFilteredItems.reminders.length > 0 && (() => {
+              const { visible, hiddenCount } = limited(contextModalFilteredItems.reminders, contextModalSearch, showAllContextReminders);
+              return (
+                <PickSection title="Erinnerungen" count={contextModalFilteredItems.reminders.length} hiddenCount={hiddenCount} expanded={showAllContextReminders} onToggle={() => setShowAllContextReminders(!showAllContextReminders)}>
+                  {visible.map((r) => (
+                    <PickRow
+                      key={r.id}
+                      multi
+                      icon="notifications"
+                      area="reminders"
+                      title={r.title}
+                      meta={reminderMeta(r)}
+                      selected={selectedReminderIds.includes(r.id) || (activeSession?.contextAttachments || []).some(a => a.id === r.id && a.type === 'reminder')}
+                      onClick={() => toggleReminderContext(r.id)}
+                    />
+                  ))}
+                </PickSection>
+              );
+            })()}
 
-                return (
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between px-1">
-                      <span className="font-label text-eyebrow font-semibold text-tertiary uppercase">
-                        Projekte ({contextModalFilteredItems.projects.length})
-                      </span>
-                    </div>
-
-                    {visibleProjects.map((p) => {
-                      const isChecked = selectedProjectIds.includes(p.id) || (activeSession?.contextAttachments || []).some(a => a.id === p.id && a.type === 'project');
-                      return (
-                        <div
-                          key={p.id}
-                          onClick={() => toggleProjectContext(p.id)}
-                          className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between ${
-                            isChecked
-                              ? 'bg-hover border-control shadow-xs'
-                              : 'bg-surface border-subtle hover:bg-hover hover:border-default'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <Icon name="folder" size="md" className="text-primary shrink-0" />
-                            <div className="min-w-0">
-                              <div className="text-caption-strong truncate">{p.title}</div>
-                              <div className="text-micro font-label text-secondary">
-                                {p.progress || 0}% abgeschlossen • {p.phases?.length || 0} Abschnitte
-                              </div>
-                            </div>
-                          </div>
-                          <div className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all shrink-0 ml-2 ${
-                            isChecked ? 'bg-accent border-strong text-on-accent' : 'border-subtle bg-surface'
-                          }`}>
-                            {isChecked && <Icon name="check" size="sm" />}
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {hasMoreProjects && (
-                      <Button variant="secondary" fullWidth onClick={() => setShowAllContextProjects(!showAllContextProjects)} className="mt-1">
-                        <span>{showAllContextProjects ? 'Weniger anzeigen' : `Mehr anzeigen (${contextModalFilteredItems.projects.length - 3} weitere)`}</span>
-                        <Icon name={showAllContextProjects ? 'expand_less' : 'expand_more'} size="sm" />
-                      </Button>
-                    )}
-                  </div>
-                );
-              })()}
-
-              {/* Reminders Multi-Select Section */}
-              {contextModalFilteredItems.reminders.length > 0 && (() => {
-                const isSearching = !!contextModalSearch.trim();
-                const visibleReminders = isSearching || showAllContextReminders
-                  ? contextModalFilteredItems.reminders
-                  : contextModalFilteredItems.reminders.slice(0, 3);
-                const hasMoreReminders = !isSearching && contextModalFilteredItems.reminders.length > 3;
-
-                return (
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between px-1">
-                      <span className="font-label text-eyebrow font-semibold text-tertiary uppercase">
-                        Erinnerungen ({contextModalFilteredItems.reminders.length})
-                      </span>
-                    </div>
-
-                    {visibleReminders.map((r) => {
-                      const isChecked = selectedReminderIds.includes(r.id) || (activeSession?.contextAttachments || []).some(a => a.id === r.id && a.type === 'reminder');
-                      return (
-                        <div
-                          key={r.id}
-                          onClick={() => toggleReminderContext(r.id)}
-                          className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between ${
-                            isChecked
-                              ? 'bg-hover border-control shadow-xs'
-                              : 'bg-surface border-subtle hover:bg-hover hover:border-default'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <Icon name="notifications" size="md" className="text-warning shrink-0" />
-                            <div className="min-w-0">
-                              <div className="text-caption-strong truncate">{r.title}</div>
-                              <div className="text-micro font-label text-secondary">
-                                {r.date || 'Kein Termin'} {r.time ? `• ${r.time} Uhr` : ''} • {r.status || 'AKTIV'}
-                              </div>
-                            </div>
-                          </div>
-                          <div className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all shrink-0 ml-2 ${
-                            isChecked ? 'bg-accent border-strong text-on-accent' : 'border-subtle bg-surface'
-                          }`}>
-                            {isChecked && <Icon name="check" size="sm" />}
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {hasMoreReminders && (
-                      <Button variant="secondary" fullWidth onClick={() => setShowAllContextReminders(!showAllContextReminders)} className="mt-1">
-                        <span>{showAllContextReminders ? 'Weniger anzeigen' : `Mehr anzeigen (${contextModalFilteredItems.reminders.length - 3} weitere)`}</span>
-                        <Icon name={showAllContextReminders ? 'expand_less' : 'expand_more'} size="sm" />
-                      </Button>
-                    )}
-                  </div>
-                );
-              })()}
-
-              {contextModalFilteredItems.projects.length === 0 && contextModalFilteredItems.reminders.length === 0 && contextModalFilteredItems.calendarEvents.length === 0 && (
-                <div className="p-8 text-center text-caption text-secondary italic">
-                  Keine Termine, Projekte oder Erinnerungen für „{contextModalSearch}“ gefunden.
-                </div>
-              )}
-            </div>
-
-            {/* Modal Footer with Action Button */}
-            <div className="p-3 border-t border-subtle flex items-center justify-end bg-subtle">
-              <Button onClick={() => setIsContextModalOpen(false)}>
-                Auswahl anwenden
-              </Button>
-            </div>
-
+            {contextModalFilteredItems.projects.length === 0 && contextModalFilteredItems.reminders.length === 0 && contextModalFilteredItems.calendarEvents.length === 0 && (
+              <div className="p-8 text-center text-body text-secondary">
+                Keine Termine, Projekte oder Erinnerungen für „{contextModalSearch}“ gefunden.
+              </div>
+            )}
           </div>
         </div>
-      )}
+      </Dialog>
     </div>
   );
 };

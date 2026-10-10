@@ -4,8 +4,8 @@ import NotesSection from '../ui/NotesSection';
 import GlobalChatDrawer from '../ui/GlobalChatDrawer';
 import CalendarDesyncModal from '../modals/CalendarDesyncModal';
 import { RECURRENCE_OPTIONS, getRecurrenceOptionId, formatRecurrence, toIsoDate } from '../../lib/recurrence';
-
 import { Alert, Badge, Button, Card, Chip, FOCUS, Field, FioMark, Icon, IconButton, Input, ProgressBar, SectionHeader, Select, cx } from '../ds';
+
 const ReminderDetail = ({ setCurrentScreen }) => {
   const {
     reminders,
@@ -117,23 +117,6 @@ const ReminderDetail = ({ setCurrentScreen }) => {
       </div>
     );
   }
-
-  // Status style helper
-  const getStatusButtonClass = (status, isActive) => {
-    if (!isActive) {
-      return "bg-subtle text-secondary border-subtle hover:border-strong hover:text-primary opacity-60 hover:opacity-100";
-    }
-    if (status === 'GEPLANT') return "bg-warning-subtle text-warning border-warning ring-1 ring-focus opacity-100";
-    if (status === 'AKTIV') return "bg-success-subtle text-success border-success ring-1 ring-focus opacity-100";
-    if (status === 'ABGESCHLOSSEN') return "bg-muted text-primary border-control ring-1 ring-focus opacity-100";
-    return "";
-  };
-
-  const getStatusDotClass = (status) => {
-    if (status === 'GEPLANT') return "bg-warning";
-    if (status === 'AKTIV') return "bg-success animate-pulse";
-    if (status === 'ABGESCHLOSSEN') return "bg-control";
-  };
 
   const handleStructureNotes = async () => {
     if (isStructuring) return;

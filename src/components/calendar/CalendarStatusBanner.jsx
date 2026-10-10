@@ -1,6 +1,6 @@
 import React from 'react';
-
 import { Alert, Button } from '../ds';
+
 /**
  * Status unter der Kopfzeile: Offline-Hinweis, Ladefehler (mit "Erneut versuchen") und Ladeanzeige.
  * Bereits geladene Termine bleiben bei Fehlern/Offline sichtbar.

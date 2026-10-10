@@ -11,11 +11,11 @@ import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Badge, Button, Card, EmptyState, FOCUS, Icon, IconButton, Menu, MenuItem, MenuSeparator, PageHeader, SectionHeader, cx } from '../ds';
 import SwipeableCard from '../ui/SwipeableCard';
 import ThoughtAiChip from '../ui/ThoughtAiChip';
 import { AI_MODELS } from '../ui/ModelSelectorDropdown';
 import { SUMMARY_LENGTH_OPTIONS } from '../ui/SummaryLengthDropdown';
+import { Badge, Button, Card, EmptyState, FOCUS, Icon, IconButton, Menu, MenuItem, MenuSeparator, PageHeader, SectionHeader, cx } from '../ds';
 
 // Gedanken (intern weiterhin "inbox" / Firestore-Collection `inboxItems`):
 // schnell festhalten ohne Zuordnung, später manuell oder mit Fio in Projekte/Erinnerungen überführen.
@@ -507,7 +507,7 @@ const Inbox = ({ setCurrentScreen, autoStartVoice = false, onAutoStartConsumed }
                 <div>{item.cleanText || item.originalText}</div>
                 {item.cleanText && item.originalText && item.cleanText !== item.originalText && (
                   <details className="text-caption pt-2 border-t border-subtle">
-                    <summary className="cursor-pointer font-semibold text-secondary hover:text-primary transition-colors">
+                    <summary className="cursor-pointer text-label text-secondary transition-colors duration-fast hover:text-primary">
                       Roh-Transkript anzeigen
                     </summary>
                     <div className="mt-2 text-body leading-relaxed">{item.originalText}</div>

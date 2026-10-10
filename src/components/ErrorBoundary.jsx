@@ -1,6 +1,6 @@
 import React from 'react';
-
 import { Button, Icon } from './ds';
+
 // Nach einem Deploy fehlen alte Lazy-Chunks; ein Reload lädt die neue Version.
 function isChunkLoadError(error) {
   const msg = String(error?.message || '');

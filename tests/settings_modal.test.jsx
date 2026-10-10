@@ -129,12 +129,12 @@ describe('SettingsModal Rendering & Tab Navigation', () => {
 
     const dialog = await screen.findByRole('dialog');
     expect(dialog).toBeDefined();
-    expect(screen.getByText('Einstellungen & Hilfe')).toBeDefined();
+    expect(screen.getByText('Einstellungen und Hilfe')).toBeDefined();
 
     // Active tab is 'account'
     const accountTab = screen.getByRole('tab', { name: /Mein Account/i });
     expect(accountTab.getAttribute('aria-selected')).toBe('true');
-    expect(screen.getByText('Profil-Informationen')).toBeDefined();
+    expect(screen.getByText('Profil')).toBeDefined();
   });
 
   it('renders correctly when opened via legacy "profile" trigger', async () => {
@@ -160,8 +160,8 @@ describe('SettingsModal Rendering & Tab Navigation', () => {
     await screen.findByRole('dialog');
     const fioTab = screen.getByRole('tab', { name: /Fio KI-Guide/i });
     expect(fioTab.getAttribute('aria-selected')).toBe('true');
-    expect(screen.getByText(/Fio ist mehr als nur ein Chatbot/i)).toBeDefined();
-    expect(screen.getByText(/Inspirierende Prompt-Vorlagen/i)).toBeDefined();
+    expect(screen.getByText(/Fio ist mehr als ein Chatbot/i)).toBeDefined();
+    expect(screen.getByText(/Prompt-Vorlagen/i)).toBeDefined();
   });
 
   it('allows clicking between tabs and shows appropriate panels', async () => {
@@ -174,22 +174,22 @@ describe('SettingsModal Rendering & Tab Navigation', () => {
     await screen.findByRole('dialog');
 
     // Click on Tutorials
-    const tutorialsTab = screen.getByRole('tab', { name: /Hilfe & Guides/i });
+    const tutorialsTab = screen.getByRole('tab', { name: /Hilfe und Guides/i });
     fireEvent.click(tutorialsTab);
     expect(tutorialsTab.getAttribute('aria-selected')).toBe('true');
-    expect(screen.getByText('FocusFlow Kern-Workflows')).toBeDefined();
+    expect(screen.getByText('Kern-Workflows')).toBeDefined();
 
     // Click on About
     const aboutTab = screen.getByRole('tab', { name: /Über FocusFlow/i });
     fireEvent.click(aboutTab);
     expect(aboutTab.getAttribute('aria-selected')).toBe('true');
-    expect(screen.getByText('System- & Versionsinformationen')).toBeDefined();
+    expect(screen.getByText('System und Version')).toBeDefined();
 
     // Click back to Account
     const accountTab = screen.getByRole('tab', { name: /Mein Account/i });
     fireEvent.click(accountTab);
     expect(accountTab.getAttribute('aria-selected')).toBe('true');
-    expect(screen.getByText('Profil-Informationen')).toBeDefined();
+    expect(screen.getByText('Profil')).toBeDefined();
   });
 
   it('supports keyboard arrow navigation within tablist', async () => {
@@ -209,7 +209,7 @@ describe('SettingsModal Rendering & Tab Navigation', () => {
 
     // Press ArrowDown to switch to Tutorials
     fireEvent.keyDown(tablist, { key: 'ArrowDown' });
-    const tutTab = screen.getByRole('tab', { name: /Hilfe & Guides/i });
+    const tutTab = screen.getByRole('tab', { name: /Hilfe und Guides/i });
     expect(tutTab.getAttribute('aria-selected')).toBe('true');
 
     // Press ArrowUp to go back to Fio
@@ -260,7 +260,7 @@ describe('SettingsModal Rendering & Tab Navigation', () => {
     // Switch to Fio tab
     const fioTab = screen.getByRole('tab', { name: /Fio KI-Guide/i });
     fireEvent.click(fioTab);
-    expect(screen.getByText(/Fio ist mehr als nur ein Chatbot/i)).toBeDefined();
+    expect(screen.getByText(/Fio ist mehr als ein Chatbot/i)).toBeDefined();
 
     // Switch back to Account tab
     const accountTab = screen.getByRole('tab', { name: /Mein Account/i });
@@ -287,7 +287,7 @@ describe('SettingsModal Rendering & Tab Navigation', () => {
     fireEvent.click(faqButton);
     expect(faqButton.getAttribute('aria-expanded')).toBe('true');
     expect(screen.getByRole('region')).toBeDefined();
-    expect(screen.getByText(/Ja! Im Gast-Modus werden alle erstellten Projekte/i)).toBeDefined();
+    expect(screen.getByText(/Im Gast-Modus werden alle Projekte/i)).toBeDefined();
 
     // Click to close
     fireEvent.click(faqButton);
@@ -322,7 +322,7 @@ describe('Prompt Clipboard copy behavior', () => {
     });
 
     expect(navigator.clipboard.writeText).toHaveBeenCalled();
-    expect(screen.getByText('Kopiert!')).toBeDefined();
+    expect(screen.getByText('Kopiert')).toBeDefined();
   });
 });
 

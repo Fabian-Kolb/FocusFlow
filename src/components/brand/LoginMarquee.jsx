@@ -32,7 +32,7 @@ function Word({ word }) {
 /**
  * Dekorativer Hintergrund der Login-Seite: oben eine Zeile FOCUS, unten eine Zeile FLOW,
  * flach und sehr leise, in gegenläufiger Richtung endlos bewegt. Beim Scrollen blendet das Band aus.
- * Rein dekorativ (aria-hidden), Farben über Tokens, damit Light und Dark funktionieren.
+ * Rein dekorativ (aria-hidden), Farben über Tokens (`text-primary` + `opacity`), damit Light und Dark funktionieren.
  */
 function LoginMarquee() {
   const ref = useRef(null);
@@ -80,11 +80,14 @@ function LoginMarquee() {
     <div
       ref={ref}
       aria-hidden="true"
-      className="pointer-events-none select-none fixed inset-0 -z-10 overflow-hidden text-primary/[0.055] dark:text-white/[0.07]"
+      className="pointer-events-none select-none fixed inset-0 -z-10 overflow-hidden"
     >
-      <div className="absolute inset-x-0 top-0 pt-4">{renderRow('FOCUS', 'ltr', 90, 0)}</div>
-      {/* Auf dem Handy liegt das untere Band hinter der Karte und wäre nicht zu sehen */}
-      <div className="absolute inset-x-0 bottom-0 pb-4 max-sm:hidden">{renderRow('FLOW', 'rtl', 90, -30)}</div>
+      {/* Die Tokenfarben sind CSS-Variablen ohne Alpha-Kanal: Die Leisheit kommt deshalb über `opacity`, nicht über `text-…/[0.05]` */}
+      <div className="absolute inset-0 text-primary opacity-[0.055] dark:opacity-[0.07]">
+        <div className="absolute inset-x-0 top-0 pt-4">{renderRow('FOCUS', 'ltr', 90, 0)}</div>
+        {/* Auf dem Handy liegt das untere Band hinter der Karte und wäre nicht zu sehen */}
+        <div className="absolute inset-x-0 bottom-0 pb-4 max-sm:hidden">{renderRow('FLOW', 'rtl', 90, -30)}</div>
+      </div>
     </div>
   );
 }

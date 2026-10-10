@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useModalContext } from '../../context/ModalContext';
-import { Button, Field, Icon, IconTile, Input, Kbd, Sheet, Tabs, cx } from '../ds';
+import { Button, Field, IconTile, Input, Kbd, Sheet, Tabs, cx } from '../ds';
 
 const MaterialModal = () => {
   const { activeModal, modalPayload, closeModal, addMaterial, selectedProjectId } = useModalContext();

@@ -848,7 +848,7 @@ export const chatHistory = [];
 export const quickPrompts = [
   {
     id: "qp1",
-    label: "⚡ Blockade lösen",
+    label: "Blockade lösen",
     promptText: "Ich habe gerade eine Blockade. Was ist der kleinste erste Schritt?"
   },
   {
@@ -858,8 +858,8 @@ export const quickPrompts = [
   },
   {
     id: "qp3",
-    label: "📥 Inbox sortieren",
-    promptText: "Hilf mir, meine Inbox zu priorisieren."
+    label: "Gedanken sortieren",
+    promptText: "Hilf mir, meine Gedanken zu priorisieren."
   }
 ];
 

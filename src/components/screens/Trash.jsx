@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useModalContext } from '../../context/ModalContext';
-import { Badge, Button, Card, EmptyState, Icon, IconButton, Input, PageHeader } from '../ds';
 import { useConfirm } from '../../context/ConfirmContext';
+import { Badge, Button, Card, EmptyState, IconButton, Input, PageHeader } from '../ds';
 
 // Art des Eintrags als Badge: Farbe nur mit Bedeutung, daher alle neutral (Icon und Wort tragen die Unterscheidung)
 const TYPE_INFO = {
