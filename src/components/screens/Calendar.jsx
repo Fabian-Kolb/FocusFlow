@@ -1,93 +1,111 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { useModal } from '../../context/ModalContext';
 import { useToast } from '../../context/ToastContext';
 import { useConfirm } from '../../context/ConfirmContext';
 import { deleteCalendarEvent, createCalendarEvent, updateCalendarEvent } from '../../lib/calendarAPI';
 import {
-  WEEKDAY_NAMES,
-  getCalendarDays,
-  isEventOnDate,
-  getLayoutedEvents,
-  isAllDayEvent,
+  CALENDAR_VIEWS,
+  addDays,
+  addMonthsClamped,
   defaultNewEvent,
-  isSameDay,
+  defaultNewEventAt,
+  formatViewTitle,
+  getCalendarDays,
+  getWeekDays,
+  isEventOnDate,
+  shiftByView,
+  startOfDay,
 } from '../../lib/calendarUtils';
+import { isTypingTarget } from '../../lib/appCommands';
 import { useCalendarEvents } from '../../hooks/useCalendarEvents';
-import { useMonthCarousel } from '../../hooks/useMonthCarousel';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { useTimeGridScroll } from '../../hooks/useTimeGridScroll';
 import EventEditForm from './EventEditForm';
 import CalendarHeader from '../calendar/CalendarHeader';
 import CalendarStatusBanner from '../calendar/CalendarStatusBanner';
 import MonthSlide from '../calendar/MonthSlide';
-import DesktopDayPanel from '../calendar/DesktopDayPanel';
-import MobileDaySheet from '../calendar/MobileDaySheet';
+import TimeGrid from '../calendar/TimeGrid';
+import PeriodCarousel from '../calendar/PeriodCarousel';
+import AgendaView from '../calendar/AgendaView';
+import DaySidebar from '../calendar/DaySidebar';
+import DaySheet from '../calendar/DaySheet';
 import { SearchModal, MonthPickerModal, EventDetailModal } from '../calendar/CalendarModals';
 import { Button, EmptyState } from '../ds';
 
-// Orchestrierung des Kalenders: Zustand (Monat/Tag/Dialoge), Laden über useCalendarEvents, Karussell über useMonthCarousel.
+// Orchestrierung des Kalenders: Ansicht (Monat, Woche, Tag, Agenda), gewählter Tag, Dialoge, Laden über useCalendarEvents.
 // Darstellung liegt in src/components/calendar/*, reine Logik in src/lib/calendarUtils.js.
+//
+// Handy (Samsung-Stil): Das Raster füllt den Bildschirm, ein Tagessheet mit drei Haltepunkten sitzt unten, Wischen wechselt
+// Monat, Woche, Tag. PC (Google-Stil): volle Breite, Umschalter in der Kopfzeile, Tagesleiste ein- und ausblendbar.
 
-const LAYOUT_KEY = 'focusflow_calendar_desktop_layout';
-const isMobileViewport = () => typeof window !== 'undefined' && window.innerWidth < 768;
+const VIEW_KEY = 'focusflow_calendar_view';
+const SIDEBAR_KEY = 'focusflow_calendar_day_sidebar';
+const PEEK_PADDING = 148; // Platz, den das Monatsraster dem Sheet in der Vorschau überlässt (siehe sheetSnap.js)
+const SEQUENCE_GUARD_MS = 1200; // nach „g“ gehört die nächste Taste der Navigation (g, dann k …)
+
+const readView = () => {
+  try {
+    const saved = localStorage.getItem(VIEW_KEY);
+    if (CALENDAR_VIEWS.includes(saved)) return saved;
+  } catch {
+    // Storage gesperrt: Standardansicht
+  }
+  return 'month';
+};
+const readSidebar = () => {
+  try {
+    return localStorage.getItem(SIDEBAR_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
+const persist = (key, value) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // gilt dann nur für diese Sitzung
+  }
+};
 
 const Calendar = () => {
   const { user, isCalendarConnected, linkGoogleCalendar } = useAuth();
-  const { openModal } = useModal();
   const { showToast } = useToast();
   const confirm = useConfirm();
+  // Das Dev-Konto hat keinen Google-Token; `calendarAPI` liefert dort lokale Beispieltermine
+  const connected = isCalendarConnected || Boolean(user?.isDevAccount);
+  const isDesktop = useMediaQuery('(min-width: 768px)');
 
   const today = useMemo(() => new Date(), []);
-  const [currentMonthIndex, setCurrentMonthIndex] = useState(today.getMonth());
-  const [currentYear, setCurrentYear] = useState(today.getFullYear());
-  const [selectedDay, setSelectedDay] = useState(today.getDate());
+  const [view, setView] = useState(readView);
+  const [selectedDate, setSelectedDate] = useState(() => startOfDay(new Date()));
+  const [sheetState, setSheetState] = useState('closed');
+  const [sidebarOpen, setSidebarOpen] = useState(readSidebar);
 
   const [selectedEvent, setSelectedEvent] = useState(null); // Detail-Dialog
   const [editingEvent, setEditingEvent] = useState(null); // Formular
   const [showMonthPicker, setShowMonthPicker] = useState(false);
-  const [pickerYear, setPickerYear] = useState(currentYear);
+  const [pickerYear, setPickerYear] = useState(selectedDate.getFullYear());
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Mobiles Tages-Sheet; lastClosedAt verhindert, dass der Schließ-Klick sofort wieder öffnet
-  const [isMobileDayModalOpen, setIsMobileDayModalOpen] = useState(false);
-  const lastClosedAtRef = useRef(0);
-  const closeMobileDaySheet = useCallback(() => {
-    lastClosedAtRef.current = Date.now();
-    setIsMobileDayModalOpen(false);
-  }, []);
+  const lastClosedAtRef = useRef(0); // verhindert, dass der Schließ-Klick des Sheets sofort wieder öffnet
+  const gridScrollRef = useRef(null);
+  const lastGRef = useRef(0);
 
-  // Desktop/Tablet-Layout: 'stacked' oder 'side-by-side'
-  const [desktopLayout, setDesktopLayout] = useState(() => {
-    try {
-      const saved = localStorage.getItem(LAYOUT_KEY);
-      if (saved === 'stacked' || saved === 'side-by-side') return saved;
-      return window.innerWidth >= 1280 ? 'side-by-side' : 'stacked';
-    } catch {
-      return 'stacked';
-    }
-  });
-  const handleLayoutChange = (mode) => {
-    setDesktopLayout(mode);
-    try {
-      localStorage.setItem(LAYOUT_KEY, mode);
-    } catch {
-      // gilt dann nur für diese Sitzung
-    }
-  };
+  const currentYear = selectedDate.getFullYear();
+  const currentMonthIndex = selectedDate.getMonth();
+  const selectedDay = selectedDate.getDate();
 
-  // Nachbarmonate für unterbrechungsfreies Vorladen & 3-Slide-Karussell
-  const prevMonthIndex = currentMonthIndex === 0 ? 11 : currentMonthIndex - 1;
-  const prevYear = currentMonthIndex === 0 ? currentYear - 1 : currentYear;
-  const nextMonthIndex = currentMonthIndex === 11 ? 0 : currentMonthIndex + 1;
-  const nextYear = currentMonthIndex === 11 ? currentYear + 1 : currentYear;
+  // Nachbarmonate fürs unterbrechungsfreie Vorladen (Wischen zeigt immer echten Inhalt)
+  const prev = addMonthsClamped(new Date(currentYear, currentMonthIndex, 1), -1);
+  const next = addMonthsClamped(new Date(currentYear, currentMonthIndex, 1), 1);
+  const prevYear = prev.getFullYear();
+  const prevMonthIndex = prev.getMonth();
+  const nextYear = next.getFullYear();
+  const nextMonthIndex = next.getMonth();
 
-  const daysPrev = useMemo(() => getCalendarDays(prevYear, prevMonthIndex), [prevYear, prevMonthIndex]);
-  const daysCurr = useMemo(() => getCalendarDays(currentYear, currentMonthIndex), [currentYear, currentMonthIndex]);
-  const daysNext = useMemo(() => getCalendarDays(nextYear, nextMonthIndex), [nextYear, nextMonthIndex]);
-
-  // Termine laden/cachen inkl. Fehler- und Offline-Zustand
-  const { eventsCache, error, isOffline, isLoading, retry, reloadMonth } = useCalendarEvents({
-    enabled: isCalendarConnected,
+  const { eventsCache, error, isOffline, isLoading, retry, reloadMonth, loadMonth } = useCalendarEvents({
+    enabled: connected,
     year: currentYear,
     month: currentMonthIndex,
     prevYear,
@@ -96,43 +114,62 @@ const Calendar = () => {
     nextMonth: nextMonthIndex,
   });
 
-  const currentMonthEvents = useMemo(
-    () => eventsCache[`${currentYear}-${currentMonthIndex}`] || [],
-    [eventsCache, currentYear, currentMonthIndex]
-  );
-
   // Termine eines beliebigen Kalendertags aus dem übergreifenden Cache
-  const getEventsForCell = useCallback((dateObj) => {
+  const getEventsForDate = useCallback((dateObj) => {
     const list = eventsCache[`${dateObj.getFullYear()}-${dateObj.getMonth()}`] || [];
     return list.filter((evt) => isEventOnDate(evt, dateObj));
   }, [eventsCache]);
 
-  const getDaysInMonth = (month, year) => new Date(year, month + 1, 0).getDate();
+  const monthDays = useMemo(
+    () => [-1, 0, 1].map((delta) => {
+      const first = new Date(currentYear, currentMonthIndex + delta, 1);
+      return getCalendarDays(first.getFullYear(), first.getMonth());
+    }),
+    [currentYear, currentMonthIndex],
+  );
 
-  const goToMonth = useCallback((month, year) => {
-    setCurrentMonthIndex(month);
-    setCurrentYear(year);
-    setSelectedDay((prev) => Math.min(prev, getDaysInMonth(month, year)));
+  // Zeitraum je Karussell-Seite für Woche und Tag
+  const slideDays = useMemo(() => {
+    if (view === 'week') return [-1, 0, 1].map((delta) => getWeekDays(addDays(selectedDate, delta * 7)));
+    return [-1, 0, 1].map((delta) => [addDays(selectedDate, delta)]);
+  }, [view, selectedDate]);
+
+  const dayEvents = useMemo(() => getEventsForDate(selectedDate), [getEventsForDate, selectedDate]);
+  const monthLoaded = Boolean(eventsCache[`${currentYear}-${currentMonthIndex}`]);
+  const pxPerHour = isDesktop ? 56 : 48;
+
+  useTimeGridScroll(gridScrollRef, {
+    enabled: view === 'week' || view === 'day',
+    days: slideDays[1],
+    getEventsForDate,
+    pxPerHour,
+    resetKey: view,
+    ready: monthLoaded,
+  });
+
+  const goTo = useCallback((date) => setSelectedDate(startOfDay(date)), []);
+  const step = useCallback((direction) => setSelectedDate((d) => shiftByView(view, d, direction)), [view]);
+  const handlePrev = useCallback(() => step(-1), [step]);
+  const handleNext = useCallback(() => step(1), [step]);
+  const handleToday = useCallback(() => goTo(new Date()), [goTo]);
+
+  const changeView = useCallback((next) => {
+    setView(next);
+    persist(VIEW_KEY, next);
+    setSheetState('closed');
   }, []);
 
-  const handlePrevMonth = useCallback(() => {
-    if (currentMonthIndex === 0) goToMonth(11, currentYear - 1);
-    else goToMonth(currentMonthIndex - 1, currentYear);
-  }, [currentMonthIndex, currentYear, goToMonth]);
+  const toggleSidebar = useCallback(() => {
+    setSidebarOpen((open) => {
+      persist(SIDEBAR_KEY, open ? '0' : '1');
+      return !open;
+    });
+  }, []);
 
-  const handleNextMonth = useCallback(() => {
-    if (currentMonthIndex === 11) goToMonth(0, currentYear + 1);
-    else goToMonth(currentMonthIndex + 1, currentYear);
-  }, [currentMonthIndex, currentYear, goToMonth]);
-
-  const carousel = useMonthCarousel({ onNext: handleNextMonth, onPrev: handlePrevMonth });
-
-  const handleResetToday = () => {
-    const d = new Date();
-    setCurrentMonthIndex(d.getMonth());
-    setCurrentYear(d.getFullYear());
-    setSelectedDay(d.getDate());
-  };
+  const handleSheetState = useCallback((nextState) => {
+    if (nextState === 'closed') lastClosedAtRef.current = Date.now();
+    setSheetState(nextState);
+  }, []);
 
   const handleConnectCalendar = async () => {
     if (user?.isGuest) {
@@ -147,6 +184,13 @@ const Calendar = () => {
     }
   };
 
+  // Gepolsterte Termine erscheinen in zwei Monatslisten: nach dem Ändern alle drei sichtbaren Monate neu laden
+  const reloadAround = () => Promise.all([
+    reloadMonth(currentYear, currentMonthIndex),
+    reloadMonth(prevYear, prevMonthIndex),
+    reloadMonth(nextYear, nextMonthIndex),
+  ]);
+
   const handleSaveEvent = async (eventData, eventId) => {
     if (isOffline) {
       showToast({ message: 'Du bist offline. Speichern geht erst mit Internetverbindung.', icon: 'cloud_off' });
@@ -155,7 +199,7 @@ const Calendar = () => {
     try {
       if (eventId) await updateCalendarEvent(eventId, eventData);
       else await createCalendarEvent(eventData);
-      await reloadMonth(currentYear, currentMonthIndex);
+      await reloadAround();
       setEditingEvent(null);
     } catch (err) {
       console.error('Fehler beim Speichern', err);
@@ -177,7 +221,7 @@ const Calendar = () => {
     if (!ok) return;
     try {
       await deleteCalendarEvent(eventId);
-      await reloadMonth(currentYear, currentMonthIndex);
+      await reloadAround();
       setSelectedEvent(null);
     } catch (err) {
       console.error('Fehler beim Löschen', err);
@@ -185,47 +229,36 @@ const Calendar = () => {
     }
   };
 
-  // Klick auf Tag ODER Termin im Raster (UX-Vorgabe: auf Mobile kein Unterschied)
+  const startNewEvent = () => setEditingEvent(defaultNewEvent(currentYear, currentMonthIndex, selectedDay));
+  const handleSlotClick = (date, minutes) => setEditingEvent(defaultNewEventAt(date, minutes));
+
+  // Klick auf Tag ODER Termin im Monatsraster: Handy öffnet das Tagessheet, PC wählt den Tag (Termin: Detail)
   const handleCellClick = (cell) => {
     if (Date.now() - lastClosedAtRef.current < 400) return;
-    if (cell.isPrevMonth) handlePrevMonth();
-    else if (cell.isNextMonth) handleNextMonth();
-    setSelectedDay(cell.day);
-    if (isMobileViewport()) setIsMobileDayModalOpen(true);
+    const same = cell.dateObj.toDateString() === selectedDate.toDateString();
+    goTo(cell.dateObj);
+    if (!isDesktop) setSheetState((s) => (s === 'closed' ? 'peek' : same ? 'closed' : s));
   };
-
   const handleEventClick = (evt, cell) => {
-    handleCellClick(cell);
-    if (!isMobileViewport()) setSelectedEvent(evt);
+    if (isDesktop) {
+      goTo(cell.dateObj);
+      setSelectedEvent(evt);
+    } else {
+      handleCellClick(cell);
+    }
   };
-
-  // Termine des ausgewählten Tages
-  const selectedDateObj = useMemo(
-    () => new Date(currentYear, currentMonthIndex, selectedDay),
-    [currentYear, currentMonthIndex, selectedDay]
-  );
-  const dayEvents = useMemo(() => currentMonthEvents.filter((evt) => isEventOnDate(evt, selectedDateObj)), [currentMonthEvents, selectedDateObj]);
-  const allDayEvents = useMemo(() => dayEvents.filter(isAllDayEvent), [dayEvents]);
-  const timedEvents = useMemo(() => dayEvents.filter((evt) => !evt.start?.date && !!evt.start?.dateTime), [dayEvents]);
-  const layoutedTimedEvents = useMemo(() => getLayoutedEvents(timedEvents, selectedDateObj), [timedEvents, selectedDateObj]);
-  const weekdayName = WEEKDAY_NAMES[selectedDateObj.getDay()];
-  const isSelectedToday = isSameDay(selectedDateObj, today);
-
-  // "Jetzt"-Linie im Zeitstrahl
-  const [nowMinutes, setNowMinutes] = useState(() => {
-    const n = new Date();
-    return n.getHours() * 60 + n.getMinutes();
-  });
-  useEffect(() => {
-    if (!isSelectedToday) return undefined;
-    const update = () => {
-      const n = new Date();
-      setNowMinutes(n.getHours() * 60 + n.getMinutes());
-    };
-    update();
-    const interval = setInterval(update, 60000);
-    return () => clearInterval(interval);
-  }, [isSelectedToday]);
+  const handleAddOnCell = (cell) => {
+    goTo(cell.dateObj);
+    setEditingEvent(defaultNewEventAt(cell.dateObj, 10 * 60));
+  };
+  const handleDayNumberClick = (cell) => {
+    goTo(cell.dateObj);
+    changeView('day');
+  };
+  const handleHeaderDayClick = (date) => {
+    goTo(date);
+    if (view !== 'day') changeView('day');
+  };
 
   // Suche über alle vorgeladenen Termine
   const searchResults = useMemo(() => {
@@ -241,24 +274,56 @@ const Calendar = () => {
     return unique;
   }, [searchQuery, eventsCache]);
 
-  const startNewEvent = () => setEditingEvent(defaultNewEvent(currentYear, currentMonthIndex, selectedDay));
+  // Tastatur am PC: ←/→ vor und zurück, T heute, M/W/D/A Ansicht, S Tagesleiste, C neuer Termin
+  useEffect(() => {
+    if (!connected || editingEvent || !isDesktop) return undefined;
+    const onKey = (e) => {
+      if (e.defaultPrevented || e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (isTypingTarget(e.target) || document.querySelector('[data-overlay]')) return;
+      const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      if (key === 'g') {
+        lastGRef.current = Date.now();
+        return;
+      }
+      if (Date.now() - lastGRef.current < SEQUENCE_GUARD_MS) return;
+      const actions = {
+        ArrowLeft: handlePrev,
+        ArrowRight: handleNext,
+        t: handleToday,
+        m: () => changeView('month'),
+        w: () => changeView('week'),
+        d: () => changeView('day'),
+        a: () => changeView('agenda'),
+        s: () => view === 'month' && toggleSidebar(),
+        c: startNewEvent,
+      };
+      const action = actions[key];
+      if (!action) return;
+      e.preventDefault();
+      action();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // startNewEvent liest Datum aus dem State und ändert sich mit selectedDate
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected, editingEvent, isDesktop, view, selectedDate, handlePrev, handleNext, handleToday, changeView, toggleSidebar]);
 
   // Zustand 1: nicht verbunden
-  if (!isCalendarConnected) {
+  if (!connected) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center px-4">
-      <EmptyState
-        bordered={false}
-        icon="calendar_month"
-        title="Kalender verbinden"
-        description="Verbinde deinen Google Kalender einmalig, um deine Projekte, Deadlines und Fokus-Zeiten dauerhaft zu synchronisieren."
-        action={(
-          <Button size="lg" onClick={handleConnectCalendar}>
-            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="" className="h-5 w-5 rounded-xs bg-white p-0.5" />
-            Mit Google Kalender verbinden
-          </Button>
-        )}
-      />
+        <EmptyState
+          bordered={false}
+          icon="calendar_month"
+          title="Kalender verbinden"
+          description="Verbinde deinen Google Kalender einmalig, um deine Projekte, Deadlines und Fokus-Zeiten dauerhaft zu synchronisieren."
+          action={(
+            <Button size="lg" onClick={handleConnectCalendar}>
+              <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="" className="h-5 w-5 rounded-xs bg-white p-0.5" />
+              Mit Google Kalender verbinden
+            </Button>
+          )}
+        />
       </div>
     );
   }
@@ -268,91 +333,123 @@ const Calendar = () => {
     return (
       <EventEditForm
         initialEvent={Object.keys(editingEvent).length > 0 ? editingEvent : null}
-        selectedDateObj={selectedDateObj}
+        selectedDateObj={selectedDate}
         onSave={handleSaveEvent}
         onCancel={() => setEditingEvent(null)}
       />
     );
   }
 
-  const monthSlideProps = { selectedDay, getEventsForCell, onCellClick: handleCellClick, onEventClick: handleEventClick };
+  const showSheet = !isDesktop && view === 'month';
+  const showSidebar = isDesktop && view === 'month' && sidebarOpen;
+
+  const gridProps = {
+    getEventsForDate,
+    pxPerHour,
+    onSlotClick: handleSlotClick,
+    onSelectEvent: setSelectedEvent,
+    onDayClick: handleHeaderDayClick,
+  };
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col bg-surface">
+    <div className="flex h-full min-h-0 flex-1 flex-col bg-surface md:overflow-hidden md:rounded-lg md:border md:border-subtle">
       <CalendarHeader
-        monthIndex={currentMonthIndex}
-        year={currentYear}
+        isDesktop={isDesktop}
+        view={view}
+        onViewChange={changeView}
+        title={formatViewTitle(view, selectedDate, { compact: !isDesktop })}
         todayNumber={today.getDate()}
-        desktopLayout={desktopLayout}
-        onLayoutChange={handleLayoutChange}
-        onMenu={() => openModal('settings')}
-        onPrev={handlePrevMonth}
-        onNext={handleNextMonth}
+        onPrev={handlePrev}
+        onNext={handleNext}
+        onToday={handleToday}
         onPickMonth={() => {
           setPickerYear(currentYear);
           setShowMonthPicker(true);
         }}
         onSearch={() => setShowSearchModal(true)}
-        onToday={handleResetToday}
         onAddEvent={startNewEvent}
+        canToggleSidebar={isDesktop && view === 'month'}
+        sidebarOpen={sidebarOpen}
+        onToggleSidebar={toggleSidebar}
       />
 
       <CalendarStatusBanner error={error} isOffline={isOffline} isLoading={isLoading} onRetry={retry} />
 
-      <div className={`flex flex-1 h-full min-h-0 overflow-hidden ${
-        desktopLayout === 'side-by-side' ? 'flex-col md:flex-row md:items-stretch' : 'flex-col'
-      }`}>
-        {/* 3-Slide-Monats-Karussell: Vor- und Folgemonat sind vorgeladen und gerendert, Wischen zeigt immer echten Inhalt */}
+      <div className="relative flex min-h-0 flex-1">
         <div
-          ref={carousel.containerRef}
-          className="w-full flex-1 h-full min-h-0 overflow-hidden relative select-none"
-          {...carousel.handlers}
+          className="flex min-h-0 min-w-0 flex-1 flex-col transition-[padding] duration-slow ease-enter motion-reduce:transition-none"
+          style={showSheet && sheetState === 'peek' ? { paddingBottom: PEEK_PADDING } : undefined}
         >
-          <div
-            className="flex w-full h-full"
-            style={{
-              transform: `translateX(calc(-100% + ${carousel.swipeOffset}px))`,
-              transition: carousel.isAnimating ? 'transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1)' : 'none',
-              willChange: carousel.isDragging || carousel.isAnimating ? 'transform' : 'auto',
-            }}
-          >
-            <div className="w-full h-full flex-shrink-0 flex flex-col">
-              <MonthSlide days={daysPrev} isCenter={false} {...monthSlideProps} />
-            </div>
-            <div className="w-full h-full flex-shrink-0 flex flex-col">
-              <MonthSlide days={daysCurr} isCenter {...monthSlideProps} />
-            </div>
-            <div className="w-full h-full flex-shrink-0 flex flex-col">
-              <MonthSlide days={daysNext} isCenter={false} {...monthSlideProps} />
-            </div>
-          </div>
+          {view === 'month' && (
+            <PeriodCarousel
+              onPrev={handlePrev}
+              onNext={handleNext}
+              renderSlide={(delta) => (
+                <MonthSlide
+                  days={monthDays[delta + 1]}
+                  isCenter={delta === 0}
+                  selectedDay={selectedDay}
+                  getEventsForCell={getEventsForDate}
+                  onCellClick={handleCellClick}
+                  onEventClick={handleEventClick}
+                  onAddOnCell={isDesktop ? handleAddOnCell : undefined}
+                  onDayNumberClick={isDesktop ? handleDayNumberClick : undefined}
+                />
+              )}
+            />
+          )}
+
+          {(view === 'week' || view === 'day') && (
+            <PeriodCarousel
+              scrollable
+              scrollRef={gridScrollRef}
+              onPrev={handlePrev}
+              onNext={handleNext}
+              renderSlide={(delta) => <TimeGrid days={slideDays[delta + 1]} {...gridProps} />}
+            />
+          )}
+
+          {view === 'agenda' && (
+            <AgendaView
+              startDate={selectedDate}
+              today={today}
+              getEventsForDate={getEventsForDate}
+              loadMonth={loadMonth}
+              isLoading={isLoading}
+              onSelectEvent={setSelectedEvent}
+              onAddEvent={startNewEvent}
+            />
+          )}
         </div>
 
-        <DesktopDayPanel
-          selectedDateObj={selectedDateObj}
-          dayEvents={dayEvents}
-          sideBySide={desktopLayout === 'side-by-side'}
-          onSelectEvent={setSelectedEvent}
-          onAddEvent={startNewEvent}
-        />
-      </div>
+        {showSidebar && (
+          <DaySidebar
+            date={selectedDate}
+            getEventsForDate={getEventsForDate}
+            ready={monthLoaded}
+            onPrevDay={() => goTo(addDays(selectedDate, -1))}
+            onNextDay={() => goTo(addDays(selectedDate, 1))}
+            onClose={toggleSidebar}
+            onSelectEvent={setSelectedEvent}
+            onAddEvent={startNewEvent}
+            onSlotClick={handleSlotClick}
+          />
+        )}
 
-      <MobileDaySheet
-        open={isMobileDayModalOpen}
-        onClose={closeMobileDaySheet}
-        selectedDateObj={selectedDateObj}
-        weekdayName={weekdayName}
-        dayEvents={dayEvents}
-        allDayEvents={allDayEvents}
-        layoutedTimedEvents={layoutedTimedEvents}
-        isSelectedToday={isSelectedToday}
-        nowMinutes={nowMinutes}
-        onSelectEvent={setSelectedEvent}
-        onAddEvent={() => {
-          closeMobileDaySheet();
-          startNewEvent();
-        }}
-      />
+        {showSheet && (
+          <DaySheet
+            state={sheetState}
+            onStateChange={handleSheetState}
+            date={selectedDate}
+            events={dayEvents}
+            onPrevDay={() => goTo(addDays(selectedDate, -1))}
+            onNextDay={() => goTo(addDays(selectedDate, 1))}
+            onSelectEvent={setSelectedEvent}
+            onAddEvent={startNewEvent}
+            onSlotClick={handleSlotClick}
+          />
+        )}
+      </div>
 
       {showSearchModal && (
         <SearchModal
@@ -361,12 +458,9 @@ const Calendar = () => {
           results={searchResults}
           onClose={() => setShowSearchModal(false)}
           onSelect={(evt, dateObj) => {
-            setCurrentYear(dateObj.getFullYear());
-            setCurrentMonthIndex(dateObj.getMonth());
-            setSelectedDay(dateObj.getDate());
+            goTo(dateObj);
             setSelectedEvent(evt);
             setShowSearchModal(false);
-            if (isMobileViewport()) setIsMobileDayModalOpen(true);
           }}
         />
       )}
@@ -378,12 +472,12 @@ const Calendar = () => {
           currentMonthIndex={currentMonthIndex}
           currentYear={currentYear}
           onPick={(idx, year) => {
-            setCurrentMonthIndex(idx);
-            setCurrentYear(year);
+            const lastDay = new Date(year, idx + 1, 0).getDate();
+            goTo(new Date(year, idx, Math.min(selectedDay, lastDay)));
             setShowMonthPicker(false);
           }}
           onToday={() => {
-            handleResetToday();
+            handleToday();
             setShowMonthPicker(false);
           }}
           onClose={() => setShowMonthPicker(false)}

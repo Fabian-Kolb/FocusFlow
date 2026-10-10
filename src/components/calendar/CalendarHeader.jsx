@@ -1,89 +1,153 @@
-import React from 'react';
-import { MONTH_NAMES_HEADER } from '../../lib/calendarUtils';
-import { Button, FOCUS, Icon, IconButton, cx } from '../ds';
+import React, { useEffect, useRef, useState } from 'react';
+import { Button, FOCUS, Icon, IconButton, Menu, MenuItem, cx } from '../ds';
+import { VIEW_OPTIONS } from './viewOptions';
 
-const LAYOUT_OPTIONS = [
-  { value: 'stacked', label: 'Untereinander', icon: 'view_agenda' },
-  { value: 'side-by-side', label: 'Nebeneinander', icon: 'vertical_split' },
-];
+const iconFor = (view) => VIEW_OPTIONS.find((o) => o.value === view)?.icon || 'calendar_view_month';
+
+/** Ansicht am Handy: ein Knopf, der ein kleines Menü öffnet */
+const ViewMenu = ({ view, onViewChange }) => {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onPointer = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointer);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onPointer);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <IconButton icon={iconFor(view)} label="Ansicht wählen" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)} />
+      {open && (
+        <Menu label="Ansicht" className="absolute right-0 top-full z-dropdown mt-1">
+          {VIEW_OPTIONS.map((opt) => (
+            <MenuItem
+              key={opt.value}
+              icon={opt.icon}
+              selected={view === opt.value}
+              onClick={() => {
+                onViewChange(opt.value);
+                setOpen(false);
+              }}
+            >
+              {opt.label}
+            </MenuItem>
+          ))}
+        </Menu>
+      )}
+    </div>
+  );
+};
+
+/** Ansicht am PC: Umschalter mit Wörtern */
+const ViewSwitch = ({ view, onViewChange }) => (
+  <div role="group" aria-label="Ansicht" className="flex items-center rounded-md bg-muted p-0.5">
+    {VIEW_OPTIONS.map((opt) => {
+      const active = view === opt.value;
+      return (
+        <button
+          key={opt.value}
+          type="button"
+          onClick={() => onViewChange(opt.value)}
+          aria-pressed={active}
+          className={cx(
+            'h-8 rounded-sm px-3 text-label-sm transition-colors duration-fast',
+            active ? 'bg-surface text-primary shadow-xs' : 'text-secondary hover:text-primary',
+            FOCUS,
+          )}
+        >
+          {opt.label}
+        </button>
+      );
+    })}
+  </div>
+);
 
 /**
- * Kopfzeile: links Menü (+ Monats-Chevrons am Desktop), Mitte Monatsname (öffnet Monatsauswahl),
- * rechts Suche, Heute-Button (mit Tageszahl) und am Desktop Layout-Umschalter + "Termin".
+ * Kopfzeile des Kalenders. Handy (Samsung-Stil): Titel mit Monatsauswahl, Suche, Heute, Ansicht, „+“.
+ * PC (Google-Stil): Heute, vor/zurück, Titel, Ansicht-Umschalter, Suche, Tagesleiste, „+ Termin“.
  */
 const CalendarHeader = ({
-  monthIndex,
-  year,
+  isDesktop,
+  view,
+  onViewChange,
+  title,
   todayNumber,
-  desktopLayout,
-  onLayoutChange,
-  onMenu,
   onPrev,
   onNext,
+  onToday,
   onPickMonth,
   onSearch,
-  onToday,
   onAddEvent,
-}) => (
-  <div className="flex shrink-0 items-center justify-between border-b border-subtle bg-surface px-3 py-2 md:px-6 md:py-3">
-    <div className="flex items-center gap-2">
-      <IconButton icon="menu" label="Menü öffnen" size="sm" onClick={onMenu} />
-
-      <div className="ml-2 hidden items-center gap-1 md:flex">
-        <IconButton icon="chevron_left" label="Vorheriger Monat" size="sm" onClick={onPrev} />
-        <IconButton icon="chevron_right" label="Nächster Monat" size="sm" onClick={onNext} />
-      </div>
-    </div>
-
+  canToggleSidebar,
+  sidebarOpen,
+  onToggleSidebar,
+}) => {
+  const titleButton = (
     <button
       type="button"
       onClick={onPickMonth}
-      className={cx('flex items-center gap-1 rounded-md px-2 py-1 text-heading text-primary transition-colors duration-fast hover:bg-hover md:text-title', FOCUS)}
       title="Monat auswählen"
+      className={cx('flex min-w-0 items-center gap-1 rounded-md px-2 py-1 text-heading text-primary transition-colors duration-fast hover:bg-hover', FOCUS)}
     >
-      <span>{MONTH_NAMES_HEADER[monthIndex]}</span>
-      <span className="ml-1 hidden text-label text-tertiary sm:inline">{year}</span>
-      <Icon name="expand_more" size="md" className="text-secondary" />
+      <span className="truncate">{title}</span>
+      <Icon name="expand_more" size="md" className="shrink-0 text-secondary" />
     </button>
+  );
 
-    <div className="flex items-center gap-2 md:gap-3">
-      <IconButton icon="search" label="Termine suchen" size="sm" onClick={onSearch} />
-
-      {/* Heute-Button: zeigt die heutige Tageszahl */}
-      <Button variant="ghost" size="sm" onClick={onToday} title="Zurück zu Heute" aria-label="Zurück zu Heute">
-        {todayNumber}
-      </Button>
-
-      <div className="hidden items-center gap-2 border-l border-default pl-2 md:flex">
-        <div role="group" aria-label="Layout" className="flex items-center rounded-md bg-muted p-0.5">
-          {LAYOUT_OPTIONS.map((opt) => {
-            const active = desktopLayout === opt.value;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => onLayoutChange(opt.value)}
-                aria-pressed={active}
-                title={opt.label}
-                aria-label={opt.label}
-                className={cx(
-                  'flex h-7 w-8 items-center justify-center rounded-sm transition-colors duration-fast',
-                  active ? 'bg-surface text-primary shadow-xs' : 'text-tertiary hover:text-primary',
-                  FOCUS
-                )}
-              >
-                <Icon name={opt.icon} size="md" />
-              </button>
-            );
-          })}
+  if (!isDesktop) {
+    return (
+      <div className="flex shrink-0 items-center justify-between gap-1 border-b border-subtle bg-surface px-2 py-2">
+        {titleButton}
+        <div className="flex shrink-0 items-center gap-1">
+          <IconButton icon="search" label="Termine suchen" onClick={onSearch} />
+          <Button variant="ghost" size="sm" onClick={onToday} title="Zurück zu Heute" aria-label="Zurück zu Heute" className="tabular-nums">
+            {todayNumber}
+          </Button>
+          <ViewMenu view={view} onViewChange={onViewChange} />
+          <IconButton icon="add" label="Termin erstellen" variant="primary" onClick={onAddEvent} />
         </div>
+      </div>
+    );
+  }
 
-        <Button size="sm" leadingIcon="add" onClick={onAddEvent}>
-          Termin
-        </Button>
+  return (
+    <div className="flex shrink-0 items-center gap-3 border-b border-subtle bg-surface px-6 py-3">
+      <Button variant="secondary" onClick={onToday} aria-label="Zurück zu Heute">
+        Heute
+      </Button>
+      <div className="flex items-center gap-1">
+        <IconButton icon="chevron_left" label="Zurück" onClick={onPrev} />
+        <IconButton icon="chevron_right" label="Weiter" onClick={onNext} />
+      </div>
+      {titleButton}
+
+      <div className="ml-auto flex items-center gap-2">
+        <ViewSwitch view={view} onViewChange={onViewChange} />
+        <IconButton icon="search" label="Termine suchen" onClick={onSearch} />
+        {canToggleSidebar && (
+          <IconButton
+            icon={sidebarOpen ? 'right_panel_close' : 'right_panel_open'}
+            label={sidebarOpen ? 'Tagesleiste ausblenden' : 'Tagesleiste einblenden'}
+            variant={sidebarOpen ? 'secondary' : 'ghost'}
+            aria-pressed={sidebarOpen}
+            onClick={onToggleSidebar}
+          />
+        )}
+        <Button leadingIcon="add" onClick={onAddEvent}>Termin</Button>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 export default CalendarHeader;

@@ -2,6 +2,7 @@ import React from 'react';
 import {
   MONTH_NAMES,
   getEventColors,
+  getEventMeta,
   getEventStartDate,
   isAllDayEvent,
   formatClock,
@@ -105,6 +106,7 @@ export const MonthPickerModal = ({ pickerYear, onPickerYearChange, currentMonthI
 /** Termin-Detail (Dialog liegt über dem Tages-Sheet) */
 export const EventDetailModal = ({ event, onEdit, onDelete, onClose }) => {
   const colors = getEventColors(event.colorId);
+  const { meetLink } = getEventMeta(event);
   const rows = [
     {
       icon: 'event',
@@ -120,6 +122,20 @@ export const EventDetailModal = ({ event, onEdit, onDelete, onClose }) => {
     },
     event.description && { icon: 'notes', label: 'Beschreibung', text: <span className="whitespace-pre-wrap">{event.description}</span> },
     event.location && { icon: 'location_on', label: 'Ort', text: event.location },
+    meetLink && {
+      icon: 'videocam',
+      label: 'Videokonferenz',
+      text: (
+        <a
+          href={meetLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={cx('rounded-xs text-accent underline underline-offset-2', FOCUS)}
+        >
+          Mit Google Meet beitreten
+        </a>
+      ),
+    },
   ].filter(Boolean);
 
   return (

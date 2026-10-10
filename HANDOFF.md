@@ -25,6 +25,7 @@
 1. [Prio 1] Manueller Smoke-Test auf physischen Mobilgeräten (Touch-Haptik & Animationen).
 
 ### 5. ⚠️ Warnungen & Fallstricke
+- **Hosting:** Website und Serverless-Funktionen laufen auf **Wurzel**, nicht auf Firebase Hosting. Firebase (focusflow) ist nur für Nutzerdaten und Google-Anmeldung. Website-Updates per `git push origin main`. Details: `docs/Wissen/00_System_und_Design/05-Dual-Hosting-und-Deployment-Architektur.md`.
 - **KEINE SECRETS:** Niemals API-Keys/Tokens eintragen (nur `.env.local` referenzieren).
 - Bei Touch-Gesten immer `isAnimatingRef` beachten, um Race Conditions bei schnellen Swipes zu verhindern.
 

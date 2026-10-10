@@ -1,12 +1,29 @@
 import React from 'react';
 import { WEEKDAYS, getEventColors, sortEvents, isSameDay, isAllDayEvent } from '../../lib/calendarUtils';
+import { FOCUS, IconButton, cx } from '../ds';
+
+/** Tageszahl; am PC ein Knopf, der die Tagesansicht öffnet */
+const DayNumber = ({ onClick, label, children }) => (onClick ? (
+  <button
+    type="button"
+    onClick={(e) => {
+      e.stopPropagation();
+      onClick();
+    }}
+    aria-label={label}
+    className={cx('rounded-md px-1 hover:underline', FOCUS)}
+  >
+    {children}
+  </button>
+) : children);
 
 /**
  * Eine Monatsseite des 3-Slide-Karussells (Wochentags-Kopf + Raster mit kompakten Terminen).
  * - `getEventsForCell(date)` liefert die Termine eines Tages
  * - `onCellClick(cell)` Klick auf Tag, `onEventClick(evt, cell)` Klick auf einen Termin
+ * - PC: `onAddOnCell(cell)` (Plus beim Überfahren, Doppelklick) legt einen Termin an, `onDayNumberClick(cell)` öffnet den Tag
  */
-const MonthSlide = ({ days, isCenter, selectedDay, getEventsForCell, onCellClick, onEventClick }) => {
+const MonthSlide = ({ days, isCenter, selectedDay, getEventsForCell, onCellClick, onEventClick, onAddOnCell, onDayNumberClick }) => {
   const rowCount = Math.ceil(days.length / 7);
 
   return (
@@ -42,7 +59,8 @@ const MonthSlide = ({ days, isCenter, selectedDay, getEventsForCell, onCellClick
             <div
               key={cell.key}
               onClick={() => onCellClick(cell)}
-              className={`relative p-1 md:p-1.5 flex flex-col justify-start overflow-hidden cursor-pointer transition-colors border-r border-subtle last:border-r-0 ${
+              onDoubleClick={onAddOnCell ? () => onAddOnCell(cell) : undefined}
+              className={`group relative p-1 md:p-1.5 flex flex-col justify-start overflow-hidden cursor-pointer transition-colors border-r border-subtle last:border-r-0 ${
                 isToday
                   ? 'z-10 rounded-md border-[1.5px] border-strong bg-surface'
                   : isSelected && !isToday
@@ -54,6 +72,7 @@ const MonthSlide = ({ days, isCenter, selectedDay, getEventsForCell, onCellClick
             >
               {/* Tageszahl, zentriert */}
               <div className="flex justify-center items-center pt-0.5 pb-1 flex-shrink-0 select-none">
+                <DayNumber onClick={onDayNumberClick ? () => onDayNumberClick(cell) : undefined} label={`${cell.day}. ${cell.dateObj.toLocaleDateString('de-DE', { month: 'long' })} öffnen`}>
                 {isToday ? (
                   <span className="flex h-6 w-6 items-center justify-center rounded-md bg-inverse text-caption-strong text-inverse">
                     {cell.day}
@@ -69,7 +88,22 @@ const MonthSlide = ({ days, isCenter, selectedDay, getEventsForCell, onCellClick
                     {cell.day}
                   </span>
                 )}
+                </DayNumber>
               </div>
+
+              {onAddOnCell && (
+                <div className="absolute right-1 top-1 z-10 opacity-0 transition-opacity duration-fast focus-within:opacity-100 group-hover:opacity-100">
+                  <IconButton
+                    icon="add"
+                    size="sm"
+                    label={`Termin am ${cell.day}. ${cell.dateObj.toLocaleDateString('de-DE', { month: 'long' })} erstellen`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onAddOnCell(cell);
+                    }}
+                  />
+                </div>
+              )}
 
               {/*
                 Kompakte Terminanzeige: nur der Platz für bis zu 2 Textzeilen (h-auto, line-clamp-2 break-all),

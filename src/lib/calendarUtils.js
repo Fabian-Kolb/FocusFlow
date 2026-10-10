@@ -388,3 +388,21 @@ export function monthsCovering(startDate, dayCount) {
   }
   return months;
 }
+
+/**
+ * Ab welcher Minute ein Zeitraster beim Öffnen scrollt: heute eine Stunde vor jetzt, sonst eine Stunde vor
+ * dem ersten Termin der angezeigten Tage, sonst 08:00 Uhr.
+ */
+export function getInitialScrollMinutes(days, getEventsForDate, nowMinutes) {
+  if (days.some((d) => isSameDay(d))) return Math.max(0, nowMinutes - 60);
+  let earliest = Infinity;
+  for (const date of days) {
+    for (const evt of getEventsForDate(date)) {
+      if (!evt.start?.dateTime) continue;
+      const start = new Date(evt.start.dateTime);
+      const minutes = isSameDay(start, date) ? start.getHours() * 60 + start.getMinutes() : 0;
+      earliest = Math.min(earliest, minutes);
+    }
+  }
+  return Number.isFinite(earliest) ? Math.max(0, earliest - 60) : 8 * 60;
+}
