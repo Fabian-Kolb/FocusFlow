@@ -68,8 +68,11 @@ describe('useCalendarEvents – Laden, Fehler, Offline', () => {
 
     fail = false;
     act(() => result.current.retry());
-    await waitFor(() => expect(result.current.error).toBeNull());
-    expect(result.current.eventsCache['2026-9']).toEqual([{ id: 'e9' }]);
+    // Fehler und Cache werden nacheinander gesetzt: auf beides gemeinsam warten, sonst wackelt der Test unter Last
+    await waitFor(() => {
+      expect(result.current.error).toBeNull();
+      expect(result.current.eventsCache['2026-9']).toEqual([{ id: 'e9' }]);
+    });
   });
 
   it('erkennt Offline-Status, behält geladene Termine und lädt beim Zurückkehren online neu', async () => {
@@ -104,8 +107,10 @@ describe('useCalendarEvents – Laden, Fehler, Offline', () => {
 
     fail = false;
     act(() => { window.dispatchEvent(new Event('online')); });
-    await waitFor(() => expect(result.current.error).toBeNull());
-    expect(result.current.eventsCache['2026-9']).toEqual([{ id: 'ok' }]);
+    await waitFor(() => {
+      expect(result.current.error).toBeNull();
+      expect(result.current.eventsCache['2026-9']).toEqual([{ id: 'ok' }]);
+    });
   });
 
   it('reloadMonth() aktualisiert den Cache eines Monats', async () => {

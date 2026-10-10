@@ -271,3 +271,120 @@ export function defaultNewEvent(year, monthIndex, day, hour = 9) {
 export function isSameDay(a, b = new Date()) {
   return a.getDate() === b.getDate() && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
 }
+
+// ---------------------------------------------------------------------------
+// Ansichten (Monat, Woche, Tag, Agenda): Datumsrechnung und Beschriftung
+// ---------------------------------------------------------------------------
+
+export const CALENDAR_VIEWS = ['month', 'week', 'day', 'agenda'];
+
+export const startOfDay = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+/** Tag um `n` verschieben (lokal, sommerzeitsicher, weil über Kalenderfelder gerechnet wird) */
+export const addDays = (date, n) => new Date(date.getFullYear(), date.getMonth(), date.getDate() + n);
+
+/** Monat um `n` verschieben; der Tag wird auf die Länge des Zielmonats begrenzt (31. Jan. + 1 Monat = 28./29. Feb.) */
+export function addMonthsClamped(date, n) {
+  const target = new Date(date.getFullYear(), date.getMonth() + n, 1);
+  const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+  return new Date(target.getFullYear(), target.getMonth(), Math.min(date.getDate(), lastDay));
+}
+
+/** Montag der Woche, in der `date` liegt */
+export const startOfWeek = (date) => addDays(date, -((date.getDay() + 6) % 7));
+
+/** Die sieben Tage (Montag bis Sonntag) der Woche von `date` */
+export function getWeekDays(date) {
+  const monday = startOfWeek(date);
+  return Array.from({ length: 7 }, (_, i) => addDays(monday, i));
+}
+
+export const monthKeyOf = (date) => `${date.getFullYear()}-${date.getMonth()}`;
+
+/** Um `step` Einheiten der Ansicht vor oder zurück (Monat: Monat, Woche: 7 Tage, Tag: 1 Tag, Agenda: 7 Tage) */
+export function shiftByView(view, date, step) {
+  if (view === 'month') return addMonthsClamped(date, step);
+  if (view === 'week' || view === 'agenda') return addDays(date, 7 * step);
+  return addDays(date, step);
+}
+
+/** Titel der Kopfzeile, z. B. "Oktober 2026", "5.–11. Oktober 2026" oder "Samstag, 10. Oktober 2026" */
+export function formatViewTitle(view, date, { compact = false } = {}) {
+  const month = (d) => (compact ? MONTH_NAMES_SHORT[d.getMonth()] : MONTH_NAMES[d.getMonth()]);
+  if (view === 'day') {
+    return compact
+      ? `${date.getDate()}. ${MONTH_NAMES_SHORT[date.getMonth()]} ${date.getFullYear()}`
+      : `${WEEKDAY_NAMES[date.getDay()]}, ${date.getDate()}. ${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`;
+  }
+  if (view === 'week') {
+    const days = getWeekDays(date);
+    const first = days[0];
+    const last = days[6];
+    if (first.getMonth() === last.getMonth()) return `${first.getDate()}.–${last.getDate()}. ${month(last)} ${last.getFullYear()}`;
+    if (first.getFullYear() === last.getFullYear()) return `${first.getDate()}. ${MONTH_NAMES_SHORT[first.getMonth()]} – ${last.getDate()}. ${MONTH_NAMES_SHORT[last.getMonth()]} ${last.getFullYear()}`;
+    return `${first.getDate()}. ${MONTH_NAMES_SHORT[first.getMonth()]} ${first.getFullYear()} – ${last.getDate()}. ${MONTH_NAMES_SHORT[last.getMonth()]} ${last.getFullYear()}`;
+  }
+  return `${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+// ---------------------------------------------------------------------------
+// Zeitraster: Klick auf eine freie Stelle, Darstellung der Termine
+// ---------------------------------------------------------------------------
+
+export const SNAP_MINUTES = 30;
+
+/** Auf einen Raster-Schritt abrunden (Standard 30 Minuten), im Bereich 00:00 bis 23:30 */
+export function snapMinutes(minutes, step = SNAP_MINUTES) {
+  return Math.max(0, Math.min(24 * 60 - step, Math.floor(minutes / step) * step));
+}
+
+/** Vorlage für einen neuen Termin an `date` ab `minutes` nach Mitternacht (Standard 09:00, eine Stunde) */
+export function defaultNewEventAt(date, minutes = 9 * 60, durationMinutes = 60) {
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, minutes);
+  const end = new Date(start.getTime() + durationMinutes * 60000);
+  return { start: { dateTime: start.toISOString() }, end: { dateTime: end.toISOString() } };
+}
+
+/** "09:00 – 10:30" oder "Ganztägig" */
+export function formatEventTimeRange(evt) {
+  if (isAllDayEvent(evt)) return 'Ganztägig';
+  const start = new Date(evt.start.dateTime);
+  const end = evt.end?.dateTime ? new Date(evt.end.dateTime) : null;
+  return end ? `${formatClock(start)} – ${formatClock(end)}` : formatClock(start);
+}
+
+/** Meet-Link und Ort eines Termins (für kleine Symbole und das Detail) */
+export function getEventMeta(evt) {
+  const meetLink = evt.hangoutLink || evt.conferenceData?.entryPoints?.find((p) => p.entryPointType === 'video')?.uri || '';
+  return { meetLink, hasMeet: Boolean(meetLink), location: evt.location || '' };
+}
+
+/** Termine eines Tages aufgeteilt: ganztägig (sortiert) und zeitgebunden (mit Spaltenlayout bei Überlappung) */
+export function splitDayEvents(events, date) {
+  const allDay = sortEvents(events.filter(isAllDayEvent));
+  const timed = events.filter((evt) => !evt.start?.date && !!evt.start?.dateTime);
+  return { allDay, timed: getLayoutedEvents(timed, date) };
+}
+
+/** Tage mit Terminen ab `startDate` für die Agenda: [{ date, events }], leere Tage entfallen */
+export function buildAgenda(startDate, dayCount, getEventsForDate) {
+  const groups = [];
+  for (let i = 0; i < dayCount; i++) {
+    const date = addDays(startDate, i);
+    const events = sortEvents(getEventsForDate(date));
+    if (events.length > 0) groups.push({ date, events });
+  }
+  return groups;
+}
+
+/** Monate (year, month), die für `dayCount` Tage ab `startDate` geladen sein müssen */
+export function monthsCovering(startDate, dayCount) {
+  const last = addDays(startDate, Math.max(0, dayCount - 1));
+  const months = [];
+  let cursor = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+  while (cursor <= last) {
+    months.push([cursor.getFullYear(), cursor.getMonth()]);
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+  }
+  return months;
+}

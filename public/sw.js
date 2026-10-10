@@ -1,10 +1,10 @@
 /* FocusFlow Service Worker
  * - App-Shell offline verfügbar (index.html: Network-first mit Cache-Fallback)
  * - Gehashte Build-Dateien (/assets/*): Cache-first, ändern sich nie
- * - Icons & Google Fonts: Stale-while-revalidate
+ * - Icons & Manifest: Network-first (neues Logo kommt sofort), Google Fonts: Stale-while-revalidate
  * - /api/* und Firebase/Google-APIs werden NIE gecacht (Daten-Cache übernimmt Firestore selbst)
  */
-const VERSION = 'v1';
+const VERSION = 'v2';
 const SHELL_CACHE = `ff-shell-${VERSION}`;
 const ASSET_CACHE = `ff-assets-${VERSION}`;
 const STATIC_CACHE = `ff-static-${VERSION}`;
@@ -59,6 +59,17 @@ async function cacheFirst(request, cacheName) {
   return response;
 }
 
+async function networkFirst(request, cacheName) {
+  const cache = await caches.open(cacheName);
+  try {
+    const response = await fetch(request, { cache: 'reload' });
+    if (response.ok) cache.put(request, response.clone());
+    return response;
+  } catch {
+    return (await cache.match(request)) || Response.error();
+  }
+}
+
 async function staleWhileRevalidate(request, cacheName) {
   const cache = await caches.open(cacheName);
   const cached = await cache.match(request);
@@ -91,7 +102,7 @@ self.addEventListener('fetch', (event) => {
       return;
     }
     if (url.pathname.startsWith('/icons/') || url.pathname === '/manifest.webmanifest') {
-      event.respondWith(staleWhileRevalidate(request, STATIC_CACHE));
+      event.respondWith(networkFirst(request, STATIC_CACHE));
     }
     return;
   }

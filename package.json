@@ -10,6 +10,7 @@
     "deploy:rules": "firebase deploy --only firestore:rules",
     "deploy:all": "npm run build && firebase deploy --only hosting,firestore:rules",
     "lint": "oxlint",
+    "check:design": "node scripts/check-design-system.js",
     "preview": "vite preview",
     "test:behavior": "vitest run",
     "test:tz": "node scripts/run-tz-tests.js",

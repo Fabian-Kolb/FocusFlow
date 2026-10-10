@@ -50,7 +50,7 @@ export function Field({ label, hint, error, optional = false, children, classNam
     <div className={cx('flex flex-col gap-1.5', className)}>
       {label && (
         <label htmlFor={children?.props?.id || id} className="text-label text-primary">
-          {label}{optional && <span className="ml-1 font-normal text-tertiary">(optional)</span>}
+          {label}{optional && <span className="ml-1 font-normal text-tertiary">(optional)</span>}{/* ds-allow: der Zusatz „(optional)“ ist bewusst normal gewichtet */}
         </label>
       )}
       {child}

@@ -17,6 +17,7 @@ const KEYS = [
   'focusflow_guest_reminders',
   'focusflow_guest_inbox',
   'focusflow_guest_kanban_views',
+  'focusflow_dev_calendar',
 ];
 
 export function buildSeedProjects() {

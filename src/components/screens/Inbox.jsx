@@ -483,6 +483,7 @@ const Inbox = ({ setCurrentScreen, autoStartVoice = false, onAutoStartConsumed }
             {body && (
               <div
                 className={`text-body leading-snug text-secondary ${
+                  /* ds-allow-next: Maske blendet gekürzten Text aus, kein dekorativer Verlauf */
                   !isExpanded && longBody ? 'max-h-[5.75rem] overflow-hidden [mask-image:linear-gradient(to_bottom,black_60%,transparent)]' : ''
                 }`}
               >

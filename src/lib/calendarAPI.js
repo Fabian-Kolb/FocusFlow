@@ -5,6 +5,13 @@
 
 import { auth } from './firebase';
 
+/** Nur Entwicklung: Beim Dev-Account kommen Termine aus `devCalendar.js` (kein Google-Token vorhanden) */
+async function devCalendar() {
+  if (!import.meta.env.DEV) return null;
+  const dev = await import('./devCalendar');
+  return dev.isDevCalendarActive() ? dev : null;
+}
+
 /**
  * Legacy Token-Bereinigung & Verbindungs-Flag
  */
@@ -91,6 +98,8 @@ export async function getCalendarAuthUrl() {
  * Fetches calendar events for a specific month via backend proxy
  */
 export async function fetchCalendarEvents(year, monthIndex) {
+  const dev = await devCalendar();
+  if (dev) return dev.devFetchEvents(year, monthIndex);
   try {
     const headers = await getCalendarAuthHeaders();
     const params = new URLSearchParams();
@@ -129,6 +138,8 @@ export async function fetchCalendarEvents(year, monthIndex) {
  * Creates a new calendar event via backend proxy
  */
 export async function createCalendarEvent(eventData) {
+  const dev = await devCalendar();
+  if (dev) return dev.devCreateEvent(eventData);
   const headers = await getCalendarAuthHeaders();
   const response = await fetch('/api/calendar/events', {
     method: 'POST',
@@ -158,6 +169,8 @@ export async function createCalendarEvent(eventData) {
  * Updates an existing calendar event via backend proxy
  */
 export async function updateCalendarEvent(eventId, eventData) {
+  const dev = await devCalendar();
+  if (dev) return dev.devUpdateEvent(eventId, eventData);
   const headers = await getCalendarAuthHeaders();
   const response = await fetch(`/api/calendar/events?id=${encodeURIComponent(eventId)}`, {
     method: 'PATCH',
@@ -183,6 +196,8 @@ export async function updateCalendarEvent(eventId, eventData) {
  * Deletes a calendar event via backend proxy
  */
 export async function deleteCalendarEvent(eventId) {
+  const dev = await devCalendar();
+  if (dev) return dev.devDeleteEvent(eventId);
   const headers = await getCalendarAuthHeaders();
   const response = await fetch(`/api/calendar/events?id=${encodeURIComponent(eventId)}`, {
     method: 'DELETE',

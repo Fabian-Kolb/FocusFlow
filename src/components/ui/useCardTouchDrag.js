@@ -84,26 +84,22 @@ export function useCardTouchDrag({
     const posX = isTouch ? Math.max(10, x - 70) : x + 14;
     const posY = isTouch ? Math.max(10, y - 60) : y + 14;
 
-    const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
-
     Object.assign(el.style, {
       position: 'fixed',
       top: '0',
       left: '0',
       transform: `translate(${posX}px, ${posY}px)`,
       pointerEvents: 'none',
-      zIndex: '999999',
-      background: isDark ? 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)' : '#FFFFFF',
-      color: isDark ? '#F8FAFC' : '#0F172A',
-      border: isDark ? '1.5px solid rgba(96, 165, 250, 0.8)' : '1.5px solid rgba(59, 130, 246, 0.9)',
+      zIndex: 'var(--z-palette)',
+      background: 'var(--bg-raised)',
+      color: 'var(--text-primary)',
+      border: '1px solid var(--border-accent)',
       padding: '8px 16px',
-      borderRadius: '14px',
-      fontSize: '13px',
-      fontWeight: '700',
+      borderRadius: 'var(--radius-md)',
+      fontSize: '14px',
+      fontWeight: '600',
       fontFamily: 'inherit',
-      boxShadow: isDark
-        ? '0 20px 35px -5px rgba(0,0,0,0.6), 0 0 20px rgba(59, 130, 246, 0.35)'
-        : '0 20px 35px -5px rgba(0,0,0,0.18), 0 0 15px rgba(59, 130, 246, 0.25)',
+      boxShadow: 'var(--shadow-lg)',
       whiteSpace: 'nowrap',
       maxWidth: '280px',
       overflow: 'hidden',
@@ -118,7 +114,7 @@ export function useCardTouchDrag({
     const icon = document.createElement('span');
     icon.className = 'material-symbols-outlined';
     icon.style.fontSize = '18px';
-    icon.style.color = '#3B82F6';
+    icon.style.color = 'var(--text-accent)';
     icon.style.flexShrink = '0';
     icon.textContent = 'drag_pan';
     el.appendChild(icon);

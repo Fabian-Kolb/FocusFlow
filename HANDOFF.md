@@ -317,7 +317,7 @@
 - **Inhalte:** Emoji aus UI, Fio-Prompts (`Coach.jsx`, `aiActionEngine.js`), Quick-Prompts und Fehlermeldungen entfernt; Satzschreibung statt Versalien (Phasentitel, Datumsangaben, `projectProgress.js`-Labels); „&“ in UI-Labels durch „und“. Fehlerpräfix der KI jetzt `**Fehler:**` (`gemini.js`, `projectDraft.js` abgestimmt). Screen-Wechsel blendet über `.screen-transition` ein (`index.css`, `App.jsx`).
 
 ### Tests & Build
-- `npx vitest run`: 14 Dateien, 180/180 grün. Im Gesamtlauf ist `tests/calendar_events_hook.test.jsx` manchmal wacklig, einzeln grün.
+- `npx vitest run`: 14 Dateien, 180/180 grün. Die zwei früher wackligen Tests in `tests/calendar_events_hook.test.jsx` (Race zwischen Fehler-Reset und Cache) warten jetzt auf beides gemeinsam; drei Gesamtläufe in Folge grün.
 - `node scripts/run-e2e-tests.js`: 142/142. `calendar_security` 20/20, `firestore_security` 16/16. `vite build` ok, `oxlint` nur alte Warnungen.
 - Angepasst wurden Tests, die alte Klassen oder Versalien-Labels prüften (`calendar_ui`, `project_progress`, `data_context`, `settings_modal`, `tier1`, `tier2`, `responsive_drawers`). Der Tages-Sheet-Test in `calendar_ui` klickt nicht mehr „10“, denn der Heute-Knopf zeigt am 10.10. dieselbe Zahl und der Test brach am Datumswechsel.
 - Browser (Dev-Konto, 1280 und 375 px, Hell und Dunkel): Home, Gedanken, Erinnerungen (mit „Neue Erinnerung“-Sheet), Projektliste, Kanban, Papierkorb, Wochenrückblick, Coach (Verlauf, Kontext-Dialog), Befehlsleiste, Kürzel-Dialog, Einstellungen (Fio-Guide, Hilfe), Projektdetail am Handy.
@@ -334,3 +334,11 @@
 - `IconButton` und `Button` setzen selbst `relative`; `absolute` per `className` wird verdrängt, also in einen Wrapper legen.
 - `Dialog` und `Sheet` ziehen den Startfokus auf das Element mit `data-autofocus`, nicht auf `autoFocus`.
 - Skripte mit Backslashes oder `$` als Datei schreiben, nicht per Heredoc.
+
+### Nachtrag 2026-10-10 (Claude Code): Design-Drift verhindern
+- **Prüfskript:** `npm run check:design` (`scripts/check-design-system.js`), zusätzlich als `tests/design_system.test.js` in `vitest.config.js`. Findet Klassen ohne Wirkung (rohe Farben, `/50`), Emoji, freie Größen/Radien/Farben/z-Werte, `dark:`, Gewichtsklassen, Versalien ohne `text-eyebrow`, Verläufe, `alert()`/`confirm()`. Ausnahmen nur mit `ds-allow`/`ds-allow-next` und Grund. Nicht geprüft: `brand/`, `data/` (nur Emoji), `prototype3d/`, `styles/`.
+- **Echter Fund:** `useCardTouchDrag.js` (Drag-Vorschaubild) las noch `classList.contains('dark')` mit Hex-Farben und Verlauf; nutzt jetzt Tokens.
+- **Neu:** `docs/Wissen/00_System_und_Design/06-Design-System-Referenz.md` (Artefakt-Link und Stand `1791643192-9772`, Zuordnung, Abweichungen, Begründungen, Ablauf einer Design-Änderung, Abgleich). `CLAUDE.md` hat den Abschnitt „UI und Design System (verbindlich)“; Regel 01 hat Abschnitt 0 „Quelle und Änderungen“.
+- **Bereinigt:** veraltete Klassenangaben (`rounded-2xl`, `outline-variant`, `bg-black/…`, `z-[100]`, `FioIcon` …) in 8 Wissens-Dateien. Offen für die Marken-Sitzung: `12_3D_Branding…` nennt beim Login-Band noch `text-primary/[0.055]` und `dark:text-white`.
+- **Regel:** Das Design wird nicht eigenmächtig geändert. Ablauf: Vorschlag, Freigabe, erst Artefakt (Artifact-Tool, `project/…`), dann Repo, dann Referenz und Prüfung.
+- Tests: Vitest 181/181, E2E 142/142, `check:design` grün.

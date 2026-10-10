@@ -24,8 +24,16 @@ createRoot(document.getElementById('root')).render(
 
 // Service Worker nur im Build registrieren (im Dev-Server würde er HMR stören)
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  // Neue App-Version übernehmen: sobald ein neuer Service Worker die Kontrolle bekommt, einmal neu laden
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloading) return;
+    reloading = true;
+    window.location.reload();
+  });
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch((err) => {
+    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch((err) => {
       console.warn('Service Worker Registrierung fehlgeschlagen:', err);
     });
   });

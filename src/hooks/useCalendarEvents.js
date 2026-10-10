@@ -25,6 +25,7 @@ export function describeCalendarError(err) {
  * - `error`: Abruf des aktuellen Monats ist fehlgeschlagen (Text für den Banner)
  * - `retry()`: verwirft Fehler und lädt fehlgeschlagene Monate erneut (auch automatisch beim Zurückkehren online)
  * - `reloadMonth(year, month)`: erneuter Abruf nach Speichern/Löschen
+ * - `loadMonth(year, month)`: lädt einen weiteren Monat, falls noch nicht geladen (Agenda, Wochen über Monatsgrenzen)
  */
 export function useCalendarEvents({ enabled, year, month, prevYear, prevMonth, nextYear, nextMonth }) {
   const [cache, setCache] = useState({});
@@ -116,6 +117,11 @@ export function useCalendarEvents({ enabled, year, month, prevYear, prevMonth, n
     });
   }, []);
 
+  const loadMonth = useCallback((y, m) => {
+    const key = monthKey(y, m);
+    if (!cacheRef.current[key] && !failedRef.current[key]) load(y, m);
+  }, [load]);
+
   const currentKey = monthKey(year, month);
   const error = failed[currentKey] || null;
   const hasCurrent = Boolean(cache[currentKey]);
@@ -127,5 +133,6 @@ export function useCalendarEvents({ enabled, year, month, prevYear, prevMonth, n
     isLoading: !hasCurrent && !error && Boolean(loadingKeys[currentKey]),
     retry,
     reloadMonth,
+    loadMonth,
   };
 }

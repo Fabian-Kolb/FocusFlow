@@ -22,7 +22,8 @@ export default defineConfig({
       'tests/recurrence.test.js',
       'tests/command_search.test.js',
       'tests/dashboard_agenda.test.js',
-      'tests/project_progress.test.js'
+      'tests/project_progress.test.js',
+      'tests/design_system.test.js'
     ]
   }
 });
