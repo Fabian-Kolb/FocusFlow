@@ -139,7 +139,7 @@ const MonthSlide = ({ days, isCenter, selectedDay, getEventsForCell, onCellClick
                         }}
                         title={evt.summary || '(Ohne Titel)'}
                       >
-                        <div className="w-full break-all line-clamp-2">
+                        <div className="w-full truncate md:whitespace-normal md:break-words md:line-clamp-2">
                           {evt.summary || '(Ohne Titel)'}
                         </div>
                       </div>

@@ -120,7 +120,7 @@ const EventEditForm = ({ initialEvent, selectedDateObj, onSave, onCancel }) => {
     <div className="pb-20">
       <div className="mb-6 flex items-center gap-3">
       <IconButton icon="close" label="Abbrechen" variant="ghost" onClick={onCancel} />
-      <h2 className="min-w-0 flex-1 truncate text-title text-primary">{initialEvent ? 'Termin bearbeiten' : 'Neuer Termin'}</h2>
+      <h2 className="min-w-0 flex-1 truncate text-title text-primary">{initialEvent?.id ? 'Termin bearbeiten' : 'Neuer Termin'}</h2>
       <Button onClick={handleSubmit}>Speichern</Button>
       </div>
 
@@ -152,15 +152,15 @@ const EventEditForm = ({ initialEvent, selectedDateObj, onSave, onCancel }) => {
           <div className="min-w-0 flex-1 space-y-4">
 
               <div className="flex flex-wrap items-center gap-2">
-              <Input type="date" aria-label="Startdatum" className="w-auto" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              <Input type="date" aria-label="Startdatum" className="!w-44" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
               {!isAllDay && (
-                <Input type="time" aria-label="Startzeit" className="w-auto" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+                <Input type="time" aria-label="Startzeit" className="!w-32" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
               )}
               <span className="text-body text-secondary">bis</span>
               {!isAllDay && (
-                <Input type="time" aria-label="Endzeit" className="w-auto" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+                <Input type="time" aria-label="Endzeit" className="!w-32" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
               )}
-              <Input type="date" aria-label="Enddatum" className="w-auto" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+              <Input type="date" aria-label="Enddatum" className="!w-44" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
               </div>
 
               <Checkbox label="Ganztägig" checked={isAllDay} onChange={(e) => setIsAllDay(e.target.checked)} />

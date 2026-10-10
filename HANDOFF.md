@@ -343,3 +343,62 @@
 - **Bereinigt:** veraltete Klassenangaben (`rounded-2xl`, `outline-variant`, `bg-black/…`, `z-[100]`, `FioIcon` …) in 8 Wissens-Dateien. Offen für die Marken-Sitzung: `12_3D_Branding…` nennt beim Login-Band noch `text-primary/[0.055]` und `dark:text-white`.
 - **Regel:** Das Design wird nicht eigenmächtig geändert. Ablauf: Vorschlag, Freigabe, erst Artefakt (Artifact-Tool, `project/…`), dann Repo, dann Referenz und Prüfung.
 - Tests: Vitest 181/181, E2E 142/142, `check:design` grün.
+
+## Nachtrag 2026-10-10 (Claude Code): Kalender-UX neu
+
+### Getan
+- **Gefunden, was beim Aufräumen am 8.10. verloren ging:** Zeitraster am PC (Jetzt-Linie, Auto-Scroll, Klick auf freie Stunde), Tag vor/zurück, Termin direkt an einer Monatszelle, Meet-/Ort-Symbole, Meet-Link im Detail. Alles wieder da.
+- **Neue Aufteilung nach Nutzerwahl** (Samsung-Stil am Handy, Google-Stil am PC): Ansichten Monat, Woche, Tag, Agenda; Handy mit angedocktem Tagessheet (drei Haltepunkte, Wischen wechselt den Tag), PC mit einer Kopfzeile und ein-/ausblendbarer Tagesleiste; Tastatur ←/→, t, m/w/d/a, s, c. Neue Dateien in `src/components/calendar/`: `TimeGrid`, `PeriodCarousel`, `AgendaView`, `DaySheet`, `DaySidebar`, `viewOptions`; Logik in `src/lib/calendarUtils.js` (Ansichten, Zeitraster, Agenda), `src/lib/sheetSnap.js`, Hooks `useMediaQuery`, `useNowMinutes`, `useTimeGridScroll`; `useCalendarEvents` kennt `loadMonth`. `Calendar.jsx` bleibt Orchestrator. Entfernt: `DesktopDayPanel`, `MobileDaySheet`, das „☰“-Menü, der Layout-Umschalter.
+- **Dev-Konto:** lokale Beispieltermine (`src/lib/devCalendar.js`, in `calendarAPI` nur im Dev-Server per dynamischem Import; `ffDev.reset()` setzt zurück). Damit ist der Kalender ohne Google-Token prüfbar.
+- Nebenbei: `EventEditForm` zeigt „Neuer Termin“ statt „Termin bearbeiten“ bei Vorlagen ohne ID, Datum und Uhrzeit stehen in einer Zeile; Termin-Chips im Monat umbrechen nur an Wortgrenzen (Handy: eine Zeile mit Auslassung); Kürzel-Übersicht hat den Abschnitt „Im Kalender“.
+
+### Tests & Build
+- Vitest 215/215 (neu: `calendar_views.test.jsx`, `sheet_snap.test.js`, erweiterte `calendar_utils.test.js`; `calendar_ui.test.jsx` angepasst und vom echten Datum entkoppelt), `npm run test:tz` in 5 Zeitzonen grün, E2E 142/142, `check:design` grün, Build ok.
+- Im Browser (headless Chrome über DevTools-Protokoll, 1280 px und 390 px mit Touch): Monat, Woche, Tag, Agenda, Tagesleiste, Hover-Plus, Klick auf freie Stunde, Termin-Detail mit Meet, Sheet ziehen/Wischen/Schließen, Hell und Dunkel.
+
+### Offen / Next Steps
+1. Echtes Gerät: Gefühl der Gesten (Haltepunkte, Wischschwelle `DAY_SWIPE_PX` 48, Geschwindigkeit in `resolveSnap`).
+2. Termin im Zeitraster aufziehen und per Ziehen verschieben; FocusFlow-Erinnerungen und Aufgaben im Kalender anzeigen.
+3. Gegen echtes Google Kalender prüfen (Dev-Konto nutzt nur lokale Daten): Laden mehrerer Monate in der Agenda, Speichern/Löschen in den Nachbarmonaten (`reloadAround`).
+4. Nicht committet.
+
+### Fallstricke
+- Die drei Karussell-Seiten stehen alle im DOM: Tests wählen die mittlere Seite (`[style*="translateX"]`, zweites Kind).
+- `IconButton` setzt selbst `relative`; absolute Plus-Knöpfe liegen deshalb in einem eigenen Wrapper.
+- Browser-Pane des Claude-Fensters kann ausgeblendet sein und liefert dann nur einen Ausschnitt; Screenshots gehen zuverlässig über Chrome und das DevTools-Protokoll (Skript im Scratchpad, nicht im Repo).
+
+---
+
+## Nachtrag 2026-10-10 (Claude Code): Promo-Video mit Sprache, Fio-Szene, Outro
+
+### Getan
+- `promo/focusflow-intro.html`: neue Fio-Szene (20,9–25,8 s), Outro mit Wortmarke, Adressleiste (Tippen) und Button „Jetzt im Browser ausprobieren“. Haken-Szene um 1,3 s nach hinten, damit „Ein Haken“ zum Klick passt.
+- Sprache: sieben Einzelclips (ElevenLabs-Connector, Stimme „Helmut“), jeder auf seinen Szenenbeginn gelegt (`promo/audio/clip1–7.mp3`). Gemessen über `silencedetect`: Sätze liegen bei 2,6 / 7,8 / 10,5 / 13,1 / 17,2 / 21,2 / 28,0 s.
+- Ausgabe: `promo/focusflow-intro-vo.mp4` (32,2 s, mit Sprache). Stumm: `promo/focusflow-intro-32s-stumm.mp4`. Ältere Stände: `focusflow-intro-24s-stumm.mp4`, `focusflow-intro-31s-stumm.mp4`, `focusflow-intro-vo-v1.mp4`, `audio/vo-v1-alt.mp3`.
+- Alter ElevenLabs-MCP-Eintrag aus `~/.claude.json` entfernt (Sicherung im Scratchpad).
+
+### Offen
+1. **Adresse im Outro:** Platzhalter `deine-adresse.de` (Konstante `APP_URL` in `focusflow-intro.html`). Echte Adresse eintragen und neu rendern.
+2. **Musik:** dezente Hintergrundmusik fehlt. Dafür braucht es den vollständigen ElevenLabs-Connector (`https://api.elevenlabs.io/v1/mcp`).
+3. Fio-Antwort im Video ist eine Beispiel-Antwort, keine echte KI-Ausgabe.
+
+### Fallstricke
+- Sprachclips sind einzeln erzeugt. Ändert sich ein Satz, nur diesen Clip neu erzeugen und mit `adelay` an dieselbe Stelle legen.
+
+---
+
+## Nachtrag 2026-10-10 (Claude Code): Erklär-Video unter der Login-Karte
+
+### Getan
+- Neu: `src/components/brand/LoginIntroVideo.jsx`, Abschnitt unter der Login-Karte. Video links (ab lg), Text rechts, auf dem Handy untereinander. Bausteine `Card` aus `src/components/ds/`, Tokens nach Regel 01 (Design-System-Artefakt `JKPjVPuhhCToNFGqpXbKZd`, Version 1791643192-9772). Text „FocusFlow in 30 Sekunden“.
+- `Login.jsx`: Root in Fragment, Abschnitt als Geschwister darunter. Die Wortmarke und Karte bleiben, der Inhalt rutscht nach oben.
+- Assets: `public/focusflow-intro.mp4` (4,2 MB, Ausgabe `promo/focusflow-intro-vo.mp4`), `public/focusflow-intro-poster.jpg` (Frame bei 6 s).
+- Kein Autoplay, `preload="none"`, Vorschaubild.
+
+### Tests
+- `npm run check:design` ok (136 Dateien). `vite build` ok, Lint sauber.
+- Browser (Dev-Server, Hell): Abschnitt sichtbar, kein horizontaler Scroll auf 390 px und 1440 px, Konsole ohne Fehler. Dunkel nicht gesondert geprüft.
+
+### Offen
+1. Video-Datei im Repo (4,2 MB). Nach Commit auf Vercel ausliefern.
+2. Blauer Radialverlauf im Dark Mode des Logins (Regel 01) weiterhin ungeklärt.

@@ -21,6 +21,15 @@ export const ACTION_COMMANDS = [
   { action: 'shortcuts', label: 'Tastenkürzel anzeigen', icon: 'keyboard', keys: '?', key: '?', keywords: 'hilfe shortcuts' },
 ];
 
+/** Kürzel auf dem Kalender-Screen (PC); sie gelten nur dort und nicht beim Tippen */
+export const CALENDAR_SHORTCUTS = [
+  { label: 'Zurück und weiter', keys: '← →' },
+  { label: 'Heute', keys: 't' },
+  { label: 'Monat, Woche, Tag, Agenda', keys: 'm w d a' },
+  { label: 'Tagesleiste ein oder aus', keys: 's' },
+  { label: 'Neuer Termin', keys: 'c' },
+];
+
 export const PALETTE_KEYS = 'Strg K';
 
 /** Tippt der Nutzer gerade in ein Feld? Dann keine Einzeltasten-Kürzel auslösen. */

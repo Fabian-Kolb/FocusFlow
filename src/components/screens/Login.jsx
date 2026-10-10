@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import WordmarkWord from '../brand/WordmarkWord';
 import LoginMarquee from '../brand/LoginMarquee';
+import LoginIntroVideo from '../brand/LoginIntroVideo';
 import { LEGAL_PATHS } from '../../lib/legal';
 import { getDevCredentials } from '../../lib/devAccount';
 import { captureBrandHandoff, clearBrandHandoff } from '../../lib/brandTransition';
@@ -133,6 +134,7 @@ function Login() {
   };
 
   return (
+    <>
     <div className="relative isolate flex min-h-screen flex-col items-center justify-center gap-6 overflow-x-hidden bg-canvas px-4 pb-8 pt-16 lg:flex-row lg:gap-10 lg:py-8 xl:gap-14">
       <LoginMarquee />
 
@@ -267,6 +269,8 @@ function Login() {
         </div>
       </Dialog>
     </div>
+    <LoginIntroVideo />
+    </>
   );
 }
 

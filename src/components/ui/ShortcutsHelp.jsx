@@ -1,5 +1,5 @@
 import React from 'react';
-import { NAV_COMMANDS, ACTION_COMMANDS, PALETTE_KEYS } from '../../lib/appCommands';
+import { NAV_COMMANDS, ACTION_COMMANDS, CALENDAR_SHORTCUTS, PALETTE_KEYS } from '../../lib/appCommands';
 import { KeyHint } from './CommandPalette';
 import { Dialog, SectionHeader } from '../ds';
 
@@ -33,6 +33,10 @@ export default function ShortcutsHelp({ open, onClose }) {
           <section>
             <SectionHeader title="Gehe zu" />
             <ul>{NAV_COMMANDS.map((c) => <Row key={c.screen} label={c.label} keys={c.keys} />)}</ul>
+          </section>
+          <section className="sm:col-span-2">
+            <SectionHeader title="Im Kalender" />
+            <ul className="grid gap-x-8 sm:grid-cols-2">{CALENDAR_SHORTCUTS.map((c) => <Row key={c.label} label={c.label} keys={c.keys} />)}</ul>
           </section>
         </div>
         <p className="text-caption text-tertiary">

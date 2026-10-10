@@ -8,6 +8,20 @@ import {
   isAllDayEvent,
   getEventColors,
   getEventStartDate,
+  addDays,
+  addMonthsClamped,
+  startOfWeek,
+  getWeekDays,
+  shiftByView,
+  formatViewTitle,
+  snapMinutes,
+  defaultNewEventAt,
+  formatEventTimeRange,
+  getEventMeta,
+  splitDayEvents,
+  buildAgenda,
+  monthsCovering,
+  getInitialScrollMinutes,
 } from '../src/lib/calendarUtils';
 
 // Hilfsfunktionen: Termine immer aus LOKALEN Zeitangaben bauen, damit die Tests in jeder Zeitzone gelten
@@ -317,5 +331,118 @@ describe('sortEvents / Hilfsfunktionen', () => {
     expect(getEventColors('999').border).toBe('#0284c7');
     expect(getEventColors('4').border).toBe('#f43f5e');
     expect(getEventColors(undefined).bg).toBe('#e0f2fe');
+  });
+});
+
+describe(`Ansichten: Datumsrechnung (Zeitzone: ${zone})`, () => {
+  it('addDays rechnet über Monats-, Jahres- und Sommerzeitgrenzen auf dem Kalendertag', () => {
+    expect(addDays(day(2026, 9, 31), 1)).toEqual(day(2026, 10, 1));
+    expect(addDays(day(2026, 0, 1), -1)).toEqual(day(2025, 11, 31));
+    // Sommerzeit-Wechsel (EU 2026-03-29, USA 2026-03-08): immer genau ein Kalendertag weiter
+    for (const [m, d] of [[2, 28], [2, 7], [9, 24], [10, 1]]) {
+      const next = addDays(day(2026, m, d), 1);
+      expect(next.getDate()).toBe(new Date(2026, m, d + 1).getDate());
+      expect(next.getHours()).toBe(0);
+    }
+  });
+
+  it('addMonthsClamped begrenzt den Tag auf die Länge des Zielmonats', () => {
+    expect(addMonthsClamped(day(2026, 0, 31), 1)).toEqual(day(2026, 1, 28));
+    expect(addMonthsClamped(day(2028, 0, 31), 1)).toEqual(day(2028, 1, 29)); // Schaltjahr
+    expect(addMonthsClamped(day(2026, 9, 15), -10)).toEqual(day(2025, 11, 15));
+    expect(addMonthsClamped(day(2026, 11, 31), 2)).toEqual(day(2027, 1, 28));
+  });
+
+  it('Wochen beginnen am Montag', () => {
+    expect(startOfWeek(day(2026, 9, 10))).toEqual(day(2026, 9, 5)); // Samstag -> Montag
+    expect(startOfWeek(day(2026, 9, 5))).toEqual(day(2026, 9, 5));
+    expect(startOfWeek(day(2026, 9, 11))).toEqual(day(2026, 9, 5)); // Sonntag gehört zur Woche davor
+    const week = getWeekDays(day(2026, 9, 10));
+    expect(week).toHaveLength(7);
+    expect(week[0]).toEqual(day(2026, 9, 5));
+    expect(week[6]).toEqual(day(2026, 9, 11));
+  });
+
+  it('shiftByView springt um die Einheit der Ansicht', () => {
+    const d = day(2026, 9, 31);
+    expect(shiftByView('month', d, 1)).toEqual(day(2026, 10, 30));
+    expect(shiftByView('week', d, 1)).toEqual(day(2026, 10, 7));
+    expect(shiftByView('day', d, -1)).toEqual(day(2026, 9, 30));
+    expect(shiftByView('agenda', d, 1)).toEqual(day(2026, 10, 7));
+  });
+
+  it('formatViewTitle beschriftet jede Ansicht', () => {
+    expect(formatViewTitle('month', day(2026, 9, 10))).toBe('Oktober 2026');
+    expect(formatViewTitle('day', day(2026, 9, 10))).toBe('Samstag, 10. Oktober 2026');
+    expect(formatViewTitle('day', day(2026, 9, 10), { compact: true })).toBe('10. Okt. 2026');
+    expect(formatViewTitle('week', day(2026, 9, 10))).toBe('5.–11. Oktober 2026');
+    expect(formatViewTitle('week', day(2026, 9, 29))).toBe('26. Okt. – 1. Nov. 2026');
+    expect(formatViewTitle('week', day(2026, 11, 30))).toBe('28. Dez. 2026 – 3. Jan. 2027');
+    expect(formatViewTitle('agenda', day(2026, 9, 10))).toBe('Oktober 2026');
+  });
+});
+
+describe('Zeitraster: Klick auf freie Stelle', () => {
+  it('snapMinutes rundet auf 30 Minuten und bleibt im Tag', () => {
+    expect(snapMinutes(0)).toBe(0);
+    expect(snapMinutes(44)).toBe(30);
+    expect(snapMinutes(61)).toBe(60);
+    expect(snapMinutes(-20)).toBe(0);
+    expect(snapMinutes(24 * 60 + 100)).toBe(23 * 60 + 30);
+    expect(snapMinutes(95, 15)).toBe(90);
+  });
+
+  it('defaultNewEventAt legt eine Stunde ab der gewählten Minute an (lokal, auch über Mitternacht)', () => {
+    const evt = defaultNewEventAt(day(2026, 9, 10), 10 * 60 + 30);
+    expect(new Date(evt.start.dateTime)).toEqual(new Date(2026, 9, 10, 10, 30));
+    expect(new Date(evt.end.dateTime)).toEqual(new Date(2026, 9, 10, 11, 30));
+    const late = defaultNewEventAt(day(2026, 9, 10), 23 * 60 + 30);
+    expect(new Date(late.end.dateTime).getDate()).toBe(11);
+    expect(new Date(defaultNewEventAt(day(2026, 9, 10)).start.dateTime)).toEqual(new Date(2026, 9, 10, 9, 0));
+  });
+
+  it('getInitialScrollMinutes: heute vor jetzt, sonst vor dem ersten Termin, sonst 08:00', () => {
+    const none = () => [];
+    expect(getInitialScrollMinutes([new Date()], none, 15 * 60)).toBe(14 * 60);
+    expect(getInitialScrollMinutes([new Date()], none, 20)).toBe(0);
+    const far = day(2030, 5, 5);
+    expect(getInitialScrollMinutes([far], none, 12 * 60)).toBe(8 * 60);
+    const withEvents = (d) => (d.getDate() === 5 ? [timed('a', 2030, 5, 5, 11, 0, 12, 0), timed('b', 2030, 5, 5, 9, 30, 10, 0)] : []);
+    expect(getInitialScrollMinutes([far], withEvents, 0)).toBe(8 * 60 + 30);
+  });
+});
+
+describe('Termine für Anzeige und Agenda', () => {
+  const events = [
+    timed('spaet', 2026, 9, 8, 14, 0, 15, 0),
+    { id: 'ganz', summary: 'Ganz', start: { date: '2026-10-08' }, end: { date: '2026-10-09' } },
+    timed('frueh', 2026, 9, 8, 9, 0, 10, 0),
+  ];
+
+  it('splitDayEvents trennt ganztägige von zeitgebundenen Terminen', () => {
+    const { allDay, timed: laid } = splitDayEvents(events, day(2026, 9, 8));
+    expect(allDay.map((e) => e.id)).toEqual(['ganz']);
+    expect(laid.map((e) => e.id)).toEqual(['frueh', 'spaet']);
+  });
+
+  it('buildAgenda gruppiert nach Tagen, lässt leere Tage aus und sortiert ganztägig zuerst', () => {
+    const agenda = buildAgenda(day(2026, 9, 7), 5, (d) => events.filter((e) => isEventOnDate(e, d)));
+    expect(agenda).toHaveLength(1);
+    expect(agenda[0].date).toEqual(day(2026, 9, 8));
+    expect(agenda[0].events.map((e) => e.id)).toEqual(['ganz', 'frueh', 'spaet']);
+  });
+
+  it('monthsCovering nennt alle Monate des Zeitraums', () => {
+    expect(monthsCovering(day(2026, 9, 20), 5)).toEqual([[2026, 9]]);
+    expect(monthsCovering(day(2026, 9, 20), 45)).toEqual([[2026, 9], [2026, 10], [2026, 11]]);
+    expect(monthsCovering(day(2026, 11, 31), 2)).toEqual([[2026, 11], [2027, 0]]);
+  });
+
+  it('formatEventTimeRange und getEventMeta', () => {
+    expect(formatEventTimeRange({ start: { date: '2026-10-08' } })).toBe('Ganztägig');
+    expect(formatEventTimeRange(timed('t', 2026, 9, 8, 9, 5, 10, 30))).toBe('09:05 – 10:30');
+    expect(getEventMeta({ hangoutLink: 'https://meet.google.com/x', location: 'Büro' })).toEqual({ meetLink: 'https://meet.google.com/x', hasMeet: true, location: 'Büro' });
+    expect(getEventMeta({ conferenceData: { entryPoints: [{ entryPointType: 'video', uri: 'https://v' }] } }).hasMeet).toBe(true);
+    expect(getEventMeta({}).hasMeet).toBe(false);
   });
 });
