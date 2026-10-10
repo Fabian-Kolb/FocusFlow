@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { WORDMARK, WORDMARK_FRAME } from './focusFlowWordmarkData';
 import WordmarkSvg from './WordmarkSvg';
-import { TILT_ENABLE_EVENT } from '../../lib/tilt';
+import { TILT_ENABLE_EVENT, TILT_ACTIVE_EVENT } from '../../lib/tilt';
 import { STAGE_PAD_X, STAGE_PAD_Y } from './wordmarkStage';
 
 // Extrusion wie im Prototyp (V3/V4, Tiefe 20 × 0.85)
@@ -423,8 +423,13 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
     window.addEventListener('touchmove', onTouchMove, { passive: false });
 
     // Handy: Neigen des Geräts ersetzt den Mauszeiger
+    let tiltReported = false;
     const onOrientation = (e) => {
       if (reducedMotion || usingMouse || e.gamma == null || e.beta == null) return;
+      if (!tiltReported) {
+        tiltReported = true;
+        window.dispatchEvent(new Event(TILT_ACTIVE_EVENT));
+      }
       pointer.x = window.innerWidth * (0.5 + clamp(e.gamma / 30, -1, 1) * 0.5);
       pointer.y = window.innerHeight * (0.5 + clamp((e.beta - 50) / 30, -1, 1) * 0.5);
       pointer.active = true;

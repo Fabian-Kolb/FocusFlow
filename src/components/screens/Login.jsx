@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import WordmarkWord from '../brand/WordmarkWord';
 import LoginMarquee from '../brand/LoginMarquee';
 import LoginIntroVideo from '../brand/LoginIntroVideo';
-import { canUseTilt, requestTilt } from '../../lib/tilt';
+import { canUseTilt, requestTilt, TILT_ACTIVE_EVENT } from '../../lib/tilt';
 import { LEGAL_PATHS } from '../../lib/legal';
 import { getDevCredentials } from '../../lib/devAccount';
 import { captureBrandHandoff, clearBrandHandoff } from '../../lib/brandTransition';
@@ -19,7 +19,19 @@ function Login() {
   const [loading, setLoading] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [tiltAvailable] = useState(canUseTilt);
-  const [tiltOn, setTiltOn] = useState(false);
+  const [tiltOn, setTiltOn] = useState(false); // Knopf geklickt oder Sensordaten kommen schon an
+  const [tiltHint, setTiltHint] = useState(false); // Knopf erst zeigen, wenn nach kurzer Zeit noch nichts ankommt
+
+  useEffect(() => {
+    if (!tiltAvailable) return undefined;
+    const timer = setTimeout(() => setTiltHint(true), 1500);
+    const onActive = () => setTiltOn(true);
+    window.addEventListener(TILT_ACTIVE_EVENT, onActive);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener(TILT_ACTIVE_EVENT, onActive);
+    };
+  }, [tiltAvailable]);
   const { loginWithEmail, loginWithGoogle, loginAsGuest, resetPassword } = useAuth();
   const [resetSuccess, setResetSuccess] = useState('');
   // Hell/Dunkel gilt app-weit (data-theme); ohne eigene Wahl folgt der Login der Systemeinstellung
@@ -152,7 +164,7 @@ function Login() {
       </div>
 
       {/* Neigung des Handys für den Schriftzug: Browser liefern die Sensordaten erst nach einer Berührung */}
-      {tiltAvailable && !tiltOn && (
+      {tiltAvailable && tiltHint && !tiltOn && (
         <div className="absolute right-[4.5rem] top-4 z-10 flex items-center gap-2">
           <span className="text-caption text-secondary">Neigung aktivieren</span>
           <IconButton

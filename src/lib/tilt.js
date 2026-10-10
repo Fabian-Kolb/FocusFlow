@@ -3,6 +3,8 @@
 // Samsung-Browser und Chrome liefern sonst nichts). Darum gibt es einen Knopf im Login, der dasselbe auslöst.
 
 export const TILT_ENABLE_EVENT = 'focusflow:tilt-enable';
+// Kommt der erste gültige Sensorwert an, meldet der Schriftzug das: dann braucht es keinen Knopf mehr.
+export const TILT_ACTIVE_EVENT = 'focusflow:tilt-active';
 
 /** Nur Touch-Geräte mit Bewegungssensor. Am Desktop gibt es keinen Knopf. */
 export function canUseTilt() {
