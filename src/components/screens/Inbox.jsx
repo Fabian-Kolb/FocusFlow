@@ -247,7 +247,7 @@ const Inbox = ({ setCurrentScreen, autoStartVoice = false, onAutoStartConsumed }
   const handleAdd = async () => {
     const text = inputValue.trim();
     if (!text || isSummarizing) return;
-    stopListening();
+    stopListening({ discard: true });
     setIsSummarizing(true);
     try {
       const thought = await buildThought(text, { summarize: isSummaryEnabled, model: activeModel, length: summaryLength });

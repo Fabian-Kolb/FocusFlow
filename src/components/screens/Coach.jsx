@@ -5,7 +5,7 @@ import { useChat } from '../../context/ChatContext';
 import { askGeminiCoach } from '../../lib/gemini';
 import { ACTION_ENGINE_SYSTEM_PROMPT, parseAiActions, executeAiActions, parseIntentChoice } from '../../lib/aiActionEngine';
 import { fetchCalendarEvents } from '../../lib/calendarAPI';
-import { notify } from '../../lib/notify';
+import { useSpeechInput } from '../../hooks/useSpeechInput';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import ModelSelectorDropdown from '../ui/ModelSelectorDropdown';
@@ -186,84 +186,9 @@ const Coach = ({ setCurrentScreen }) => {
   const [showAllContextReminders, setShowAllContextReminders] = useState(false);
   const [showAllContextCalendar, setShowAllContextCalendar] = useState(false);
 
-  const [isListening, setIsListening] = useState(false);
-  const recognitionRef = useRef(null);
-  const isListeningRef = useRef(false);
+  const { isListening, toggle: handleToggleListening, stop: stopListening } = useSpeechInput(inputText, setInputText);
   const textareaRef = useRef(null);
   const messagesEndRef = useRef(null);
-
-  useEffect(() => {
-    isListeningRef.current = isListening;
-  }, [isListening]);
-
-  const handleToggleListening = () => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      notify('Spracheingabe wird in diesem Browser nicht unterstützt. Nutze Chrome, Edge oder Safari.', 'mic_off');
-      return;
-    }
-
-    if (isListening) {
-      isListeningRef.current = false;
-      setIsListening(false);
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.stop();
-        } catch (e) {
-          console.error(e);
-        }
-      }
-      return;
-    }
-
-    try {
-      const recognition = new SpeechRecognition();
-      recognition.lang = 'de-DE';
-      recognition.interimResults = true;
-      recognition.continuous = true;
-
-      recognition.onstart = () => {
-        setIsListening(true);
-        isListeningRef.current = true;
-      };
-
-      recognition.onresult = (event) => {
-        let finalTranscript = '';
-        for (let i = 0; i < event.results.length; i++) {
-          finalTranscript += event.results[i][0].transcript;
-        }
-        setInputText(finalTranscript);
-      };
-
-      recognition.onerror = (event) => {
-        console.error('Speech recognition error:', event.error);
-        if (event.error !== 'no-speech') {
-          setIsListening(false);
-          isListeningRef.current = false;
-        }
-      };
-
-      recognition.onend = () => {
-        if (isListeningRef.current) {
-          try {
-            recognition.start();
-          } catch (e) {
-            setIsListening(false);
-            isListeningRef.current = false;
-          }
-        } else {
-          setIsListening(false);
-        }
-      };
-
-      recognitionRef.current = recognition;
-      recognition.start();
-    } catch (err) {
-      console.error('Speech recognition failed:', err);
-      setIsListening(false);
-      isListeningRef.current = false;
-    }
-  };
 
   // Selected context attachments list for the current prompt (queued in input bar)
   const activeAttachments = useMemo(() => {
@@ -790,11 +715,7 @@ ${JSON.stringify(contextData, null, 2)}
     if (!text || !text.trim() || loading || draftAwaitingDetail) return;
 
     if (draftOpen) {
-      if (isListening) {
-        isListeningRef.current = false;
-        setIsListening(false);
-        try { recognitionRef.current?.stop(); } catch (e) {}
-      }
+      if (isListening) stopListening({ discard: true });
       if (!textToSend) {
         setInputText('');
         if (textareaRef.current) textareaRef.current.style.height = 'auto';
@@ -803,13 +724,7 @@ ${JSON.stringify(contextData, null, 2)}
       return;
     }
 
-    if (isListening) {
-      isListeningRef.current = false;
-      setIsListening(false);
-      if (recognitionRef.current) {
-        try { recognitionRef.current.stop(); } catch (e) {}
-      }
-    }
+    if (isListening) stopListening({ discard: true });
 
     const trimmed = text.trim();
     const userMsgId = `msg_${Date.now()}_u`;

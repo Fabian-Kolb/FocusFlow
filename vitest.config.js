@@ -23,7 +23,8 @@ export default defineConfig({
       'tests/command_search.test.js',
       'tests/dashboard_agenda.test.js',
       'tests/project_progress.test.js',
-      'tests/design_system.test.js'
+      'tests/design_system.test.js',
+      'tests/speech_input.test.jsx'
     ]
   }
 });
