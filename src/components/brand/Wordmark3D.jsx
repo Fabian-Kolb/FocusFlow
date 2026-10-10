@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { WORDMARK, WORDMARK_FRAME } from './focusFlowWordmarkData';
 import WordmarkSvg from './WordmarkSvg';
+import { TILT_ENABLE_EVENT } from '../../lib/tilt';
 import { STAGE_PAD_X, STAGE_PAD_Y } from './wordmarkStage';
 
 // Extrusion wie im Prototyp (V3/V4, Tiefe 20 × 0.85)
@@ -428,19 +429,23 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
       pointer.y = window.innerHeight * (0.5 + clamp((e.beta - 50) / 30, -1, 1) * 0.5);
       pointer.active = true;
     };
+    // Freigabe der Neigung: über den Knopf im Login (TILT_ENABLE_EVENT) oder die erste Berührung der Seite.
+    // iOS verlangt dafür eine Erlaubnis, andere Browser liefern die Daten erst nach einer Berührung.
     let askPermission = null;
-    if (!reducedMotion && typeof DeviceOrientationEvent !== 'undefined') {
+    const enableTilt = () => {
       if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-        // iOS: Die Erlaubnis lässt sich nur nach einer Berührung anfragen
-        askPermission = () => {
-          DeviceOrientationEvent.requestPermission()
-            .then((state) => { if (state === 'granted') window.addEventListener('deviceorientation', onOrientation); })
-            .catch(() => {});
-        };
-        window.addEventListener('pointerdown', askPermission, { once: true });
+        DeviceOrientationEvent.requestPermission()
+          .then((state) => { if (state === 'granted') window.addEventListener('deviceorientation', onOrientation); })
+          .catch(() => {});
       } else {
         window.addEventListener('deviceorientation', onOrientation);
       }
+    };
+    if (!reducedMotion && typeof DeviceOrientationEvent !== 'undefined') {
+      window.addEventListener(TILT_ENABLE_EVENT, enableTilt);
+      askPermission = enableTilt;
+      window.addEventListener('pointerdown', askPermission, { once: true });
+      if (typeof DeviceOrientationEvent.requestPermission !== 'function') window.addEventListener('deviceorientation', onOrientation);
     }
 
     const phase = word === 'FOCUS' ? 0 : Math.PI; // Beide Wörter schweben gegenläufig
@@ -745,6 +750,7 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('deviceorientation', onOrientation);
       if (askPermission) window.removeEventListener('pointerdown', askPermission);
+      window.removeEventListener(TILT_ENABLE_EVENT, enableTilt);
       document.documentElement.removeEventListener('pointerleave', onPointerLeave);
       container.removeEventListener('pointerdown', onPointerDown);
       container.removeEventListener('touchstart', onTouchStart);

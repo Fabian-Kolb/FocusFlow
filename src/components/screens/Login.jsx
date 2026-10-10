@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import WordmarkWord from '../brand/WordmarkWord';
 import LoginMarquee from '../brand/LoginMarquee';
 import LoginIntroVideo from '../brand/LoginIntroVideo';
+import { canUseTilt, requestTilt } from '../../lib/tilt';
 import { LEGAL_PATHS } from '../../lib/legal';
 import { getDevCredentials } from '../../lib/devAccount';
 import { captureBrandHandoff, clearBrandHandoff } from '../../lib/brandTransition';
@@ -17,6 +18,8 @@ function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [tiltAvailable] = useState(canUseTilt);
+  const [tiltOn, setTiltOn] = useState(false);
   const { loginWithEmail, loginWithGoogle, loginAsGuest, resetPassword } = useAuth();
   const [resetSuccess, setResetSuccess] = useState('');
   // Hell/Dunkel gilt app-weit (data-theme); ohne eigene Wahl folgt der Login der Systemeinstellung
@@ -147,6 +150,19 @@ function Login() {
           onClick={toggleTheme}
         />
       </div>
+
+      {/* Neigung des Handys für den Schriftzug: Browser liefern die Sensordaten erst nach einer Berührung */}
+      {tiltAvailable && !tiltOn && (
+        <div className="absolute right-[4.5rem] top-4 z-10 flex items-center gap-2">
+          <span className="text-caption text-secondary">Neigung aktivieren</span>
+          <IconButton
+            icon="screen_rotation"
+            label="Neigung aktivieren"
+            variant="secondary"
+            onClick={() => { requestTilt(); setTiltOn(true); }}
+          />
+        </div>
+      )}
 
       {/* Wortmarke: Mobil/Tablet zweizeilig über der Karte, Desktop FOCUS | Karte | FLOW */}
       <WordmarkWord ref={focusWordRef} controlRef={focusCtl} word="FOCUS" theme={theme} attention={formEngaged} attentionTargetRef={formRef} pulse={typingPulse} className="order-1 -mb-8 w-full max-w-[24rem] sm:max-w-[30rem] lg:mb-0 lg:max-w-[32rem] lg:flex-1 xl:max-w-[36rem]" />

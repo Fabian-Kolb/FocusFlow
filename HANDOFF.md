@@ -402,3 +402,24 @@
 ### Offen
 1. Video-Datei im Repo (4,2 MB). Nach Commit auf Vercel ausliefern.
 2. Blauer Radialverlauf im Dark Mode des Logins (Regel 01) weiterhin ungeklärt.
+
+---
+
+## Nachtrag 2026-10-10 (Claude Code): Neigung des Login-Schriftzugs aktivieren
+
+### Ursache
+- Browser (iOS und Samsung/Chrome) liefern Bewegungsdaten erst nach einer Berührung der Seite. iOS verlangt zusätzlich eine Erlaubnis. Vorher bleibt der Schriftzug still.
+- Die alte Freigabe lief nur über den ersten Tipp irgendwo auf der Seite.
+
+### Getan
+- Neu: `src/lib/tilt.js` (`canUseTilt`, `requestTilt`, Ereignis `focusflow:tilt-enable`).
+- `Wordmark3D.jsx`: Freigabe läuft über dasselbe Ereignis wie der Knopf und den ersten Tipp.
+- `Login.jsx`: Knopf „Neigung aktivieren“ (Icon `screen_rotation`) mit kurzer Beschriftung, links neben dem Hell/Dunkel-Schalter. Nur auf Touch-Geräten mit Sensor, verschwindet nach dem Klick.
+
+### Tests
+- `npm run check:design` ok, `vite build` ok, Vitest 215/215.
+- Browser-Emulation (Touch): Knopf sichtbar, verschwindet nach Klick, Schriftzug reagiert auf simulierte Neigung. Desktop: kein Knopf.
+
+### Offen
+1. Auf einem echten Samsung nicht getestet. Bitte prüfen: Knopf antippen, dann neigen.
+2. Wenn der Samsung-Browser trotzdem nicht reagiert: Einstellungen → Bedienungshilfen → „Animationen entfernen“ und Browser → Website-Berechtigungen → Bewegungssensoren.
