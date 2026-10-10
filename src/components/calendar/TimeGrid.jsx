@@ -39,7 +39,7 @@ const AllDayChip = ({ evt, onSelectEvent }) => {
   );
 };
 
-const TimedEvent = ({ evt, pxPerMin, roomy, onSelectEvent }) => {
+const TimedEvent = ({ evt, pxPerMin, roomy, narrow, onSelectEvent }) => {
   const colors = getEventColors(evt.colorId);
   const { hasMeet, location } = getEventMeta(evt);
   const height = Math.max(evt.duration * pxPerMin, 22);
@@ -52,7 +52,7 @@ const TimedEvent = ({ evt, pxPerMin, roomy, onSelectEvent }) => {
         onSelectEvent?.(evt);
       }}
       title={`${evt.startFormatted} – ${evt.endFormatted} ${evt.summary || '(Ohne Titel)'}`}
-      className={cx('absolute z-0 overflow-hidden rounded-r-md border-l-[3px] px-1.5 text-left transition-[filter] duration-fast hover:brightness-95', FOCUS)}
+      className={cx('absolute z-0 overflow-hidden rounded-r-md border-l-[3px] text-left transition-[filter] duration-fast hover:brightness-95', narrow ? 'px-0.5' : 'px-1.5', FOCUS)}
       style={{
         top: `${evt.startMinutes * pxPerMin}px`,
         height: `${height}px`,
@@ -63,7 +63,10 @@ const TimedEvent = ({ evt, pxPerMin, roomy, onSelectEvent }) => {
         color: colors.text,
       }}
     >
-      {oneLine ? (
+      {narrow ? (
+        // Schmale Spalten (Woche am Handy): nur der Titel, Wörter bleiben ganz, der Rest wird abgeschnitten
+        <span className="line-clamp-4 block break-normal text-micro leading-tight">{evt.summary || '(Ohne Titel)'}</span>
+      ) : oneLine ? (
         <span className={cx('block truncate leading-tight', roomy ? 'text-caption' : 'text-micro')}>
           <span className="tabular-nums opacity-80">{evt.startFormatted}</span> {evt.summary || '(Ohne Titel)'}
         </span>
@@ -208,7 +211,7 @@ const TimeGrid = ({
               ))}
 
               {timed.map((evt) => (
-                <TimedEvent key={evt.id} evt={evt} pxPerMin={pxPerMin} roomy={roomy || count === 1} onSelectEvent={onSelectEvent} />
+                <TimedEvent key={evt.id} evt={evt} pxPerMin={pxPerMin} roomy={roomy || count === 1} narrow={!roomy && count >= 4} onSelectEvent={onSelectEvent} />
               ))}
 
               {today && (

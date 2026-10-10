@@ -24,7 +24,9 @@ export default defineConfig({
       'tests/dashboard_agenda.test.js',
       'tests/project_progress.test.js',
       'tests/design_system.test.js',
-      'tests/speech_input.test.jsx'
+      'tests/speech_input.test.jsx',
+      'tests/calendar_views.test.jsx',
+      'tests/sheet_snap.test.js'
     ]
   }
 });

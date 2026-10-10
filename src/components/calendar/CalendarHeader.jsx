@@ -111,7 +111,7 @@ const CalendarHeader = ({
         {titleButton}
         <div className="flex shrink-0 items-center gap-1">
           <IconButton icon="search" label="Termine suchen" onClick={onSearch} />
-          <Button variant="ghost" size="sm" onClick={onToday} title="Zurück zu Heute" aria-label="Zurück zu Heute" className="tabular-nums">
+          <Button variant="secondary" size="sm" onClick={onToday} title="Zurück zu Heute" aria-label="Zurück zu Heute" className="tabular-nums">
             {todayNumber}
           </Button>
           <ViewMenu view={view} onViewChange={onViewChange} />
