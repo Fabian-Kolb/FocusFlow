@@ -423,7 +423,7 @@ const TaskDetailDrawer = ({
                             {fullNote.title || link.name}
                           </span>
                         </div>
-                        <IconButton icon="close" label="Verknüpfung entfernen" variant="danger-ghost" size="sm" className="opacity-0 group-hover:opacity-100 shrink-0" onClick={(e) => {
+                        <IconButton icon="close" label="Verknüpfung entfernen" variant="danger-ghost" size="sm" className="shrink-0 md:opacity-0 md:focus-visible:opacity-100 md:group-hover:opacity-100" onClick={(e) => {
                             e.stopPropagation();
                             const targetId = link.id || link.noteId || link.url;
                             if (phaseLinkedNotes.includes(link)) {

@@ -48,14 +48,11 @@ const clamp01 = (v) => Math.min(Math.max(v, 0), 1);
 const easeInOut = (v) => (v < 0.5 ? 4 * v * v * v : 1 - ((-2 * v + 2) ** 3) / 2);
 const windowed = (p, from, len) => easeInOut(clamp01((p - from) / len));
 
-const pct = (v, total) => `${(v / total) * 100}%`;
-
 /**
  * Logo der Sidebar: FOCUS FLOW ausgeschrieben, eingeklappt nur die beiden F (FF-Bildmarke, zugleich App-Icon).
  * Beim Umschalten bleiben die beiden F stehen, alle anderen Buchstaben schieben sich in sie hinein und verschwinden,
  * das F von FLOW wandert nach links und verkürzt dabei seinen Balken auf die Länge des F von FOCUS.
  * Der Fortschritt wird jedes Bild aus der echten Breite der Sidebar abgeleitet, damit beides synchron läuft.
- * Die unsichtbaren Flächen (`data-brand-word` / `data-brand-f`) sind das Ziel des Flugs nach dem Login.
  */
 function BrandLockup({ collapsed }) {
   const rootRef = useRef(null);
@@ -125,15 +122,11 @@ function BrandLockup({ collapsed }) {
     return () => cancelAnimationFrame(rafRef.current);
   }, [collapsed, apply]);
 
-  const fLeft = FW / 2 + F_GLYPH.x0;
-  const fWidth = F_GLYPH.x1 - F_GLYPH.x0;
-
   return (
     <span
       ref={rootRef}
       role="img"
       aria-label="FocusFlow"
-      data-brand-hide
       className="relative block shrink-0 text-primary select-none will-change-transform"
       style={{ height: HEIGHT_PX, width: TOTAL_W * SCALE }}
     >
@@ -160,30 +153,6 @@ function BrandLockup({ collapsed }) {
           </g>
         ))}
       </svg>
-      {collapsed
-        ? WORDS.map((word, wi) => (
-          <span
-            key={word}
-            data-brand-f={word}
-            aria-hidden="true"
-            className="absolute"
-            style={{
-              left: pct(fLeft + wi * FF_OFFSET, TOTAL_W),
-              width: pct(fWidth, TOTAL_W),
-              top: pct(F_GLYPH.y0 + FH / 2, FH),
-              height: pct(F_GLYPH.y1 - F_GLYPH.y0, FH),
-            }}
-          />
-        ))
-        : WORDS.map((word, wi) => (
-          <span
-            key={word}
-            data-brand-word={word}
-            aria-hidden="true"
-            className="absolute top-0 bottom-0"
-            style={{ left: pct(wi * FLOW_X, TOTAL_W), width: pct(FW, TOTAL_W) }}
-          />
-        ))}
     </span>
   );
 }

@@ -53,8 +53,9 @@ const ModelSelectorDropdown = ({ activeModel, onSelectModel, showEco = false, cl
         aria-haspopup="menu"
         aria-expanded={isOpen}
         title="KI-Modell auswählen"
+        aria-label={`KI-Modell auswählen, aktuell ${selectedModelObj.name}`}
       >
-        {selectedModelObj.name}
+        <span className="hidden text-secondary sm:inline">Modell</span> {selectedModelObj.name}
       </Button>
 
       {isOpen && (

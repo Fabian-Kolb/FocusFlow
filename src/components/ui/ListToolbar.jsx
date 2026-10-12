@@ -47,7 +47,7 @@ export function ListToolbar({
               label="Papierkorb öffnen"
               variant="secondary"
               onClick={onOpenTrash}
-              className="hover:!border-danger hover:!bg-danger-subtle hover:!text-danger"
+              className="hidden hover:!border-danger hover:!bg-danger-subtle hover:!text-danger md:inline-flex"
             />
             <IconButton icon="add" label={createLabel} variant="primary" onClick={onCreate} className="sm:hidden" />
             <Button leadingIcon="add" onClick={onCreate} className="hidden sm:inline-flex">{createLabel}</Button>
@@ -80,7 +80,7 @@ export function ListToolbar({
   );
 }
 
-/** Umschalter zwischen zwei Ansichten, nur Icons + Tooltip, damit er auch am Handy in die Filterzeile passt */
+/** Umschalter zwischen zwei Ansichten (am Handy 40 px hoch, ab sm 32 px), nur Icons + Tooltip, damit er auch am Handy in die Filterzeile passt */
 export function ViewToggle({ value, onChange, options }) {
   return (
     <div role="radiogroup" aria-label="Ansicht" className="flex shrink-0 items-center gap-0.5 rounded-md border border-default bg-subtle p-0.5">
@@ -96,7 +96,8 @@ export function ViewToggle({ value, onChange, options }) {
             title={o.label}
             onClick={() => onChange(o.value)}
             className={cx(
-              'flex h-8 items-center gap-1 rounded-sm px-2.5 text-label-sm transition-colors duration-fast',
+              'relative flex h-10 items-center gap-1 rounded-sm px-2.5 text-label-sm sm:h-8 transition-colors duration-fast',
+              "after:absolute after:-inset-0.5 after:content-['']",
               FOCUS,
               active ? 'bg-surface text-primary shadow-xs' : 'text-secondary hover:text-primary',
             )}
@@ -176,7 +177,8 @@ export function SortMenu({ value, options, onChange }) {
 export function CategoryToolbar({ count, isEditMode, onToggleEdit, anyExpanded, onCollapseAll, onExpandAll, sortValue, sortOptions, onSortChange }) {
   return (
     <div className="flex items-center gap-1 border-b border-subtle pb-1.5">
-      <h2 className="flex-1 font-label text-eyebrow uppercase text-secondary">
+      {/* Bei nur einer Kategorie wiederholt die Überschrift deren Namen: dann nur für Screenreader */}
+      <h2 className={cx('flex-1 font-label text-eyebrow uppercase text-secondary', count <= 1 && 'sr-only')}>
         Kategorien <span className="text-caption-strong normal-case tracking-normal text-tertiary">{count}</span>
       </h2>
       {!isEditMode && sortOptions && <SortMenu value={sortValue} options={sortOptions} onChange={onSortChange} />}

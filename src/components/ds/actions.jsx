@@ -12,8 +12,8 @@ const VARIANTS = {
 };
 
 const SIZES = {
-  sm: { box: "h-8 gap-1.5 px-3 text-label-sm after:absolute after:-inset-1.5 after:content-['']", icon: 'sm', square: "h-8 w-8 after:absolute after:-inset-1.5 after:content-['']" },
-  md: { box: 'h-10 gap-2 px-4 text-label', icon: 'md', square: 'h-10 w-10' },
+  sm: { box: "h-8 gap-1.5 px-3 text-label-sm after:absolute after:-inset-2 after:content-['']", icon: 'sm', square: "h-8 w-8 after:absolute after:-inset-2 after:content-['']" },
+  md: { box: "h-10 gap-2 px-4 text-label after:absolute after:-inset-1 after:content-['']", icon: 'md', square: "h-10 w-10 after:absolute after:-inset-1 after:content-['']" },
   lg: { box: 'h-12 gap-2 px-5 text-label-lg', icon: 'md', square: 'h-12 w-12' },
 };
 

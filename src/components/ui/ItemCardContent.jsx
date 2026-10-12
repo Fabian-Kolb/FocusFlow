@@ -2,7 +2,7 @@ import React from 'react';
 import { SectionIcon, TaskIcon } from './ItemIcons';
 import { getReminderDateInfo } from '../../lib/reminderDates';
 import { formatRecurrence } from '../../lib/recurrence';
-import { Badge, FOCUS, Icon, cx } from '../ds';
+import { Badge, CheckButton, FOCUS, Icon, cx } from '../ds';
 
 // Gemeinsamer Karteninhalt für Projekte und Erinnerungen.
 // Wird in der Projekt-/Erinnerungsübersicht und im Kanban-Board genutzt, damit alle drei Stellen
@@ -19,8 +19,12 @@ const STATUS_META = {
 
 const clampPercent = (value) => Math.min(100, Math.max(0, Number(value) || 0));
 
+// „Aktiv“ ist der Normalfall und wird nicht eigens angezeigt; nur Abweichungen (geplant, erledigt …) bekommen ein Badge.
+// Wechseln lässt sich der Status über das Kartenmenü („Spalte wählen …“).
+const isDefaultStatus = (status) => STATUS_META[status]?.label === 'Aktiv';
+
 function StatusChip({ status, onToggle }) {
-  if (!status) return null;
+  if (!status || isDefaultStatus(status)) return null;
   const meta = STATUS_META[status] || { label: status, tone: 'neutral' };
   return (
     <button
@@ -40,27 +44,17 @@ function StatusChip({ status, onToggle }) {
 // Abhaken (nur Erinnerungen): Quadrat wie alle Auswahlfelder, erledigt = grün
 function DoneCheckbox({ done, title, onToggle }) {
   return (
-    <button
-      type="button"
-      role="checkbox"
-      aria-checked={done}
-      aria-label={done ? `„${title}“ wieder öffnen` : `„${title}“ als erledigt abhaken`}
+    <CheckButton
+      checked={done}
+      tone="success"
+      label={done ? `„${title}“ wieder öffnen` : `„${title}“ als erledigt abhaken`}
       title={done ? 'Wieder öffnen' : 'Als erledigt abhaken'}
       onClick={(e) => {
         e.stopPropagation();
         onToggle();
       }}
-      className={cx('relative -m-1.5 shrink-0 rounded-md p-1.5 text-secondary hover:text-success', FOCUS)}
-    >
-      <span
-        className={cx(
-          'flex h-5 w-5 items-center justify-center rounded-xs border-2 transition-colors duration-instant',
-          done ? 'border-success bg-success text-on-accent' : 'border-control bg-surface',
-        )}
-      >
-        {done && <Icon name="check" size="sm" />}
-      </span>
-    </button>
+      className="mt-0.5"
+    />
   );
 }
 
@@ -103,7 +97,7 @@ function CardHeader({ item, menu, leading, done = false, dateContent }) {
  * Fortschrittsbalken. Ohne `marker` zeigt er nur einen Wert;
  * mit `marker` markiert ein senkrechter Strich zusätzlich die verstrichene Zeit (Soll-Position).
  */
-function ElapsedProgress({ value, marker, label }) {
+function ElapsedProgress({ value, marker, label, tone = 'accent' }) {
   const fill = clampPercent(value);
   return (
     <div
@@ -114,7 +108,7 @@ function ElapsedProgress({ value, marker, label }) {
       aria-valuemax={100}
       aria-label={label}
     >
-      <div className="h-full rounded-full bg-accent transition-[width] duration-slow ease-standard" style={{ width: `${fill}%` }} />
+      <div className={cx('h-full rounded-full transition-[width] duration-slow ease-standard', tone === 'danger' ? 'bg-danger' : 'bg-accent')} style={{ width: `${fill}%` }} />
       {marker !== undefined && (
         <div
           className="absolute -bottom-1 -top-1 w-0.5 rounded-full bg-warning"
@@ -130,8 +124,8 @@ function Count({ icon, done, total, label }) {
   return (
     <span className="inline-flex items-center gap-1" title={`${label}: ${done} von ${total} erledigt`}>
       {icon}
-      <span className="sr-only">{label}:</span>
       <span className="text-caption-strong tabular-nums text-primary">{done ?? 0}/{total ?? 0}</span>
+      <span className="text-caption text-secondary">{label}</span>
     </span>
   );
 }
@@ -156,10 +150,12 @@ export function ProjectCardContent({ project, menu, onToggleStatus }) {
       </div>
 
       <div className="mt-2.5 space-y-2 border-t border-subtle pt-2.5">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <StatusChip status={project.status} onToggle={onToggleStatus} />
-          {project.warning && <Badge tone="warning" size="sm">{project.warning}</Badge>}
-        </div>
+        {(project.warning || (project.status && !isDefaultStatus(project.status))) && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <StatusChip status={project.status} onToggle={onToggleStatus} />
+            {project.warning && <Badge tone="warning" size="sm">{project.warning}</Badge>}
+          </div>
+        )}
         <div className="flex items-center gap-2 text-caption-strong tabular-nums">
           <ElapsedProgress
             value={project.progress}
@@ -178,6 +174,7 @@ export function ReminderCardContent({ reminder, menu, onToggleStatus, onToggleDo
   const info = getReminderDateInfo(reminder);
   const elapsed = info.timeElapsed ?? 0;
   const recurrenceLabel = formatRecurrence(reminder.recurrence);
+  const overdue = info.urgency === 'overdue' && !done;
   return (
     <>
       <CardHeader
@@ -201,8 +198,8 @@ export function ReminderCardContent({ reminder, menu, onToggleStatus, onToggleDo
       <div className="mt-2.5 flex items-center gap-2 border-t border-subtle pt-2.5 text-caption text-secondary">
         <StatusChip status={reminder.status} onToggle={onToggleStatus} />
         <Icon name="schedule" size="sm" className="shrink-0" title="Verstrichene Zeit" aria-hidden="true" />
-        <ElapsedProgress value={elapsed} label={`Verstrichene Zeit ${elapsed} %`} />
-        <span className="w-10 text-right tabular-nums">{info.hasDate ? `${elapsed} %` : '–'}</span>
+        <ElapsedProgress value={elapsed} tone={overdue ? 'danger' : 'accent'} label={`Verstrichene Zeit ${elapsed} %`} />
+        <span className={cx('w-10 text-right tabular-nums', overdue && 'text-danger')}>{info.hasDate ? `${elapsed} %` : '–'}</span>
       </div>
     </>
   );

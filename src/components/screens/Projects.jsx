@@ -288,7 +288,7 @@ const Projects = ({ setCurrentScreen }) => {
                   isEditMode ? '' : 'hover:text-primary'
                 }`}>
                   {/* Drag Handle – always visible in edit mode */}
-                  <Icon name="drag_indicator" size="md" className={`hover:text-primary cursor-grab active:cursor-grabbing p-1 -m-1 transition-opacity touch-none select-none ${isEditMode ? 'opacity-100 text-primary' : 'hidden md:inline-block opacity-50 group-hover:opacity-100'}`} onMouseDown={(e) => startCategoryDrag(e, cat.id)} onTouchStart={(e) => startCategoryDrag(e, cat.id)} onClick={(e) => e.stopPropagation()} title="Halten & Ziehen zum Sortieren" />
+                  <Icon name="drag_indicator" size="md" className={`hover:text-primary cursor-grab active:cursor-grabbing p-1 -m-1 transition-opacity touch-none select-none ${isEditMode ? 'opacity-100 text-primary' : 'hidden md:inline-block opacity-50 group-hover:opacity-100'}`} onMouseDown={(e) => startCategoryDrag(e, cat.id)} onTouchStart={(e) => startCategoryDrag(e, cat.id)} onClick={(e) => e.stopPropagation()} title="Halten und Ziehen zum Sortieren" />
                     {/* Chevron – grayed out and non-interactive in edit mode */}
                     <Icon name="chevron_right" size="md" className={`transition-all ${isEditMode
  ? 'opacity-25 text-secondary'

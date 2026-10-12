@@ -10,6 +10,7 @@ import { captureBrandHandoff, clearBrandHandoff } from '../../lib/brandTransitio
 import { resolveTheme, useThemePreference } from '../../lib/theme';
 import { Alert, Button, Card, Dialog, Divider, Field, IconButton, Input } from '../ds';
 
+const FADE = 'transition-opacity duration-base ease-standard motion-reduce:transition-none';
 const LINK_CLASS = 'rounded-xs py-1 text-caption text-secondary underline underline-offset-2 transition-colors duration-fast hover:text-primary';
 
 function Login() {
@@ -53,12 +54,20 @@ function Login() {
   const focusCtl = useRef(null);
   const flowCtl = useRef(null);
   const leavingRef = useRef(false);
+  const [leaving, setLeaving] = useState(false); // Alles außer den Wörtern blendet aus, der Bildschirm wird eine Fläche
   const prepareLeave = async (immediate = false) => {
     leavingRef.current = true;
+    setLeaving(true);
     const [focusImage, flowImage] = await Promise.all([
       focusCtl.current?.prepareExit?.(immediate),
       flowCtl.current?.prepareExit?.(immediate),
     ]);
+    // Standbilder vorab dekodieren, damit die App sie im ersten Bild sofort zeigt
+    await Promise.all([focusImage, flowImage].filter(Boolean).map((src) => {
+      const img = new Image();
+      img.src = src;
+      return img.decode().catch(() => {});
+    }));
     captureBrandHandoff(
       { FOCUS: { el: focusWordRef.current, image: focusImage }, FLOW: { el: flowWordRef.current, image: flowImage } },
       theme,
@@ -67,6 +76,7 @@ function Login() {
   // Login hat nicht geklappt: Wörter dürfen wieder dem Cursor folgen
   const cancelLeave = () => {
     leavingRef.current = false;
+    setLeaving(false);
     clearBrandHandoff();
     focusCtl.current?.resume?.();
     flowCtl.current?.resume?.();
@@ -151,10 +161,12 @@ function Login() {
   return (
     <>
     <div className="relative isolate flex min-h-screen flex-col items-center justify-center gap-6 overflow-x-hidden bg-canvas px-4 pb-8 pt-16 lg:flex-row lg:gap-10 lg:py-8 xl:gap-14">
-      <LoginMarquee />
+      <div className={`pointer-events-none fixed inset-0 -z-10 ${FADE} ${leaving ? 'opacity-0' : ''}`}>
+        <LoginMarquee />
+      </div>
 
       {/* Eigener Wrapper: `IconButton` bringt selbst `relative` mit, das `absolute` aus className verdrängte */}
-      <div className="absolute right-4 top-4 z-10">
+      <div className={`absolute right-4 top-4 z-10 ${FADE} ${leaving ? 'pointer-events-none opacity-0' : ''}`}>
         <IconButton
           icon={isDark ? 'light_mode' : 'dark_mode'}
           label={isDark ? 'Helles Design aktivieren' : 'Dunkles Design aktivieren'}
@@ -165,7 +177,7 @@ function Login() {
 
       {/* Neigung des Handys für den Schriftzug: Browser liefern die Sensordaten erst nach einer Berührung */}
       {tiltAvailable && tiltHint && !tiltOn && (
-        <div className="absolute right-[4.5rem] top-4 z-10 flex items-center gap-2">
+        <div className={`absolute right-[4.5rem] top-4 z-10 flex items-center gap-2 ${FADE} ${leaving ? 'pointer-events-none opacity-0' : ''}`}>
           <span className="text-caption text-secondary">Neigung aktivieren</span>
           <IconButton
             icon="screen_rotation"
@@ -180,7 +192,7 @@ function Login() {
       <WordmarkWord ref={focusWordRef} controlRef={focusCtl} word="FOCUS" theme={theme} attention={formEngaged} attentionTargetRef={formRef} pulse={typingPulse} className="order-1 -mb-8 w-full max-w-[24rem] sm:max-w-[30rem] lg:mb-0 lg:max-w-[32rem] lg:flex-1 xl:max-w-[36rem]" />
       <WordmarkWord ref={flowWordRef} controlRef={flowCtl} word="FLOW" theme={theme} attention={formEngaged} attentionTargetRef={formRef} pulse={typingPulse} className="order-2 w-full max-w-[24rem] sm:max-w-[30rem] lg:order-3 lg:max-w-[32rem] lg:flex-1 xl:max-w-[36rem]" />
 
-      <Card padding="lg" variant="outlined" className="relative order-3 w-full max-w-md shrink-0 space-y-6 lg:order-2 lg:max-w-sm xl:max-w-md">
+      <Card padding="lg" variant="outlined" className={`relative order-3 w-full max-w-md shrink-0 space-y-6 lg:order-2 lg:max-w-sm xl:max-w-md ${FADE} ${leaving ? 'pointer-events-none opacity-0' : ''}`}>
         <div className="text-center">
           {/* Sichtbar übernimmt die 3D-Wortmarke den Titel, für Screenreader bleibt er erhalten */}
           <h1 className="sr-only">FocusFlow</h1>
@@ -297,7 +309,9 @@ function Login() {
         </div>
       </Dialog>
     </div>
-    <LoginIntroVideo />
+    <div className={`${FADE} ${leaving ? 'pointer-events-none opacity-0' : ''}`}>
+      <LoginIntroVideo />
+    </div>
     </>
   );
 }

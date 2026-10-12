@@ -423,3 +423,24 @@
 ### Offen
 1. Auf einem echten Samsung nicht getestet. Bitte prüfen: Knopf antippen, dann neigen.
 2. Wenn der Samsung-Browser trotzdem nicht reagiert: Einstellungen → Bedienungshilfen → „Animationen entfernen“ und Browser → Website-Berechtigungen → Bewegungssensoren.
+
+---
+
+## Nachtrag 2026-10-12 (Claude Code): UI-Durchsicht und Umsetzung
+
+### Getan
+- Durchsicht mit Design-Kritik und Barrierefreiheit (Dev-Konto, 375/1280 px, Kontrast beider Themes gerechnet). Befunde und Umsetzung: `docs/Wissen/00_System_und_Design/01-UI-Design-System.md`.
+- Design-System: `Button`/`IconButton` md und sm, `Chip` mit korrigierter 44-px-Trefferfläche, neuer Baustein `CheckButton` (`ds/forms.jsx`). Abweichung in der Referenz 06 (Nr. 11) vermerkt.
+- Screens: Dashboard (Legende, `CheckButton`, spätere Uhrzeit rot, größere Trefferflächen), Gedanken, Erinnerungs- und Projektkarten (`ItemCardContent.jsx`), Kalender (Punkte am Handy, `DaySheet`-Griff), Fio (`Coach.jsx`, `ModelSelectorDropdown.jsx`), `ListToolbar.jsx`, `BottomNav.jsx`, `SectionDetailDrawer.jsx`, `TaskDetailDrawer.jsx`, `index.html`.
+- `scripts/check-design-system.js`: neue Regeln „Eigene Checkbox“ und „Nur bei Hover sichtbar“. Regel 01 ergänzt.
+- Bewusst ausgelassen: Wochenrückblick (`Review.jsx` zeigt `mockData.js`, „KW 19“, blaue Balken).
+
+### Tests
+- `npm run check:design` ok, `npx vitest run` ok (neuer Test für `late` in `dashboard_agenda`). Browser (375 px): Trefferflächen gemessen, Kalender, Erinnerungen, Dashboard geprüft.
+
+### Offen
+1. Artefakt ist nachgezogen (Version `1791840969-e455`). Hinweis: `bundle.js` wurde dort von Hand gepatcht (CheckButton, Trefferflächen) und nicht neu gebaut; bei einem späteren Neubau aus `components/src/` prüfen, dass das Ergebnis dasselbe liefert.
+2. Wochenrückblick: echte Daten statt Mock, neutrale Balken, Anführungszeichen und „und“ in den Texten.
+3. Texteingaben (40 px) liegen unter 44 px Trefferfläche; Entscheidung nötig (lg am Handy oder Erweiterung).
+4. Nicht geprüft: Login, Einstellungen, Projektdetail, Modale, Tastaturdurchlauf, Screenreader, echtes Gerät.
+

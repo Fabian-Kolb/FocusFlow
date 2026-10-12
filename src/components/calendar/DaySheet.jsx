@@ -189,7 +189,7 @@ const DaySheet = ({
           type="button"
           onClick={() => onStateChange(state === 'full' ? 'peek' : stepSheetState(state, 1))}
           aria-label={state === 'full' ? 'Tagesansicht verkleinern' : 'Tagesansicht vergrößern'}
-          className={cx('flex w-full justify-center pb-1 pt-2', FOCUS)}
+          className={cx('relative flex w-full justify-center pb-1 pt-2', "after:absolute after:inset-x-0 after:-inset-y-4 after:content-['']", FOCUS)}
         >
           <span className="h-1 w-9 rounded-full bg-control" aria-hidden="true" />
         </button>

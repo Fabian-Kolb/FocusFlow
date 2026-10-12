@@ -338,7 +338,7 @@ const Coach = ({ setCurrentScreen }) => {
       const focusTitles = [
         ...chosenProjects.map(p => p.title),
         ...chosenReminders.map(r => r.title),
-        ...(hasCalendarInContext ? ['Kalender & Termine'] : [])
+        ...(hasCalendarInContext ? ['Kalender und Termine'] : [])
       ].join(', ');
 
       contextMetaGuidance = `
@@ -509,7 +509,7 @@ ${JSON.stringify(contextData, null, 2)}
     }
     return [
       { id: 'qp_1', label: 'Was heute tun?', promptText: 'Was sollte ich heute noch machen? Gib mir einen kurzen, präzisen Fokus aus Kalender, Erinnerungen und Projekten.' },
-      { id: 'qp_2', label: 'Engpässe und Termine', promptText: 'Welche anstehenden Termine (heute & morgen), Erinnerungen oder Aufgaben benötigen meine Aufmerksamkeit?' },
+      { id: 'qp_2', label: 'Engpässe und Termine', promptText: 'Welche anstehenden Termine (heute und morgen), Erinnerungen oder Aufgaben benötigen meine Aufmerksamkeit?' },
       { id: 'qp_3', label: 'Ziele priorisieren', promptText: 'Was ist der wichtigste nächste Schritt für heute?' }
     ];
   };
@@ -527,6 +527,8 @@ ${JSON.stringify(contextData, null, 2)}
   }, [messages, loading]);
 
   const handleNewChat = () => {
+    // Ein leeres Gespräch ist schon ein neuer Chat: kein zweites daneben anlegen
+    if (activeSession?.contextScope === 'general' && (activeSession.messages || []).length === 0) return;
     createNewSession({
       contextScope: 'general',
       contextId: null,
@@ -1174,9 +1176,6 @@ ${JSON.stringify(contextData, null, 2)}
                   <p className="max-w-md text-body text-secondary">
                     Dein persönlicher KI-Coach. Wie kann ich dich heute bei deinen Projekten, Aufgaben, Erinnerungen und Terminen unterstützen?
                   </p>
-                  <Button variant="secondary" leadingIcon="lightbulb" onClick={() => openModal('settings', { initialTab: 'fio' })} className="mt-4">
-                    Entdecke, was Fio alles kann
-                  </Button>
                 </div>
               ) : (
                 messages.map((msg) => {

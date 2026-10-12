@@ -46,6 +46,8 @@ function reminderItem(rem, info) {
     allDay: false,
     completed: rem.status === 'ABGESCHLOSSEN',
     dueLabel: info.dayDiff < 0 ? overdueLabel(info.dayDiff) : null,
+    // Uhrzeit heute schon vorbei: bleibt unter „Heute“, wird aber wie in „Erinnerungen“ als überfällig markiert
+    late: info.urgency === 'overdue' && info.dayDiff >= 0 && !(rem.status === 'ABGESCHLOSSEN'),
     projectId: null,
     phaseId: null,
   };

@@ -109,8 +109,22 @@ const MonthSlide = ({ days, isCenter, selectedDay, getEventsForCell, onCellClick
                 Kompakte Terminanzeige: nur der Platz für bis zu 2 Textzeilen (h-auto, line-clamp-2 break-all),
                 zeitgebundene Termine mit Akzentlinie vorne, ganztägige als Pastell-Pille, max. 4 sichtbar (+X).
               */}
+              {/* Handy: Titel passen nicht in eine Zelle (alles würde zu „Stan…“), daher Punkte; Details im Tagessheet */}
               {count > 0 && (
-                <div className={`w-full flex-1 flex flex-col gap-1 overflow-hidden ${!cell.isCurrentMonth ? 'opacity-40' : ''}`}>
+                <div
+                  className={`flex flex-wrap items-center justify-center gap-1 md:hidden ${!cell.isCurrentMonth ? 'opacity-40' : ''}`}
+                  aria-label={`${count} ${count === 1 ? 'Termin' : 'Termine'}`}
+                >
+                  {sorted.slice(0, 4).map((evt) => {
+                    const colors = getEventColors(evt.colorId);
+                    return <span key={evt.id} className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: colors.border || colors.text }} />;
+                  })}
+                  {count > 4 && <span className="text-micro leading-none text-tertiary">+{count - 4}</span>}
+                </div>
+              )}
+
+              {count > 0 && (
+                <div className={`hidden w-full flex-1 flex-col gap-1 overflow-hidden md:flex ${!cell.isCurrentMonth ? 'opacity-40' : ''}`}>
                   {sorted.slice(0, 4).map((evt) => {
                     const colors = getEventColors(evt.colorId);
                     const isFewEvents = count <= 2;

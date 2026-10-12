@@ -1,8 +1,9 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useModalContext } from '../../context/ModalContext';
 import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
 import { countThoughts } from '../../lib/thoughts';
+import { BREAKPOINTS } from '../../lib/breakpoints';
 import { areaOf } from '../../lib/areas';
 import { Avatar, FioMark, FOCUS, Icon, IconButton, Sheet, cx } from '../ds';
 
@@ -20,12 +21,20 @@ const HUB_SCREENS = ['inbox', 'coach', 'board', 'review', 'trash'];
 
 /**
  * Mobile Bottom-Bar (< md): vier Hauptziele + mittlerer Knopf, der alle weiteren Bereiche öffnet:
- * oben "Frag Fio …", darunter Gedanken, Board, Wochenrückblick, Papierkorb, Account.
+ * oben "Frag Fio …", darunter Gedanken, Kanban Board, Wochenrückblick, Papierkorb, Konto.
  */
 const BottomNav = ({ currentScreen, setCurrentScreen }) => {
   const [isHubOpen, setIsHubOpen] = useState(false);
   const hubButtonRef = useRef(null);
   const isHubActive = HUB_SCREENS.includes(currentScreen);
+
+  // Wächst das Fenster über den Handy-Breakpoint, gibt es die Leiste nicht mehr: das offene Sheet nicht stehen lassen
+  useEffect(() => {
+    const mq = window.matchMedia(`(min-width: ${BREAKPOINTS.TABLET}px)`);
+    const onChange = (e) => { if (e.matches) setIsHubOpen(false); };
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
 
   const closeHub = () => {
     setIsHubOpen(false);
@@ -146,7 +155,7 @@ function HubSheet({ isOpen, onClose, currentScreen, onNavigate }) {
   const thoughtCount = countThoughts(inboxItems);
   const tiles = [
     { id: 'inbox', label: 'Gedanken', icon: 'lightbulb', badge: thoughtCount },
-    { id: 'board', label: 'Board', icon: 'view_kanban' },
+    { id: 'board', label: 'Kanban Board', icon: 'view_kanban' },
     { id: 'review', label: 'Wochenrückblick', icon: 'analytics' },
     { id: 'trash', label: 'Papierkorb', icon: 'delete' },
   ];
@@ -196,7 +205,7 @@ function HubSheet({ isOpen, onClose, currentScreen, onNavigate }) {
 
         {/* Account & Einstellungen */}
         <HubTile
-          label="Account"
+          label="Konto"
           onClick={() => {
             onClose();
             openModal('settings', { initialTab: 'account' });

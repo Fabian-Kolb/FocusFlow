@@ -288,7 +288,7 @@ const Reminders = ({ setCurrentScreen }) => {
                   type="button"
                   onClick={() => setCollapsedTimeGroups((prev) => ({ ...prev, [group.id]: !collapsed }))}
                   aria-expanded={!collapsed}
-                  className={cx('group mb-2 flex w-full items-center gap-2 rounded-md py-1 text-left', FOCUS)}
+                  className={cx('group mb-2 flex w-full items-center gap-2 min-h-11 rounded-md py-1 text-left', FOCUS)}
                 >
                   <Icon name="chevron_right" size="md" className={cx('text-secondary transition-transform duration-fast', !collapsed && 'rotate-90')} />
                   <Icon name={group.icon} size="md" className={isOverdue ? 'text-danger' : 'text-secondary'} />
@@ -360,7 +360,7 @@ const Reminders = ({ setCurrentScreen }) => {
                   isEditMode ? '' : 'hover:text-primary'
                 }`}>
                   {/* Drag Handle – always visible in edit mode */}
-                  <Icon name="drag_indicator" size="md" className={`hover:text-primary cursor-grab active:cursor-grabbing p-1 -m-1 transition-opacity touch-none select-none ${isEditMode ? 'opacity-100 text-primary' : 'hidden md:inline-block opacity-50 group-hover:opacity-100'}`} onMouseDown={(e) => startCategoryDrag(e, cat.id)} onTouchStart={(e) => startCategoryDrag(e, cat.id)} onClick={(e) => e.stopPropagation()} title="Halten & Ziehen zum Sortieren" />
+                  <Icon name="drag_indicator" size="md" className={`hover:text-primary cursor-grab active:cursor-grabbing p-1 -m-1 transition-opacity touch-none select-none ${isEditMode ? 'opacity-100 text-primary' : 'hidden md:inline-block opacity-50 group-hover:opacity-100'}`} onMouseDown={(e) => startCategoryDrag(e, cat.id)} onTouchStart={(e) => startCategoryDrag(e, cat.id)} onClick={(e) => e.stopPropagation()} title="Halten und Ziehen zum Sortieren" />
                   {/* Chevron – grayed out and non-interactive in edit mode */}
                   <Icon name="chevron_right" size="md" className={`transition-all ${isEditMode
  ? 'opacity-25 text-secondary'

@@ -104,6 +104,9 @@ for (const { abs, file } of files) {
     if (/\buppercase\b/.test(line) && !/text-eyebrow/.test(line)) report(file, at, 'Versalien', line, 'Regel 01 §3: Großbuchstaben nur über SectionHeader (text-eyebrow)');
     if (!exceptions.includes('browser-dialog') && (usesConfirmHook ? /(?<![\w.$])(?:window\.)?alert\(|window\.confirm\(/ : /(?<![\w.$])(?:window\.)?(?:alert|confirm)\(/).test(line)) report(file, at, 'alert()/confirm()', line, 'Regel 01 §12: Toast, Alert oder useConfirm()');
 
+    if (!file.startsWith('src/components/ds/') && /role=["']checkbox["']|type=["']checkbox["']/.test(line)) report(file, at, 'Eigene Checkbox', line, 'Regel 01 §1/§7: Checkbox (mit Label) oder CheckButton (in Zeilen und Karten) aus ds');
+    if (/group-hover:opacity-100/.test(line) && /\bopacity-0\b/.test(line) && !/focus-(?:visible|within):opacity-100/.test(line)) report(file, at, 'Nur bei Hover sichtbar', line, 'Regel 01 §2: Aktion braucht focus-visible:opacity-100 und darf am Handy nicht verborgen sein (md:opacity-0)');
+
     // Kandidaten für die Prüfung „erzeugt die Klasse CSS?“
     for (const t of line.split(/[^A-Za-z0-9\-[\].:/_%#(),&>*@+=!]+/)) {
       if (!t || t.length > 140 || !CLASS_CHARS.test(t) || !CLASS_PREFIX.test(t)) continue;

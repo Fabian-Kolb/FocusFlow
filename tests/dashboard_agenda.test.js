@@ -92,6 +92,22 @@ describe('buildAgenda – Tage und Überfälliges', () => {
     expect(agenda.overdue.map((i) => i.title)).toEqual(['Alt']);
   });
 
+  it('markiert eine heute schon vorbeigegangene Uhrzeit als verspätet, ohne sie aus „Heute“ zu nehmen', () => {
+    const agenda = buildAgenda({
+      now: NOW,
+      reminders: [
+        reminder({ id: 'past', time: '08:00' }),
+        reminder({ id: 'next', time: '16:30' }),
+        reminder({ id: 'doneEarly', time: '07:00', status: 'ABGESCHLOSSEN' }),
+      ],
+    });
+    const byId = Object.fromEntries(agenda.days[0].items.map((i) => [i.id, i]));
+    expect(agenda.overdue).toHaveLength(0);
+    expect(byId.past.late).toBe(true);
+    expect(byId.next.late).toBe(false);
+    expect(byId.doneEarly.late).toBe(false);
+  });
+
   it('ignoriert gelöschte Erinnerungen', () => {
     const agenda = buildAgenda({ now: NOW, reminders: [reminder({ deletedAt: '2026-10-08T10:00:00Z' })] });
     expect(agenda.days[0].items).toHaveLength(0);

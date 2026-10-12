@@ -466,7 +466,7 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
     }
 
     // Vor dem Login: Wort richtet sich gerade aus, kommt zur Ruhe und wird als Bild festgehalten.
-    // Das Bild fliegt danach (BrandFlight) in die Kopfzeile, ohne dass das 3D-Modell sichtbar zu 2D springt.
+    // Das Bild wird danach (LoginReveal) in die flache Fassung übergeblendet, ohne dass das 3D-Modell sichtbar springt.
     let exiting = false;
     const snapshot = () => {
       try {
@@ -501,7 +501,7 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
       };
       const check = () => {
         if (done) return;
-        if (!settled() && performance.now() - started < 800) {
+        if (!settled() && performance.now() - started < 450) {
           requestAnimationFrame(check);
           return;
         }
@@ -556,7 +556,7 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
         nx = clamp(((px - cx) / (window.innerWidth * 0.5)) * gain, -1, 1);
         ny = clamp(((cy - py) / (window.innerHeight * 0.5)) * gain, -1, 1);
       }
-      const ease = 1 - Math.pow(1 - (exiting ? 0.2 : 0.07), step);
+      const ease = 1 - Math.pow(1 - (exiting ? 0.3 : 0.07), step);
       let bobY = 0;
       wordGroup.rotation.y += (nx * 0.24 - wordGroup.rotation.y) * ease;
       wordGroup.rotation.x += (-ny * 0.16 - wordGroup.rotation.x) * ease;

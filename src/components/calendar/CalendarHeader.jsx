@@ -98,7 +98,7 @@ const CalendarHeader = ({
       type="button"
       onClick={onPickMonth}
       title="Monat auswählen"
-      className={cx('flex min-w-0 items-center gap-1 rounded-md px-2 py-1 text-heading text-primary transition-colors duration-fast hover:bg-hover', FOCUS)}
+      className={cx('flex min-h-11 min-w-0 items-center gap-1 rounded-md px-2 py-1 text-heading text-primary transition-colors duration-fast hover:bg-hover', FOCUS)}
     >
       <span className="truncate">{title}</span>
       <Icon name="expand_more" size="md" className="shrink-0 text-secondary" />

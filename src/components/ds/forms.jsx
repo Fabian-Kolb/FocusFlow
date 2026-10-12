@@ -86,6 +86,20 @@ export const Checkbox = forwardRef(function Checkbox({ label, description, class
   );
 });
 
+/**
+ * Checkbox as a bare button for list rows and cards, where the row itself carries the label (`label` = accessible name).
+ * 20px box, radius-xs, 44px hit area. `tone="success"` = done (reminders, tasks), `tone="accent"` = selected.
+ */
+export const CheckButton = forwardRef(function CheckButton({ checked = false, tone = 'accent', label, className = '', ...rest }, ref) {
+  return (
+    <button ref={ref} type="button" role="checkbox" aria-checked={checked} aria-label={label}
+      className={cx('relative flex h-5 w-5 shrink-0 items-center justify-center rounded-xs border-2 transition-colors duration-instant', "after:absolute after:-inset-3.5 after:content-['']", FOCUS,
+        checked ? (tone === 'success' ? 'border-success bg-success text-on-accent' : 'border-accent bg-accent text-on-accent') : 'border-control bg-surface text-transparent hover:border-strong', className)} {...rest}>
+      <Icon name="check" size="sm" aria-hidden="true" />
+    </button>
+  );
+});
+
 /** Radio with label. Group radios with the same `name` inside a fieldset with a legend. */
 export const Radio = forwardRef(function Radio({ label, description, className = '', ...rest }, ref) {
   return (
@@ -124,7 +138,7 @@ export function Chip({ selected = false, leadingIcon, count, className = '', chi
   return (
     <button type="button" aria-pressed={selected}
       className={cx('relative inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border px-3 text-label-sm transition-colors duration-fast', FOCUS,
-        "after:absolute after:-inset-1.5 after:content-['']",
+        "after:absolute after:-inset-2 after:content-['']",
         selected ? 'border-accent bg-accent-subtle text-accent' : 'border-default bg-surface text-secondary hover:border-strong hover:text-primary', className)} {...rest}>
       {leadingIcon && <Icon name={leadingIcon} size="sm" filled={selected} />}
       {children}

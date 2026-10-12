@@ -7,7 +7,7 @@ const defaultHistoryItems = [
   {
     id: 'h1',
     date: '14. Mai 2024 • 16:30 Uhr',
-    title: "Unterpunkt erledigt: 'Moodboard & Designinspo erstellen'",
+    title: "Unterpunkt erledigt: 'Moodboard und Designinspo erstellen'",
     category: 'Phase 1: Vorbereitung und Analyse',
     icon: 'check',
     tone: 'success',

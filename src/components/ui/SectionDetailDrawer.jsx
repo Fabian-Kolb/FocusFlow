@@ -400,7 +400,7 @@ const SectionDetailDrawer = ({
                             {fullNote.title || mat.name}
                           </span>
                         </div>
-                        <IconButton icon="close" label="Verknüpfung entfernen" variant="danger-ghost" size="sm" className="opacity-0 group-hover:opacity-100 shrink-0" onClick={(e) => {
+                        <IconButton icon="close" label="Verknüpfung entfernen" variant="danger-ghost" size="sm" className="shrink-0 md:opacity-0 md:focus-visible:opacity-100 md:group-hover:opacity-100" onClick={(e) => {
                             e.stopPropagation();
                             const targetId = mat.id || mat.noteId || mat.url;
                             onDeleteMaterial && onDeleteMaterial({ type: 'phase', phaseId: currentPhase.id, materialId: targetId });
@@ -415,7 +415,7 @@ const SectionDetailDrawer = ({
 
                       <div className="text-micro font-label text-secondary pl-6 flex items-center gap-1 mt-0.5 group-hover:text-primary">
                         <Icon name="open_in_new" size="sm" />
-                        Klicken zum Anzeigen & Bearbeiten
+                        Klicken zum Anzeigen und Bearbeiten
                       </div>
                     </div>
                   );
@@ -449,7 +449,7 @@ const SectionDetailDrawer = ({
                       <span className="text-caption text-secondary">Abschnitt-Material</span>
                     </a>
                   </div>
-                  <IconButton icon="delete" label="Material löschen" size="sm" className="opacity-0 group-hover:opacity-100" onClick={(e) => {
+                  <IconButton icon="delete" label="Material löschen" size="sm" className="md:opacity-0 md:focus-visible:opacity-100 md:group-hover:opacity-100" onClick={(e) => {
                       e.preventDefault();
                       onDeleteMaterial({ type: 'phase', phaseId: currentPhase.id, materialId: mat.id });
                     }} />

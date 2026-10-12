@@ -9,7 +9,7 @@ import { getProjectStats } from '../../lib/projectProgress';
 import { buildAgenda, getNextTimed, formatMinutes } from '../../lib/dashboardAgenda';
 import { areaOf, tileAreaOf } from '../../lib/areas';
 import {
-  Alert, Badge, Button, Card, EmptyState, FioMark, FOCUS, Icon, IconButton, IconTile, PageHeader, ProgressBar, Skeleton, cx,
+  Alert, Badge, Button, Card, CheckButton, EmptyState, FioMark, FOCUS, Icon, IconButton, IconTile, PageHeader, ProgressBar, Skeleton, cx,
 } from '../ds';
 import { AI_MODELS } from '../ui/ModelSelectorDropdown';
 import { SUMMARY_LENGTH_OPTIONS } from '../ui/SummaryLengthDropdown';
@@ -101,32 +101,18 @@ function AgendaRow({ item, onToggle, onOpen, now, highlight }) {
 
   return (
     <li className={cx('flex items-center gap-3 py-2', highlight && '-mx-3 rounded-md bg-subtle px-3')}>
-      <span className={cx('w-14 shrink-0 text-right text-caption-strong tabular-nums', item.dueLabel ? 'text-danger' : 'text-secondary')}>
+      <span className={cx('w-14 shrink-0 text-right text-caption-strong tabular-nums', item.dueLabel || item.late ? 'text-danger' : 'text-secondary')}>
         {item.allDay ? 'Ganztägig' : item.timeLabel || item.dueLabel || ''}
       </span>
       {canToggle ? (
-        <button
-          type="button"
-          role="checkbox"
-          aria-checked={item.completed}
-          aria-label={`${item.title} abhaken`}
-          onClick={() => onToggle(item)}
-          className={cx(
-            'relative flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 transition-colors duration-fast',
-            "after:absolute after:-inset-2 after:content-['']",
-            FOCUS,
-            item.completed ? 'border-success bg-success text-on-accent' : 'border-control bg-surface text-transparent hover:border-strong',
-          )}
-        >
-          <Icon name="check" size="sm" aria-hidden="true" />
-        </button>
+        <CheckButton checked={item.completed} tone="success" label={`${item.title} abhaken`} onClick={() => onToggle(item)} />
       ) : (
         <IconTile area={tileAreaOf(meta.area)} icon={meta.icon} size="sm" className="!h-6 !w-6" />
       )}
       <button
         type="button"
         onClick={() => onOpen(item)}
-        className={cx('min-w-0 flex-1 rounded-md text-left', FOCUS)}
+        className={cx('relative min-w-0 flex-1 rounded-md text-left', "after:absolute after:inset-x-0 after:-inset-y-3 after:content-['']", FOCUS)}
       >
         <span className={cx('block truncate text-body-strong', item.completed ? 'text-secondary line-through' : past ? 'text-secondary' : 'text-primary')}>
           {item.title}
@@ -364,7 +350,7 @@ const Dashboard = ({ setCurrentScreen }) => {
             className="order-2 lg:order-none"
             action={<Button variant="ghost" size="sm" onClick={() => setCurrentScreen('calendar')}>Kalender</Button>}
           >
-            <div className="grid grid-cols-7 gap-1" role="group" aria-label="Wochenübersicht">
+            <div className="grid grid-cols-7 gap-0 sm:gap-1" role="group" aria-label="Wochenübersicht">
               {agenda.days.map((day) => {
                 const kinds = [...new Set(day.items.map((i) => i.kind))];
                 const open = day.items.filter((i) => !i.completed).length;
@@ -399,6 +385,16 @@ const Dashboard = ({ setCurrentScreen }) => {
                 );
               })}
             </div>
+
+            {/* Legende: die Punkte unter den Tagen sind nur Farbe, hier stehen die Wörter dazu */}
+            <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-micro text-tertiary" aria-hidden="true">
+              {Object.entries(KIND_META).map(([kind, meta]) => (
+                <li key={kind} className="flex items-center gap-1.5">
+                  <span className={cx('h-1.5 w-1.5 rounded-full', areaOf(meta.area).dot)} />
+                  {meta.label}
+                </li>
+              ))}
+            </ul>
 
             {selectedDay && (
               <div className="mt-3 border-t border-subtle pt-3">
@@ -470,7 +466,7 @@ const Dashboard = ({ setCurrentScreen }) => {
                     <button
                       type="button"
                       onClick={() => setCurrentScreen('inbox')}
-                      className={cx('w-full truncate rounded-md py-2 text-left text-label hover:text-accent', FOCUS)}
+                      className={cx('relative w-full truncate rounded-md py-2 text-left text-label hover:text-accent', "after:absolute after:inset-x-0 after:-inset-y-1 after:content-['']", FOCUS)}
                     >
                       {t.title || t.summary}
                     </button>

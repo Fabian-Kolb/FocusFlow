@@ -15,7 +15,7 @@ import SwipeableCard from '../ui/SwipeableCard';
 import ThoughtAiChip from '../ui/ThoughtAiChip';
 import { AI_MODELS } from '../ui/ModelSelectorDropdown';
 import { SUMMARY_LENGTH_OPTIONS } from '../ui/SummaryLengthDropdown';
-import { Badge, Button, Card, EmptyState, FOCUS, Icon, IconButton, Menu, MenuItem, MenuSeparator, PageHeader, SectionHeader, cx } from '../ds';
+import { Badge, Button, Card, CheckButton, EmptyState, FOCUS, Icon, IconButton, Menu, MenuItem, MenuSeparator, PageHeader, SectionHeader, cx } from '../ds';
 
 // Gedanken (intern weiterhin "inbox" / Firestore-Collection `inboxItems`):
 // schnell festhalten ohne Zuordnung, später manuell oder mit Fio in Projekte/Erinnerungen überführen.
@@ -448,25 +448,16 @@ const Inbox = ({ setCurrentScreen, autoStartVoice = false, onAutoStartConsumed }
           <div className="relative flex-1 flex flex-col gap-2 px-4 pt-3.5 pb-3">
             {/* Auswahl (in der Mehrfachauswahl immer, am Desktop beim Darüberfahren) und Papierkorb */}
             <div className="absolute top-3 right-3 flex items-center gap-1">
-              <button
-                type="button"
-                role="checkbox"
-                aria-checked={isSelected}
-                aria-label="Gedanke auswählen"
+              <CheckButton
+                checked={isSelected}
+                label="Gedanke auswählen"
                 onClick={(e) => {
                   e.stopPropagation();
                   if (!selectMode) enterSelectMode(item.id);
                   else toggleSelected(item.id);
                 }}
-                className={cx(
-                  selectMode ? 'flex' : 'hidden md:flex md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100',
-                  'h-6 w-6 items-center justify-center rounded-xs border-2 transition-colors duration-fast',
-                  FOCUS,
-                  isSelected ? 'border-accent bg-accent text-on-accent' : 'border-control bg-surface text-transparent hover:border-strong',
-                )}
-              >
-                <Icon name="check" size="sm" aria-hidden="true" />
-              </button>
+                className={selectMode ? '' : 'hidden md:flex md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100'}
+              />
               {!selectMode && (
                 <IconButton
                   icon="delete"
@@ -583,7 +574,7 @@ const Inbox = ({ setCurrentScreen, autoStartVoice = false, onAutoStartConsumed }
           description={totalCount > 0 ? `${totalCount} ${totalCount === 1 ? 'Gedanke' : 'Gedanken'}` : 'Festhalten, sortiert wird später.'}
           className="md:items-center"
           actions={(
-            <IconButton icon="delete" label="Papierkorb öffnen" onClick={() => setCurrentScreen('trash')} className="hover:text-danger" />
+            <IconButton icon="delete" label="Papierkorb öffnen" onClick={() => setCurrentScreen('trash')} className="hidden hover:text-danger md:inline-flex" />
           )}
         />
       )}
