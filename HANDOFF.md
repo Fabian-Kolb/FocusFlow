@@ -444,3 +444,23 @@
 3. Texteingaben (40 px) liegen unter 44 px Trefferfläche; Entscheidung nötig (lg am Handy oder Erweiterung).
 4. Nicht geprüft: Login, Einstellungen, Projektdetail, Modale, Tastaturdurchlauf, Screenreader, echtes Gerät.
 
+
+
+---
+
+## Nachtrag 2026-10-12 (Claude Code): Neuer Login-Übergang (Strich und Hälften statt Flug)
+
+### Getan
+- Neu: `src/components/brand/LoginReveal.jsx` ersetzt `BrandFlight.jsx` (gelöscht). 3D-Standbild blendet in die flache Fassung, ein Strich öffnet sich in der Mitte, die Wörter schieben sich hinein und verschwinden, der Strich zieht sich über die Fläche, die Hälften öffnen sich nach außen und zeigen die App. Danach schiebt sich die Navigation von links (Handy: untere Leiste von unten) ein. Achse nach Layout: Desktop senkrecht (Hälften links/rechts), Handy waagerecht (oben/unten). Tipp überspringt. Zeiten als Objekt `T` oben in der Datei.
+- `Login.jsx`: Beim Login blenden Karte, Band, Schalter und Video aus (State `leaving`), Standbilder werden vorab dekodiert. Fehlschlag stellt alles wieder her (`cancelLeave`).
+- `Wordmark3D.jsx`: Ausrichten vor dem Login höchstens 600 ms (vorher 800), schnelleres Einschwingen.
+- `BrandLockup.jsx`: Flugziele entfernt. `brandTransition.js`: Ereignis `REVEAL_DONE_EVENT`. `GuestWelcomeModal.jsx` wartet darauf.
+
+### Tests
+- `npm run check:design` ok, `vitest` 216/216, `vite build` ok, Lint ohne neue Warnungen.
+- Browser (Dev, Einzelbilder per angehaltener Animation): Desktop dunkel und Handy hell, beide Achsen, Hälften, Navigation, Gast-Hinweis erst danach. Nicht geprüft: echtes Gerät und Flüssigkeit (das Browserfenster lief hier nur mit etwa 3 Bildern pro Sekunde), Desktop hell, Google- und E-Mail-Login, Fehlschlag mit zurückkehrender Karte, Zeitgefühl, Sidebar eingeklappt.
+
+### Offen
+1. Zeitgefühl und Kurven am echten Gerät prüfen (`T`, `EASE_*` in `LoginReveal.jsx`).
+2. Offene Frage aus dem Chat: Landing und Login trennen? (Entwurf zuerst, noch nicht begonnen.)
+3. Blauer Radialverlauf im Dark-Mode-Login (Regel 01) weiterhin ungeklärt.

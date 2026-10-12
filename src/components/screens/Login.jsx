@@ -58,18 +58,12 @@ function Login() {
   const prepareLeave = async (immediate = false) => {
     leavingRef.current = true;
     setLeaving(true);
-    const [focusImage, flowImage] = await Promise.all([
+    const [focusLetters, flowLetters] = await Promise.all([
       focusCtl.current?.prepareExit?.(immediate),
       flowCtl.current?.prepareExit?.(immediate),
     ]);
-    // Standbilder vorab dekodieren, damit die App sie im ersten Bild sofort zeigt
-    await Promise.all([focusImage, flowImage].filter(Boolean).map((src) => {
-      const img = new Image();
-      img.src = src;
-      return img.decode().catch(() => {});
-    }));
     captureBrandHandoff(
-      { FOCUS: { el: focusWordRef.current, image: focusImage }, FLOW: { el: flowWordRef.current, image: flowImage } },
+      { FOCUS: { el: focusWordRef.current, letters: focusLetters }, FLOW: { el: flowWordRef.current, letters: flowLetters } },
       theme,
     );
   };

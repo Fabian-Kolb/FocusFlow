@@ -465,15 +465,43 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
       scramble(2.2, word === 'FOCUS' ? 150 : 650);
     }
 
-    // Vor dem Login: Wort richtet sich gerade aus, kommt zur Ruhe und wird als Bild festgehalten.
-    // Das Bild wird danach (LoginReveal) in die flache Fassung übergeblendet, ohne dass das 3D-Modell sichtbar springt.
+    // Vor dem Login: Wort richtet sich gerade aus, kommt zur Ruhe und wird Buchstabe für Buchstabe als Bild festgehalten.
+    // Die Bilder bleiben 3D und werden danach (LoginReveal) einzeln in den Strich gezogen.
     let exiting = false;
+    const projected = new THREE.Vector3();
     const snapshot = () => {
       try {
         setWide(false);
+        const w = renderer.domElement.width;
+        const h = renderer.domElement.height;
+        const shots = letters.map((keep) => {
+          letters.forEach((l) => { l.mesh.visible = l === keep; });
+          renderer.render(scene, camera);
+          // Ausschnitt um den Buchstaben (projizierte Hüllkörper-Ecken plus Rand), damit die Bilder klein bleiben
+          const box = new THREE.Box3().setFromObject(keep.mesh);
+          let x0 = w; let y0 = h; let x1 = 0; let y1 = 0;
+          [box.min.x, box.max.x].forEach((x) => [box.min.y, box.max.y].forEach((y) => [box.min.z, box.max.z].forEach((z) => {
+            projected.set(x, y, z).project(camera);
+            const px = (projected.x * 0.5 + 0.5) * w;
+            const py = (-projected.y * 0.5 + 0.5) * h;
+            x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py);
+          })));
+          const margin = 6 * renderer.getPixelRatio();
+          const sx = Math.max(0, Math.floor(x0 - margin));
+          const sy = Math.max(0, Math.floor(y0 - margin));
+          const sw = Math.min(w, Math.ceil(x1 + margin)) - sx;
+          const sh = Math.min(h, Math.ceil(y1 + margin)) - sy;
+          const canvas = document.createElement('canvas');
+          canvas.width = sw;
+          canvas.height = sh;
+          canvas.getContext('2d').drawImage(renderer.domElement, sx, sy, sw, sh, 0, 0, sw, sh);
+          return { canvas, fx: sx / w, fy: sy / h, fw: sw / w, fh: sh / h };
+        });
+        letters.forEach((l) => { l.mesh.visible = true; });
         renderer.render(scene, camera);
-        return renderer.domElement.toDataURL('image/png');
+        return shots;
       } catch {
+        letters.forEach((l) => { l.mesh.visible = true; });
         return null;
       }
     };
@@ -501,7 +529,7 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
       };
       const check = () => {
         if (done) return;
-        if (!settled() && performance.now() - started < 450) {
+        if (!settled() && performance.now() - started < 600) {
           requestAnimationFrame(check);
           return;
         }

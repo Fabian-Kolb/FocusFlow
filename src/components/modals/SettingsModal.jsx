@@ -6,10 +6,11 @@ import { useAuth } from '../../context/AuthContext';
 import AccountSection from './settings/AccountSection';
 import FioGuideSection from './settings/FioGuideSection';
 import TutorialsSection from './settings/TutorialsSection';
+import PreferencesSection from './settings/PreferencesSection';
 import AboutSection from './settings/AboutSection';
 import { Button, FioMark, Icon, IconButton } from '../ds';
 
-export const VALID_TABS = ['account', 'fio', 'tutorials', 'about'];
+export const VALID_TABS = ['account', 'fio', 'tutorials', 'preferences', 'about'];
 export const DEFAULT_TAB = 'account';
 
 export function resolveSettingsTab(activeModal, payload) {
@@ -24,6 +25,7 @@ const TABS = [
   { id: 'account', label: 'Mein Account', icon: 'account_circle' },
   { id: 'fio', label: 'Fio KI-Guide', icon: 'fio' },
   { id: 'tutorials', label: 'Hilfe und Guides', icon: 'school' },
+  { id: 'preferences', label: 'Einstellungen', icon: 'tune' },
   { id: 'about', label: 'Über FocusFlow', icon: 'info' }
 ];
 
@@ -275,6 +277,9 @@ export default function SettingsModal() {
             )}
             {activeTab === 'tutorials' && (
               <TutorialsSection />
+            )}
+            {activeTab === 'preferences' && (
+              <PreferencesSection />
             )}
             {activeTab === 'about' && (
               <AboutSection />

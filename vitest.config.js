@@ -26,7 +26,8 @@ export default defineConfig({
       'tests/design_system.test.js',
       'tests/speech_input.test.jsx',
       'tests/calendar_views.test.jsx',
-      'tests/sheet_snap.test.js'
+      'tests/sheet_snap.test.js',
+      'tests/reveal_speed.test.js'
     ]
   }
 });

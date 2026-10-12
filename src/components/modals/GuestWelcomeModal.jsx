@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { peekBrandHandoff, REVEAL_DONE_EVENT } from '../../lib/brandTransition';
 import { Alert, Button, Dialog, Icon, SectionHeader } from '../ds';
 
 // Was im Gast-Modus eingeschränkt ist (Warnung) und was frei ausprobiert werden kann
@@ -36,11 +37,19 @@ function GuestWelcomeModal() {
     if (user?.isGuest && !user?.isDevAccount) {
       const acknowledged = sessionStorage.getItem('ff_guest_welcome_shown');
       if (!acknowledged) {
-        setIsOpen(true);
+        // Direkt nach dem Login läuft der Übergang (LoginReveal): Hinweis erst danach zeigen
+        if (!peekBrandHandoff()) {
+          setIsOpen(true);
+          return undefined;
+        }
+        const open = () => setIsOpen(true);
+        window.addEventListener(REVEAL_DONE_EVENT, open, { once: true });
+        return () => window.removeEventListener(REVEAL_DONE_EVENT, open);
       }
     } else {
       setIsOpen(false);
     }
+    return undefined;
   }, [user]);
 
   const handleClose = () => {
