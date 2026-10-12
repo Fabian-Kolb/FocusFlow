@@ -484,3 +484,35 @@
 1. Echtes Gerät: Gefühl des Zugs (Beschleunigung `trainAccel`, Versatz `trainStagger`), E-Mail-Login mit offener Tastatur (Android und iOS), Google-Login.
 2. Landing und Login trennen: Entwurf noch nicht begonnen.
 3. Blauer Radialverlauf im Dark-Mode-Login (Regel 01) weiterhin ungeklärt.
+
+---
+
+## Nachtrag 2026-10-13 (Claude Code): Login-Schriftzug, Feintuning Ziehen
+
+### Getan
+- **Eigentliche Ursache der Seitenverschiebung:** `Login.jsx` Wurzelelement hatte `overflow-x-hidden` und war dadurch auch vertikal ein Scrollbereich; die fensterfüllende Zeichenfläche beim Ziehen ließ eine zweite Scrollleiste erscheinen (Inhalt rutscht 6 px). Jetzt `overflow-x-clip`. Kollision (Mindestabstand) wird nach dem Loslassen über etwa 0,75 s weich eingeblendet (`SOLID_FRAMES`, `SOFT_OVERLAP`).
+- `src/components/brand/Wordmark3D.jsx`: Rückflug nach dem Loslassen endet am echten Ziel (blieb sonst bei ruhendem Zeiger hängen: Buchstabe ohne Kollision, Zeichenfläche dauerhaft fensterfüllend). Neigungssensor überschreibt keinen laufenden Zug mehr. Zurückfliegende Buchstaben haben etwas mehr Trefferfläche (`LIFT_HIT_BONUS`).
+
+### Tests
+- Maus (Browser-Pane, 1280 px): Ziehen, Loslassen mit ruhendem Zeiger, Zeichenfläche kehrt nach etwa 1 s zur Normalgröße zurück. Simulierte Touch-Ereignisse (375 px, 3 Runden): Layout und Scrollhöhe unverändert. `check:design` und `vitest` ok.
+
+### Offen
+1. Seitenverschiebung beim Ziehen am Desktop als Scrollleisten-Effekt nachgewiesen und behoben. Am echten Handy noch nicht geprüft (dort gibt es meist Overlay-Scrollleisten; falls sich noch etwas verschiebt, genau beschreiben, was sich bewegt).
+
+
+---
+
+## Nachtrag 2026-10-13 (Claude Code): Übergang Feinschliff (weicher Rand, Tempo, Leuchten, Handy-Sprung)
+
+### Getan
+- `LoginReveal.jsx`: Weicher Rand am Strich (Maske, `featherRatio` 0,11 der Wörterhöhe). Keine Pausen mehr: Strichausdehnung endet genau am Ende des Zuges, die Hälften öffnen sofort danach (`EASE_OPEN` mit Anfangsschwung). Mittel dauert jetzt etwa 1,1 s (Anzeige in den Einstellungen angepasst: 0,8 / 1,1 / 1,7 s).
+- Blaues Leuchten: `Wordmark3D.jsx` hält je Buchstabe zusätzlich ein leuchtendes Bild fest (gleicher Glow wie beim Zeiger), `LoginReveal` blendet es beim Anfahren ein. Schalter im Tab „Einstellungen“, Standard an (`focusflow_reveal_glow`, `revealSpeed.js`).
+- Handy: Die Wörter sprangen manchmal in die Mitte, wenn der Login (z. B. Gast) schneller fertig war als das Gleiten. `Login.jsx` wartet jetzt, bis das Gleiten fertig ist, und merkt sich die tatsächliche Position.
+
+### Tests
+- `check:design` ok, `vitest` 221/221, `vite build` ok.
+- Browser (Einzelbilder): Desktop dunkel mit Leuchten und weichem Rand, symmetrisches Öffnen. Nicht prüfbar im Testfenster: echtes Gleiten am Handy (Übergänge laufen dort nicht ohne Bilder), Tastatur, Google-Login.
+
+### Offen
+1. Echtes Gerät: Tempo und Gleiten am Handy, E-Mail-Login mit offener Tastatur.
+2. Landing und Login trennen: Entwurf noch nicht begonnen.

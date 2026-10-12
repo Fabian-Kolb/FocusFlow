@@ -49,6 +49,11 @@ const RETURN_STIFFNESS = 0.1;
 const RETURN_DAMPING = 0.8;
 const HIT_TOLERANCE = 5; // Welteinheiten um die Silhouette (Maus)
 const HIT_TOLERANCE_TOUCH = 18; // Finger sind ungenauer: größere Trefferfläche
+const LIFT_HIT_BONUS = 8; // zusätzlich für zurückfliegende (angehobene) Buchstaben
+// Nach dem Loslassen wird die Kollision (der Mindestabstand zu den Nachbarn) nicht schlagartig, sondern über diese
+// Dauer eingeblendet: Anfangs dürfen sich Buchstaben noch um SOFT_OVERLAP überlappen, dieser Spielraum schrumpft auf 0.
+const SOLID_FRAMES = 45; // Frames bei 60 fps (etwa 0,75 s)
+const SOFT_OVERLAP = 50; // Welteinheiten
 const HALO_SCALES = [
   { scale: 1.07, opacity: 0.85 },
   { scale: 1.17, opacity: 0.35 },
@@ -235,6 +240,7 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
         tiltVelocity: new THREE.Vector3(),
         glow: 0, // Cursor-Glow: 0 = aus, 1 = voll
         enter: 1, // Einflug: 0 = unsichtbar, 1 = da
+        solid: 1, // Kollision: 0 = Buchstaben dürfen sich durchdringen, 1 = voller Mindestabstand
         kickAt: 0, // Zeitpunkt, an dem der Buchstabe weggeschleudert wird
         kickPower: 1,
         dragging: false, // wird gerade mit der Maus gezogen
@@ -349,11 +355,13 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
         if (row < 0 || row >= ROW_N) return;
         const prof = profiles[l.index];
         // Treffer, wenn nahe genug an der Silhouette dieser Zeile (bei Fingern auch knapp daneben)
-        let hit = sx >= prof.left[row] - tolerance && sx <= prof.right[row] + tolerance;
-        if (!hit && tolerance > HIT_TOLERANCE) {
-          for (let dy = -tolerance; dy <= tolerance && !hit; dy += 6) {
+        // Ein zurückfliegender Buchstabe ist nach vorn gehoben und wirkt größer als seine Silhouette
+        const tol = tolerance + (l.returning ? LIFT_HIT_BONUS : 0);
+        let hit = sx >= prof.left[row] - tol && sx <= prof.right[row] + tol;
+        if (!hit && tol > HIT_TOLERANCE) {
+          for (let dy = -tol; dy <= tol && !hit; dy += 6) {
             const r2 = Math.round(sy + dy - ROW_Y0);
-            hit = r2 >= 0 && r2 < ROW_N && sx >= prof.left[r2] - tolerance && sx <= prof.right[r2] + tolerance;
+            hit = r2 >= 0 && r2 < ROW_N && sx >= prof.left[r2] - tol && sx <= prof.right[r2] + tol;
           }
         }
         if (!hit) return;
@@ -425,7 +433,7 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
     // Handy: Neigen des Geräts ersetzt den Mauszeiger
     let tiltReported = false;
     const onOrientation = (e) => {
-      if (reducedMotion || usingMouse || e.gamma == null || e.beta == null) return;
+      if (reducedMotion || usingMouse || drag.letter || e.gamma == null || e.beta == null) return;
       if (!tiltReported) {
         tiltReported = true;
         window.dispatchEvent(new Event(TILT_ACTIVE_EVENT));
@@ -719,6 +727,9 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
           }
         }
         l.glow += (glowGoal - l.glow) * ease * 0.8;
+        // Gezogen oder zurückfliegend: keine Kollision. Danach wächst sie wieder auf 1 (siehe SOLID_FRAMES).
+        if (l.dragging || l.returning) l.solid = 0;
+        else if (l.solid < 1) l.solid = Math.min(1, l.solid + step / SOLID_FRAMES);
         if (l.enter < 1 && l.mesh.visible) l.enter = Math.min(1, l.enter + step / 22);
         l.material.opacity = l.enter;
         emissiveColor.setHex(preset.material.emissive).lerp(glowColor, Math.min(l.glow * 1.2, 1));
@@ -745,7 +756,10 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
         tiltGoal.set(clamp(lean.y, -12, 12) * 0.012, clamp(lean.x, -12, 12) * (l.dragging ? 0.01 : 0), -clamp(lean.x, -12, 12) * (l.dragging ? 0.012 : 0.006));
         const pullK = l.dragging ? DRAG_STIFFNESS : l.returning ? RETURN_STIFFNESS : PULL_STIFFNESS;
         const pullD = l.dragging ? DRAG_DAMPING : l.returning ? RETURN_DAMPING : PULL_DAMPING;
-        if (l.returning && l.pull.lengthSq() < 1 && l.pullVelocity.lengthSq() < 0.01) l.returning = false;
+        // Der Rückflug ist zu Ende, sobald der Buchstabe sein Ziel erreicht hat. Das Ziel ist nicht immer Null: Bleibt der
+        // Zeiger nach dem Loslassen über dem Wort, zieht er den Buchstaben weiter zu sich. Gegen Null geprüft, bliebe der
+        // Buchstabe sonst dauerhaft „zurückfliegend“ (ohne Kollision, Zeichenfläche bleibt fensterfüllend).
+        if (l.returning && Math.hypot(l.pull.x - finalGoals[li].x, l.pull.y - finalGoals[li].y) < 1 && l.pullVelocity.lengthSq() < 0.01) l.returning = false;
 
         for (let s = 0; s < Math.ceil(step); s++) {
           l.velocity.addScaledVector(pull.subVectors(goal, l.offset), STIFFNESS).multiplyScalar(DAMPING);
@@ -769,7 +783,9 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
             if (a.dragging || a.returning || b.dragging || b.returning) continue;
             // Bei Zug/Hover mehr Luft zwischen den Buchstaben als im Ruhezustand
             const engage = smooth(1.5, 5, Math.max(Math.hypot(a.pull.x, a.pull.y), Math.hypot(b.pull.x, b.pull.y)));
-            const limit = baseGaps[i] + Math.max(MIN_GAP_ACTIVE - baseGaps[i], 0) * engage;
+            // Der Mindestabstand wächst nach dem Loslassen weich an, statt von 0 auf 100 zu springen
+            const solid = smooth(0, 1, Math.min(a.solid, b.solid));
+            const limit = baseGaps[i] + Math.max(MIN_GAP_ACTIVE - baseGaps[i], 0) * engage - (1 - solid) * SOFT_OVERLAP;
             shiftA.x = a.offset.x + a.pull.x;
             shiftA.y = a.offset.y + a.pull.y;
             shiftB.x = b.offset.x + b.pull.x;

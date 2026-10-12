@@ -186,7 +186,7 @@ function Login() {
 
   return (
     <>
-    <div className="relative isolate flex min-h-screen flex-col items-center justify-center gap-6 overflow-x-hidden bg-canvas px-4 pb-8 pt-16 lg:flex-row lg:gap-10 lg:py-8 xl:gap-14">
+    <div className="relative isolate flex min-h-screen flex-col items-center justify-center gap-6 overflow-x-hidden overflow-x-clip bg-canvas px-4 pb-8 pt-16 lg:flex-row lg:gap-10 lg:py-8 xl:gap-14">
       <div className={`pointer-events-none fixed inset-0 -z-10 ${FADE} ${leaving ? 'opacity-0' : ''}`}>
         <LoginMarquee />
       </div>

@@ -19,7 +19,6 @@ const BASE = {
   extend: 140, // Strich zieht sich über die ganze Fläche, endet genau wenn der Zug durch ist
   open: 480, // Hälften öffnen sich nach außen, ohne Pause nach dem Zug
   featherRatio: 0.11, // weicher Rand am Strich, Anteil der Wörterhöhe (kein ganz harter Schnitt)
-  glowRamp: 160, // Buchstaben leuchten beim Anfahren blau auf
   tail: 60,
   enterFrom: 0.45, // Seitenleiste schiebt sich ein, sobald die Hälfte sie freigibt (Anteil der Öffnungszeit)
   enterFromMobile: 0.6,
@@ -30,7 +29,6 @@ const EASE_OUT = 'cubic-bezier(0.16, 1, 0.3, 1)';
 const EASE_IN_OUT = 'cubic-bezier(0.76, 0, 0.24, 1)';
 const EASE_EXTEND = 'cubic-bezier(0.4, 0, 0.9, 0.6)'; // schließt sich dem Tempo des Zuges an
 const EASE_OPEN = 'cubic-bezier(0.25, 0.45, 0.1, 1)'; // startet mit Schwung, landet weich
-const EASE_GLOW = 'cubic-bezier(0.2, 0, 0.3, 1)';
 const EASE_TRAIN = 'cubic-bezier(0.11, 0, 0.5, 0)'; // gleichmäßige Beschleunigung (easeInQuad)
 const LINE_PX = 2;
 const WORDS = ['FOCUS', 'FLOW'];
@@ -186,7 +184,8 @@ function LoginReveal() {
         ], { duration, delay, easing: EASE_TRAIN });
         // Beim Anfahren leuchtet der Buchstabe blau auf, wie beim Darüberfahren mit dem Zeiger
         const glowEl = el.querySelector('[data-glow]');
-        if (glowEl) run(glowEl, [{ opacity: 0 }, { opacity: 1 }], { duration: Math.min(ms(BASE.glowRamp), duration * 0.7), delay, easing: EASE_GLOW });
+        // Das Leuchten hängt an der Strecke (gleiche Kurve wie die Bewegung): weit weg aus, nahe am Strich voll blau
+        if (glowEl) run(glowEl, [{ opacity: 0 }, { opacity: 0.12, offset: 0.55 }, { opacity: 1 }], { duration, delay, easing: EASE_TRAIN });
         trainEnd = Math.max(trainEnd, delay + duration);
       }
     });
