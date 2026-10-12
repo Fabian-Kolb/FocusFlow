@@ -1,11 +1,12 @@
 import { useCallback, useState } from 'react';
 
-// Geschwindigkeit der Animation nach dem Login (LoginReveal). Gilt je Gerät, weil der Login vor dem Konto läuft.
+// Einstellungen der Animation nach dem Login (LoginReveal): Geschwindigkeit und blaues Leuchten.
+// Gelten je Gerät, weil der Login vor dem Konto läuft.
 export const REVEAL_SPEED_KEY = 'focusflow_reveal_speed';
 export const DEFAULT_REVEAL_SPEED = 'medium';
 
 // `factor` streckt alle Zeiten der Animation (kleiner = schneller). `typicalMs`: Gesamtdauer am Desktop, nur zur Anzeige.
-export const REVEAL_TYPICAL_MS = 1300;
+export const REVEAL_TYPICAL_MS = 1100;
 export const REVEAL_SPEEDS = [
   { value: 'fast', label: 'Schnell', icon: 'fast_forward', factor: 0.7 },
   { value: 'medium', label: 'Mittel', icon: 'play_arrow', factor: 1 },
@@ -38,7 +39,7 @@ export function revealFactor(speed = readRevealSpeed()) {
 
 /** Anzeige der ungefähren Dauer, z. B. „ca. 1,3 s“ */
 export function revealDurationLabel(speed) {
-  const seconds = (REVEAL_TYPICAL_MS * revealFactor(speed)) / 1000;
+  const seconds = Math.round((REVEAL_TYPICAL_MS * revealFactor(speed)) / 100) / 10;
   return `ca. ${seconds.toFixed(1).replace('.', ',')} s`;
 }
 
@@ -50,4 +51,33 @@ export function useRevealSpeed() {
     setSpeed(isValid(next) ? next : DEFAULT_REVEAL_SPEED);
   }, []);
   return [speed, choose];
+}
+
+// Eingezogene Buchstaben leuchten blau, wie beim Darüberfahren mit dem Zeiger (standardmäßig an)
+export const REVEAL_GLOW_KEY = 'focusflow_reveal_glow';
+
+export function readRevealGlow() {
+  try {
+    return localStorage.getItem(REVEAL_GLOW_KEY) !== 'off';
+  } catch {
+    return true;
+  }
+}
+
+export function writeRevealGlow(on) {
+  try {
+    if (on) localStorage.removeItem(REVEAL_GLOW_KEY);
+    else localStorage.setItem(REVEAL_GLOW_KEY, 'off');
+  } catch {
+    // Privater Modus oder Speicher voll: die Wahl gilt dann nur für diese Sitzung
+  }
+}
+
+export function useRevealGlow() {
+  const [glow, setGlow] = useState(readRevealGlow);
+  const choose = useCallback((next) => {
+    writeRevealGlow(next);
+    setGlow(Boolean(next));
+  }, []);
+  return [glow, choose];
 }

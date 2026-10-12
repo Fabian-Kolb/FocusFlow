@@ -5,11 +5,11 @@ const MAX_AGE_MS = 15000;
 export const REVEAL_DONE_EVENT = 'focusflow:reveal-done';
 let pending = null;
 
-/** `words`: { FOCUS: { el, letters }, FLOW: { el, letters } }, `letters`: je Buchstabe ein 3D-Bildausschnitt `{ canvas, fx, fy, fw, fh }` (Anteile der Zeichenfläche) oder null. */
+/** `words`: { FOCUS: { el, letters, rect? }, FLOW: { el, letters, rect? } }, `rect`: Zielposition, falls das Wort gerade gleitet (sonst die aktuelle). `letters`: je Buchstabe ein 3D-Bildausschnitt `{ canvas, fx, fy, fw, fh }` (Anteile der Zeichenfläche) oder null. */
 export function captureBrandHandoff(words, theme) {
   const entry = (w) => {
     if (!w?.el) return null;
-    const r = w.el.getBoundingClientRect();
+    const r = w.rect || w.el.getBoundingClientRect();
     return { left: r.left, top: r.top, width: r.width, height: r.height, letters: w.letters || null };
   };
   const focus = entry(words.FOCUS);

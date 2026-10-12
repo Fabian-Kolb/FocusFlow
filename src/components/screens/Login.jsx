@@ -8,6 +8,7 @@ import { LEGAL_PATHS } from '../../lib/legal';
 import { getDevCredentials } from '../../lib/devAccount';
 import { captureBrandHandoff, clearBrandHandoff } from '../../lib/brandTransition';
 import { resolveTheme, useThemePreference } from '../../lib/theme';
+import { readRevealGlow, revealFactor } from '../../lib/revealSpeed';
 import { Alert, Button, Card, Dialog, Divider, Field, IconButton, Input } from '../ds';
 
 const FADE = 'transition-opacity duration-base ease-standard motion-reduce:transition-none';
@@ -55,15 +56,45 @@ function Login() {
   const flowCtl = useRef(null);
   const leavingRef = useRef(false);
   const [leaving, setLeaving] = useState(false); // Alles außer den Wörtern blendet aus, der Bildschirm wird eine Fläche
+  // Beim Anmelden: Tastatur schließen und die Wörter in die Mitte des Bildschirms gleiten lassen, damit man sieht, wo etwas
+  // passiert (Handy: Wörter stehen oben oder sind beim Tippen aus dem Bild gescrollt). Gibt die Zielpositionen und die
+  // Dauer des Gleitens zurück.
+  const centerWords = () => {
+    const els = [focusWordRef.current, flowWordRef.current];
+    const rects = els.map((el) => el?.getBoundingClientRect());
+    if (!rects[0] || !rects[1]) return { rects: [null, null], ms: 0 };
+    const vw = document.documentElement.clientWidth || window.innerWidth;
+    const dx = vw / 2 - (rects[0].left + rects[0].width / 2 + rects[1].left + rects[1].width / 2) / 2;
+    const dy = window.innerHeight / 2 - (rects[0].top + rects[0].height / 2 + rects[1].top + rects[1].height / 2) / 2;
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (reduced || Math.hypot(dx, dy) < 6) return { rects, ms: 0 };
+    const ms = Math.round(350 * revealFactor());
+    els.forEach((el) => {
+      el.style.transition = `transform ${ms}ms cubic-bezier(0.76, 0, 0.24, 1)`;
+      el.style.transform = `translate(${dx}px, ${dy}px)`;
+    });
+    return { rects: rects.map((r) => ({ left: r.left + dx, top: r.top + dy, width: r.width, height: r.height })), ms };
+  };
   const prepareLeave = async (immediate = false) => {
     leavingRef.current = true;
     setLeaving(true);
-    const [focusLetters, flowLetters] = await Promise.all([
-      focusCtl.current?.prepareExit?.(immediate),
-      flowCtl.current?.prepareExit?.(immediate),
+    document.activeElement?.blur?.();
+    const { rects: [focusRect, flowRect], ms: glide } = centerWords();
+    const glow = readRevealGlow();
+    // Die Wörter müssen ihre Mitte erreicht haben, bevor es weitergeht, sonst springen sie in der App an ihren Platz.
+    // Sofort (Google-Popup, braucht eine direkte Nutzergeste): Zielposition merken, das Popup dauert ohnehin länger.
+    const [[focusLetters, flowLetters]] = await Promise.all([
+      Promise.all([
+        focusCtl.current?.prepareExit?.(immediate, glow),
+        flowCtl.current?.prepareExit?.(immediate, glow),
+      ]),
+      immediate ? null : new Promise((resolve) => { setTimeout(resolve, glide); }),
     ]);
     captureBrandHandoff(
-      { FOCUS: { el: focusWordRef.current, letters: focusLetters }, FLOW: { el: flowWordRef.current, letters: flowLetters } },
+      {
+        FOCUS: { el: focusWordRef.current, letters: focusLetters, rect: immediate ? focusRect : undefined },
+        FLOW: { el: flowWordRef.current, letters: flowLetters, rect: immediate ? flowRect : undefined },
+      },
       theme,
     );
   };
@@ -71,6 +102,7 @@ function Login() {
   const cancelLeave = () => {
     leavingRef.current = false;
     setLeaving(false);
+    [focusWordRef.current, flowWordRef.current].forEach((el) => { if (el) el.style.transform = ''; });
     clearBrandHandoff();
     focusCtl.current?.resume?.();
     flowCtl.current?.resume?.();

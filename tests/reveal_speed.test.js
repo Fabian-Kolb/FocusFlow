@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
+  readRevealGlow,
+  writeRevealGlow,
+  REVEAL_GLOW_KEY,
   REVEAL_SPEEDS,
   REVEAL_SPEED_KEY,
   DEFAULT_REVEAL_SPEED,
@@ -37,8 +40,18 @@ describe('Geschwindigkeit der Login-Animation', () => {
   });
 
   it('zeigt die ungefähre Dauer je Stufe an', () => {
-    expect(revealDurationLabel('fast')).toBe('ca. 0,9 s');
-    expect(revealDurationLabel('medium')).toBe('ca. 1,3 s');
-    expect(revealDurationLabel('slow')).toBe('ca. 1,9 s');
+    expect(revealDurationLabel('fast')).toBe('ca. 0,8 s');
+    expect(revealDurationLabel('medium')).toBe('ca. 1,1 s');
+    expect(revealDurationLabel('slow')).toBe('ca. 1,7 s');
+  });
+
+  it('Leuchten ist standardmäßig an und lässt sich ausschalten', () => {
+    expect(readRevealGlow()).toBe(true);
+    writeRevealGlow(false);
+    expect(localStorage.getItem(REVEAL_GLOW_KEY)).toBe('off');
+    expect(readRevealGlow()).toBe(false);
+    writeRevealGlow(true);
+    expect(localStorage.getItem(REVEAL_GLOW_KEY)).toBeNull();
+    expect(readRevealGlow()).toBe(true);
   });
 });

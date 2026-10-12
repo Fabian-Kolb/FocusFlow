@@ -1,9 +1,10 @@
 import React from 'react';
-import { Chip, SectionHeader } from '../../ds';
-import { REVEAL_SPEEDS, revealDurationLabel, useRevealSpeed } from '../../../lib/revealSpeed';
+import { Chip, SectionHeader, Switch } from '../../ds';
+import { REVEAL_SPEEDS, revealDurationLabel, useRevealGlow, useRevealSpeed } from '../../../lib/revealSpeed';
 
 export default function PreferencesSection() {
   const [speed, chooseSpeed] = useRevealSpeed();
+  const [glow, chooseGlow] = useRevealGlow();
 
   return (
     <div className="space-y-6">
@@ -29,6 +30,12 @@ export default function PreferencesSection() {
             </Chip>
           ))}
         </div>
+        <Switch
+          checked={glow}
+          onChange={chooseGlow}
+          label="Buchstaben leuchten blau"
+          description="Die eingezogenen Buchstaben leuchten so, wie wenn du mit dem Zeiger darüberfährst."
+        />
         <p className="text-caption text-tertiary">
           Ist in deinem System „Bewegung reduzieren“ aktiv, entfällt die Animation.
         </p>

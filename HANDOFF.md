@@ -464,3 +464,23 @@
 1. Zeitgefühl und Kurven am echten Gerät prüfen (`T`, `EASE_*` in `LoginReveal.jsx`).
 2. Offene Frage aus dem Chat: Landing und Login trennen? (Entwurf zuerst, noch nicht begonnen.)
 3. Blauer Radialverlauf im Dark-Mode-Login (Regel 01) weiterhin ungeklärt.
+
+
+---
+
+## Nachtrag 2026-10-12 (Claude Code): Übergang mit 3D-Zug, Mitte am Handy, Tempo-Einstellung
+
+### Getan
+- `LoginReveal.jsx`: Buchstaben bleiben 3D (kein Umblenden in 2D mehr) und werden einzeln wie ein Zug in den Strich gezogen, mit gleichmäßiger Beschleunigung, also immer schneller zum Ende hin. Die Seitenleiste schiebt sich nach dem Öffnen vom linken Rand herein.
+- `Wordmark3D.jsx`: `prepareExit` liefert je Buchstabe einen zugeschnittenen Canvas-Ausschnitt statt eines Wort-PNG. `Login.jsx` und `brandTransition.js` reichen `letters` (und optional `rect`) weiter. `WordmarkSvg.jsx`: Prop `only`.
+- Handy: Beim Antippen schließt die Tastatur, Karte und Band blenden aus, die Wörter gleiten in die Mitte des Bildschirms (auch aus dem Bild gescrollt). Strich und Hälften in Prozent, damit eine ändernde Fenstergröße nicht stört.
+- Neuer Tab „Einstellungen“ im Einstellungs-Dialog (`PreferencesSection.jsx`, `VALID_TABS` erweitert): Geschwindigkeit der Animation in drei Stufen (Schnell, Mittel, Langsam), gespeichert je Gerät. Code: `src/lib/revealSpeed.js`, Test `tests/reveal_speed.test.js` (in `vitest.config.js` eingetragen).
+
+### Tests
+- `npm run check:design` ok, `vitest` 220/220, `vite build` ok, Lint ohne neue Warnungen.
+- Browser (Einzelbilder bei angehaltener Animation): Desktop dunkel (Zug, Öffnen, Logo schiebt von links, Tab Einstellungen, Stufe Langsam dehnt auf etwa 1,9 s), Handy hell mit gescrollter Seite (Wörter erscheinen in der Mitte, Öffnen oben/unten).
+
+### Offen
+1. Echtes Gerät: Gefühl des Zugs (Beschleunigung `trainAccel`, Versatz `trainStagger`), E-Mail-Login mit offener Tastatur (Android und iOS), Google-Login.
+2. Landing und Login trennen: Entwurf noch nicht begonnen.
+3. Blauer Radialverlauf im Dark-Mode-Login (Regel 01) weiterhin ungeklärt.

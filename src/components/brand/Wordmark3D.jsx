@@ -469,7 +469,21 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
     // Die Bilder bleiben 3D und werden danach (LoginReveal) einzeln in den Strich gezogen.
     let exiting = false;
     const projected = new THREE.Vector3();
-    const snapshot = () => {
+    // Leuchten eines Buchstabens wie beim Darüberfahren mit dem Zeiger (Emissive plus Schein), `g`: 0 bis 1
+    const setGlow = (l, g) => {
+      const preset = sceneRef.current?.preset || THEMES.light;
+      const glowColor = new THREE.Color(preset.glow);
+      l.material.emissive.copy(new THREE.Color(preset.material.emissive).lerp(glowColor, Math.min(g * 1.2, 1)));
+      l.material.emissiveIntensity = preset.material.emissiveIntensity + g * 1.1;
+      l.halos.forEach((halo, h) => {
+        halo.material.color.copy(glowColor);
+        halo.material.blending = preset.glowAdd ? THREE.AdditiveBlending : THREE.NormalBlending;
+        halo.material.opacity = g * HALO_SCALES[h].opacity * l.enter;
+        halo.visible = halo.material.opacity > 0.004;
+      });
+    };
+    // Buchstabe für Buchstabe als Bildausschnitt, auf Wunsch zusätzlich leuchtend (`withGlow`)
+    const snapshot = (withGlow = false) => {
       try {
         setWide(false);
         const w = renderer.domElement.width;
@@ -486,29 +500,40 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
             const py = (-projected.y * 0.5 + 0.5) * h;
             x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py);
           })));
-          const margin = 6 * renderer.getPixelRatio();
+          const margin = 10 * renderer.getPixelRatio();
           const sx = Math.max(0, Math.floor(x0 - margin));
           const sy = Math.max(0, Math.floor(y0 - margin));
           const sw = Math.min(w, Math.ceil(x1 + margin)) - sx;
           const sh = Math.min(h, Math.ceil(y1 + margin)) - sy;
-          const canvas = document.createElement('canvas');
-          canvas.width = sw;
-          canvas.height = sh;
-          canvas.getContext('2d').drawImage(renderer.domElement, sx, sy, sw, sh, 0, 0, sw, sh);
-          return { canvas, fx: sx / w, fy: sy / h, fw: sw / w, fh: sh / h };
+          const crop = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = sw;
+            canvas.height = sh;
+            canvas.getContext('2d').drawImage(renderer.domElement, sx, sy, sw, sh, 0, 0, sw, sh);
+            return canvas;
+          };
+          const canvas = crop();
+          let glowCanvas = null;
+          if (withGlow) {
+            setGlow(keep, 1);
+            renderer.render(scene, camera);
+            glowCanvas = crop();
+            setGlow(keep, keep.glow);
+          }
+          return { canvas, glowCanvas, fx: sx / w, fy: sy / h, fw: sw / w, fh: sh / h };
         });
         letters.forEach((l) => { l.mesh.visible = true; });
         renderer.render(scene, camera);
         return shots;
       } catch {
-        letters.forEach((l) => { l.mesh.visible = true; });
+        letters.forEach((l) => { l.mesh.visible = true; setGlow(l, l.glow); });
         return null;
       }
     };
     // `immediate`: sofort festhalten (z. B. Google-Popup, das eine direkte Nutzergeste braucht)
-    const prepareExit = (immediate = false) => new Promise((resolve) => {
+    const prepareExit = (immediate = false, withGlow = false) => new Promise((resolve) => {
       if (immediate) {
-        resolve(snapshot());
+        resolve(snapshot(withGlow));
         return;
       }
       endDrag();
@@ -525,7 +550,7 @@ function Wordmark3D({ word, theme = 'light', attention = false, attentionTargetR
       const finish = () => {
         if (done) return;
         done = true;
-        resolve(snapshot());
+        resolve(snapshot(withGlow));
       };
       const check = () => {
         if (done) return;
