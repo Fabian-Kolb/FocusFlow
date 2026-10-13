@@ -3,6 +3,9 @@ import { useAuth } from '../../context/AuthContext';
 import WordmarkWord from '../brand/WordmarkWord';
 import LoginMarquee from '../brand/LoginMarquee';
 import LoginIntroVideo from '../brand/LoginIntroVideo';
+import LoginFioSection from '../brand/fio/LoginFioSection';
+import CompactWordmarkBar from '../brand/CompactWordmarkBar';
+import useFloatingWordmark from '../brand/useFloatingWordmark';
 import { canUseTilt, requestTilt, TILT_ACTIVE_EVENT } from '../../lib/tilt';
 import { LEGAL_PATHS } from '../../lib/legal';
 import { getDevCredentials } from '../../lib/devAccount';
@@ -46,6 +49,9 @@ function Login() {
   const [typingPulse, setTypingPulse] = useState(0);
   const focusWordRef = useRef(null);
   const flowWordRef = useRef(null);
+  // Platzhalter im Layout: Hier stehen die Wörter in Ruhe, von dort gleiten sie beim Scrollen nach oben
+  const focusSlotRef = useRef(null);
+  const flowSlotRef = useRef(null);
   const formRef = useRef(null);
   const typed = (setter) => (e) => {
     setter(e.target.value);
@@ -56,6 +62,8 @@ function Login() {
   const flowCtl = useRef(null);
   const leavingRef = useRef(false);
   const [leaving, setLeaving] = useState(false); // Alles außer den Wörtern blendet aus, der Bildschirm wird eine Fläche
+  // Beim Scrollen gleiten FOCUS und FLOW klein nebeneinander nach oben und bleiben dort (während des Login-Übergangs pausiert)
+  const compact = useFloatingWordmark([focusSlotRef, flowSlotRef], [focusWordRef, flowWordRef], { enabled: !leaving });
   // Beim Anmelden: Tastatur schließen und die Wörter in die Mitte des Bildschirms gleiten lassen, damit man sieht, wo etwas
   // passiert (Handy: Wörter stehen oben oder sind beim Tippen aus dem Bild gescrollt). Gibt die Zielpositionen und die
   // Dauer des Gleitens zurück.
@@ -71,7 +79,8 @@ function Login() {
     const ms = Math.round(350 * revealFactor());
     els.forEach((el) => {
       el.style.transition = `transform ${ms}ms cubic-bezier(0.76, 0, 0.24, 1)`;
-      el.style.transform = `translate(${dx}px, ${dy}px)`;
+      // Vorne angehängt wirkt die Verschiebung im Fenster, die kompakte Stellung vom Scrollen bleibt erhalten
+      el.style.transform = `translate(${dx}px, ${dy}px) ${el.dataset.compact || ''}`;
     });
     return { rects: rects.map((r) => ({ left: r.left + dx, top: r.top + dy, width: r.width, height: r.height })), ms };
   };
@@ -186,10 +195,12 @@ function Login() {
 
   return (
     <>
-    <div className="relative isolate flex min-h-screen flex-col items-center justify-center gap-6 overflow-x-hidden overflow-x-clip bg-canvas px-4 pb-8 pt-16 lg:flex-row lg:gap-10 lg:py-8 xl:gap-14">
+    <div className="relative isolate z-10 flex min-h-screen flex-col items-center justify-center gap-6 overflow-x-hidden overflow-x-clip bg-canvas px-4 pb-8 pt-16 lg:flex-row lg:gap-10 lg:py-8 xl:gap-14">
       <div className={`pointer-events-none fixed inset-0 -z-10 ${FADE} ${leaving ? 'opacity-0' : ''}`}>
         <LoginMarquee />
       </div>
+
+      <CompactWordmarkBar progress={compact.progress} reduced={compact.reduced} hidden={leaving} />
 
       {/* Eigener Wrapper: `IconButton` bringt selbst `relative` mit, das `absolute` aus className verdrängte */}
       <div className={`absolute right-4 top-4 z-10 ${FADE} ${leaving ? 'pointer-events-none opacity-0' : ''}`}>
@@ -215,8 +226,10 @@ function Login() {
       )}
 
       {/* Wortmarke: Mobil/Tablet zweizeilig über der Karte, Desktop FOCUS | Karte | FLOW */}
-      <WordmarkWord ref={focusWordRef} controlRef={focusCtl} word="FOCUS" theme={theme} attention={formEngaged} attentionTargetRef={formRef} pulse={typingPulse} className="order-1 -mb-8 w-full max-w-[24rem] sm:max-w-[30rem] lg:mb-0 lg:max-w-[32rem] lg:flex-1 xl:max-w-[36rem]" />
-      <WordmarkWord ref={flowWordRef} controlRef={flowCtl} word="FLOW" theme={theme} attention={formEngaged} attentionTargetRef={formRef} pulse={typingPulse} className="order-2 w-full max-w-[24rem] sm:max-w-[30rem] lg:order-3 lg:max-w-[32rem] lg:flex-1 xl:max-w-[36rem]" />
+      <WordmarkWord ref={focusWordRef} controlRef={focusCtl} word="FOCUS" theme={theme} attention={formEngaged} attentionTargetRef={formRef} pulse={typingPulse} className="z-10" />
+      <WordmarkWord ref={flowWordRef} controlRef={flowCtl} word="FLOW" theme={theme} attention={formEngaged} attentionTargetRef={formRef} pulse={typingPulse} className="z-10" />
+      <div ref={focusSlotRef} aria-hidden="true" className="order-1 -mb-8 aspect-[400/165] w-full max-w-[24rem] sm:max-w-[30rem] lg:mb-0 lg:max-w-[32rem] lg:flex-1 xl:max-w-[36rem]" />
+      <div ref={flowSlotRef} aria-hidden="true" className="order-2 aspect-[400/165] w-full max-w-[24rem] sm:max-w-[30rem] lg:order-3 lg:max-w-[32rem] lg:flex-1 xl:max-w-[36rem]" />
 
       <Card padding="lg" variant="outlined" className={`relative order-3 w-full max-w-md shrink-0 space-y-6 lg:order-2 lg:max-w-sm xl:max-w-md ${FADE} ${leaving ? 'pointer-events-none opacity-0' : ''}`}>
         <div className="text-center">
@@ -337,6 +350,7 @@ function Login() {
     </div>
     <div className={`${FADE} ${leaving ? 'pointer-events-none opacity-0' : ''}`}>
       <LoginIntroVideo />
+      <LoginFioSection />
     </div>
     </>
   );

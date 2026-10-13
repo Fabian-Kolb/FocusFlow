@@ -516,3 +516,27 @@
 ### Offen
 1. Echtes Gerät: Tempo und Gleiten am Handy, E-Mail-Login mit offener Tastatur.
 2. Landing und Login trennen: Entwurf noch nicht begonnen.
+
+---
+
+## Nachtrag 2026-10-13 (Claude Code): Fio als Figur, Startseite
+
+### Getan
+- **Fio-Figur** (`src/components/brand/fio/`): `fioRig.js` (SVG-Rig, gemeinsame Animationsschleife), `FioCharacter.jsx` (React-Hülle), `LoginFioSection.jsx` (Abschnitt „Das ist Fio“ unter dem Video auf dem Login). Gestaltung vom Nutzer festgelegt: Block-Kopf, Form Weich, Brauen nur bei Gefühlen (Sanfter Bogen), Hände und Füße, kein Mund, kein Schatten. Farben `bg-inverse`/`text-inverse` (Hell/Dunkel automatisch).
+- Fio auf der Startseite: läuft herein, redet vorgefertigte Sätze, Antippen, Hochziehen (Angst, Strampeln), Loslassen (Fallen, Landen), Fragen-Knöpfe, läuft selbstständig, schläft nach 45 s ein.
+- **Handy-Login:** FOCUS und FLOW schrumpfen beim Scrollen nebeneinander in eine Leiste oben (`useCompactWordmark.js`, `CompactWordmarkBar.jsx`). `centerWords` in `Login.jsx` nimmt die kompakte Stellung mit (`data-compact`).
+- Regel 01: Ausnahme Fio-Figur bei Bewegung (Abschnitt 10) und Icons (Abschnitt 11). Doku: `docs/Wissen/07_KI_Coach/02-Fio-Figur.md`, Landingpage-Akte ergänzt.
+
+### Tests & Build
+- `npx vitest run` 221/221 grün, `npm run check:design` ok, `vite build` ok.
+- Im Browser (Dev-Server) geprüft: Auftritt, Sprechblase, Hochheben, Landen, hell/dunkel, kompakte Leiste auf 375 px. Keine neuen automatisierten Tests für Fio.
+
+### Next Steps
+1. Echter Touch-Test am Handy: Fio hochziehen, kompakte Leiste beim Scrollen, Login-Übergang aus kompakter Stellung.
+2. Fio-Figur in den Coach bringen (Chat-Kopf nur Kopf, Begrüßung im leeren Chat), an echte Chat-Zustände koppeln.
+3. Figur ins Design-System-Artefakt übernehmen.
+
+### Fallstricke
+- Der Login-Container hat `z-10` (kompakte Wörter liegen über den Abschnitten darunter). Neue Abschnitte unter dem Login liegen dadurch unter Leiste und Wörtern, das ist gewollt.
+- Im verborgenen Browser-Bereich pausiert requestAnimationFrame: Fio bleibt dann scheinbar hängen (kein Fehler).
+
