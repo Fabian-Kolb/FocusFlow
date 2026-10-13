@@ -67,7 +67,11 @@ function LoginFioSection({ hidden = false }) {
   const [askRef, askStyle] = useScrollReveal({ delay: 120 });
   const [featRef, featStyle] = useScrollReveal({ delay: 200 });
 
-  useEffect(() => () => { mounted.current = false; speechId.current += 1; }, []);
+  // StrictMode (nur Entwicklung) baut Effekte einmal ab und wieder auf: deshalb beim Aufbau wieder auf true setzen
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; speechId.current += 1; };
+  }, []);
 
   const boxSize = () => (isDesktop() ? 200 : 150);
   const scaleFor = (place) => {
