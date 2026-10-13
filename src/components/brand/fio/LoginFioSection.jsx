@@ -1,25 +1,31 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Button, Card, FOCUS, Icon } from '../../ds';
+import { createPortal } from 'react-dom';
+import { Button, FOCUS, Icon } from '../../ds';
 import FioCharacter from './FioCharacter';
+import useScrollReveal from '../useScrollReveal';
 
 /**
- * Startseite (Login), unter dem Erklär-Video: Fio stellt sich vor.
- * Fio läuft herein, winkt und redet vorgefertigte Sätze (keine KI-Anbindung). Antippen = anstupsen,
- * Hochziehen = Fio hat Angst und strampelt, Loslassen = fällt zurück auf den Boden.
- * Ohne Interaktion läuft Fio ab und zu ein Stück und schläft nach einer Weile ein.
- * Bei reduzierter Bewegung: kein Laufen und Fallen, Fio steht und spricht ohne Tipp-Effekt.
+ * Startseite: Fio lebt frei über der ganzen Seite (fixierte Ebene) und hat im Abschnitt „Das ist Fio“ seinen Bereich.
+ *
+ * - Außerhalb seines Abschnitts steht Fio klein in einer Ecke (Desktop von Anfang an, Handy erst nach dem Login-Bereich).
+ * - Kommt der Abschnitt ins Bild, springt Fio in seinen Bereich (Desktop: rechte Spalte, die beim Scrollen stehen bleibt;
+ *   Handy: unten rechts, größer) und begrüßt einmal. Die Fragen-Knöpfe geben je eine feste Antwort (keine KI-Anbindung).
+ * - Antippen: Fio freut sich. Ziehen: überall hin, Fio hat Angst und strampelt. Loslassen: fällt auf den unteren Rand.
+ * - Fio steht immer an festen Bildschirmkoordinaten (nie an der Seite „festgeklebt“), dadurch ruckelt beim Scrollen nichts.
+ * Bei reduzierter Bewegung: Fio springt und fällt nicht, sondern steht sofort am Ziel.
  */
 
-const INTRO = ['Hallo, ich bin Fio.', 'Ich helfe dir, aus Gedanken Pläne zu machen.'];
-const TOPICS = [
-  { label: 'Wer bist du?', lines: ['Ich bin Fio, dein Begleiter in FocusFlow.', 'Mein Name steht für Focus, Input, Output. Und für die zwei F im Logo.'] },
-  { label: 'Was kannst du?', lines: ['Ich ordne deine Gedanken und mache daraus Erinnerungen, Termine oder Projekte.', 'Aus einer groben Idee baue ich dir Phasen und Aufgaben.'] },
-  { label: 'Wie hilfst du beim Planen?', lines: ['Frag mich, was heute dran ist.', 'Ich schaue auf Termine, Erinnerungen und Projekte und nenne dir zwei, drei Schritte. Nicht zwanzig.'] },
-  { label: 'Ich stecke fest', lines: ['Dann zerlegen wir die Aufgabe zusammen in kleine Schritte.', 'Der erste ist meistens kleiner, als er sich anfühlt.'] },
+const GREETING = 'Hallo, ich bin Fio! Ich helfe dir, Gedanken, Termine und Projekte zu ordnen. Frag mich einfach etwas.';
+const QUESTIONS = [
+  { q: 'Wer bist du?', a: 'Ich bin Fio, der KI-Assistent von FocusFlow. Ich helfe dir, den Überblick zu behalten.' },
+  { q: 'Was kannst du?', a: 'Ich mache aus deinen Gedanken Erinnerungen, Termine oder Projekte und plane mit dir deinen Tag.' },
+  { q: 'Wie plane ich meinen Tag?', a: 'Frag mich, was heute dran ist. Ich schaue auf Termine, Erinnerungen und Projekte und nenne dir die zwei, drei wichtigsten Schritte.' },
+  { q: 'Wie wird aus einer Idee ein Projekt?', a: 'Halte die Idee als Gedanken fest und lass sie mich ausarbeiten. Ich schlage Phasen und Aufgaben vor, du entscheidest.' },
+  { q: 'Bist du eine KI?', a: 'Ja. In der App beantworte ich alles, was du mich fragst. Hier auf der Startseite stelle ich mich nur kurz vor.' },
 ];
-const POKES = ['Hey, das kitzelt.', 'Ja? Ich bin da.', 'Frag mich ruhig etwas.', 'Noch mal, und ich fange an zu hüpfen.'];
-const LIFTED = ['Huch! Nicht so hoch!', 'Bitte wieder runter!', 'Ich hab doch keine Flügel!'];
-const LANDED = ['Puh. Lieber mit beiden Füßen am Boden.', 'Danke. Boden ist gut.', 'Geschafft. Wo waren wir?'];
+const POKE = 'Hallo! Frag mich ruhig etwas.';
+const LIFTED = 'Huch! Lass mich bitte runter.';
+const LANDED = 'Danke, so ist es besser.';
 
 const FEATURES = [
   { icon: 'lightbulb', title: 'Gedanken ordnen', text: 'Schreib einfach drauflos. Fio macht daraus Erinnerungen, Termine oder Projekte.' },
@@ -28,33 +34,62 @@ const FEATURES = [
   { icon: 'route', title: 'Weiterkommen', text: 'Hängst du fest, zerlegt Fio die Aufgabe mit dir in kleine Schritte, bis der nächste klar ist.' },
 ];
 
-const GRAVITY = 2400; // px/s²
-const WALK_SPEED = 80; // px/s
-const SLEEP_AFTER = 45000;
-const pick = (list) => list[Math.floor(Math.random() * list.length)];
+const GRAVITY = 2600; // px/s²
+const WALK_SPEED = 90; // px/s
+const SLEEP_AFTER = 60000;
+const MARGIN = 16;
 const wait = (ms) => new Promise((r) => { setTimeout(r, ms); });
 const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+const isDesktop = () => window.matchMedia?.('(min-width: 1024px)').matches;
+const easeInOut = (v) => (v < 0.5 ? 2 * v * v : 1 - ((-2 * v + 2) ** 2) / 2);
 
-function LoginFioSection() {
+function LoginFioSection({ hidden = false }) {
   const [mood, setMood] = useState('idle');
-  const [bubble, setBubble] = useState({ text: '', shown: false });
+  const [bubble, setBubble] = useState({ text: '', shown: false, big: false });
+  const [active, setActive] = useState(false);
+  const sectionRef = useRef(null);
   const stageRef = useRef(null);
-  const fioRef = useRef(null);
+  const hostRef = useRef(null);
+  const scalerRef = useRef(null);
   const bubbleRef = useRef(null);
   const ctlRef = useRef(null);
-  const pos = useRef({ x: -200, h: 0, vy: 0, target: 0, mode: 'off', bounced: false, onArrive: null, onLanded: null });
+  const st = useRef({ cx: 0, foot: 0, scale: 0.55, scaleT: 0.55, mode: 'hidden', place: 'none', target: 0, vy: 0, bounced: false, jump: null, onLanded: null });
   const drag = useRef(null);
   const speechId = useRef(0);
   const busy = useRef(false);
   const sleeping = useRef(false);
+  const greeted = useRef(false);
+  const activeRef = useRef(false);
   const lastActive = useRef(Date.now());
-  const nextWander = useRef(Date.now() + 12000);
-  const started = useRef(false);
+  const nextWander = useRef(Date.now() + 10000);
   const mounted = useRef(true);
+  const [headRef, headStyle] = useScrollReveal();
+  const [askRef, askStyle] = useScrollReveal({ delay: 120 });
+  const [featRef, featStyle] = useScrollReveal({ delay: 200 });
 
   useEffect(() => () => { mounted.current = false; speechId.current += 1; }, []);
 
-  const speak = useCallback(async (lines, { think = 0, end = 'happy' } = {}) => {
+  const boxSize = () => (isDesktop() ? 200 : 150);
+  const scaleFor = (place) => {
+    if (place === 'home') return isDesktop() ? 1 : 0.8;
+    return isDesktop() ? 0.55 : 0.6;
+  };
+  // Zielpunkt (Mitte unten der Figur, in Fensterkoordinaten) für Ecke oder Fios Bereich
+  const spotFor = (place) => {
+    const vw = document.documentElement.clientWidth;
+    const vh = window.innerHeight;
+    const S = boxSize();
+    const sc = scaleFor(place);
+    if (place === 'home' && isDesktop() && stageRef.current) {
+      const r = stageRef.current.getBoundingClientRect();
+      return { cx: r.left + r.width / 2, foot: Math.min(r.bottom - 24, vh - MARGIN) };
+    }
+    if (place === 'home' || !isDesktop()) return { cx: vw - MARGIN - (S * sc) / 2, foot: vh - MARGIN };
+    return { cx: MARGIN + 8 + (S * sc) / 2, foot: vh - MARGIN };
+  };
+
+  // Sprechen: ein Satz, Wort für Wort, danach blendet die Blase aus
+  const say = useCallback(async (text, { think = 0, end = null, big = false } = {}) => {
     const myId = ++speechId.current;
     const alive = () => mounted.current && speechId.current === myId;
     busy.current = true;
@@ -63,131 +98,153 @@ function LoginFioSection() {
       await wait(think);
       if (!alive()) return;
     }
-    for (const line of lines) {
-      setMood('talking');
-      if (reducedMotion()) {
-        setBubble({ text: line, shown: true });
-      } else {
-        const words = line.split(' ');
-        for (let i = 0; i < words.length; i += 1) {
-          setBubble({ text: words.slice(0, i + 1).join(' '), shown: true });
-          await wait(65);
-          if (!alive()) return;
-        }
+    setMood('talking');
+    if (reducedMotion()) {
+      setBubble({ text, shown: true, big });
+    } else {
+      const words = text.split(' ');
+      for (let i = 0; i < words.length; i += 1) {
+        setBubble({ text: words.slice(0, i + 1).join(' '), shown: true, big });
+        await wait(45);
+        if (!alive()) return;
       }
-      setMood('idle');
-      await wait(Math.max(1300, line.length * 38));
-      if (!alive()) return;
     }
+    setMood(end || 'idle');
     if (end) {
-      setMood(end);
       await wait(900);
       if (!alive()) return;
+      setMood('idle');
     }
-    setMood('idle');
     busy.current = false;
-    await wait(2500);
+    await wait(Math.max(3500, text.length * 55));
     if (alive()) setBubble((b) => ({ ...b, shown: false }));
   }, []);
 
-  const walkTo = useCallback((x, onArrive) => {
-    const p = pos.current;
-    p.target = x;
-    p.onArrive = onArrive || null;
-    if (reducedMotion()) {
-      p.x = x;
-      p.mode = 'idle';
-      onArrive?.();
-      return;
-    }
-    p.mode = 'walk';
-  }, []);
-
-  // Aktivität merken, Fio aufwecken, falls er schläft
-  const wake = useCallback(() => {
+  const touch = useCallback(() => {
     lastActive.current = Date.now();
-    nextWander.current = Date.now() + 10000 + Math.random() * 6000;
+    nextWander.current = Date.now() + 9000 + Math.random() * 6000;
     if (!sleeping.current) return;
     sleeping.current = false;
     setMood('surprised');
     setTimeout(() => { if (mounted.current && !busy.current) setMood('idle'); }, 600);
   }, []);
 
-  const stopWalking = () => {
-    const p = pos.current;
-    if (p.mode === 'walk') { p.mode = 'idle'; p.onArrive = null; }
-    if (ctlRef.current) ctlRef.current.walkDir = 0;
+  // Sprung zu Ecke oder Bereich (Bogen), Ziel wird jedes Bild neu bestimmt
+  const goTo = useCallback((place, onDone) => {
+    const s = st.current;
+    if (s.mode === 'drag' || s.mode === 'fall') return;
+    const ctl = ctlRef.current;
+    if (ctl) ctl.walkDir = 0;
+    s.scaleT = scaleFor(place);
+    if (reducedMotion()) {
+      const p = spotFor(place);
+      Object.assign(s, { cx: p.cx, foot: p.foot, scale: s.scaleT, mode: 'idle', place });
+      onDone?.();
+      return;
+    }
+    const vh = window.innerHeight;
+    const fromHidden = s.mode === 'hidden';
+    const start = fromHidden ? { cx: spotFor(place).cx, foot: vh + boxSize() } : { cx: s.cx, foot: s.foot };
+    s.jump = { from: start, t0: performance.now(), dur: fromHidden ? 650 : 750, place, onDone };
+    s.mode = 'jump';
+  }, []);
+
+  const hide = useCallback(() => {
+    const s = st.current;
+    if (s.mode === 'hidden' || s.mode === 'drag') return;
+    s.jump = { from: { cx: s.cx, foot: s.foot }, t0: performance.now(), dur: 500, place: 'hidden' };
+    s.mode = 'jump';
+  }, []);
+
+  const ask = (item) => {
+    touch();
+    if (activeRef.current && st.current.place !== 'home') goTo('home');
+    say(item.a, { think: 500, big: true });
   };
 
-  const poke = () => {
-    wake();
-    stopWalking();
-    ctlRef.current?.boop();
-    speak([pick(POKES)], { end: null });
-  };
-
-  const ask = (topic) => {
-    wake();
-    stopWalking();
-    speak(topic.lines, { think: 700 });
-  };
-
-  // Bewegung: Laufen, Hochheben, Fallen, Sprechblase folgt Fio
+  // Bewegungsschleife: Springen, Laufen, Ziehen, Fallen; Figur, Größe und Sprechblase setzen
   useEffect(() => {
     let frame = 0;
     let last = performance.now();
     const step = (now) => {
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
-      const p = pos.current;
-      const stage = stageRef.current;
-      const fio = fioRef.current;
+      const s = st.current;
+      const host = hostRef.current;
       const ctl = ctlRef.current;
-      if (stage && fio) {
-        const fw = fio.offsetWidth;
-        // Bühne kann schmaler werden (Drehen, Fenstergröße): Fio und Laufziel bleiben drin
-        const maxX = Math.max(0, stage.clientWidth - fw);
-        p.target = Math.min(p.target, maxX);
-        if (p.mode === 'idle' || p.mode === 'fall') p.x = Math.min(p.x, maxX);
-        if (p.mode === 'walk') {
-          const d = p.target - p.x;
-          if (Math.abs(d) > 2) {
-            const dir = Math.sign(d);
-            p.x += dir * Math.min(Math.abs(d), WALK_SPEED * dt);
-            if (ctl) ctl.walkDir = dir;
+      const vw = document.documentElement.clientWidth;
+      const vh = window.innerHeight;
+      const S = boxSize();
+      const floor = vh - MARGIN;
+
+      if (s.mode === 'jump' && s.jump) {
+        const j = s.jump;
+        const t = Math.min(1, (now - j.t0) / j.dur);
+        const to = j.place === 'hidden' ? { cx: s.cx, foot: vh + S } : spotFor(j.place);
+        const e = easeInOut(t);
+        const arc = j.place === 'hidden' ? 0 : (isDesktop() ? 140 : 90) * 4 * t * (1 - t);
+        s.cx = j.from.cx + (to.cx - j.from.cx) * e;
+        s.foot = j.from.foot + (to.foot - j.from.foot) * e - arc;
+        if (t >= 1) {
+          s.jump = null;
+          s.mode = j.place === 'hidden' ? 'hidden' : 'idle';
+          s.place = j.place;
+          if (j.place !== 'hidden') ctl?.land();
+          j.onDone?.();
+        }
+      } else if (s.mode === 'walk') {
+        const d = s.target - s.cx;
+        if (Math.abs(d) > 2) {
+          const dir = Math.sign(d);
+          s.cx += dir * Math.min(Math.abs(d), WALK_SPEED * dt);
+          if (ctl) ctl.walkDir = dir;
+        } else {
+          s.mode = 'idle';
+          if (ctl) ctl.walkDir = 0;
+        }
+      } else if (s.mode === 'fall') {
+        s.vy += GRAVITY * dt;
+        s.foot += s.vy * dt;
+        if (s.foot >= floor) {
+          s.foot = floor;
+          ctl?.land();
+          if (s.vy > 700 && !s.bounced) {
+            s.vy = -s.vy * 0.25;
+            s.bounced = true;
           } else {
-            p.mode = 'idle';
-            if (ctl) ctl.walkDir = 0;
-            const cb = p.onArrive;
-            p.onArrive = null;
+            s.vy = 0;
+            s.mode = 'idle';
+            s.place = 'free';
+            const cb = s.onLanded;
+            s.onLanded = null;
             cb?.();
           }
-        } else if (p.mode === 'fall') {
-          p.vy += GRAVITY * dt;
-          p.h -= p.vy * dt;
-          if (p.h <= 0) {
-            p.h = 0;
-            ctl?.land();
-            if (p.vy > 650 && !p.bounced) {
-              p.vy = -p.vy * 0.25;
-              p.bounced = true;
-            } else {
-              p.mode = 'idle';
-              p.vy = 0;
-              const cb = p.onLanded;
-              p.onLanded = null;
-              cb?.();
-            }
-          }
         }
-        fio.style.transform = `translate(${p.x.toFixed(1)}px, ${(-p.h).toFixed(1)}px)`;
-        const b = bubbleRef.current;
-        if (b) {
-          const bw = b.offsetWidth;
-          const left = Math.max(8, Math.min(stage.clientWidth - bw - 8, p.x + fw / 2 - bw / 2));
-          b.style.transform = `translate(${left.toFixed(1)}px, ${(-(p.h + fw * 0.86)).toFixed(1)}px)`;
-          b.style.setProperty('--tail-x', `${Math.max(14, Math.min(bw - 14, p.x + fw / 2 - left)).toFixed(1)}px`);
-        }
+      } else if (s.mode === 'idle' && s.place !== 'free' && s.place !== 'none') {
+        // Ruhend an Ecke oder Bereich: Fensterwechsel (Größe, Drehen) mitgehen
+        const p = spotFor(s.place);
+        if (s.place !== 'home' || !isDesktop()) s.cx = p.cx;
+        s.foot = p.foot;
+      }
+
+      s.scale += (s.scaleT - s.scale) * Math.min(1, dt * 7);
+      const half = (S * s.scale) / 2;
+      if (s.mode !== 'jump' && s.mode !== 'hidden') s.cx = Math.max(half, Math.min(vw - half, s.cx));
+
+      if (host) {
+        host.style.transform = `translate(${(s.cx - S / 2).toFixed(1)}px, ${(s.foot - S).toFixed(1)}px)`;
+        host.style.width = `${S}px`;
+        host.style.height = `${S}px`;
+        host.style.visibility = s.mode === 'hidden' ? 'hidden' : 'visible';
+      }
+      if (scalerRef.current) scalerRef.current.style.transform = `scale(${s.scale.toFixed(3)})`;
+      const b = bubbleRef.current;
+      if (b) {
+        const bw = b.offsetWidth;
+        const left = Math.max(MARGIN - (s.cx - bw / 2), Math.min(0, vw - MARGIN - (s.cx + bw / 2)));
+        b.style.bottom = `${(S * s.scale * 0.9 + 6).toFixed(1)}px`;
+        b.style.transform = `translateX(calc(-50% + ${left.toFixed(1)}px))`;
+        b.style.setProperty('--tail-x', `${(bw / 2 - left).toFixed(1)}px`);
       }
       frame = requestAnimationFrame(step);
     };
@@ -195,35 +252,55 @@ function LoginFioSection() {
     return () => cancelAnimationFrame(frame);
   }, []);
 
-  // Auftritt, sobald der Abschnitt sichtbar wird
+  // Abschnitt im Bild: Fio springt in seinen Bereich und begrüßt einmal
   useEffect(() => {
-    const stage = stageRef.current;
-    if (!stage) return undefined;
-    const enter = () => {
-      if (started.current) return;
-      started.current = true;
-      const fw = fioRef.current?.offsetWidth || 150;
-      const p = pos.current;
-      p.x = -fw - 20;
-      p.mode = 'idle';
-      walkTo(stage.clientWidth / 2 - fw / 2, () => {
-        ctlRef.current?.boop();
-        speak(INTRO);
-      });
-    };
-    if (typeof IntersectionObserver === 'undefined') { enter(); return undefined; }
-    const io = new IntersectionObserver((entries) => { if (entries.some((e) => e.isIntersecting)) enter(); }, { threshold: 0.35 });
-    io.observe(stage);
+    const el = sectionRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return undefined;
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => { activeRef.current = e.isIntersecting; setActive(e.isIntersecting); });
+    }, { rootMargin: '-35% 0px -35% 0px' });
+    io.observe(el);
     return () => io.disconnect();
-  }, [speak, walkTo]);
+  }, []);
 
-  // Eigenleben: ab und zu ein Stück laufen, nach längerer Ruhe einschlafen
+  useEffect(() => {
+    if (active) {
+      touch();
+      goTo('home', () => {
+        if (greeted.current) return;
+        greeted.current = true;
+        ctlRef.current?.boop();
+        say(GREETING, { big: true });
+      });
+    } else if (st.current.place === 'home') {
+      goTo('corner');
+    }
+  }, [active, goTo, say, touch]);
+
+  // Auftritt: Desktop sofort in der Ecke, Handy erst nach dem Login-Bereich (verschwindet oben wieder)
+  useEffect(() => {
+    const check = () => {
+      const s = st.current;
+      if (activeRef.current || s.mode === 'drag' || s.mode === 'fall') return;
+      const show = isDesktop() || window.scrollY > window.innerHeight * 0.9;
+      if (show && s.mode === 'hidden') goTo('corner', () => ctlRef.current?.boop());
+      if (!show && s.mode !== 'hidden' && s.mode !== 'jump') hide();
+    };
+    const timer = setTimeout(check, 700);
+    window.addEventListener('scroll', check, { passive: true });
+    window.addEventListener('resize', check);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('scroll', check);
+      window.removeEventListener('resize', check);
+    };
+  }, [goTo, hide]);
+
+  // Eigenleben: im eigenen Bereich ab und zu ein Stück laufen, nach längerer Ruhe einschlafen
   useEffect(() => {
     const timer = setInterval(() => {
-      const p = pos.current;
-      const stage = stageRef.current;
-      const fw = fioRef.current?.offsetWidth || 150;
-      if (!started.current || !stage || busy.current || sleeping.current || p.mode !== 'idle') return;
+      const s = st.current;
+      if (s.mode !== 'idle' || busy.current || sleeping.current) return;
       const now = Date.now();
       if (now - lastActive.current > SLEEP_AFTER) {
         sleeping.current = true;
@@ -231,47 +308,46 @@ function LoginFioSection() {
         setMood('sleepy');
         return;
       }
-      if (!reducedMotion() && now > nextWander.current) {
-        nextWander.current = now + 9000 + Math.random() * 7000;
-        const max = stage.clientWidth - fw;
-        let x = Math.random() * max;
-        if (Math.abs(x - p.x) < 60) x = Math.max(0, Math.min(max, p.x + (p.x > max / 2 ? -1 : 1) * 120));
-        walkTo(x);
+      if (s.place === 'home' && isDesktop() && !reducedMotion() && now > nextWander.current && stageRef.current) {
+        nextWander.current = now + 8000 + Math.random() * 7000;
+        const r = stageRef.current.getBoundingClientRect();
+        const half = (boxSize() * s.scale) / 2;
+        s.target = r.left + half + Math.random() * Math.max(0, r.width - 2 * half);
+        s.mode = 'walk';
       }
     }, 1000);
     return () => clearInterval(timer);
-  }, [walkTo]);
+  }, []);
 
-  // Ziehen und Anstupsen
+  // Ziehen und Antippen
   const onPointerDown = (e) => {
     if (e.button !== undefined && e.button !== 0) return;
-    const p = pos.current;
-    if (p.mode === 'fall') return;
+    const s = st.current;
+    if (s.mode === 'fall' || s.mode === 'hidden') return;
     e.currentTarget.setPointerCapture?.(e.pointerId);
-    drag.current = { sx: e.clientX, sy: e.clientY, x0: p.x, h0: p.h, moved: false, lx: e.clientX, lt: performance.now() };
+    drag.current = { sx: e.clientX, sy: e.clientY, cx0: s.cx, foot0: s.foot, moved: false, lx: e.clientX, lt: performance.now() };
   };
   const onPointerMove = (e) => {
     const d = drag.current;
     if (!d) return;
-    const p = pos.current;
+    const s = st.current;
     const ctl = ctlRef.current;
     const dx = e.clientX - d.sx;
     const dy = e.clientY - d.sy;
     if (!d.moved) {
       if (Math.hypot(dx, dy) < 6) return;
       d.moved = true;
-      wake();
-      stopWalking();
-      p.mode = 'drag';
-      if (ctl) ctl.held = true;
-      speak([pick(LIFTED)], { end: null });
+      touch();
+      s.jump = null;
+      s.mode = 'drag';
+      if (ctl) { ctl.held = true; ctl.walkDir = 0; }
+      say(LIFTED);
     }
-    const stage = stageRef.current;
-    const fw = fioRef.current.offsetWidth;
-    p.x = Math.max(0, Math.min(stage.clientWidth - fw, d.x0 + dx));
-    p.h = Math.max(0, Math.min(stage.clientHeight - fw - 8, d.h0 - dy));
+    const vh = window.innerHeight;
+    s.cx = d.cx0 + dx;
+    s.foot = Math.max(boxSize() * s.scale * 0.95, Math.min(vh - MARGIN, d.foot0 + dy));
     const now = performance.now();
-    const vx = (e.clientX - d.lx) / Math.max(1, now - d.lt) * 1000;
+    const vx = ((e.clientX - d.lx) / Math.max(1, now - d.lt)) * 1000;
     d.lx = e.clientX;
     d.lt = now;
     if (ctl) ctl.swing = Math.max(-24, Math.min(24, -vx * 0.03));
@@ -280,87 +356,109 @@ function LoginFioSection() {
     const d = drag.current;
     drag.current = null;
     if (!d) return;
-    if (!d.moved) { poke(); return; }
-    const p = pos.current;
     const ctl = ctlRef.current;
+    if (!d.moved) {
+      touch();
+      ctl?.boop();
+      say(POKE);
+      return;
+    }
+    const s = st.current;
     if (ctl) { ctl.held = false; ctl.swing = 0; }
-    p.vy = 0;
-    p.bounced = false;
-    p.onLanded = () => speak([pick(LANDED)], { end: 'happy' });
-    if (reducedMotion()) { p.h = 0; p.mode = 'idle'; p.onLanded(); p.onLanded = null; return; }
+    s.vy = 0;
+    s.bounced = false;
+    s.onLanded = () => say(LANDED, { end: 'happy' });
+    if (reducedMotion()) {
+      s.foot = window.innerHeight - MARGIN;
+      s.mode = 'idle';
+      s.place = 'free';
+      s.onLanded();
+      s.onLanded = null;
+      return;
+    }
     setMood('surprised');
-    p.mode = 'fall';
+    s.mode = 'fall';
   };
   const onKeyDown = (e) => {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); poke(); }
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      touch();
+      ctlRef.current?.boop();
+      say(POKE);
+    }
   };
 
+  const fio = (
+    <div ref={hostRef} className={`pointer-events-none fixed left-0 top-0 z-10 transition-opacity duration-base ease-standard ${hidden ? 'opacity-0' : ''}`} style={{ visibility: 'hidden', width: 200, height: 200 }}>
+      <div
+        ref={bubbleRef}
+        aria-live="polite"
+        className={`absolute left-1/2 w-max rounded-lg border border-subtle bg-surface px-3 py-2 text-primary shadow-md transition-opacity duration-base ease-standard motion-reduce:transition-none ${bubble.big ? 'max-w-[20rem] text-body-lg' : 'max-w-[15rem] text-body'} ${bubble.shown ? 'opacity-100' : 'opacity-0'}`}
+      >
+        {bubble.text}
+        <span aria-hidden="true" className="absolute -bottom-1.5 h-3 w-3 -translate-x-1/2 rotate-45 border-b border-r border-subtle bg-surface" style={{ left: 'var(--tail-x, 50%)' }} />
+      </div>
+      <div
+        ref={scalerRef}
+        role="button"
+        tabIndex={0}
+        aria-label="Fio anstupsen"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        onKeyDown={onKeyDown}
+        className={`pointer-events-auto absolute inset-0 origin-bottom cursor-grab touch-none select-none rounded-lg active:cursor-grabbing ${FOCUS}`}
+      >
+        <FioCharacter mood={mood} hands feet brows="emotion" gap="var(--bg-canvas)" controlRef={ctlRef} className="h-full w-full" />
+      </div>
+    </div>
+  );
+
   return (
-    <section aria-labelledby="fio-intro-title" className="mx-auto w-full max-w-content px-4 pb-16 md:px-6">
-      <Card padding="md" className="grid items-center gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-10">
-        <div className="min-w-0 space-y-3">
-          <div ref={stageRef} className="relative h-[22rem] overflow-hidden rounded-lg border border-subtle bg-subtle">
-            <p className="absolute left-3 top-3 text-caption text-tertiary">Tippe Fio an oder heb ihn hoch.</p>
-
-            <div
-              ref={bubbleRef}
-              aria-live="polite"
-              className={`pointer-events-none absolute bottom-3 left-0 max-w-[16rem] rounded-lg border border-subtle bg-surface px-3 py-2 text-body text-primary shadow-sm transition-opacity duration-base ease-standard motion-reduce:transition-none ${bubble.shown ? 'opacity-100' : 'opacity-0'}`}
-            >
-              {bubble.text}
-              <span
-                aria-hidden="true"
-                className="absolute -bottom-1.5 h-3 w-3 -translate-x-1/2 rotate-45 border-b border-r border-subtle bg-surface"
-                style={{ left: 'var(--tail-x, 50%)' }}
-              />
+    <>
+      <section ref={sectionRef} aria-labelledby="fio-intro-title" className="mx-auto w-full max-w-content px-4 pb-32 pt-16 md:px-6 lg:pt-24">
+        <div className="grid gap-12 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:gap-16">
+          <div className="min-w-0">
+            <div ref={headRef} style={headStyle}>
+              <p className="text-eyebrow text-secondary">Dein Begleiter</p>
+              <h2 id="fio-intro-title" className="mt-3 text-display text-primary">Das ist Fio</h2>
+              <p className="mt-4 max-w-reading text-body-lg text-secondary">
+                Fio ist der KI-Assistent in FocusFlow. Fio hilft dir, Aufgaben besser zu verstehen und schneller zum Ergebnis zu kommen, ohne dass du alles selbst sortieren musst.
+              </p>
             </div>
 
-            <div
-              ref={fioRef}
-              role="button"
-              tabIndex={0}
-              aria-label="Fio anstupsen"
-              onPointerDown={onPointerDown}
-              onPointerMove={onPointerMove}
-              onPointerUp={onPointerUp}
-              onPointerCancel={onPointerUp}
-              onKeyDown={onKeyDown}
-              className={`absolute bottom-3 left-0 h-36 w-36 cursor-grab touch-none select-none rounded-lg active:cursor-grabbing sm:h-40 sm:w-40 ${FOCUS}`}
-              style={{ transform: 'translate(-200px, 0)' }}
-            >
-              <FioCharacter mood={mood} hands feet brows="emotion" gap="var(--bg-subtle)" controlRef={ctlRef} className="h-full w-full" />
+            <div ref={askRef} style={askStyle} className="mt-10">
+              <p className="text-eyebrow text-secondary">Frag Fio</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {QUESTIONS.map((item) => (
+                  <Button key={item.q} variant="secondary" onClick={() => ask(item)}>{item.q}</Button>
+                ))}
+              </div>
+              <p className="mt-3 text-caption text-tertiary">Du kannst Fio auch antippen oder irgendwohin ziehen.</p>
             </div>
+
+            <ul ref={featRef} style={featStyle} className="mt-14 grid gap-8 sm:grid-cols-2">
+              {FEATURES.map((f) => (
+                <li key={f.title}>
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-muted text-primary" aria-hidden="true">
+                    <Icon name={f.icon} />
+                  </span>
+                  <p className="mt-3 text-heading text-primary">{f.title}</p>
+                  <p className="mt-1 text-body text-secondary">{f.text}</p>
+                </li>
+              ))}
+            </ul>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {TOPICS.map((t) => (
-              <Button key={t.label} variant="secondary" size="sm" onClick={() => ask(t)}>{t.label}</Button>
-            ))}
+          {/* Fios Bereich am Desktop: bleibt beim Scrollen durch den Abschnitt stehen, Fio selbst liegt in der fixierten Ebene */}
+          <div className="hidden lg:block" aria-hidden="true">
+            <div ref={stageRef} className="sticky top-[12vh] h-[70vh]" />
           </div>
         </div>
-
-        <div className="max-w-prose">
-          <p className="text-eyebrow text-secondary">Dein Begleiter</p>
-          <h2 id="fio-intro-title" className="mt-2 text-title text-primary">Das ist Fio</h2>
-          <p className="mt-3 text-body-lg text-secondary">
-            Fio steckt mitten in FocusFlow. Fio hilft dir, Aufgaben besser zu verstehen und schneller zum Ergebnis zu kommen, ohne dass du alles selbst sortieren musst.
-          </p>
-          <ul className="mt-6 space-y-4">
-            {FEATURES.map((f) => (
-              <li key={f.title} className="flex gap-3">
-                <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-secondary" aria-hidden="true">
-                  <Icon name={f.icon} size="sm" />
-                </span>
-                <div className="min-w-0">
-                  <p className="text-body-strong text-primary">{f.title}</p>
-                  <p className="text-body text-secondary">{f.text}</p>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </Card>
-    </section>
+      </section>
+      {typeof document !== 'undefined' && createPortal(fio, document.body)}
+    </>
   );
 }
 

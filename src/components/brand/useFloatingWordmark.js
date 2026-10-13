@@ -3,6 +3,9 @@ import { useLayoutEffect, useState } from 'react';
 const RATIO = 400 / 165; // Seitenverhältnis eines Wortes (WordmarkWord: aspect-[400/165])
 const TOP = 12; // Abstand der kompakten Wörter zum oberen Rand (px)
 const clamp01 = (v) => Math.min(Math.max(v, 0), 1);
+// Ganz klein wirken die 3D-Buchstaben unruhig: am Ende der Bewegung auf den flachen Schriftzug überblenden
+export const flatFade = (progress) => clamp01((progress - 0.85) / 0.15);
+export const compactHeight = (vw) => (vw < 1024 ? 30 : 36);
 const easeOut = (v) => 1 - (1 - v) ** 3;
 
 /**
@@ -16,7 +19,7 @@ const easeOut = (v) => 1 - (1 - v) ** 3;
  * `reduced` und `progress` steuern dann den flachen Schriftzug oben (CompactWordmarkBar).
  */
 export default function useFloatingWordmark(slotRefs, wordRefs, { enabled = true } = {}) {
-  const [state, setState] = useState({ progress: 0, reduced: false });
+  const [state, setState] = useState({ progress: 0, reduced: false, th: 30 });
 
   useLayoutEffect(() => {
     const mqReduced = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -39,7 +42,9 @@ export default function useFloatingWordmark(slotRefs, wordRefs, { enabled = true
 
     const apply = () => {
       frame = 0;
-      if (!enabled || !base) return;
+      // Während des Login-Übergangs müssen die 3D-Wörter sichtbar sein (sie fliegen in die App)
+      if (!enabled) { nodes().words.forEach((w) => { if (w) w.style.opacity = ''; }); return; }
+      if (!base) return;
       const { words } = nodes();
       if (words.some((w) => !w)) return;
       const vw = document.documentElement.clientWidth;
@@ -50,15 +55,16 @@ export default function useFloatingWordmark(slotRefs, wordRefs, { enabled = true
       if (mqReduced.matches) {
         words.forEach((el, i) => {
           const b = base[i];
-          Object.assign(el.style, { position: 'absolute', left: `${b.ox}px`, top: `${b.oy}px`, width: `${b.w}px`, height: `${b.h}px`, transform: '', maxWidth: 'none' });
+          Object.assign(el.style, { position: 'absolute', left: `${b.ox}px`, top: `${b.oy}px`, width: `${b.w}px`, height: `${b.h}px`, transform: '', maxWidth: 'none', opacity: '' });
           el.dataset.compact = '';
         });
-        setState((s) => (s.progress === progress && s.reduced ? s : { progress, reduced: true }));
+        setState((s) => (s.progress === progress && s.reduced ? s : { progress, reduced: true, th: compactHeight(vw) }));
         return;
       }
 
       const e = easeOut(progress);
-      const th = vw < 1024 ? 30 : 36;
+      const th = compactHeight(vw);
+      const fade = flatFade(progress);
       const tw = th * RATIO;
       const overlap = tw * 0.08; // die Rahmen der Wörter haben leeren Rand
       const targets = [{ x: vw / 2 - tw + overlap / 2, y: TOP }, { x: vw / 2 - overlap / 2, y: TOP }];
@@ -68,10 +74,10 @@ export default function useFloatingWordmark(slotRefs, wordRefs, { enabled = true
         const y = b.y + (targets[i].y - b.y) * e;
         const s = 1 + (tw / b.w - 1) * e;
         const t = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) scale(${s.toFixed(4)})`;
-        Object.assign(el.style, { position: 'fixed', left: '0px', top: '0px', width: `${b.w}px`, height: `${b.h}px`, maxWidth: 'none', transformOrigin: '0 0', transform: t });
+        Object.assign(el.style, { position: 'fixed', left: '0px', top: '0px', width: `${b.w}px`, height: `${b.h}px`, maxWidth: 'none', transformOrigin: '0 0', transform: t, opacity: fade > 0 ? (1 - fade).toFixed(3) : '' });
         el.dataset.compact = t;
       });
-      setState((s) => (s.progress === progress && !s.reduced ? s : { progress, reduced: false }));
+      setState((s) => (s.progress === progress && !s.reduced && s.th === th ? s : { progress, reduced: false, th }));
     };
 
     const schedule = () => { if (!frame) frame = requestAnimationFrame(apply); };

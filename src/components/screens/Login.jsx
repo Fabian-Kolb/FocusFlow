@@ -200,7 +200,7 @@ function Login() {
         <LoginMarquee />
       </div>
 
-      <CompactWordmarkBar progress={compact.progress} reduced={compact.reduced} hidden={leaving} />
+      <CompactWordmarkBar progress={compact.progress} reduced={compact.reduced} th={compact.th} hidden={leaving} />
 
       {/* Eigener Wrapper: `IconButton` bringt selbst `relative` mit, das `absolute` aus className verdrängte */}
       <div className={`absolute right-4 top-4 z-10 ${FADE} ${leaving ? 'pointer-events-none opacity-0' : ''}`}>
@@ -350,7 +350,7 @@ function Login() {
     </div>
     <div className={`${FADE} ${leaving ? 'pointer-events-none opacity-0' : ''}`}>
       <LoginIntroVideo />
-      <LoginFioSection />
+      <LoginFioSection hidden={leaving} />
     </div>
     </>
   );

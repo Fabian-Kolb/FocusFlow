@@ -540,3 +540,8 @@
 - Der Login-Container hat `z-10` (kompakte Wörter liegen über den Abschnitten darunter). Neue Abschnitte unter dem Login liegen dadurch unter Leiste und Wörtern, das ist gewollt.
 - Im verborgenen Browser-Bereich pausiert requestAnimationFrame: Fio bleibt dann scheinbar hängen (kein Fehler).
 
+### Nachtrag 2 (2026-10-13, Claude Code): Startseite als Scroll-Erlebnis
+- Schriftzug schwebt beim Scrollen klein nach oben (Handy und Desktop), fixierte Ebene statt Leiste: `useFloatingWordmark.js` (ersetzt `useCompactWordmark.js`), Platzhalter in `Login.jsx`, Überblenden auf flachen Schriftzug (`CompactWordmarkBar.jsx`).
+- Video groß und mittig, Einblenden beim Scrollen (`useScrollReveal.js`).
+- Fio frei über der ganzen Seite (Portal, fixiert), springt in seinen Bereich im Abschnitt „Das ist Fio“, eine Begrüßung, fünf feste Fragen mit je einer Antwort, überall hinziehbar.
+- Tests 221/221, check:design ok, Build ok. Im Browser geprüft (Desktop 1024 px, Handy 375 px, dunkel). Offen: echter Touch-Test am Handy, Login aus kompakter Stellung testen.
