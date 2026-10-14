@@ -545,3 +545,21 @@
 - Video groß und mittig, Einblenden beim Scrollen (`useScrollReveal.js`).
 - Fio frei über der ganzen Seite (Portal, fixiert), springt in seinen Bereich im Abschnitt „Das ist Fio“, eine Begrüßung, fünf feste Fragen mit je einer Antwort, überall hinziehbar.
 - Tests 221/221, check:design ok, Build ok. Im Browser geprüft (Desktop 1024 px, Handy 375 px, dunkel). Offen: echter Touch-Test am Handy, Login aus kompakter Stellung testen.
+
+---
+
+## Nachtrag 2026-10-14 (Claude Code): Startseite neu, Anmelden unter /anmelden
+
+### Getan
+- `Login.jsx` hat zwei Ansichten nach Pfad: `/` Startseite (`src/components/brand/landing/*`), `/anmelden` Anmeldekarte. Die 3D-Wörter fliegen beim Wechsel an ihren neuen Platz (`useFloatingWordmark` mit `layoutKey`).
+- Startseite: Hero mit 3D-Wörtern und Gast-Knopf, Video als stummer Loop, drei Schritte mit nachgebauten App-Ausschnitten, „Frag Fio.“, Funktions-Karten, Abschluss „Privat. Auf Einladung.“ mit Footer. Fio frei über der Seite (`fio/FioCompanion.jsx`).
+- Fehlerbehebung vorher: Fio-Antworten brachen im Dev-Modus ab (StrictMode setzte den „noch da“-Merker nicht zurück).
+- Bewusste Abweichung: große Überschriften der Startseite (`landing/landingType.js`), eingetragen in 06-Design-System-Referenz Punkt 12.
+
+### Tests & Build
+- `npx vitest run` 221/221, `npm run check:design` ok, `vite build` ok. Im Browser geprüft: Desktop 1024 px dunkel und hell, Handy 375 px, Wechsel / ↔ /anmelden inklusive Zurück-Knopf, kein seitliches Überlaufen.
+
+### Next Steps
+1. Echter Test am Handy (Ziehen von Fio, Wischen der Karten, Video-Loop, Datenmenge des Videos: 4 MB beim ersten Sichtkontakt).
+2. `text-hero` ins Design-System-Artefakt aufnehmen oder die Größen zurücknehmen.
+3. Gast-Login und echte Anmeldung aus der neuen Startseite bzw. /anmelden einmal online prüfen.
