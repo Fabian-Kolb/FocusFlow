@@ -62,7 +62,7 @@ FocusFlow ist eine moderne Web-App für intelligentes Aufgaben- und Projektmanag
 * **Firebase Firestore** – Echtzeit-Datenbank für Aufgaben, Projekte und Einstellungen
 
 ### KI & Schnittstellen
-* **Google Gemini API** (`gemini-3.6-flash` / `@google/generative-ai`) – Intelligente Sprachmodelle für den KI-Coach
+* **Google Gemini API** (`gemini-3.8-flash` / `@google/generative-ai`) – Intelligente Sprachmodelle für den KI-Coach
 * **Google Calendar API** (`@googleapis/calendar`) – OAuth 2.0 Schnittstelle mit Auto-Token-Refresh
 
 ### Code Quality & Testing

@@ -1,28 +1,30 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
+// Stand 2026-10-15, im Free Tier getestet. Nicht mehr verfügbar: 2.5 Flash/Lite/Pro (404 für neue Nutzer),
+// "gemini-3-flash" gibt es nur als Preview. Pro, 4 Argon und Omni haben im Free Tier Kontingent 0.
 const FALLBACK_MODELS = {
   flash: [
+    'gemini-3.8-flash',
+    'gemini-3.7-flash',
     'gemini-3.6-flash',
     'gemini-3.5-flash',
-    'gemini-3-flash',
-    'gemini-2.5-flash',
+    'gemini-3-flash-preview',
     'gemini-3.5-flash-lite',
-    'gemini-3.1-flash-lite',
-    'gemini-2.5-flash-lite'
+    'gemini-3.1-flash-lite'
   ],
   'flash-lite': [
     'gemini-3.5-flash-lite',
     'gemini-3.1-flash-lite',
-    'gemini-2.5-flash-lite',
-    'gemini-3.6-flash',
-    'gemini-3.5-flash'
+    'gemini-3.8-flash',
+    'gemini-3.7-flash',
+    'gemini-3.6-flash'
   ],
   eco: [
     'gemini-3.1-flash-lite',
-    'gemini-2.5-flash-lite',
     'gemini-3.5-flash-lite',
     'gemini-3.5-flash',
-    'gemini-3.6-flash'
+    'gemini-3.6-flash',
+    'gemini-3.8-flash'
   ]
 };
 
@@ -35,7 +37,8 @@ function getFallbackChain(modelName) {
       return models.slice(index);
     }
   }
-  return [modelName];
+  // Unbekannte oder abgeschaltete Modelle (z. B. in alten Chats gespeichert) laufen über die Flash-Kette
+  return FALLBACK_MODELS.flash;
 }
 
 async function executeWithFallback(apiKey, modelType, systemInstruction, executeFn) {

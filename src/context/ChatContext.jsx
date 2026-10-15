@@ -31,7 +31,7 @@ const createDefaultSession = () => ({
   contextId: null,
   contextTitle: 'Allgemein',
   contextAttachments: [],
-  model: 'gemini-3.6-flash',
+  model: 'gemini-3.8-flash',
   messages: []
 });
 
@@ -88,7 +88,7 @@ const loadSessionsFromLocal = (currentUser) => {
 
 export const ChatProvider = ({ children }) => {
   const { user } = useAuth();
-  const [activeModel, setActiveModel] = useState('gemini-3.6-flash');
+  const [activeModel, setActiveModel] = useState('gemini-3.8-flash');
 
   // Load initial sessions from user-scoped storage
   const [sessions, setSessions] = useState(() => loadSessionsFromLocal(user));

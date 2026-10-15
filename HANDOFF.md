@@ -563,3 +563,19 @@
 1. Echter Test am Handy (Ziehen von Fio, Wischen der Karten, Video-Loop, Datenmenge des Videos: 4 MB beim ersten Sichtkontakt).
 2. `text-hero` ins Design-System-Artefakt aufnehmen oder die Größen zurücknehmen.
 3. Gast-Login und echte Anmeldung aus der neuen Startseite bzw. /anmelden einmal online prüfen.
+
+---
+
+## Nachtrag 2026-10-15 (Claude Code): Gemini-Modellauswahl aktualisiert
+
+### Getan
+- Modelle per API abgefragt und einzeln getestet. Auswahl (`ModelSelectorDropdown.jsx`): 3.8/3.7/3.6/3.5 Flash, 3.5/3.1 Lite. Standard jetzt `gemini-3.8-flash` (`ChatContext.jsx`).
+- Entfernt: 2.5 Flash/Lite (404 für neue Nutzer), `gemini-3-flash` (existiert nicht, nur `-preview` als Reserve in der Kette).
+- `server/geminiService.js`: neue Fallback-Ketten; unbekannte Modell-IDs (alte Chats) fallen auf die Flash-Kette statt zu scheitern.
+- OpenAI: Key in `.env.local` (`OPENAI_API_KEY`), nicht eingebaut, Konto ohne Guthaben.
+
+### Tests
+- `npx vitest run` 221/221 grün, `check:design` ok, Server-Fallback direkt gegen Gemini getestet.
+
+### Next Steps
+- OpenAI als zweiten Anbieter nur nach Entscheidung des Nutzers (Guthaben/Karte).

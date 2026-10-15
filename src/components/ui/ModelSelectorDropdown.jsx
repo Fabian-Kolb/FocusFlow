@@ -3,13 +3,12 @@ import { Button, Menu, MenuItem, MenuLabel } from '../ds';
 
 export const AI_MODELS = [
   { id: 'eco', name: 'Eco', category: 'Eco', icon: 'eco' },
+  { id: 'gemini-3.8-flash', name: '3.8 Flash', category: 'Flash', icon: 'bolt' },
+  { id: 'gemini-3.7-flash', name: '3.7 Flash', category: 'Flash', icon: 'bolt' },
   { id: 'gemini-3.6-flash', name: '3.6 Flash', category: 'Flash', icon: 'bolt' },
   { id: 'gemini-3.5-flash', name: '3.5 Flash', category: 'Flash', icon: 'bolt' },
-  { id: 'gemini-3-flash', name: '3.0 Flash', category: 'Flash', icon: 'bolt' },
-  { id: 'gemini-2.5-flash', name: '2.5 Flash', category: 'Flash', icon: 'bolt' },
   { id: 'gemini-3.5-flash-lite', name: '3.5 Lite', category: 'Lite', icon: 'bolt' },
   { id: 'gemini-3.1-flash-lite', name: '3.1 Lite', category: 'Lite', icon: 'bolt' },
-  { id: 'gemini-2.5-flash-lite', name: '2.5 Lite', category: 'Lite', icon: 'bolt' },
 ];
 
 const ModelSelectorDropdown = ({ activeModel, onSelectModel, showEco = false, className = '' }) => {
