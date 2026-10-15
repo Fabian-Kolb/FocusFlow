@@ -27,7 +27,9 @@ export default defineConfig({
       'tests/speech_input.test.jsx',
       'tests/calendar_views.test.jsx',
       'tests/sheet_snap.test.js',
-      'tests/reveal_speed.test.js'
+      'tests/reveal_speed.test.js',
+      'tests/gemini_guest.test.js',
+      'tests/guest_ai_policy.test.js'
     ]
   }
 });

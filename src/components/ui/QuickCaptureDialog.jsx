@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useData } from '../../context/DataContext';
-import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { buildThought } from '../../lib/thoughts';
 import { Button, Dialog, Kbd } from '../ds';
@@ -12,7 +11,6 @@ import { Button, Dialog, Kbd } from '../ds';
  */
 export default function QuickCaptureDialog({ open, onClose, onOpenThoughts }) {
   const { addInboxItem } = useData();
-  const { user } = useAuth();
   const { showToast } = useToast();
   const [text, setText] = useState('');
   const textareaRef = useRef(null);
@@ -37,7 +35,7 @@ export default function QuickCaptureDialog({ open, onClose, onOpenThoughts }) {
     onClose();
     (async () => {
       try {
-        const thought = await buildThought(value, { summarize: !user?.isGuest });
+        const thought = await buildThought(value, { summarize: true });
         await addInboxItem(thought);
         showToast({ message: 'Gedanke gespeichert', icon: 'lightbulb', actionLabel: 'Ansehen', onAction: onOpenThoughts });
       } catch (err) {

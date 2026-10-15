@@ -28,6 +28,22 @@ const FALLBACK_MODELS = {
   ]
 };
 
+// Gäste: nur günstige Lite-Modelle, unabhängig davon, was der Client anfragt.
+// Bewusst nicht über aiModel erreichbar, sondern nur über { guest: true } vom Server.
+export const GUEST_MODELS = ['gemini-3.1-flash-lite', 'gemini-3.5-flash-lite'];
+
+// Antwortlänge für Gäste je Funktion (Tokens)
+export const GUEST_MAX_OUTPUT_TOKENS = {
+  coach: 1500,
+  summarize: 800,
+  'generate-project': 3000,
+  'generate-reminder': 600
+};
+
+function guestPolicy(endpoint, guest) {
+  return guest ? { models: GUEST_MODELS, maxOutputTokens: GUEST_MAX_OUTPUT_TOKENS[endpoint] } : null;
+}
+
 function getFallbackChain(modelName) {
   if (FALLBACK_MODELS[modelName]) return FALLBACK_MODELS[modelName];
 
@@ -41,8 +57,9 @@ function getFallbackChain(modelName) {
   return FALLBACK_MODELS.flash;
 }
 
-async function executeWithFallback(apiKey, modelType, systemInstruction, executeFn) {
-  const models = getFallbackChain(modelType);
+async function executeWithFallback(apiKey, modelType, systemInstruction, executeFn, policy = null) {
+  const models = policy ? policy.models : getFallbackChain(modelType);
+  const generationConfig = policy?.maxOutputTokens ? { maxOutputTokens: policy.maxOutputTokens } : undefined;
   const genAI = new GoogleGenerativeAI(apiKey);
 
   let lastError;
@@ -50,7 +67,8 @@ async function executeWithFallback(apiKey, modelType, systemInstruction, execute
     try {
       const model = genAI.getGenerativeModel({
         model: modelName,
-        systemInstruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined
+        systemInstruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined,
+        generationConfig
       });
       return await executeFn(model, modelName);
     } catch (error) {
@@ -182,7 +200,7 @@ export function formatGeminiContents(messages, prompt) {
   return sanitized;
 }
 
-export async function handleCoachStream({ apiKey, prompt, messages, systemInstruction, aiModel = 'flash' }, onChunk) {
+export async function handleCoachStream({ apiKey, prompt, messages, systemInstruction, aiModel = 'flash', guest = false }, onChunk) {
   if (!apiKey) throw new Error('Server API-Key fehlt.');
   if (prompt && prompt.length > MAX_PROMPT_LENGTH) {
     throw new Error(`Prompt überschreitet das Maximallimit von ${MAX_PROMPT_LENGTH} Zeichen.`);
@@ -201,10 +219,10 @@ export async function handleCoachStream({ apiKey, prompt, messages, systemInstru
       }
     }
     return fullText;
-  });
+  }, guestPolicy('coach', guest));
 }
 
-export async function handleSummarize({ apiKey, text, aiModel = 'eco', lengthMode = 'normal' }) {
+export async function handleSummarize({ apiKey, text, aiModel = 'eco', lengthMode = 'normal', guest = false }) {
   if (!apiKey) throw new Error('Server API-Key fehlt.');
   if (text && text.length > MAX_TEXT_LENGTH) {
     throw new Error(`Text überschreitet das Maximallimit von ${MAX_TEXT_LENGTH} Zeichen.`);
@@ -305,10 +323,10 @@ GIB AUSSCHLIESSLICH SAUBERES JSON ZURÜCK:
         summary: formattedSummary
       };
     }
-  });
+  }, guestPolicy('summarize', guest));
 }
 
-export async function handleGenerateProject({ apiKey, text, options = {}, aiModel = 'eco' }) {
+export async function handleGenerateProject({ apiKey, text, options = {}, aiModel = 'eco', guest = false }) {
   if (!apiKey) throw new Error('Server API-Key fehlt.');
   if (text && text.length > MAX_TEXT_LENGTH) {
     throw new Error(`Text überschreitet das Maximallimit von ${MAX_TEXT_LENGTH} Zeichen.`);
@@ -365,10 +383,10 @@ Gib NUR das valide JSON zurück, ohne Markdown-Blöcke oder zusätzlichen Text.`
     if (cleaned.startsWith('```json')) cleaned = cleaned.replace(/^```json/, '');
     if (cleaned.endsWith('```')) cleaned = cleaned.replace(/```$/, '');
     return JSON.parse(cleaned.trim());
-  });
+  }, guestPolicy('generate-project', guest));
 }
 
-export async function handleGenerateReminder({ apiKey, text, aiModel = 'eco' }) {
+export async function handleGenerateReminder({ apiKey, text, aiModel = 'eco', guest = false }) {
   if (!apiKey) throw new Error('Server API-Key fehlt.');
   if (text && text.length > MAX_TEXT_LENGTH) {
     throw new Error(`Text überschreitet das Maximallimit von ${MAX_TEXT_LENGTH} Zeichen.`);
@@ -390,5 +408,5 @@ Gib NUR das JSON zurück, ohne Markdown-Blöcke oder zusätzlichen Text.`;
     if (cleaned.startsWith('```json')) cleaned = cleaned.replace(/^```json/, '');
     if (cleaned.endsWith('```')) cleaned = cleaned.replace(/```$/, '');
     return JSON.parse(cleaned.trim());
-  });
+  }, guestPolicy('generate-reminder', guest));
 }

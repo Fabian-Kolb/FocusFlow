@@ -1,6 +1,8 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { handleCoachStream, handleSummarize, handleGenerateProject, handleGenerateReminder } from './server/geminiService.js';
+import { resolveAiAccess } from './server/aiAccess.js';
+import { createMemoryQuotaStore, applyGuestQuotaHeaders } from './server/guestAiPolicy.js';
 import {
   getGoogleOAuthUrl,
   verifyOAuthState,
@@ -14,6 +16,16 @@ import {
   getDevRefreshToken,
   deleteDevRefreshToken
 } from './server/calendarService.js';
+
+// Nur lokal: Anfragen ohne Token gelten als Gast (gleiche Regeln wie live, Zähler im Speicher).
+// Das lokale Test-Konto und echte Anmeldungen zählen als Mitglied. Live prüft server/authHelper.js.
+const devGuestQuotaStore = createMemoryQuotaStore();
+async function authorizeDevAiCaller(req) {
+  if (req.headers['x-focusflow-dev-account'] === '1' || req.headers.authorization) {
+    return { kind: 'member', uid: 'dev_member' };
+  }
+  return { kind: 'guest', uid: 'localDevGuest' };
+}
 
 function apiProxyPlugin(envConfig) {
   const { geminiApiKey, googleClientId, googleClientSecret } = envConfig;
@@ -44,12 +56,30 @@ function apiProxyPlugin(envConfig) {
             }
           }
 
-          const key = geminiApiKey || process.env.GEMINI_API_KEY;
-          if (!key) {
-            res.statusCode = 500;
+          const access = await resolveAiAccess(
+            { headers: req.headers, socket: req.socket, body },
+            endpoint,
+            {
+              authorize: authorizeDevAiCaller,
+              quotaStore: devGuestQuotaStore,
+              env: { ...process.env, GEMINI_API_KEY: geminiApiKey || process.env.GEMINI_API_KEY }
+            }
+          );
+          applyGuestQuotaHeaders(res, access.quota);
+          if (!access.ok) {
+            if (endpoint === 'coach') {
+              res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+              res.write(`data: ${JSON.stringify({ error: access.error })}\n\n`);
+              res.write('data: [DONE]\n\n');
+              return res.end();
+            }
+            res.statusCode = access.status;
             res.setHeader('Content-Type', 'application/json');
-            return res.end(JSON.stringify({ error: 'Server: Kein GEMINI_API_KEY in Umgebungsvariablen gefunden.' }));
+            return res.end(JSON.stringify({ error: access.error }));
           }
+          const key = access.apiKey;
+          const guest = access.guest;
+          body = access.body;
 
           try {
             if (endpoint === 'coach') {
@@ -64,7 +94,8 @@ function apiProxyPlugin(envConfig) {
                     prompt: body.prompt,
                     messages: body.messages,
                     systemInstruction: body.systemInstruction,
-                    aiModel: body.aiModel
+                    aiModel: body.aiModel,
+                    guest
                   },
                   (chunkText, fullText) => {
                     res.write(`data: ${JSON.stringify({ chunk: chunkText, fullText })}\n\n`);
@@ -84,7 +115,8 @@ function apiProxyPlugin(envConfig) {
                 apiKey: key,
                 text: body.text,
                 aiModel: body.aiModel,
-                lengthMode: body.lengthMode
+                lengthMode: body.lengthMode,
+                guest
               });
               res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify(result));
@@ -95,7 +127,8 @@ function apiProxyPlugin(envConfig) {
                 apiKey: key,
                 text: body.text,
                 options: body.options,
-                aiModel: body.aiModel
+                aiModel: body.aiModel,
+                guest
               });
               res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify(result));
@@ -105,7 +138,8 @@ function apiProxyPlugin(envConfig) {
               const result = await handleGenerateReminder({
                 apiKey: key,
                 text: body.text,
-                aiModel: body.aiModel
+                aiModel: body.aiModel,
+                guest
               });
               res.setHeader('Content-Type', 'application/json');
               return res.end(JSON.stringify(result));

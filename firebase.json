@@ -2,7 +2,7 @@
   "auth": {
     "authorizedDomains": ["localhost"],
     "providers": {
-      "anonymous": false,
+      "anonymous": true,
       "emailPassword": true,
       "googleSignIn": {
         "oAuthBrandDisplayName": "FocusFlow",

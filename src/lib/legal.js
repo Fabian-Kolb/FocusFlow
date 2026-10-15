@@ -10,7 +10,7 @@ export const LEGAL_OPERATOR = {
   phone: '' // optional; E-Mail reicht nicht immer – ggf. Telefon oder Kontaktformular ergänzen
 };
 
-export const LEGAL_LAST_UPDATED = '08.10.2026';
+export const LEGAL_LAST_UPDATED = '15.10.2026';
 
 export const LEGAL_PATHS = {
   impressum: '/impressum',

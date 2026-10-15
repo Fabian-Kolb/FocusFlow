@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { AI_MODELS } from './ModelSelectorDropdown';
 import { SUMMARY_LENGTH_OPTIONS } from './SummaryLengthDropdown';
 import { Button, Chip, Field, FioMark, IconButton, Select, Switch, cx } from '../ds';
+import { useAuth } from '../../context/AuthContext';
 
 /**
  * KI-Einstellungen für Gedanken an einer festen Stelle statt Checkbox + zwei Dropdowns, die plötzlich erscheinen.
@@ -21,6 +22,8 @@ export default function ThoughtAiChip({
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
   const isIcon = variant === 'icon';
+  const { user } = useAuth() || {};
+  const isPlainGuest = Boolean(user?.isGuest && !user?.isDevAccount);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -97,13 +100,16 @@ export default function ThoughtAiChip({
             </div>
           </fieldset>
 
-          <Field label="Modell" className={cx(!enabled && 'pointer-events-none opacity-50')}>
-            <Select size="sm" value={model} onChange={(e) => onModelChange(e.target.value)} disabled={!enabled}>
-              {AI_MODELS.map((m) => (
-                <option key={m.id} value={m.id}>{m.id === 'eco' ? 'Eco (Standard)' : m.name}</option>
-              ))}
-            </Select>
-          </Field>
+          {/* Gäste bekommen serverseitig immer ein Lite-Modell */}
+          {!isPlainGuest && (
+            <Field label="Modell" className={cx(!enabled && 'pointer-events-none opacity-50')}>
+              <Select size="sm" value={model} onChange={(e) => onModelChange(e.target.value)} disabled={!enabled}>
+                {AI_MODELS.map((m) => (
+                  <option key={m.id} value={m.id}>{m.id === 'eco' ? 'Eco (Standard)' : m.name}</option>
+                ))}
+              </Select>
+            </Field>
+          )}
         </div>
       )}
     </div>

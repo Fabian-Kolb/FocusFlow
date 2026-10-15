@@ -18,7 +18,7 @@ const LIMITS = [
   {
     icon: 'timer',
     title: 'Fio-Limit und Profil',
-    text: 'Fio ist für Gäste auf 15 Anfragen pro 10 Minuten begrenzt. Profilbilder und Passwortänderungen sind deaktiviert.',
+    text: 'Fio und die anderen KI-Funktionen nutzen im Gast-Modus ein einfaches Modell und sind auf 10 KI-Aktionen pro Tag begrenzt. Profilbilder und Passwortänderungen sind deaktiviert.',
   },
 ];
 

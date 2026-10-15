@@ -233,6 +233,53 @@ function fromFirestoreValue(valObj) {
 }
 
 /**
+ * Erhöht mehrere Zähler-Dokumente atomar um 1 und liefert die neuen Werte zurück.
+ * Ein einziger Commit: Firestore wendet alle Schreibvorgänge zusammen an, und jeder
+ * gleichzeitige Aufruf bekommt einen eigenen, eindeutigen Zählerstand zurück.
+ * @param {string[]} docPaths - z. B. ["guest_ai_usage/2026-10-15_all"]
+ * @param {object} [extraFields] - zusätzlich gesetzte Felder (z. B. { day, expiresAt })
+ * @returns {Promise<number[]>} neue Zählerstände in der Reihenfolge von docPaths
+ */
+export async function firestoreRestIncrement(docPaths, extraFields = {}) {
+  const token = await getServiceAccountAccessToken();
+  const docPrefix = `projects/${PROJECT_ID}/databases/(default)/documents`;
+
+  const fields = {};
+  for (const [k, v] of Object.entries(extraFields)) {
+    fields[k] = v instanceof Date ? { timestampValue: v.toISOString() } : toFirestoreValue(v);
+  }
+
+  const writes = docPaths.map((docPath) => ({
+    update: { name: `${docPrefix}/${docPath}`, fields },
+    updateMask: { fieldPaths: Object.keys(fields) },
+    updateTransforms: [{ fieldPath: 'count', increment: { integerValue: '1' } }]
+  }));
+
+  const res = await fetch(`${FIRESTORE_BASE_URL}:commit`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ writes })
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Firestore REST Commit fehlgeschlagen (${res.status}): ${errText}`);
+  }
+
+  const data = await res.json();
+  return docPaths.map((_, i) => {
+    const value = fromFirestoreValue(data.writeResults?.[i]?.transformResults?.[0]);
+    if (!Number.isInteger(value)) {
+      throw new Error('Firestore REST Commit: Zählerstand fehlt in der Antwort.');
+    }
+    return value;
+  });
+}
+
+/**
  * Reads a document from Firestore via REST API using Service Account authorization.
  * @param {string} docPath - e.g. "server_tokens/USER_UID"
  * @returns {Promise<object|null>} Document data as JS object or null if not found

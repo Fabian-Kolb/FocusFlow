@@ -98,6 +98,13 @@ function Datenschutz() {
           und die Antwort zurückgegeben. Die Übermittlung erfolgt nur, wenn du eine KI-Funktion aktiv nutzt.
           Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO. Gib in KI-Anfragen bitte keine besonders sensiblen Daten ein.
         </p>
+        <p>
+          Im Gast-Modus sind die KI-Funktionen begrenzt. Damit das funktioniert, meldet FocusFlow dich beim ersten Nutzen einer
+          KI-Funktion ohne Namen oder E-Mail-Adresse anonym bei Firebase Authentication an (zufällige Nutzer-ID). Der Server
+          zählt pro Tag die KI-Anfragen je Nutzer-ID und je IP-Adresse; die IP-Adresse wird dabei nur als nicht umkehrbarer
+          Hashwert gespeichert. Die Zähler werden nach spätestens drei Tagen gelöscht, das anonyme Konto beim Beenden des
+          Gast-Modus. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO (Schutz vor Missbrauch und Überlastung des Dienstes).
+        </p>
       </Section>
 
       <Section title="7. Google Kalender (optional)">

@@ -579,3 +579,22 @@
 
 ### Next Steps
 - OpenAI als zweiten Anbieter nur nach Entscheidung des Nutzers (Guthaben/Karte).
+
+---
+
+## Nachtrag 2026-10-15 (Claude Code): KI für Gäste, begrenzt und abgesichert
+
+### Getan
+- Gäste dürfen alle KI-Funktionen nutzen (Fio-Chat, Gedanken zusammenfassen, Projekt/Erinnerung erzeugen), aber nur mit Lite-Modellen und Tageslimits. Details und Sicherheitskonzept: `docs/Wissen/07_KI_Coach/01-Generative-KI.md` (Abschnitt Gast-Modus).
+- Neu: `server/guestAiPolicy.js`, `server/aiAccess.js`, `src/lib/guestSession.js`, `src/lib/guestAiQuota.js`. Geändert: `server/authHelper.js` (`authorizeAiCaller`, anonyme Tokens bei Konto-Funktionen 403), `server/serviceAccountRest.js` (`firestoreRestIncrement`), `server/geminiService.js` (`guest`-Option), `api/gemini/*`, `vite.config.js`, `AuthContext`, `gemini.js`, `ModelSelectorDropdown`, `ThoughtAiChip`, `QuickCaptureDialog`, `Dashboard`, `GuestWelcomeModal`, `LegalPage` (Datenschutz Abschnitt 6, Stand 15.10.2026), `firestore.rules` (`guest_ai_usage` gesperrt), `firebase.json` (anonymous: true).
+
+### Tests
+- `npx vitest run` 240/240 grün (neu: `tests/guest_ai_policy.test.js`, `tests/gemini_guest.test.js`), `check:design` ok, oxlint ohne Fehler.
+- Browser (Dev-Server, Gast ohne Konto): Fio antwortet, Abzeichen zählt runter, 11. Anfrage abgelehnt mit klarer Meldung, zu langer Text 413 ohne Kontingent-Verbrauch, Test-Konto weiter ohne Limit. Live nicht geprüft.
+
+### Next Steps (Nutzer, vor/nach dem Push)
+1. Firebase Console → Authentication → Anmeldemethoden → „Anonym“ aktivieren (sonst: Gäste sehen „KI für Gäste gerade nicht verfügbar“).
+2. `firebase deploy --only firestore:rules`.
+3. Vercel: prüfen, dass `FIREBASE_SERVICE_ACCOUNT` gesetzt ist (sonst lehnt der Server Gast-KI ab). Optional `GUEST_AI_HASH_SECRET` und Limits per Env.
+4. Firestore Console → TTL-Richtlinie für Collection `guest_ai_usage`, Feld `expiresAt` (Datenschutzerklärung verspricht Löschung nach spätestens drei Tagen).
+5. Optional später: Firebase App Check als zusätzlicher Bot-Schutz.

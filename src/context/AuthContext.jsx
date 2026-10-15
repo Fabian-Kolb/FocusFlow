@@ -30,6 +30,7 @@ import {
   matchesDevCredentials,
 } from '../lib/devAccount';
 import { seedDevAccountDataOnce, resetDevAccountData } from '../lib/devSeed';
+import { GUEST_STORAGE_FLAG, endAnonymousGuest } from '../lib/guestSession';
 
 const AuthContext = createContext();
 
@@ -37,7 +38,6 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
-const GUEST_STORAGE_FLAG = 'focusflow_is_guest';
 
 if (import.meta.env.DEV && typeof window !== 'undefined') {
   // Nur Entwicklung: `ffDev.reset()` spielt die Beispieldaten des Dev-Accounts neu ein und lädt die Seite neu
@@ -132,6 +132,22 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      // Anonyme Anmeldung gehört zum Gast-Modus (nur für die KI-Limits) und ist kein Konto
+      if (currentUser?.isAnonymous) {
+        let isGuest = false;
+        try {
+          isGuest = localStorage.getItem(GUEST_STORAGE_FLAG) === 'true';
+        } catch (e) {}
+        if (isGuest) {
+          setUser(GUEST_USER_OBJ);
+        } else {
+          await endAnonymousGuest();
+          setUser(null);
+        }
+        setLoading(false);
+        return;
+      }
+
       if (currentUser) {
         try {
           localStorage.removeItem(GUEST_STORAGE_FLAG);
@@ -325,6 +341,8 @@ export function AuthProvider({ children }) {
     setIsCalendarConnected(false);
     setUser(null);
     try {
+      // Gast: anonymes Konto gleich mit löschen
+      await endAnonymousGuest();
       await signOut(auth);
     } catch (err) {
       console.warn('SignOut Fehler:', err);

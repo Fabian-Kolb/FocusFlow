@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Button, Menu, MenuItem, MenuLabel } from '../ds';
+import { Badge, Button, Menu, MenuItem, MenuLabel } from '../ds';
+import { useAuth } from '../../context/AuthContext';
+import { useGuestAiQuota, GUEST_AI_DEFAULT_LIMIT } from '../../lib/guestAiQuota';
 
 export const AI_MODELS = [
   { id: 'eco', name: 'Eco', category: 'Eco', icon: 'eco' },
@@ -14,6 +16,9 @@ export const AI_MODELS = [
 const ModelSelectorDropdown = ({ activeModel, onSelectModel, showEco = false, className = '' }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
+  const { user } = useAuth() || {};
+  const guestQuota = useGuestAiQuota();
+  const isPlainGuest = Boolean(user?.isGuest && !user?.isDevAccount);
 
   const availableModels = showEco ? AI_MODELS : AI_MODELS.filter((m) => m.id !== 'eco');
   const selectedModelObj = availableModels.find((m) => m.id === activeModel) || availableModels[0];
@@ -40,6 +45,26 @@ const ModelSelectorDropdown = ({ activeModel, onSelectModel, showEco = false, cl
     { title: 'Flash', models: availableModels.filter((m) => m.category === 'Flash') },
     { title: 'Lite', models: availableModels.filter((m) => m.category === 'Lite') },
   ];
+
+  // Gäste: kein Modell wählbar (Server nutzt immer ein Lite-Modell), stattdessen das Tageskontingent
+  if (isPlainGuest) {
+    const limit = guestQuota?.limit ?? GUEST_AI_DEFAULT_LIMIT;
+    const label = guestQuota ? `${guestQuota.remaining}/${limit} heute` : `${limit} pro Tag`;
+    const details = guestQuota
+      ? `Gast-Modus: noch ${guestQuota.remaining} von ${limit} KI-Aktionen heute, mit einfachem Modell.`
+      : `Gast-Modus: ${limit} KI-Aktionen pro Tag, mit einfachem Modell.`;
+    return (
+      <Badge
+        tone={guestQuota?.remaining === 0 ? 'warning' : 'neutral'}
+        icon="bolt"
+        className={className}
+        title={details}
+      >
+        <span className="sr-only">{details}</span>
+        <span aria-hidden="true">KI · {label}</span>
+      </Badge>
+    );
+  }
 
   return (
     <div className={`relative ${className}`} ref={dropdownRef}>

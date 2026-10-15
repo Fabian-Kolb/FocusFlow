@@ -6,6 +6,9 @@
 import { notify } from './notify';
 
 import { auth } from './firebase';
+import { isDevSessionActive } from './devAccount';
+import { isGuestSession, ensureAnonymousGuest } from './guestSession';
+import { recordGuestAiQuota } from './guestAiQuota';
 
 export function ensureBulletPoints(rawText) {
   if (!rawText || typeof rawText !== 'string') return rawText || '';
@@ -74,9 +77,22 @@ export function ensureBulletPoints(rawText) {
  */
 async function getAuthHeaders() {
   const headers = { 'Content-Type': 'application/json' };
-  if (auth && auth.currentUser && !auth.currentUser.isGuest) {
+
+  // Nur lokal: Das Test-Konto zählt im Dev-Server als Mitglied (live hat der Header keine Wirkung)
+  if (import.meta.env.DEV && isDevSessionActive()) {
+    headers['X-FocusFlow-Dev-Account'] = '1';
+  }
+
+  let currentUser = auth?.currentUser || null;
+  // Gäste: unsichtbare anonyme Anmeldung, damit der Server sie erkennt und begrenzt.
+  // Im Dev-Server nicht nötig (dort gelten Anfragen ohne Token als Gast).
+  if (!currentUser && !import.meta.env.DEV && isGuestSession()) {
+    currentUser = await ensureAnonymousGuest();
+  }
+
+  if (currentUser) {
     try {
-      const token = await auth.currentUser.getIdToken();
+      const token = await currentUser.getIdToken();
       headers['Authorization'] = `Bearer ${token}`;
     } catch (e) {
       console.warn('[Auth] Konnte ID-Token nicht abrufen:', e);
@@ -97,6 +113,7 @@ export async function askGeminiCoach({ prompt, messages, systemInstruction, onCh
     body: JSON.stringify({ prompt, messages, systemInstruction, aiModel }),
     signal
   });
+  recordGuestAiQuota(response);
 
   if (!response.ok) {
     let errorMsg = 'Fehler bei der Kommunikation mit dem KI-Coach.';
@@ -177,8 +194,10 @@ export async function summarizeVoiceNote(text, aiModel = 'eco', lengthMode = 'no
       headers,
       body: JSON.stringify({ text, aiModel, lengthMode })
     });
+    recordGuestAiQuota(response);
 
-    if (response.status === 429) {
+    // Limits und Gast-Grenzen: Server-Meldung anzeigen
+    if (response.status === 429 || response.status === 413 || response.status === 503) {
       const err = await response.json();
       notify(err.error || 'Anfrage-Limit erreicht: maximal 15 KI-Anfragen pro 10 Minuten.', 'speed');
       return null;
@@ -218,8 +237,10 @@ export async function generateProjectStructure(text, options = {}, aiModel = 'ec
       headers,
       body: JSON.stringify({ text, options, aiModel })
     });
+    recordGuestAiQuota(response);
 
-    if (response.status === 429) {
+    // Limits und Gast-Grenzen: Server-Meldung anzeigen
+    if (response.status === 429 || response.status === 413 || response.status === 503) {
       const err = await response.json();
       notify(err.error || 'Anfrage-Limit erreicht: maximal 15 KI-Anfragen pro 10 Minuten.', 'speed');
       return null;
@@ -250,8 +271,10 @@ export async function generateReminderStructure(text, aiModel = 'eco') {
       headers,
       body: JSON.stringify({ text, aiModel })
     });
+    recordGuestAiQuota(response);
 
-    if (response.status === 429) {
+    // Limits und Gast-Grenzen: Server-Meldung anzeigen
+    if (response.status === 429 || response.status === 413 || response.status === 503) {
       const err = await response.json();
       notify(err.error || 'Anfrage-Limit erreicht: maximal 15 KI-Anfragen pro 10 Minuten.', 'speed');
       return null;

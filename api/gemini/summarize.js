@@ -1,7 +1,7 @@
 import { handleSummarize } from '../../server/geminiService.js';
-import { checkRateLimit } from '../../server/rateLimiter.js';
 import { applyCorsAndSecurityHeaders } from '../../server/corsHelper.js';
-import { verifyAuthToken } from '../../server/authHelper.js';
+import { resolveAiAccess } from '../../server/aiAccess.js';
+import { applyGuestQuotaHeaders } from '../../server/guestAiPolicy.js';
 
 export default async function handler(req, res) {
   if (applyCorsAndSecurityHeaders(req, res, 'POST, OPTIONS')) {
@@ -12,43 +12,22 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // 1. Authentifizierung prüfen
-  let user = null;
-  try {
-    user = await verifyAuthToken(req);
-  } catch (authErr) {
-    return res.status(authErr.statusCode || 401).json({ error: authErr.message || 'Nicht autorisiert' });
+  // Anmeldung (Mitglied oder anonymer Gast), Limits und bei Gästen geprüfte Eingaben
+  const access = await resolveAiAccess(req, 'summarize');
+  applyGuestQuotaHeaders(res, access.quota);
+  if (!access.ok) {
+    return res.status(access.status).json({ error: access.error, unauthorized: access.unauthorized, rateLimited: access.rateLimited });
   }
 
-  // 2. Rate-Limit Prüfung
-  const rateLimit = checkRateLimit(req, user);
-  if (!rateLimit.allowed) {
-    return res.status(429).json({
-      error: `Anfrage-Limit erreicht: Aus Sicherheitsgründen sind maximal ${rateLimit.limit} KI-Anfragen pro 10 Minuten erlaubt. Bitte warte ca. ${rateLimit.minutesLeft} Minute(n).`,
-      rateLimited: true
-    });
-  }
-
-  const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
-  if (!apiKey) {
-    return res.status(500).json({ error: 'Server: Kein GEMINI_API_KEY in Vercel Environment Variables hinterlegt.' });
-  }
-
-  let body = req.body || {};
-  if (typeof body === 'string') {
-    try {
-      body = JSON.parse(body);
-    } catch {
-      // ignore
-    }
-  }
+  const { apiKey, body, guest } = access;
 
   try {
     const result = await handleSummarize({
       apiKey,
       text: body.text,
+      lengthMode: body.lengthMode,
       aiModel: body.aiModel || 'flash',
-      lengthMode: body.lengthMode
+      guest
     });
     return res.status(200).json(result);
   } catch (err) {

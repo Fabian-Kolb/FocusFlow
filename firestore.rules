@@ -41,6 +41,16 @@ service cloud.firestore {
     }
 
     // -------------------------------------------------------------
+    // 2b. KI-Kontingent für Gäste (Zähler pro Tag)
+    // Client-Zugriff verboten - nur der Server zählt (Service Account).
+    // Anonyme Gast-Konten haben ohnehin keinen Zugriff: alle Datenregeln verlangen
+    // verifizierte E-Mail plus Whitelist.
+    // -------------------------------------------------------------
+    match /guest_ai_usage/{docId} {
+      allow read, write: if false;
+    }
+
+    // -------------------------------------------------------------
     // 3. Benutzer-Kollektionen (/users/{userId}/...)
     // Explizite Subcollection-Regeln OHNE rekursive Wildcards!
     // -------------------------------------------------------------

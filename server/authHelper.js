@@ -67,13 +67,7 @@ export async function getAdminInitStatus() {
 
 export { auth, db };
 
-/**
- * Validates request authorization header, verifies Firebase ID-Token, checks email verification and whitelist.
- * Used by all API endpoints to guarantee uniform authorization rules.
- * @param {object} req - HTTP request object
- * @returns {Promise<{ uid: string, email: string, decodedToken: object }>}
- */
-export async function authorizeUser(req) {
+function extractBearerToken(req) {
   const authHeader = req.headers?.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     const error = new Error('Nicht autorisiert: Fehlendes Authentifizierungs-Token.');
@@ -87,7 +81,15 @@ export async function authorizeUser(req) {
     error.statusCode = 401;
     throw error;
   }
+  return idToken;
+}
 
+/**
+ * Prüft nur, ob das Firebase ID-Token echt und gültig ist (Signatur, Ablauf).
+ * Sagt nichts über Whitelist oder Rechte aus.
+ * @returns {Promise<object>} decodedToken mit uid, email, email_verified, firebase.sign_in_provider
+ */
+async function verifyFirebaseIdToken(idToken) {
   let decodedToken = null;
   await ensureAdminInit();
   if (auth) {
@@ -137,12 +139,19 @@ export async function authorizeUser(req) {
             const lookupData = await lookupRes.json();
             const user = lookupData.users?.[0];
             if (user) {
+              // Der Lookup hat das Token geprüft; die Claims stammen also aus einem echten Token,
+              // sofern es zum selben Konto gehört.
+              const tokenUid = parsedPayload.user_id || parsedPayload.sub;
+              const sameUser = tokenUid === user.localId;
               decodedToken = {
                 uid: user.localId,
                 email: user.email,
                 email_verified: Boolean(user.emailVerified),
+                aud: sameUser ? parsedPayload.aud : undefined,
+                iss: sameUser ? parsedPayload.iss : undefined,
                 firebase: {
-                  sign_in_provider: user.providerUserInfo?.[0]?.providerId || 'password'
+                  sign_in_provider: (sameUser && parsedPayload.firebase?.sign_in_provider) ||
+                    user.providerUserInfo?.[0]?.providerId || 'password'
                 }
               };
             }
@@ -180,6 +189,18 @@ export async function authorizeUser(req) {
     }
   }
 
+
+  return decodedToken;
+}
+
+function isAnonymousToken(decodedToken) {
+  return decodedToken?.firebase?.sign_in_provider === 'anonymous';
+}
+
+/**
+ * Mitglieds-Prüfung: verifizierte E-Mail und Eintrag auf der Whitelist.
+ */
+async function checkMemberAccess(decodedToken, idToken) {
   const rawEmail = decodedToken.email;
   if (!rawEmail) {
     const error = new Error('Zugriff verweigert: Keine E-Mail-Adresse im Authentifizierungs-Token.');
@@ -244,6 +265,51 @@ export async function authorizeUser(req) {
     decodedToken
   };
 }
+
+/**
+ * Validates request authorization header, verifies Firebase ID-Token, checks email verification and whitelist.
+ * Used by all API endpoints to guarantee uniform authorization rules.
+ * Anonyme Gast-Tokens werden hier immer abgewiesen.
+ * @param {object} req - HTTP request object
+ * @returns {Promise<{ uid: string, email: string, decodedToken: object }>}
+ */
+export async function authorizeUser(req) {
+  const idToken = extractBearerToken(req);
+  const decodedToken = await verifyFirebaseIdToken(idToken);
+  if (isAnonymousToken(decodedToken)) {
+    const error = new Error('Zugriff verweigert: Diese Funktion gibt es nur mit Konto.');
+    error.statusCode = 403;
+    throw error;
+  }
+  return checkMemberAccess(decodedToken, idToken);
+}
+
+/**
+ * Nur für KI-Endpunkte: lässt freigeschaltete Mitglieder und anonyme Gäste zu.
+ * Gäste bekommen danach serverseitig Limits und günstige Modelle (server/guestAiPolicy.js).
+ * @returns {Promise<{ kind: 'member', uid: string, email: string } | { kind: 'guest', uid: string }>}
+ */
+export async function authorizeAiCaller(req) {
+  const idToken = extractBearerToken(req);
+  const decodedToken = await verifyFirebaseIdToken(idToken);
+
+  if (isAnonymousToken(decodedToken)) {
+    // Token muss zu genau diesem Firebase-Projekt gehören (Admin SDK prüft das selbst,
+    // im REST-Fallback prüfen wir es hier ausdrücklich).
+    const audOk = decodedToken.aud === projectId;
+    const issOk = decodedToken.iss === `https://securetoken.google.com/${projectId}`;
+    if (!decodedToken.uid || !audOk || !issOk) {
+      const error = new Error('Nicht autorisiert: Ungültiges Gast-Token.');
+      error.statusCode = 401;
+      throw error;
+    }
+    return { kind: 'guest', uid: decodedToken.uid };
+  }
+
+  const member = await checkMemberAccess(decodedToken, idToken);
+  return { kind: 'member', uid: member.uid, email: member.email };
+}
+
 
 /**
  * Backward compatibility alias for existing code while transitioning

@@ -45,7 +45,6 @@ function greetingFor(hour) {
 /** Eingabezeile: Gedanke direkt vom Dashboard festhalten (nutzt die KI-Einstellungen der Gedanken-Ansicht) */
 function QuickThought({ onOpenThoughts }) {
   const { addInboxItem } = useModalContext();
-  const { user } = useAuth();
   const { showToast } = useToast();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -58,7 +57,7 @@ function QuickThought({ onOpenThoughts }) {
     if (!value || busy) return;
     setBusy(true);
     try {
-      const thought = await buildThought(value, { summarize: aiFlag === 'on' && !user?.isGuest, model, length });
+      const thought = await buildThought(value, { summarize: aiFlag === 'on', model, length });
       await addInboxItem(thought);
       setText('');
       showToast({ message: 'Gedanke gespeichert', icon: 'lightbulb', actionLabel: 'Ansehen', onAction: onOpenThoughts });
