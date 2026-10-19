@@ -1,14 +1,17 @@
 import React, { useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useModal } from '../../context/ModalContext';
+import { useEnvironment } from '../../context/EnvironmentContext';
 import { BREAKPOINTS } from '../../lib/breakpoints';
 import { areaOf } from '../../lib/areas';
 import BrandLockup from '../brand/BrandLockup';
+import EnvironmentSwitcher from '../environment/EnvironmentSwitcher';
 import { FioMark, Icon } from '../ds';
 
 const Sidebar = ({ currentScreen, setCurrentScreen, collapsed, setCollapsed }) => {
   const { user } = useAuth();
   const { openModal } = useModal();
+  const { nav } = useEnvironment();
   const closeButtonRef = useRef(null);
 
   // Close tablet drawer on Escape key and manage focus
@@ -51,18 +54,13 @@ const Sidebar = ({ currentScreen, setCurrentScreen, collapsed, setCollapsed }) =
   const isPlainGuest = Boolean(user?.isGuest && !user?.isDevAccount);
   const userInitial = (user?.displayName || user?.email || 'U').substring(0, 2).toUpperCase();
 
-  // Navigation targets with required icons (including smart_toy / auto_awesome AI coach compatibility)
-  const navItems = [
-    { id: 'dashboard', label: 'Home', icon: 'home' },
-    { id: 'inbox', label: 'Gedanken', icon: 'lightbulb' },
-    { id: 'reminders', label: 'Erinnerungen', icon: 'notifications' },
-    { id: 'projects', label: 'Projekte', icon: 'folder' },
-    { id: 'board', label: 'Kanban Board', icon: 'view_kanban' },
-    { id: 'calendar', label: 'Kalender', icon: 'calendar_today' },
-    { id: 'coach', label: 'Fio', icon: 'fio' }, // Fio AI Coach (maps to smart_toy)
-    { id: 'review', label: 'Wochenrückblick', icon: 'analytics' },
-    { id: 'trash', label: 'Papierkorb', icon: 'delete' },
-  ];
+  // Menü der aktiven Umgebung (src/lib/environments.js); der Eintrag „Fio“ trägt die Fio-Marke
+  const navItems = nav.sidebar;
+
+  // Nach dem Umgebungswechsel zurück auf Home, am Tablet die Leiste wieder einklappen
+  const handleEnvironmentSwitched = () => {
+    handleNavClick('dashboard');
+  };
 
   return (
     <>
@@ -126,13 +124,18 @@ const Sidebar = ({ currentScreen, setCurrentScreen, collapsed, setCollapsed }) =
             </div>
           </div>
 
+          {/* Umgebung wechseln: gleiche 48-px-Icon-Achse wie die Menüpunkte */}
+          <div className="flex-shrink-0 px-3 pb-1">
+            <EnvironmentSwitcher variant="sidebar" collapsed={collapsed} onSwitched={handleEnvironmentSwitched} />
+          </div>
+
           {/* Scrollable Navigation - Identical single instance, scroll position never resets */}
           <nav
             className="flex flex-col gap-1 flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-2 px-3 sidebar-scrollbar overscroll-contain"
             aria-label="Seitenmenü"
           >
             {navItems.map((item) => {
-              const isActive = currentScreen === item.id || (item.id === 'projects' && currentScreen === 'project-detail');
+              const isActive = item.screens.includes(currentScreen);
               const area = areaOf(item.id);
               return (
                 <button

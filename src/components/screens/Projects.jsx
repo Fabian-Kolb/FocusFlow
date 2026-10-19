@@ -3,6 +3,7 @@ import { useBoardSort, LIFT_CLASS } from '../ui/useBoardSort';
 import { groupByCategory, sortItems, PROJECT_SORT_OPTIONS } from '../../lib/itemOrder';
 import { usePersistedChoice } from '../../hooks/usePersistedChoice';
 import { useModalContext } from '../../context/ModalContext';
+import { useEnvironment } from '../../context/EnvironmentContext';
 import { ProjectCardContent } from '../ui/ItemCardContent';
 import CardContextMenu from '../ui/CardContextMenu';
 import { ListToolbar, CategoryToolbar, ViewToggle, PROJECT_VIEW_OPTIONS } from '../ui/ListToolbar';
@@ -31,6 +32,11 @@ const Projects = ({ setCurrentScreen }) => {
     expandAllProjectCategories,
     restoreProjectCategoryExpandStates,
   } = useModalContext();
+
+  // In Hochschule heißen Projekte „Fächer“ und werden als Fach angelegt
+  const { activeEnvironmentId } = useEnvironment();
+  const isHochschule = activeEnvironmentId === 'hochschule';
+  const listTitle = isHochschule ? 'Fächer' : 'Projekte';
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -208,14 +214,14 @@ const Projects = ({ setCurrentScreen }) => {
   return (
     <div className="pb-20">
       <ListToolbar
-      title="Projekte"
+      title={listTitle}
       description={`${projects.filter((x) => !x.deletedAt && x.status !== 'ABGESCHLOSSEN').length} aktiv`}
       searchValue={searchQuery}
         onSearchChange={setSearchQuery}
-        searchPlaceholder="Projekte durchsuchen"
+        searchPlaceholder={`${listTitle} durchsuchen`}
         onOpenTrash={() => setCurrentScreen('trash')}
-        onCreate={() => openModal('project')}
-        createLabel="Neues Projekt"
+        onCreate={() => openModal(isHochschule ? 'fach' : 'project')}
+        createLabel={isHochschule ? 'Neues Fach' : 'Neues Projekt'}
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
         viewToggle={

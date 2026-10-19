@@ -17,7 +17,7 @@ const AVAILABLE_ICONS = [
 ];
 
 /**
- * Kategorien eines Typs (Projekte oder Erinnerungen) mit Mehrfachauswahl.
+ * Kategorien eines Typs (Projekte oder Einträge) mit Mehrfachauswahl.
  * `onToggleEnabled` blendet zusätzlich einen Schalter ein (Formular einer Vorlage).
  */
 function CategoryGroup({
@@ -486,7 +486,7 @@ const KanbanFilterDrawer = ({
   const presets = [
     { id: 'system_all', icon: 'view_kanban', label: 'Alle', active: isAllPresetActive, hint: isAllPresetActive ? 'Klicken, um Alle abzuwählen' : 'Alle auswählen' },
     { id: 'system_projects', icon: 'folder', label: 'Nur Projekte', active: isProjectsOnlyPresetActive, hint: isProjectsOnlyPresetActive ? 'Klicken, um Projekte abzuwählen' : 'Nur Projekte auswählen' },
-    { id: 'system_reminders', icon: 'notifications', label: 'Nur Erinnerungen', active: isRemindersOnlyPresetActive, hint: isRemindersOnlyPresetActive ? 'Klicken, um Erinnerungen abzuwählen' : 'Nur Erinnerungen auswählen' },
+    { id: 'system_reminders', icon: 'notifications', label: 'Nur Merkliste', active: isRemindersOnlyPresetActive, hint: isRemindersOnlyPresetActive ? 'Klicken, um Einträge abzuwählen' : 'Nur Merkliste auswählen' },
   ];
 
   return (
@@ -495,7 +495,7 @@ const KanbanFilterDrawer = ({
       onClose={handleClose}
       ariaLabel="Kanban-Ansichten und Filter"
       title={mode === 'form' ? (editingView ? 'Vorlage bearbeiten' : 'Neue Vorlage') : 'Ansichten und Filter'}
-      description={mode === 'form' ? undefined : 'Projekte und Erinnerungen kombinieren'}
+      description={mode === 'form' ? undefined : 'Projekte und Merkliste kombinieren'}
       headerAction={mode === 'form' ? (
         <IconButton icon="arrow_back" label="Zurück zur Liste" onClick={() => setMode('list')} />
       ) : undefined}
@@ -503,7 +503,7 @@ const KanbanFilterDrawer = ({
         <Button fullWidth leadingIcon="check" onClick={handleApply}>
           {stagedProjectCategoryIds.length === 0 && stagedReminderCategoryIds.length === 0
             ? 'Speichern (keine Kategorien gewählt)'
-            : `Auswahl speichern (${stagedProjectCategoryIds.length} Projekte, ${stagedReminderCategoryIds.length} Erinnerungen)`}
+            : `Auswahl speichern (${stagedProjectCategoryIds.length} Projekte, ${stagedReminderCategoryIds.length} Einträge)`}
         </Button>
       ) : undefined}
     >
@@ -547,7 +547,7 @@ const KanbanFilterDrawer = ({
             {reminderCategories.length > 0 && (
               <CategoryGroup
                 icon="notifications"
-                title="Erinnerungs-Kategorien"
+                title="Kategorien der Merkliste"
                 categories={reminderCategories}
                 selectedIds={stagedReminderCategoryIds}
                 onToggleCategory={toggleStagedReminderCategory}
@@ -555,7 +555,7 @@ const KanbanFilterDrawer = ({
                 onNone={deselectAllStagedReminders}
                 open={isReminderCategoriesOpen}
                 onToggleOpen={() => setIsReminderCategoriesOpen(!isReminderCategoriesOpen)}
-                summaryText={summaryFor(stagedReminderCategoryIds.length, reminderCategories.length, 'Alle Erinnerungen aktiv', 'Keine Erinnerungen aktiv')}
+                summaryText={summaryFor(stagedReminderCategoryIds.length, reminderCategories.length, 'Alle Einträge aktiv', 'Keine Einträge aktiv')}
               />
             )}
           </section>
@@ -586,9 +586,9 @@ const KanbanFilterDrawer = ({
 
                 const summary = [];
                 if (view.showProjects !== false) summary.push(`${pCount} Projektkategorien`);
-                if (view.showReminders !== false) summary.push(`${rCount} Erinnerungskategorien`);
-                if (view.showReminders === false) summary.push('ohne Erinnerungen');
-                if (view.showProjects === false) summary.push('nur Erinnerungen');
+                if (view.showReminders !== false) summary.push(`${rCount} Kategorien der Merkliste`);
+                if (view.showReminders === false) summary.push('ohne Merkliste');
+                if (view.showProjects === false) summary.push('nur Merkliste');
 
                 return (
                   <div
@@ -775,7 +775,7 @@ const KanbanFilterDrawer = ({
             {reminderCategories.length > 0 && (
               <CategoryGroup
                 icon="notifications"
-                enabledText="Erinnerungen einbeziehen"
+                enabledText="Merkliste einbeziehen"
                 categories={reminderCategories}
                 selectedIds={formReminderCategoryIds}
                 enabled={formShowReminders}
@@ -789,7 +789,7 @@ const KanbanFilterDrawer = ({
                   setFormReminderCategoryIds(reminderCategories.map(c => c.id));
                 }}
                 onNone={() => setFormReminderCategoryIds([])}
-                summaryText={!formShowReminders ? 'Ausgeschaltet (keine Erinnerungen)' : summaryFor(formReminderCategoryIds.length, reminderCategories.length, 'Alle Erinnerungen aktiv', 'Keine Kategorien gewählt')}
+                summaryText={!formShowReminders ? 'Ausgeschaltet (keine Einträge)' : summaryFor(formReminderCategoryIds.length, reminderCategories.length, 'Alle Einträge aktiv', 'Keine Kategorien gewählt')}
               />
             )}
           </div>

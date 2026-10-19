@@ -4,8 +4,10 @@ import { Chip, FOCUS, IconButton, cx } from '../ds';
 /**
  * Kategorie-Auswahl als antippbare Chips (eine Zeile, auf dem Handy seitlich wischbar).
  * Der letzte Chip legt direkt eine neue Kategorie an und wählt sie aus.
+ * `showLabel={false}`: kompakt als Filterleiste (Beschriftung nur für Screenreader, Häkchen entfällt);
+ * Einträge können `count` tragen.
  */
-function CategoryChips({ categories = [], value, onChange, onCreate, label = 'Kategorie' }) {
+function CategoryChips({ categories = [], value, onChange, onCreate, label = 'Kategorie', showLabel = true, createLabel = 'Name der neuen Kategorie', newLabel = '+ Neu' }) {
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState('');
   const labelId = useId();
@@ -24,7 +26,7 @@ function CategoryChips({ categories = [], value, onChange, onCreate, label = 'Ka
 
   return (
     <div>
-      <span className="mb-1.5 block text-label text-primary" id={labelId}>
+      <span className={showLabel ? 'mb-1.5 block text-label text-primary' : 'sr-only'} id={labelId}>
         {label}
       </span>
       <div
@@ -40,7 +42,8 @@ function CategoryChips({ categories = [], value, onChange, onCreate, label = 'Ka
               role="radio"
               aria-checked={selected}
               selected={selected}
-              leadingIcon={selected ? 'check' : undefined}
+              leadingIcon={showLabel && selected ? 'check' : undefined}
+              count={cat.count}
               onClick={() => onChange(cat.id)}
             >
               {cat.name}
@@ -66,7 +69,7 @@ function CategoryChips({ categories = [], value, onChange, onCreate, label = 'Ka
                 }
               }}
               placeholder="Name"
-              aria-label="Name der neuen Kategorie"
+              aria-label={createLabel}
               className="w-28 border-0 bg-transparent p-0 text-label-sm placeholder:text-tertiary focus:outline-none focus:ring-0"
             />
             <IconButton icon="check" label="Kategorie anlegen" variant="primary" size="sm" onClick={create} className="!h-6 !w-6" />
@@ -80,7 +83,7 @@ function CategoryChips({ categories = [], value, onChange, onCreate, label = 'Ka
               FOCUS,
             )}
           >
-            + Neu
+            {newLabel}
           </button>
         ))}
       </div>

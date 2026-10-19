@@ -8,7 +8,7 @@ const GROUP_LABELS = {
   action: 'Aktionen',
   nav: 'Gehe zu',
   project: 'Projekte',
-  reminder: 'Erinnerungen',
+  reminder: 'Merkliste',
   thought: 'Gedanken',
 };
 const GROUP_ORDER = ['action', 'nav', 'project', 'reminder', 'thought'];
@@ -27,7 +27,7 @@ function ItemIcon({ icon }) {
 }
 
 /**
- * Befehlsleiste (Strg+K): Suche über Aktionen, Navigation, Projekte, Erinnerungen und Gedanken.
+ * Befehlsleiste (Strg+K): Suche über Aktionen, Navigation, Projekte, Merkliste und Gedanken.
  * Bedienung: Pfeiltasten, Enter, Esc.
  */
 export default function CommandPalette({ open, onClose, onNavigate, onAction, onOpenProject, onOpenReminder }) {

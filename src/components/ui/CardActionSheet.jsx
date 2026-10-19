@@ -28,6 +28,7 @@ function CardActionSheet({
     moveReminderToCategory,
     addProjectCategory,
     addReminderCategory,
+    openModal,
   } = useModalContext();
 
   const isProject = itemType === 'project';
@@ -56,8 +57,8 @@ function CardActionSheet({
         open={isOpen}
         onClose={onClose}
         side="bottom"
-        title={itemTitle || (isProject ? 'Projekt' : 'Erinnerung')}
-        ariaLabel={`Optionen für ${itemTitle || (isProject ? 'Projekt' : 'Erinnerung')}`}
+        title={itemTitle || (isProject ? 'Projekt' : 'Eintrag')}
+        ariaLabel={`Optionen für ${itemTitle || (isProject ? 'Projekt' : 'Eintrag')}`}
         bodyClassName="space-y-3 pb-safe"
       >
         <CategoryChips
@@ -84,6 +85,9 @@ function CardActionSheet({
           </div>
           <Button variant="ghost" className={rowClass} leadingIcon="swap_horiz" onClick={run(onOpenStatus)}>
             Status / Spalte wählen …
+          </Button>
+          <Button variant="ghost" className={rowClass} leadingIcon="drive_file_move" onClick={run(() => openModal('moveEnvironment', { type: itemType, itemId }))}>
+            Umgebung wählen …
           </Button>
         </div>
 

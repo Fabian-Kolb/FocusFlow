@@ -4,7 +4,8 @@ import NotesSection from '../ui/NotesSection';
 import GlobalChatDrawer from '../ui/GlobalChatDrawer';
 import CalendarDesyncModal from '../modals/CalendarDesyncModal';
 import { RECURRENCE_OPTIONS, getRecurrenceOptionId, formatRecurrence, toIsoDate } from '../../lib/recurrence';
-import { Alert, Badge, Button, Card, Chip, FOCUS, Field, FioMark, Icon, IconButton, Input, ProgressBar, SectionHeader, Select, cx } from '../ds';
+import { TASK_KINDS } from '../../lib/taskOverview';
+import { Alert, Badge, Button, Card, Checkbox, Chip, FOCUS, Field, FioMark, Icon, IconButton, Input, ProgressBar, SectionHeader, Select, cx } from '../ds';
 
 const ReminderDetail = ({ setCurrentScreen }) => {
   const {
@@ -87,6 +88,15 @@ const ReminderDetail = ({ setCurrentScreen }) => {
     });
   };
 
+  // Aufgaben-Felder (Art, schnell, später): Feld ganz entfernen statt leer speichern (Firestore-Regeln: hasOnly)
+  const setTaskField = (field, value) => {
+    if (!mutateReminder || !reminder) return;
+    mutateReminder(reminder.id, (rem) => {
+      const { [field]: _old, ...rest } = rem;
+      return value ? { ...rest, [field]: value } : rest;
+    });
+  };
+
   const isSyncing = Boolean(reminder && isEntitySyncing && isEntitySyncing(reminder.id));
 
   const handleSyncToCalendar = async () => {
@@ -112,7 +122,7 @@ const ReminderDetail = ({ setCurrentScreen }) => {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 p-12 text-center">
       <Icon name="notifications_off" size="xl" className="text-tertiary" />
-      <h2 className="text-heading text-primary">Erinnerung nicht gefunden</h2>
+      <h2 className="text-heading text-primary">Eintrag nicht gefunden</h2>
       <Button onClick={() => setCurrentScreen('reminders')}>Zurück zur Übersicht</Button>
       </div>
     );
@@ -214,7 +224,7 @@ const ReminderDetail = ({ setCurrentScreen }) => {
         {/* Brotkrumen */}
         <nav aria-label="Pfad" className="flex flex-wrap items-center gap-1 text-caption text-secondary">
           <Button variant="ghost" size="sm" leadingIcon="arrow_back" onClick={() => setCurrentScreen && setCurrentScreen('reminders')}>
-            Erinnerungen
+            Merkliste
           </Button>
           <span className="text-disabled" aria-hidden="true">/</span>
           <Button
@@ -240,11 +250,17 @@ const ReminderDetail = ({ setCurrentScreen }) => {
             size="sm"
             onClick={() => openModal('moveCategory', { type: 'reminder', itemId: reminder.id, currentCategoryId: reminder.categoryId })}
           />
+          <IconButton
+            icon="drive_file_move"
+            label="Umgebung ändern"
+            size="sm"
+            onClick={() => openModal('moveEnvironment', { type: 'reminder', itemId: reminder.id, returnTo: 'reminders' })}
+          />
         </nav>
 
         {isTrashed && (
-          <Alert tone="danger" icon="delete" title="Erinnerung im Papierkorb">
-            Diese Erinnerung wurde gelöscht. Stelle sie im Papierkorb wieder her, um sie zu bearbeiten.
+          <Alert tone="danger" icon="delete" title="Eintrag im Papierkorb">
+            Dieser Eintrag wurde gelöscht. Stelle ihn im Papierkorb wieder her, um sie zu bearbeiten.
           </Alert>
         )}
 
@@ -260,7 +276,7 @@ const ReminderDetail = ({ setCurrentScreen }) => {
                     onChange={(e) => setEditTitle(e.target.value)}
                     onBlur={handleSaveTitle}
                     autoFocus
-                    aria-label="Titel der Erinnerung"
+                    aria-label="Titel des Eintrags"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') handleSaveTitle();
                       if (e.key === 'Escape') {
@@ -304,7 +320,7 @@ const ReminderDetail = ({ setCurrentScreen }) => {
                     {reminder.title}
                   </h1>
                   {!isTrashed && (
-                    <IconButton icon="edit" label="Erinnerung umbenennen" size="sm" className="opacity-0 focus-visible:opacity-100 group-hover:opacity-100" onClick={() => setIsEditingTitle(true)} />
+                    <IconButton icon="edit" label="Eintrag umbenennen" size="sm" className="opacity-0 focus-visible:opacity-100 group-hover:opacity-100" onClick={() => setIsEditingTitle(true)} />
                   )}
                 </div>
               )}
@@ -364,6 +380,48 @@ const ReminderDetail = ({ setCurrentScreen }) => {
                   ))}
                 </Select>
               </Field>
+            )}
+
+            {!isTrashed && (
+              <div className="flex flex-col gap-3 border-t border-subtle pt-4">
+                <Field label="Art" hint="Abgaben und Prüfungen erscheinen im Bereich mit Countdown.">
+                  <Select
+                    aria-label="Art der Aufgabe"
+                    size="sm"
+                    value={reminder.kind || ''}
+                    onChange={(e) => setTaskField('kind', e.target.value)}
+                  >
+                    <option value="">Aufgabe</option>
+                    {Object.entries(TASK_KINDS).map(([id, k]) => (
+                      <option key={id} value={id}>{k.label}</option>
+                    ))}
+                  </Select>
+                </Field>
+                {(activeEnvironmentId === 'arbeit' || reminder.waitingFor) && (
+                  <Field label="Wartet auf" hint="Auf wen oder was du wartest. Erscheint im Bereich „Wartet auf“.">
+                    <Input
+                      aria-label="Wartet auf"
+                      size="sm"
+                      maxLength={80}
+                      placeholder="z. B. Antwort von Herrn Meier"
+                      defaultValue={reminder.waitingFor || ''}
+                      onBlur={(e) => setTaskField('waitingFor', e.target.value.trim())}
+                    />
+                  </Field>
+                )}
+                <Checkbox
+                  checked={reminder.quick === true}
+                  onChange={(e) => setTaskField('quick', e.target.checked)}
+                  label="Schnell erledigt"
+                  description="Unter fünf Minuten. Steht auf Heute unter „Schnell erledigt“."
+                />
+                <Checkbox
+                  checked={reminder.parked === true}
+                  onChange={(e) => setTaskField('parked', e.target.checked)}
+                  label="Irgendwann"
+                  description="Auf später geschoben. Erscheint nicht auf Heute, nur im Bereich."
+                />
+              </div>
             )}
 
             <ProgressBar
@@ -467,8 +525,8 @@ const ReminderDetail = ({ setCurrentScreen }) => {
         <button
           type="button"
           onClick={() => setIsGlobalChatOpen(true)}
-          title="Fio für diese Erinnerung öffnen"
-          aria-label="Fio für diese Erinnerung öffnen"
+          title="Fio für diesen Eintrag öffnen"
+          aria-label="Fio für diesen Eintrag öffnen"
           className={cx(
             'group fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] right-4 z-dropdown flex h-12 w-12 items-center justify-center rounded-lg bg-inverse text-inverse shadow-lg transition-transform duration-fast hover:scale-105 active:scale-95 motion-reduce:transform-none sm:bottom-6 sm:right-6',
             FOCUS,

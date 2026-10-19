@@ -2,31 +2,23 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useModalContext } from '../../context/ModalContext';
 import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
+import { useEnvironment } from '../../context/EnvironmentContext';
 import { countThoughts } from '../../lib/thoughts';
 import { BREAKPOINTS } from '../../lib/breakpoints';
 import { areaOf } from '../../lib/areas';
 import { Avatar, FioMark, FOCUS, Icon, IconButton, Sheet, cx } from '../ds';
 
-// Hauptziele am Handy. Projekte umfasst auch Detailansicht und Kanban-Board (Umschalter "Liste | Board").
-const NAV_ITEMS = [
-  { id: 'dashboard', label: 'Home', icon: 'home', screens: ['dashboard'] },
-  { id: 'projects', label: 'Projekte', icon: 'folder', screens: ['projects', 'project-detail'] },
-  { id: 'hub' },
-  { id: 'reminders', label: 'Erinnerungen', icon: 'notifications', screens: ['reminders', 'reminder-detail'] },
-  { id: 'calendar', label: 'Kalender', icon: 'calendar_today', screens: ['calendar'] },
-];
-
-// Ziele hinter dem mittleren Knopf
-const HUB_SCREENS = ['inbox', 'coach', 'board', 'review', 'trash'];
-
 /**
  * Mobile Bottom-Bar (< md): vier Hauptziele + mittlerer Knopf, der alle weiteren Bereiche öffnet:
- * oben "Frag Fio …", darunter Gedanken, Kanban Board, Wochenrückblick, Papierkorb, Konto.
+ * oben "Frag Fio …", darunter die weiteren Ziele der Umgebung, Konto. Die Ziele kommen aus der aktiven
+ * Umgebung (src/lib/environments.js); Detailseiten lassen ihren Menüpunkt aktiv aussehen (`screens`).
  */
 const BottomNav = ({ currentScreen, setCurrentScreen }) => {
+  const { nav } = useEnvironment();
   const [isHubOpen, setIsHubOpen] = useState(false);
   const hubButtonRef = useRef(null);
-  const isHubActive = HUB_SCREENS.includes(currentScreen);
+  const navItems = [nav.tabs[0], nav.tabs[1], { id: 'hub' }, nav.tabs[2], nav.tabs[3]];
+  const isHubActive = nav.hub.some((item) => item.screens.includes(currentScreen)) || currentScreen === 'coach';
 
   // Wächst das Fenster über den Handy-Breakpoint, gibt es die Leiste nicht mehr: das offene Sheet nicht stehen lassen
   useEffect(() => {
@@ -51,7 +43,7 @@ const BottomNav = ({ currentScreen, setCurrentScreen }) => {
       }}
     >
       <div className="w-full h-16 px-2 flex justify-around items-center">
-        {NAV_ITEMS.map((item) => {
+        {navItems.map((item) => {
           if (item.id === 'hub') {
             return (
               <div key="hub" className="flex-1 flex justify-center">
@@ -142,6 +134,7 @@ function HubSheet({ isOpen, onClose, currentScreen, onNavigate }) {
   const { inboxItems, openModal } = useModalContext();
   const { user } = useAuth();
   const { queuePrompt } = useChat();
+  const { nav } = useEnvironment();
   const [fioText, setFioText] = useState('');
 
   // Ohne Text einfach Fio öffnen, mit Text direkt als erste Nachricht in einem neuen Gespräch senden
@@ -153,12 +146,7 @@ function HubSheet({ isOpen, onClose, currentScreen, onNavigate }) {
   };
 
   const thoughtCount = countThoughts(inboxItems);
-  const tiles = [
-    { id: 'inbox', label: 'Gedanken', icon: 'lightbulb', badge: thoughtCount },
-    { id: 'board', label: 'Kanban Board', icon: 'view_kanban' },
-    { id: 'review', label: 'Wochenrückblick', icon: 'analytics' },
-    { id: 'trash', label: 'Papierkorb', icon: 'delete' },
-  ];
+  const tiles = nav.hub.map((item) => ({ ...item, badge: item.id === 'inbox' ? thoughtCount : 0 }));
   const isPlainGuest = Boolean(user?.isGuest && !user?.isDevAccount);
   const accountName = user?.displayName || user?.email || 'Konto';
 

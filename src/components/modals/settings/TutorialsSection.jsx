@@ -17,8 +17,8 @@ const WORKFLOWS = [
   {
     icon: 'notifications',
     badge: 'Schritt 3',
-    title: 'Erinnerungen und Fälligkeiten',
-    desc: 'Nicht jede Aufgabe gehört in ein Projekt. Für zeitkritische Todos nutzt du Erinnerungen mit Datum, Uhrzeit und Priorität. Verknüpfst du den Google Kalender, landen sie direkt in deinem Kalender.'
+    title: 'Merkliste und Fälligkeiten',
+    desc: 'Nicht jede Aufgabe gehört in ein Projekt. Für zeitkritische Todos nutzt du die Merkliste mit Datum, Uhrzeit und Priorität. Verknüpfst du den Google Kalender, landen sie direkt in deinem Kalender.'
   },
   {
     icon: 'insights',

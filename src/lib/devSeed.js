@@ -16,6 +16,8 @@ const KEYS = [
   'focusflow_guest_projects',
   'focusflow_guest_reminders',
   'focusflow_guest_inbox',
+  'focusflow_guest_reminder_categories',
+  'focusflow_guest_gym',
   'focusflow_guest_kanban_views',
   'focusflow_dev_calendar',
 ];
@@ -110,6 +112,76 @@ export function buildSeedProjects() {
       notes: [],
       history: [],
     },
+    ...buildSeedFaecher(),
+    {
+      id: 'dev_proj_kunde',
+      environmentId: 'arbeit',
+      title: 'Kunden-Relaunch',
+      description: 'Neuer Webauftritt für den Kunden, Abnahme in drei Wochen.',
+      status: 'IN ARBEIT',
+      isPaused: false,
+      inKanban: true,
+      categoryId: 'allgemein',
+      startDate: inDays(-20),
+      endDate: inDays(21),
+      phases: [
+        {
+          id: 'dev_ph_konzept',
+          title: 'Konzept',
+          completed: false,
+          description: '',
+          tasks: [
+            { id: 'dev_tw1', title: 'Seitenstruktur abstimmen', date: inDays(1), completed: false, note: 'Mit dem Team klären' },
+            { id: 'dev_tw2', title: 'Angebot finalisieren', date: inDays(0), completed: false, note: '' },
+            { id: 'dev_tw3', title: 'Kick-off-Protokoll verschicken', date: inDays(-5), completed: true, note: '' },
+          ],
+          materials: [],
+        },
+      ],
+      notes: [],
+      history: [],
+    },
+  ];
+}
+
+// Fächer der Hochschule: Projekte vom Typ „fach“ mit Prüfungstermin, Aufgaben in „Aufgaben“ und Hinweisen aus der Stunde
+function buildSeedFaecher() {
+  const fach = (id, title, description, exam, tasks, hints = []) => ({
+    id: `dev_proj_${id}`,
+    type: 'fach',
+    environmentId: 'hochschule',
+    title,
+    description,
+    status: 'AKTIV',
+    isPaused: false,
+    inKanban: true,
+    categoryId: 'allgemein',
+    exam: { date: exam },
+    hints,
+    phases: [{ id: `dev_ph_${id}`, title: 'Aufgaben', completed: false, description: '', tasks, materials: [] }],
+    notes: [],
+    history: [],
+  });
+  const task = (id, title, date, completed = false) => ({ id: `dev_t_${id}`, title, date, completed, note: '' });
+  return [
+    fach('mathe', 'Mathe 2', 'Analysis und lineare Algebra, 2. Semester.', inDays(18), [
+      task('m1', 'Übungsblatt 3 abgeben', inDays(-1)),
+      task('m2', 'Übungsblatt 4 abgeben', inDays(7)),
+      task('m3', 'Integrationsregeln wiederholen', inDays(10)),
+      task('m4', 'Übungsblatt 2 abgeben', inDays(-8), true),
+    ], [
+      { id: 'dev_hint_1', text: 'Kapitel 3 kommt sicher in die Klausur', date: inDays(-2), exam: true },
+      { id: 'dev_hint_2', text: 'Eine Seite Formelsammlung darf mitgebracht werden', date: inDays(-5) },
+      { id: 'dev_hint_3', text: 'Übungsblatt 5 vor der Übung am Donnerstag lösen', date: inDays(-5) },
+    ]),
+    fach('prog', 'Programmieren', 'Webanwendung im Team, Labor jeden zweiten Freitag.', inDays(26), [
+      task('p1', 'Laborbericht an die Gruppe schicken', inDays(1)),
+      task('p2', 'Projektabgabe Webanwendung', inDays(26)),
+    ]),
+    fach('bwl', 'BWL', 'Grundlagen der Betriebswirtschaft.', inDays(24), [
+      task('b1', 'Für die BWL-Klausur anmelden', inDays(2)),
+      task('b2', 'Kapitel 2 zusammenfassen', ''),
+    ]),
   ];
 }
 
@@ -124,7 +196,73 @@ export function buildSeedReminders() {
     { ...base, id: 'dev_rem_5', title: 'Wochenreview', description: 'Fortschritt der Projekte abgleichen.', priority: 'mittel', date: inDays(1), time: '09:00', recurrence: { freq: 'weekly', interval: 1 }, createdAt: now - 20 * DAY },
     { ...base, id: 'dev_rem_6', title: 'Geburtstag Mama', description: 'Geschenk besorgen.', priority: 'hoch', date: inDays(4), time: '', createdAt: now - 6 * DAY },
     { ...base, id: 'dev_rem_7', title: 'Neue Laufschuhe ansehen', description: '', priority: 'niedrig', date: '', time: '', createdAt: now - 1 * DAY },
+    ...buildSeedEnvironmentTasks(now),
   ];
+}
+
+// Aufgaben in den Umgebungen Hochschule und Arbeit: Abgaben und Prüfungen (kind), Schnelles (quick), Geparktes
+// (parked) und Dinge, die zu lange liegen (ohne Datum, älter als 7 Tage), damit „Noch wichtig?“ etwas zu fragen hat.
+function buildSeedEnvironmentTasks(now) {
+  const base = { status: 'AKTIV', notes: [], description: '', time: '', categoryId: 'allgemein' };
+  const task = (id, environmentId, title, fields) => ({ ...base, id: `dev_rem_${id}`, environmentId, title, date: '', ...fields });
+  return [
+    task('h4', 'hochschule', 'Altklausur 2025 rechnen', { createdAt: now - 2 * DAY }),
+    task('h5', 'hochschule', 'Skript Kapitel 4 ausdrucken', { createdAt: now - 9 * DAY }),
+    task('h8', 'hochschule', 'Tutor wegen Übungstermin anschreiben', { quick: true, createdAt: now - 1 * DAY }),
+    task('h11', 'hochschule', 'Praktikumsbericht abgeben', { date: inDays(12), kind: 'abgabe', createdAt: now - 8 * DAY }),
+    task('h12', 'hochschule', 'Anmeldung beim Prüfungsamt', { date: inDays(5), kind: 'abgabe', createdAt: now - 6 * DAY }),
+    task('w1', 'arbeit', 'Angebot an den Kunden schicken', { date: inDays(0), time: '15:00', createdAt: now - 3 * DAY }),
+    task('w2', 'arbeit', 'Rückmeldung zum Konzept einholen', { date: inDays(2), createdAt: now - 5 * DAY }),
+    task('w3', 'arbeit', 'Zeiterfassung ausfüllen', { quick: true, createdAt: now - 1 * DAY }),
+    task('w4', 'arbeit', 'Onboarding-Dokument überarbeiten', { createdAt: now - 12 * DAY }),
+    { ...base, id: 'dev_rem_a1', title: 'Mensakarte aufladen', quick: true, date: '', createdAt: now - 1 * DAY },
+    { ...base, id: 'dev_rem_a2', title: 'Fahrradlicht reparieren', date: '', createdAt: now - 14 * DAY },
+    { ...base, id: 'dev_rem_a3', title: 'Neue Saiten für die Gitarre', parked: true, date: '', createdAt: now - 25 * DAY },
+  ];
+}
+
+// Gym-Logbuch: Übungen, drei Trainingstage und elf Trainings der letzten vier Wochen mit steigenden Gewichten
+// (Trizepsdrücken ohne Wiederholungen), dazu wöchentliche Körperwerte.
+export function buildSeedGym() {
+  const now = new Date();
+  const at = (daysAgo, hour = 18) => new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysAgo, hour, 0).getTime();
+  const names = {
+    bank: 'Bankdrücken', schulter: 'Schulterdrücken', trizeps: 'Trizepsdrücken',
+    klimm: 'Klimmzüge', rudern: 'Rudern', curls: 'Bizeps-Curls',
+    knie: 'Kniebeugen', presse: 'Beinpresse', waden: 'Wadenheben',
+  };
+  const ex = (key) => `dev_ex_${key}`;
+  const exercises = Object.entries(names).map(([key, name], i) => ({ id: ex(key), name, createdAt: 1000 + i }));
+  const days = [
+    { id: 'dev_plan_push', name: 'Push', keys: ['bank', 'schulter', 'trizeps'] },
+    { id: 'dev_plan_pull', name: 'Pull', keys: ['klimm', 'rudern', 'curls'] },
+    { id: 'dev_plan_beine', name: 'Beine', keys: ['knie', 'presse', 'waden'] },
+  ];
+  const plans = days.map((d, order) => ({ id: d.id, name: d.name, order, exerciseIds: d.keys.map(ex), createdAt: 2000 + order }));
+  const base = { bank: 57.5, schulter: 32.5, trizeps: 22.5, klimm: 0, rudern: 50, curls: 15, knie: 80, presse: 140, waden: 60 };
+  const reps = { bank: [8, 8, 7], schulter: [10, 9, 8], trizeps: [null, null, null], klimm: [8, 7, 6], rudern: [10, 10, 9], curls: [12, 10, 10], knie: [8, 8, 6], presse: [12, 12, 10], waden: [15, 15, 15] };
+  const offsets = [26, 24, 22, 19, 17, 15, 12, 10, 7, 5, 3];
+  const seen = {};
+  const workouts = offsets.map((daysAgo, k) => {
+    const day = days[k % 3];
+    const start = at(daysAgo);
+    const sets = [];
+    day.keys.forEach((key) => {
+      seen[key] = (seen[key] || 0) + 1;
+      const weight = base[key] + Math.floor((seen[key] - 1) / 2) * 2.5;
+      reps[key].forEach((r, i) => {
+        sets.push({ id: `dev_s_${k}_${key}_${i}`, exerciseId: ex(key), weight, ...(r ? { reps: r } : {}), at: start + (sets.length + 1) * 150000 });
+      });
+    });
+    return {
+      id: `dev_w_${k}`, date: iso(new Date(start)), planId: day.id, startedAt: start, endedAt: start + 65 * 60000,
+      exerciseIds: day.keys.map(ex), sets, createdAt: start,
+    };
+  });
+  const body = [26, 19, 12, 5].map((daysAgo, i) => ({
+    id: `dev_b_${i}`, date: iso(new Date(at(daysAgo, 8))), weight: [83.0, 82.6, 82.1, 81.7][i], createdAt: at(daysAgo, 8),
+  }));
+  return { exercises, plans, workouts, body };
 }
 
 export function buildSeedThoughts() {
@@ -190,6 +328,7 @@ export function seedDevAccountData() {
     localStorage.setItem('focusflow_guest_projects', JSON.stringify(buildSeedProjects()));
     localStorage.setItem('focusflow_guest_reminders', JSON.stringify(buildSeedReminders()));
     localStorage.setItem('focusflow_guest_inbox', JSON.stringify(buildSeedThoughts()));
+    localStorage.setItem('focusflow_guest_gym', JSON.stringify(buildSeedGym()));
     localStorage.setItem(DEV_SEED_FLAG, 'true');
     return true;
   } catch (e) {

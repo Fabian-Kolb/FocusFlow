@@ -247,14 +247,14 @@ const Reminders = ({ setCurrentScreen }) => {
   return (
     <div className="pb-20">
       <ListToolbar
-      title="Erinnerungen"
+      title="Merkliste"
       description={`${reminders.filter((x) => !x.deletedAt && x.status !== 'ABGESCHLOSSEN').length} offen`}
       searchValue={searchQuery}
         onSearchChange={setSearchQuery}
-        searchPlaceholder="Erinnerungen durchsuchen"
+        searchPlaceholder="Merkliste durchsuchen"
         onOpenTrash={() => setCurrentScreen('trash')}
         onCreate={() => openModal('reminder')}
-        createLabel="Neue Erinnerung"
+        createLabel="Neuer Eintrag"
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
         viewToggle={<ViewToggle value={viewMode} onChange={changeViewMode} options={VIEW_OPTIONS} />}
@@ -273,10 +273,10 @@ const Reminders = ({ setCurrentScreen }) => {
         <div className="space-y-5">
           {timeGroups.length === 0 && (
             <EmptyState
-              icon="notifications"
-              title={searchQuery || statusFilter !== 'all' ? 'Keine Treffer für diesen Filter' : 'Noch keine Erinnerungen'}
-              description={searchQuery || statusFilter !== 'all' ? 'Ändere die Suche oder den Filter.' : 'Lege eine Erinnerung an, damit nichts untergeht.'}
-              action={!(searchQuery || statusFilter !== 'all') && <Button onClick={() => openModal('reminder')}>Erinnerung hinzufügen</Button>}
+              icon="checklist"
+              title={searchQuery || statusFilter !== 'all' ? 'Keine Treffer für diesen Filter' : 'Noch keine Einträge'}
+              description={searchQuery || statusFilter !== 'all' ? 'Ändere die Suche oder den Filter.' : 'Schreib auf, was du dir merken willst, damit nichts untergeht.'}
+              action={!(searchQuery || statusFilter !== 'all') && <Button onClick={() => openModal('reminder')}>Eintrag hinzufügen</Button>}
             />
           )}
           {timeGroups.map((group) => {
@@ -474,7 +474,7 @@ const Reminders = ({ setCurrentScreen }) => {
                         : 'border-subtle text-secondary'
                     }`}>
                       <Icon name={isCardHoveringThisCat ? 'arrow_downward' : 'drag_indicator'} size="md" className="mr-2" />
-                      {isCardHoveringThisCat ? 'Hier loslassen' : 'Erinnerungen hier ablegen'}
+                      {isCardHoveringThisCat ? 'Hier loslassen' : 'Einträge hier ablegen'}
                     </div>
                   )}
                 </div>

@@ -53,6 +53,7 @@ function thoughtToNote(item) {
 
 /** Eine Aktion pro Karte: „Weiterverarbeiten“ öffnet dieses Menü (auch per Rechtsklick auf die Karte) */
 function ThoughtMenu({ item, open, onOpenChange, projects, reminders, onElaborate, onConvert, onAttach, onSelect, onDelete }) {
+  const { openModal } = useModalContext();
   const [view, setView] = useState('main'); // 'main' | 'project' | 'reminder'
   const menuRef = useRef(null);
 
@@ -96,29 +97,30 @@ function ThoughtMenu({ item, open, onOpenChange, projects, reminders, onElaborat
           {view === 'main' ? (
             <>
               <MenuItem icon="auto_awesome" onClick={() => { close(); onElaborate(item); }}>Mit Fio ausarbeiten</MenuItem>
-              <MenuItem icon="notifications" onClick={() => { close(); onConvert(item, 'reminder'); }}>Als neue Erinnerung</MenuItem>
+              <MenuItem icon="checklist" onClick={() => { close(); onConvert(item, 'reminder'); }}>Als neuer Eintrag</MenuItem>
               <MenuItem icon="create_new_folder" onClick={() => { close(); onConvert(item, 'project'); }}>Als neues Projekt</MenuItem>
               <MenuSeparator />
               <MenuItem icon="library_add" onClick={() => setView('project')}>An Projekt anhängen</MenuItem>
-              <MenuItem icon="add_alert" onClick={() => setView('reminder')}>An Erinnerung anhängen</MenuItem>
+              <MenuItem icon="add_alert" onClick={() => setView('reminder')}>An Eintrag anhängen</MenuItem>
               <MenuSeparator />
+              <MenuItem icon="drive_file_move" onClick={() => { close(); openModal('moveEnvironment', { type: 'thought', itemId: item.id }); }}>Umgebung wählen …</MenuItem>
               <MenuItem icon="check_circle" onClick={() => { close(); onSelect(item.id); }}>Auswählen</MenuItem>
               <MenuItem icon="delete" danger onClick={() => { close(); onDelete(item.id); }}>In den Papierkorb</MenuItem>
             </>
           ) : (
             <>
               <MenuItem icon="arrow_back" onClick={() => setView('main')}>
-                {view === 'project' ? 'Projekt wählen' : 'Erinnerung wählen'}
+                {view === 'project' ? 'Projekt wählen' : 'Eintrag wählen'}
               </MenuItem>
               <MenuSeparator />
               {targets.length === 0 ? (
                 <p className="px-2.5 py-2 text-caption text-secondary">
-                  Keine aktiven {view === 'project' ? 'Projekte' : 'Erinnerungen'} gefunden.
+                  Keine aktiven {view === 'project' ? 'Projekte' : 'Einträge'} gefunden.
                 </p>
               ) : targets.map((t) => (
                 <MenuItem
                   key={t.id}
-                  icon={view === 'project' ? 'folder' : 'notifications'}
+                  icon={view === 'project' ? 'folder' : 'checklist'}
                   onClick={() => {
                     close();
                     onAttach(item, view, t.id);

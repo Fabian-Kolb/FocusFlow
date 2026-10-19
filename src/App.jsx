@@ -7,11 +7,15 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ChatProvider } from './context/ChatContext';
 import { ToastProvider } from './context/ToastContext';
 import { ConfirmProvider } from './context/ConfirmContext';
+import { EnvironmentProvider, useEnvironment } from './context/EnvironmentContext';
+import { GymProvider } from './context/GymContext';
+import EnvironmentBar from './components/environment/EnvironmentBar';
 import FirestoreErrorBanner from './components/ui/FirestoreErrorBanner';
 import ErrorBoundary from './components/ErrorBoundary';
 
 // Modals
 import ProjectModal from './components/modals/ProjectModal';
+import FachModal from './components/hochschule/FachModal';
 import PhaseModal from './components/modals/PhaseModal';
 import TaskModal from './components/modals/TaskModal';
 import MaterialModal from './components/modals/MaterialModal';
@@ -19,6 +23,7 @@ import ProjectHistoryModal from './components/modals/ProjectHistoryModal';
 import SettingsModal from './components/modals/SettingsModal';
 import ReminderModal from './components/modals/ReminderModal';
 import MoveCategoryModal from './components/modals/MoveCategoryModal';
+import MoveEnvironmentModal from './components/modals/MoveEnvironmentModal';
 import MoveStatusModal from './components/modals/MoveStatusModal';
 import GuestWelcomeModal from './components/modals/GuestWelcomeModal';
 import CommandPalette from './components/ui/CommandPalette';
@@ -52,6 +57,10 @@ const Review = lazy(() => import('./components/screens/Review'));
 const ProjectsBoard = lazy(() => import('./components/screens/ProjectsBoard'));
 const ReminderDetail = lazy(() => import('./components/screens/ReminderDetail'));
 const Trash = lazy(() => import('./components/screens/Trash'));
+const GymHome = lazy(() => import('./components/screens/GymHome'));
+const GymLog = lazy(() => import('./components/screens/GymLog'));
+const GymProgress = lazy(() => import('./components/screens/GymProgress'));
+const GymBody = lazy(() => import('./components/screens/GymBody'));
 const LegalPage = lazy(() => import('./components/screens/LegalPage'));
 
 function ScreenFallback() {
@@ -94,6 +103,7 @@ function AppContent() {
   const { user } = useAuth();
   const { firestoreError, clearFirestoreError, setSelectedProjectId, setSelectedReminderId } = useData();
   const { openModal, activeModal } = useModal();
+  const { activeEnvironmentId } = useEnvironment();
 
   // Befehlsleiste, Schnellerfassung & Kürzel-Übersicht (PC)
   const [overlay, setOverlay] = useState(null); // 'palette' | 'capture' | 'shortcuts' | null
@@ -110,12 +120,12 @@ function AppContent() {
   const runAction = useCallback((action) => {
     if (action === 'new-thought') setOverlay('capture');
     else if (action === 'new-reminder') openModal('reminder');
-    else if (action === 'new-project') openModal('project');
+    else if (action === 'new-project') openModal(activeEnvironmentId === 'hochschule' ? 'fach' : 'project');
     else if (action === 'settings') openModal('settings');
     else if (action === 'shortcuts') setOverlay('shortcuts');
     // openModal ist nicht memoisiert; Aktionen lesen immer den aktuellen Stand
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [activeEnvironmentId]);
 
 
   // App-Kurzbefehle (Manifest „shortcuts“): Aktion aus der Start-URL lesen und nach dem Login ausführen
@@ -184,14 +194,17 @@ function AppContent() {
   const screenTitles = {
     dashboard: 'Home',
     inbox: 'Gedanken',
-    reminders: 'Erinnerungen',
+    reminders: 'Merkliste',
     projects: 'Projekte',
     board: 'Kanban Board',
     'project-detail': 'Projektdetails',
-    'reminder-detail': 'Erinnerungsdetails',
+    'reminder-detail': 'Eintragsdetails',
     calendar: 'Kalender',
     coach: 'Fio',
     review: 'Wochenrückblick',
+    'gym-log': 'Training',
+    'gym-progress': 'Fortschritt',
+    'gym-body': 'Körper',
     trash: 'Papierkorb'
   };
 
@@ -218,6 +231,8 @@ function AppContent() {
 
       {/* Main Content Area + Flow-based Mobile BottomNav */}
       <div className="flex-1 min-w-0 flex flex-col h-full overflow-hidden">
+        {/* Umgebung wechseln (Handy); am Desktop sitzt der Umschalter in der Seitenleiste. Fio hat einen eigenen Kopf. */}
+        {currentScreen !== 'coach' && <EnvironmentBar onSwitched={() => setCurrentScreen('dashboard')} />}
         <main className={`flex-1 min-w-0 relative flex flex-col min-h-0 ${
           currentScreen === 'coach' || currentScreen === 'calendar' || currentScreen === 'board'
             ? 'overflow-hidden' 
@@ -237,7 +252,12 @@ function AppContent() {
             )}
             <ErrorBoundary variant="screen" resetKey={currentScreen}>
               <Suspense fallback={<ScreenFallback />}>
-                {currentScreen === 'dashboard' && <Dashboard setCurrentScreen={setCurrentScreen} />}
+                {currentScreen === 'dashboard' && (activeEnvironmentId === 'gym'
+                  ? <GymHome setCurrentScreen={setCurrentScreen} />
+                  : <Dashboard setCurrentScreen={setCurrentScreen} />)}
+                {currentScreen === 'gym-log' && <GymLog setCurrentScreen={setCurrentScreen} />}
+                {currentScreen === 'gym-progress' && <GymProgress setCurrentScreen={setCurrentScreen} />}
+                {currentScreen === 'gym-body' && <GymBody setCurrentScreen={setCurrentScreen} />}
                 {currentScreen === 'inbox' && (
                   <Inbox
                     setCurrentScreen={setCurrentScreen}
@@ -264,6 +284,7 @@ function AppContent() {
 
       {/* Render All Interactive Modals */}
       <ProjectModal setCurrentScreen={setCurrentScreen} />
+      <FachModal setCurrentScreen={setCurrentScreen} />
       <PhaseModal />
       <TaskModal />
       <MaterialModal />
@@ -271,6 +292,7 @@ function AppContent() {
       <SettingsModal />
       <ReminderModal setCurrentScreen={setCurrentScreen} />
       <MoveCategoryModal />
+      <MoveEnvironmentModal setCurrentScreen={setCurrentScreen} />
       <MoveStatusModal />
       <GuestWelcomeModal />
       <CommandPalette
@@ -307,13 +329,17 @@ function App() {
     <AuthProvider>
       <ToastProvider>
         <ConfirmProvider>
-          <DataProvider>
-            <ModalProvider>
-              <ChatProvider>
-                <AppContent />
-              </ChatProvider>
-            </ModalProvider>
-          </DataProvider>
+          <EnvironmentProvider>
+            <DataProvider>
+              <GymProvider>
+                <ModalProvider>
+                  <ChatProvider>
+                    <AppContent />
+                  </ChatProvider>
+                </ModalProvider>
+              </GymProvider>
+            </DataProvider>
+          </EnvironmentProvider>
         </ConfirmProvider>
       </ToastProvider>
     </AuthProvider>

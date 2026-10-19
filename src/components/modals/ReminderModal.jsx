@@ -4,6 +4,7 @@ import { useModalContext } from '../../context/ModalContext';
 import { generateReminderStructure } from '../../lib/gemini';
 import CategoryChips from '../ui/CategoryChips';
 import { readLastCategory, writeLastCategory } from '../../lib/lastCategory';
+import { TASK_KINDS, isTaskKind } from '../../lib/taskOverview';
 import { Button, Checkbox, Field, FioMark, Input, Select, Sheet, Textarea } from '../ds';
 
 const ReminderModal = ({ setCurrentScreen }) => {
@@ -18,6 +19,8 @@ const ReminderModal = ({ setCurrentScreen }) => {
   const [status, setStatus] = useState('GEPLANT');
   const [syncWithCalendar, setSyncWithCalendar] = useState(false);
   const [categoryId, setCategoryId] = useState('allgemein');
+  const [kind, setKind] = useState('');
+  const [quick, setQuick] = useState(false);
   const [keepThought, setKeepThought] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const titleInputRef = useRef(null);
@@ -32,6 +35,8 @@ const ReminderModal = ({ setCurrentScreen }) => {
       setStatus(modalPayload.status || 'GEPLANT');
       setSyncWithCalendar(false);
       setKeepThought(false);
+      setKind(isTaskKind(modalPayload.kind) ? modalPayload.kind : '');
+      setQuick(modalPayload.quick === true);
       // Vorauswahl: Kategorie aus dem Aufruf (z. B. "+" in einer Kategorie), sonst die zuletzt benutzte
       setCategoryId(
         modalPayload.categoryId && reminderCategories.some((c) => c.id === modalPayload.categoryId)
@@ -64,6 +69,8 @@ const ReminderModal = ({ setCurrentScreen }) => {
       recurrence: RECURRENCE_OPTIONS.find((o) => o.id === recurrenceId)?.value || null,
       status,
       categoryId,
+      kind: kind || undefined,
+      quick: quick || undefined,
       inboxItemId: modalPayload.inboxItemId,
       keepInboxItem: keepThought,
       syncWithCalendar: Boolean(syncWithCalendar && isCalendarConnected && !user?.isGuest)
@@ -96,12 +103,12 @@ const ReminderModal = ({ setCurrentScreen }) => {
       open={isOpen}
       onClose={closeModal}
       width="lg"
-      title={isConversion ? 'Gedanke umwandeln' : 'Neue Erinnerung'}
-      description={isConversion ? 'Aus deinem Gedanken wird eine Erinnerung.' : 'Halte fest, woran du denken willst.'}
+      title={isConversion ? 'Gedanke umwandeln' : 'Neuer Eintrag'}
+      description={isConversion ? 'Aus deinem Gedanken wird ein Eintrag in der Merkliste.' : 'Halte fest, woran du denken willst.'}
       footer={(
         <>
           <Button variant="secondary" onClick={closeModal}>Abbrechen</Button>
-          <Button type="submit" form="reminder-form">Erinnerung hinzufügen</Button>
+          <Button type="submit" form="reminder-form">Eintrag hinzufügen</Button>
         </>
       )}
     >
@@ -163,7 +170,27 @@ const ReminderModal = ({ setCurrentScreen }) => {
               ))}
             </Select>
           </Field>
+          <Field
+            label="Art"
+            optional
+            className="sm:col-span-2"
+            hint="Abgaben und Prüfungen erscheinen im Bereich mit Countdown."
+          >
+            <Select value={kind} onChange={(e) => setKind(e.target.value)}>
+              <option value="">Aufgabe</option>
+              {Object.entries(TASK_KINDS).map(([id, k]) => (
+                <option key={id} value={id}>{k.label}</option>
+              ))}
+            </Select>
+          </Field>
         </div>
+
+        <Checkbox
+          checked={quick}
+          onChange={(e) => setQuick(e.target.checked)}
+          label="Schnell erledigt"
+          description="Unter fünf Minuten. Steht auf Heute unter „Schnell erledigt“."
+        />
 
         {/* Gedanken behalten: z. B. wenn daraus noch etwas Zweites entstehen soll */}
         {isConversion && (

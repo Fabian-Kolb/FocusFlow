@@ -76,8 +76,13 @@ service cloud.firestore {
             'isPaused', 'inKanban', 'nextStep', 'startDate', 'endDate', 'dateRange', 'daysRemaining',
             'timeElapsed', 'phasesCompleted', 'phasesTotal', 'tasksCompleted', 'tasksTotal',
             'warning', 'notes', 'history', 'createdAt', 'updatedAt', 'deletedAt', '_type', 'tags', 'order',
-            'tasksCountText', 'daysCountText', 'recommendedSteps', 'isPinned', 'firstPhase', 'lastUpdated'
+            'tasksCountText', 'daysCountText', 'recommendedSteps', 'isPinned', 'firstPhase', 'lastUpdated',
+            'environmentId', 'type', 'exam', 'hints'
           ]) &&
+          (!('environmentId' in request.resource.data) || request.resource.data.environmentId in ['hochschule', 'arbeit', 'gym']) &&
+          (!('type' in request.resource.data) || request.resource.data.type == 'fach') &&
+          (!('exam' in request.resource.data) || (request.resource.data.exam is map && request.resource.data.exam.size() <= 2)) &&
+          (!('hints' in request.resource.data) || (request.resource.data.hints is list && request.resource.data.hints.size() <= 200)) &&
           request.resource.data.title is string &&
           request.resource.data.title.size() > 0 &&
           request.resource.data.title.size() <= 200 &&
@@ -94,8 +99,13 @@ service cloud.firestore {
             'isPaused', 'inKanban', 'nextStep', 'startDate', 'endDate', 'dateRange', 'daysRemaining',
             'timeElapsed', 'phasesCompleted', 'phasesTotal', 'tasksCompleted', 'tasksTotal',
             'warning', 'notes', 'history', 'createdAt', 'updatedAt', 'deletedAt', '_type', 'tags', 'order',
-            'tasksCountText', 'daysCountText', 'recommendedSteps', 'isPinned', 'firstPhase', 'lastUpdated'
+            'tasksCountText', 'daysCountText', 'recommendedSteps', 'isPinned', 'firstPhase', 'lastUpdated',
+            'environmentId', 'type', 'exam', 'hints'
           ]) &&
+          (!('environmentId' in request.resource.data) || request.resource.data.environmentId in ['hochschule', 'arbeit', 'gym']) &&
+          (!('type' in request.resource.data) || request.resource.data.type == 'fach') &&
+          (!('exam' in request.resource.data) || (request.resource.data.exam is map && request.resource.data.exam.size() <= 2)) &&
+          (!('hints' in request.resource.data) || (request.resource.data.hints is list && request.resource.data.hints.size() <= 200)) &&
           request.resource.data.title is string &&
           request.resource.data.title.size() > 0 &&
           request.resource.data.title.size() <= 200 &&
@@ -118,10 +128,15 @@ service cloud.firestore {
             'status', 'isPaused', 'inKanban', 'completed', 'notes', 'history', 'createdAt',
             'updatedAt', 'deletedAt', '_type', 'tags', 'dateRange', 'daysRemaining', 'timeElapsed', 'order',
             'isPinned', 'startDate', 'endDate', 'lastUpdated', 'isCalendarSynced', 'googleEventId',
-            'recurrence', 'lastCompletedAt'
+            'recurrence', 'lastCompletedAt', 'kind', 'quick', 'parked', 'waitingFor', 'environmentId'
           ]) &&
+          (!('environmentId' in request.resource.data) || request.resource.data.environmentId in ['hochschule', 'arbeit', 'gym']) &&
           (!('recurrence' in request.resource.data) || request.resource.data.recurrence == null || (request.resource.data.recurrence is map && request.resource.data.recurrence.size() <= 5)) &&
           (!('lastCompletedAt' in request.resource.data) || request.resource.data.lastCompletedAt is number) &&
+          (!('kind' in request.resource.data) || request.resource.data.kind in ['abgabe', 'pruefung']) &&
+          (!('quick' in request.resource.data) || request.resource.data.quick is bool) &&
+          (!('parked' in request.resource.data) || request.resource.data.parked is bool) &&
+          (!('waitingFor' in request.resource.data) || (request.resource.data.waitingFor is string && request.resource.data.waitingFor.size() <= 80)) &&
           request.resource.data.title is string &&
           request.resource.data.title.size() > 0 &&
           request.resource.data.title.size() <= 300 &&
@@ -139,10 +154,15 @@ service cloud.firestore {
             'status', 'isPaused', 'inKanban', 'completed', 'notes', 'history', 'createdAt',
             'updatedAt', 'deletedAt', '_type', 'tags', 'dateRange', 'daysRemaining', 'timeElapsed', 'order',
             'isPinned', 'startDate', 'endDate', 'lastUpdated', 'isCalendarSynced', 'googleEventId',
-            'recurrence', 'lastCompletedAt'
+            'recurrence', 'lastCompletedAt', 'kind', 'quick', 'parked', 'waitingFor', 'environmentId'
           ]) &&
+          (!('environmentId' in request.resource.data) || request.resource.data.environmentId in ['hochschule', 'arbeit', 'gym']) &&
           (!('recurrence' in request.resource.data) || request.resource.data.recurrence == null || (request.resource.data.recurrence is map && request.resource.data.recurrence.size() <= 5)) &&
           (!('lastCompletedAt' in request.resource.data) || request.resource.data.lastCompletedAt is number) &&
+          (!('kind' in request.resource.data) || request.resource.data.kind in ['abgabe', 'pruefung']) &&
+          (!('quick' in request.resource.data) || request.resource.data.quick is bool) &&
+          (!('parked' in request.resource.data) || request.resource.data.parked is bool) &&
+          (!('waitingFor' in request.resource.data) || (request.resource.data.waitingFor is string && request.resource.data.waitingFor.size() <= 80)) &&
           request.resource.data.title is string &&
           request.resource.data.title.size() > 0 &&
           request.resource.data.title.size() <= 300 &&
@@ -165,8 +185,9 @@ service cloud.firestore {
             'id', 'title', 'summary', 'originalText', 'category',
             'createdAt', 'updatedAt', 'deletedAt', '_type',
             'cleanText', 'extractedDateType', 'extractedDate', 'extractedEndDate', 'extractedTime',
-            'type', 'completed', 'tags'
+            'type', 'completed', 'tags', 'environmentId'
           ]) &&
+          (!('environmentId' in request.resource.data) || request.resource.data.environmentId in ['hochschule', 'arbeit', 'gym']) &&
           request.resource.data.title is string &&
           request.resource.data.title.size() > 0 &&
           request.resource.data.title.size() <= 500 &&
@@ -181,8 +202,9 @@ service cloud.firestore {
             'id', 'title', 'summary', 'originalText', 'category',
             'createdAt', 'updatedAt', 'deletedAt', '_type',
             'cleanText', 'extractedDateType', 'extractedDate', 'extractedEndDate', 'extractedTime',
-            'type', 'completed', 'tags'
+            'type', 'completed', 'tags', 'environmentId'
           ]) &&
+          (!('environmentId' in request.resource.data) || request.resource.data.environmentId in ['hochschule', 'arbeit', 'gym']) &&
           request.resource.data.title is string &&
           request.resource.data.title.size() > 0 &&
           request.resource.data.title.size() <= 500 &&
@@ -261,6 +283,73 @@ service cloud.firestore {
           (!('reminderCategoryIds' in request.resource.data) || (request.resource.data.reminderCategoryIds is list && request.resource.data.reminderCategoryIds.size() <= 50)) &&
           (!('order' in request.resource.data) || request.resource.data.order is number) &&
           request.resource.data.keys().size() <= 15;
+      }
+
+      // H) Gym: Übungen, Trainingstage (Pläne), Trainings und Körperwerte
+      match /gymExercises/{exerciseId} {
+        allow read: if isOwner(userId);
+        allow delete: if isOwner(userId);
+
+        allow create, update: if isOwner(userId) &&
+          exerciseId == request.resource.data.id &&
+          request.resource.data.keys().hasAll(['id', 'name']) &&
+          request.resource.data.keys().hasOnly(['id', 'name', 'createdAt', 'updatedAt']) &&
+          request.resource.data.name is string &&
+          request.resource.data.name.size() > 0 &&
+          request.resource.data.name.size() <= 100 &&
+          request.resource.data.keys().size() <= 6;
+      }
+
+      match /gymPlans/{planId} {
+        allow read: if isOwner(userId);
+        allow delete: if isOwner(userId);
+
+        allow create, update: if isOwner(userId) &&
+          planId == request.resource.data.id &&
+          request.resource.data.keys().hasAll(['id', 'name']) &&
+          request.resource.data.keys().hasOnly(['id', 'name', 'exerciseIds', 'order', 'createdAt', 'updatedAt']) &&
+          request.resource.data.name is string &&
+          request.resource.data.name.size() > 0 &&
+          request.resource.data.name.size() <= 100 &&
+          (!('exerciseIds' in request.resource.data) || (request.resource.data.exerciseIds is list && request.resource.data.exerciseIds.size() <= 40)) &&
+          (!('order' in request.resource.data) || request.resource.data.order is number) &&
+          request.resource.data.keys().size() <= 10;
+      }
+
+      match /gymWorkouts/{workoutId} {
+        allow read: if isOwner(userId);
+        allow delete: if isOwner(userId);
+
+        allow create, update: if isOwner(userId) &&
+          workoutId == request.resource.data.id &&
+          request.resource.data.keys().hasAll(['id', 'date']) &&
+          request.resource.data.keys().hasOnly(['id', 'date', 'planId', 'startedAt', 'endedAt', 'exerciseIds', 'sets', 'note', 'createdAt', 'updatedAt']) &&
+          request.resource.data.date is string &&
+          request.resource.data.date.size() == 10 &&
+          (!('planId' in request.resource.data) || request.resource.data.planId is string) &&
+          (!('startedAt' in request.resource.data) || request.resource.data.startedAt is number) &&
+          (!('endedAt' in request.resource.data) || request.resource.data.endedAt is number) &&
+          (!('exerciseIds' in request.resource.data) || (request.resource.data.exerciseIds is list && request.resource.data.exerciseIds.size() <= 40)) &&
+          (!('sets' in request.resource.data) || (request.resource.data.sets is list && request.resource.data.sets.size() <= 300)) &&
+          (!('note' in request.resource.data) || (request.resource.data.note is string && request.resource.data.note.size() <= 1000)) &&
+          request.resource.data.keys().size() <= 13;
+      }
+
+      match /gymBody/{entryId} {
+        allow read: if isOwner(userId);
+        allow delete: if isOwner(userId);
+
+        allow create, update: if isOwner(userId) &&
+          entryId == request.resource.data.id &&
+          request.resource.data.keys().hasAll(['id', 'date', 'weight']) &&
+          request.resource.data.keys().hasOnly(['id', 'date', 'weight', 'note', 'createdAt', 'updatedAt']) &&
+          request.resource.data.date is string &&
+          request.resource.data.date.size() == 10 &&
+          request.resource.data.weight is number &&
+          request.resource.data.weight > 0 &&
+          request.resource.data.weight < 1000 &&
+          (!('note' in request.resource.data) || (request.resource.data.note is string && request.resource.data.note.size() <= 500)) &&
+          request.resource.data.keys().size() <= 8;
       }
     }
   }

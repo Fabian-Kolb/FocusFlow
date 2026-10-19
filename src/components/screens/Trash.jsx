@@ -6,7 +6,7 @@ import { Badge, Button, Card, EmptyState, IconButton, Input, PageHeader } from '
 // Art des Eintrags als Badge: Farbe nur mit Bedeutung, daher alle neutral (Icon und Wort tragen die Unterscheidung)
 const TYPE_INFO = {
   project: { icon: 'folder', label: 'Projekt' },
-  reminder: { icon: 'notifications', label: 'Erinnerung' },
+  reminder: { icon: 'checklist', label: 'Eintrag' },
   inbox: { icon: 'lightbulb', label: 'Gedanke' },
 };
 
@@ -72,7 +72,7 @@ const Trash = ({ setCurrentScreen }) => {
           title={searchQuery ? 'Keine Treffer' : 'Der Papierkorb ist leer'}
           description={searchQuery
             ? 'Probiere einen anderen Suchbegriff.'
-            : 'Gelöschte Projekte, Erinnerungen und Gedanken liegen hier 30 Tage, bevor sie endgültig verschwinden.'}
+            : 'Gelöschte Projekte, Einträge und Gedanken liegen hier 30 Tage, bevor sie endgültig verschwinden.'}
         />
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">

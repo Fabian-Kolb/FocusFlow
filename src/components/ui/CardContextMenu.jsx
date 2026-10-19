@@ -108,6 +108,15 @@ const CardContextMenu = ({
                 >
                   Kategorie wählen …
                 </MenuItem>
+                <MenuItem
+                  icon="drive_file_move"
+                  onClick={stop(() => {
+                    setOpen(false);
+                    openModal('moveEnvironment', { type: itemType, itemId });
+                  })}
+                >
+                  Umgebung wählen …
+                </MenuItem>
               </>
             )}
 

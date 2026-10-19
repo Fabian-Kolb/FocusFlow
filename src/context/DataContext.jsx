@@ -1,9 +1,12 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
 import { collection, doc, onSnapshot, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
+import { useEnvironment } from './EnvironmentContext';
 import { advanceRecurringReminder, normalizeRecurrence, formatShortDate } from '../lib/recurrence';
+import { isTaskKind } from '../lib/taskOverview';
+import { environmentField, getEnvironment, inEnvironment, withEnvironment } from '../lib/environments';
 import {
   syncEntityToGoogle,
   desyncEntityFromGoogle,
@@ -189,6 +192,22 @@ function groupInboxItems(items) {
   return groups;
 }
 
+// Gäste und das Dev-Konto: Bereiche (Erinnerungs-Kategorien) liegen im Browser, nicht in Firestore
+const GUEST_REMINDER_CATEGORIES_KEY = 'focusflow_guest_reminder_categories';
+const DEFAULT_REMINDER_CATEGORIES = [{ id: 'allgemein', name: 'Allgemein', isExpanded: true, createdAt: 0 }];
+
+function readGuestReminderCategories() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(GUEST_REMINDER_CATEGORIES_KEY) || 'null');
+    if (!Array.isArray(parsed) || !parsed.every((c) => c && typeof c.id === 'string' && typeof c.name === 'string')) {
+      return DEFAULT_REMINDER_CATEGORIES;
+    }
+    return parsed.some((c) => c.id === 'allgemein') ? parsed : [...DEFAULT_REMINDER_CATEGORIES, ...parsed];
+  } catch {
+    return DEFAULT_REMINDER_CATEGORIES;
+  }
+}
+
 function readGuestInbox() {
   try {
     const parsed = JSON.parse(localStorage.getItem(GUEST_INBOX_KEY) || '[]');
@@ -201,6 +220,7 @@ function readGuestInbox() {
 export const DataProvider = ({ children }) => {
   const { user, isCalendarConnected } = useAuth();
   const { showUndoToast } = useToast();
+  const { activeEnvironmentId } = useEnvironment();
 
   const [projects, setProjects] = useState([]);
   const [inboxItems, setInboxItems] = useState({ today: [], yesterday: [] });
@@ -245,6 +265,7 @@ export const DataProvider = ({ children }) => {
 
   const [selectedProjectId, setSelectedProjectId] = useState(null);
   const [selectedReminderId, setSelectedReminderId] = useState(null);
+  const skipGuestCategoryPersist = useRef(false);
   const [activeCoachScope, setActiveCoachScope] = useState('all');
 
   const [projectCategories, setProjectCategories] = useState([
@@ -334,7 +355,8 @@ export const DataProvider = ({ children }) => {
       }
       applyGuestInbox(readGuestInbox(), false);
       setProjectCategories([{ id: 'allgemein', name: 'Allgemein', isExpanded: true, createdAt: 0 }]);
-      setReminderCategories([{ id: 'allgemein', name: 'Allgemein', isExpanded: true, createdAt: 0 }]);
+      skipGuestCategoryPersist.current = true;
+      setReminderCategories(readGuestReminderCategories());
       try {
         const savedViews = localStorage.getItem('focusflow_guest_kanban_views');
         if (savedViews) {
@@ -505,6 +527,21 @@ export const DataProvider = ({ children }) => {
     };
   }, [user]);
 
+  // Gäste: Bereiche im Browser merken. Muss nach dem Sync-Effekt stehen: Der setzt beim Laden das Flag,
+  // damit der Standardwert vom ersten Durchlauf die gespeicherten Bereiche nicht überschreibt.
+  useEffect(() => {
+    if (!user?.isGuest) return;
+    if (skipGuestCategoryPersist.current) {
+      skipGuestCategoryPersist.current = false;
+      return;
+    }
+    try {
+      localStorage.setItem(GUEST_REMINDER_CATEGORIES_KEY, JSON.stringify(reminderCategories));
+    } catch {
+      // gilt dann nur bis zum Neuladen
+    }
+  }, [reminderCategories, user]);
+
   // Auto-Fallback: Wenn die aktive Ansicht nicht mehr existiert, zurück auf 'system_all'
   useEffect(() => {
     if (kanbanViews && kanbanViews.length > 0) {
@@ -644,6 +681,11 @@ export const DataProvider = ({ children }) => {
     }
 
     const newProject = {
+      // Neu angelegt = in der gerade aktiven Umgebung (Allgemein setzt kein Feld)
+      ...environmentField(projectData.environmentId || activeEnvironmentId),
+      // Fach (Hochschule): Typ und Prüfungstermin nur setzen, wenn vorhanden (Firestore-Regeln: hasOnly)
+      ...(projectData.type === 'fach' ? { type: 'fach' } : {}),
+      ...(projectData.exam?.date ? { exam: { date: projectData.exam.date } } : {}),
       id: newId,
       title: projectData.title,
       description: projectData.description || '',
@@ -996,6 +1038,7 @@ export const DataProvider = ({ children }) => {
     const id = `rcat_${Date.now()}`;
     const newCat = { id, name, isExpanded: true, createdAt: Date.now() };
     setReminderCategories(prev => [...prev.filter(c => c.id !== id), newCat]);
+    if (user.isGuest) return id; // Gäste: nur im Browser, siehe Persist-Effekt
     try {
       await setDoc(doc(db, 'users', user.uid, 'reminderCategories', id), newCat);
     } catch (e) {
@@ -1262,8 +1305,13 @@ export const DataProvider = ({ children }) => {
     const shouldSyncWithCalendar = Boolean(reminderData.syncWithCalendar || options?.syncWithCalendar);
     const recurrence = normalizeRecurrence(reminderData.recurrence);
     const newReminder = {
-      // Feld nur setzen, wenn eine Wiederholung gewählt ist
+      // Felder nur setzen, wenn sie einen Wert haben (Firestore-Regeln: hasOnly)
       ...(recurrence ? { recurrence } : {}),
+      ...(isTaskKind(reminderData.kind) ? { kind: reminderData.kind } : {}),
+      ...(reminderData.quick === true ? { quick: true } : {}),
+      ...(reminderData.parked === true ? { parked: true } : {}),
+      ...(typeof reminderData.waitingFor === 'string' && reminderData.waitingFor.trim() ? { waitingFor: reminderData.waitingFor.trim().slice(0, 80) } : {}),
+      ...environmentField(reminderData.environmentId || activeEnvironmentId),
       id: newId,
       title: reminderData.title,
       description: reminderData.description || '',
@@ -1640,6 +1688,23 @@ export const DataProvider = ({ children }) => {
     }
   };
 
+  /**
+   * Felder einer Erinnerung ändern. Wert `undefined` entfernt das Feld (z. B. `parked`, `quick`).
+   * Mit `undoMessage` bietet ein Toast „Rückgängig“ an (stellt das ganze Dokument wieder her).
+   */
+  const patchReminder = (reminderId, patch, undoMessage = null, undoIcon) => {
+    const before = reminders.find(r => r.id === reminderId);
+    if (!before) return;
+    mutateReminder(reminderId, (rem) => {
+      const next = { ...rem, ...patch };
+      Object.keys(patch).forEach((key) => {
+        if (patch[key] === undefined) delete next[key];
+      });
+      return next;
+    });
+    if (undoMessage) offerReminderUndo(before, undoMessage, undoIcon);
+  };
+
   const toggleReminderPause = (reminderId) => {
     mutateReminder(reminderId, (rem) => ({ ...rem, isPaused: !rem.isPaused }));
   };
@@ -1675,8 +1740,10 @@ export const DataProvider = ({ children }) => {
     if (!user) return;
     let newItem;
     const now = Date.now();
+    const environment = environmentField((typeof itemData === 'object' && itemData?.environmentId) || activeEnvironmentId);
     if (typeof itemData === 'object' && itemData !== null) {
       newItem = {
+        ...environment,
         id: `i_${now}`,
         createdAt: itemData.createdAt || now,
         title: itemData.title || itemData.summary,
@@ -1693,6 +1760,7 @@ export const DataProvider = ({ children }) => {
     } else {
       if (!itemData || !itemData.trim()) return;
       newItem = {
+        ...environment,
         id: `i_${now}`,
         createdAt: now,
         title: itemData.trim(),
@@ -1891,10 +1959,61 @@ export const DataProvider = ({ children }) => {
     }
   };
 
+  // In eine andere Umgebung verschieben (Projekt, Merkliste-Eintrag oder Gedanke), mit Rückgängig
+  const moveToEnvironment = async (kind, id, envId) => {
+    const message = `Verschoben nach „${getEnvironment(envId).label}“`;
+    if (kind === 'project') {
+      const before = projects.find((p) => p.id === id);
+      if (!before || inEnvironment(before, envId)) return;
+      offerProjectUndo(before, message, 'drive_file_move');
+      await mutateProject(id, (p) => withEnvironment(p, envId));
+    } else if (kind === 'reminder') {
+      const before = reminders.find((r) => r.id === id);
+      if (!before || inEnvironment(before, envId)) return;
+      offerReminderUndo(before, message, 'drive_file_move');
+      await mutateReminder(id, (r) => withEnvironment(r, envId));
+    } else if (kind === 'thought') {
+      const item = Object.values(inboxItems).flat().find((i) => i.id === id);
+      if (!user || !item || inEnvironment(item, envId)) return;
+      const write = async (next) => {
+        if (user.isGuest) {
+          applyGuestInbox(readGuestInbox().map((i) => (i.id === id ? next : i)));
+          return;
+        }
+        await setDoc(doc(db, 'users', user.uid, 'inboxItems', id), next);
+      };
+      await write(withEnvironment(item, envId));
+      showUndoToast(message, () => {
+        write(item).catch((err) => handleFirestoreError('inboxItems', err));
+      }, 'drive_file_move');
+    }
+  };
+
+  // Alle Bildschirme lesen nur die Dinge der aktiven Umgebung; die ungefilterten Listen heißen all…
+  const scopedProjects = useMemo(
+    () => projects.filter((p) => inEnvironment(p, activeEnvironmentId)),
+    [projects, activeEnvironmentId]
+  );
+  const scopedReminders = useMemo(
+    () => reminders.filter((r) => inEnvironment(r, activeEnvironmentId)),
+    [reminders, activeEnvironmentId]
+  );
+  const scopedInboxItems = useMemo(
+    () => Object.fromEntries(Object.entries(inboxItems).map(([group, list]) => [
+      group,
+      list.filter((i) => inEnvironment(i, activeEnvironmentId)),
+    ])),
+    [inboxItems, activeEnvironmentId]
+  );
+
   const value = {
-    projects,
-    inboxItems,
-    reminders,
+    projects: scopedProjects,
+    allProjects: projects,
+    inboxItems: scopedInboxItems,
+    allInboxItems: inboxItems,
+    reminders: scopedReminders,
+    allReminders: reminders,
+    moveToEnvironment,
     trashedProjects,
     trashedReminders,
     trashedInboxItems,
@@ -1960,6 +2079,7 @@ export const DataProvider = ({ children }) => {
     addReminder,
     mutateProject,
     mutateReminder,
+    patchReminder,
     trashItems,
     restoreItem,
     permanentlyDeleteItem,

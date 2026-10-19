@@ -4,6 +4,11 @@ import NotesSection from '../ui/NotesSection';
 import TaskDetailDrawer from '../ui/TaskDetailDrawer';
 import SectionDetailDrawer from '../ui/SectionDetailDrawer';
 import GlobalChatDrawer from '../ui/GlobalChatDrawer';
+import FachExamCard from '../hochschule/FachExamCard';
+import FachHints from '../hochschule/FachHints';
+import { isFach } from '../../lib/hochschule';
+import { screenLabel } from '../../lib/environments';
+import { useEnvironment } from '../../context/EnvironmentContext';
 import { canFitDrawersSideBySide } from '../../lib/breakpoints';
 import {
   getProjectStats,
@@ -55,6 +60,8 @@ const ProjectDetail = ({ setCurrentScreen }) => {
   const projectPhases = projectData.phases || [];
   const isTrashed = !!projectData.deletedAt;
   const stats = getProjectStats(projectData);
+  const fach = isFach(projectData);
+  const { activeEnvironmentId } = useEnvironment();
   const { timeline } = stats;
 
   const categoryObj = (projectCategories || []).find(c => c.id === (projectData.categoryId || 'allgemein')) || { id: 'allgemein', name: 'Allgemein' };
@@ -881,7 +888,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
         {/* Brotkrumen */}
         <nav aria-label="Pfad" className="flex flex-wrap items-center gap-1 text-caption text-secondary">
           <Button variant="ghost" size="sm" leadingIcon="arrow_back" onClick={() => setCurrentScreen && setCurrentScreen('projects')}>
-            Projekte
+            {screenLabel(activeEnvironmentId, 'projects')}
           </Button>
           <span className="text-disabled" aria-hidden="true">/</span>
           <Button
@@ -906,6 +913,12 @@ const ProjectDetail = ({ setCurrentScreen }) => {
             label="Kategorie ändern"
             size="sm"
             onClick={() => openModal('moveCategory', { type: 'project', itemId: projectData.id, currentCategoryId: projectData.categoryId })}
+          />
+          <IconButton
+            icon="drive_file_move"
+            label="Umgebung ändern"
+            size="sm"
+            onClick={() => openModal('moveEnvironment', { type: 'project', itemId: projectData.id, returnTo: 'projects' })}
           />
         </nav>
 
@@ -996,7 +1009,15 @@ const ProjectDetail = ({ setCurrentScreen }) => {
             </div>
           </header>
 
-          {/* Zeitspanne und Fortschritt */}
+          {fach && (
+            <>
+              <FachExamCard project={projectData} />
+              <FachHints project={projectData} />
+            </>
+          )}
+
+          {/* Zeitspanne und Fortschritt (ein Fach hat stattdessen den Prüfungstermin) */}
+          {!fach && (
           <Card padding="md" className="space-y-4">
             <SectionHeader
               title="Zeitspanne"
@@ -1032,6 +1053,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
               <p className="text-caption text-secondary">Lege Start- und Enddatum fest, um die verstrichene Zeit zu sehen.</p>
             )}
           </Card>
+          )}
 
           {/* Status und Verlauf */}
           <Card padding="md" className="space-y-4">
@@ -1054,6 +1076,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
           </Card>
 
           {/* Tempo und empfohlene Schritte */}
+          {!fach && (
           <Card padding="md" className="space-y-4">
             <SectionHeader
               title="Tempo und Ziel"
@@ -1081,6 +1104,7 @@ const ProjectDetail = ({ setCurrentScreen }) => {
               </div>
             )}
           </Card>
+          )}
 
           <NotesSection
             notes={projectData.notes || []}

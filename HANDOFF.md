@@ -598,3 +598,42 @@
 3. Vercel: prüfen, dass `FIREBASE_SERVICE_ACCOUNT` gesetzt ist (sonst lehnt der Server Gast-KI ab). Optional `GUEST_AI_HASH_SECRET` und Limits per Env.
 4. Firestore Console → TTL-Richtlinie für Collection `guest_ai_usage`, Feld `expiresAt` (Datenschutzerklärung verspricht Löschung nach spätestens drei Tagen).
 5. Optional später: Firebase App Check als zusätzlicher Bot-Schutz.
+
+---
+
+## Nachtrag 2026-10-19 (Claude Code): Heute-Ansicht, Bereiche (Fächer), „Noch wichtig?“
+
+**Kontext:** Interview mit dem Nutzer (Überblick fehlte, Nutzung zwischendurch und im Gym), klickbarer Entwurf im Artefakt „Heute und Fach Entwurf“ (https://claude.ai/artifact/7Ym46mogwqv5wn9cgFxFgs), danach umgesetzt. Gesamtbild und Entscheidungen: `docs/Wissen/01_Home_und_Dashboard/02-Heute-Bereiche-und-Noch-wichtig.md`.
+
+### Getan
+- **Datenmodell ohne neues System:** Aufgabe = Erinnerung, Bereich = Erinnerungs-Kategorie. Neue optionale Felder `kind` (`abgabe`/`pruefung`), `quick`, `parked`; nur gesetzt, wenn sie Wert haben. `firestore.rules` kennt sie (Create und Update), Test in `tests/firestore_security.test.js`.
+- **Logik:** `src/lib/taskOverview.js` (Schnelleingabe-Parser, „liegt zu lange“ nach 7 Tagen, Auswahlfunktionen, Bereichsübersicht, Bereichsseite). `buildAgenda` hat `areaId`.
+- **UI:** `Dashboard.jsx` (Eingabe, Bereichs-Chips, Schnell erledigt, Ohne Frist, Fio fragt nach, Wo stehe ich), neu `screens/AreaScreen.jsx` (Screen `area`), `overview/TaskCapture`, `StaleReviewSheet`, `AreaSummaryCards`, `TaskRow`. `ReminderModal` und `ReminderDetail` haben „Art“, „Schnell erledigt“, „Irgendwann“. `CategoryChips` hat einen kompakten Modus. Home bleibt in Sidebar und BottomNav auf der Bereichsseite aktiv.
+- **DataContext:** `patchReminder` (mit Rückgängig), `selectedAreaId`, `addReminder` mit den neuen Feldern. Gäste und Dev-Konto behalten Erinnerungs-Kategorien jetzt im Browser (`focusflow_guest_reminder_categories`).
+- **Dev-Konto:** Beispieldaten mit Fächern, Abgaben, Prüfungen, schnellen, langen und geparkten Aufgaben (`devSeed.js`). Wer schon eingeloggt war: `ffDev.reset()`.
+
+### Tests & Build
+- `npx vitest run` 279/279 (neu: `tests/task_overview.test.js` mit 36 Tests, 3 Bereichsfilter-Tests in `dashboard_agenda`), E2E 142/142, Regeln 17/17, `npm run check:design` ok, `vite build` ok.
+- Im Browser (Dev-Konto, 375 und 1280 px, Dunkel und Hell): Erkennung beim Tippen, Speichern (Datum, Bereich, keine Zusatzfelder), Filter, Bereich anlegen und Neuladen, Noch wichtig? (später, heute), Bereichsseite, Detailansicht, keine Konsolenfehler. Nicht geprüft: echtes Handy (Wischen der Chips, Sheet mit Toast), angemeldetes Konto gegen echtes Firestore.
+
+### Offen / Next Steps
+1. **[Prio 1] `npm run deploy:rules`.** Ohne den Deploy lehnt Firestore `kind`, `quick`, `parked` für angemeldete Nutzer ab.
+2. Gym-Logbuch (eigener Entwurf, noch nicht begonnen), Fio erkennt Aufgaben aus Freitext, Unterbereiche, Notizen je Bereich.
+3. Bewusste Abweichungen vom Entwurf (flache Bereiche, keine Notizen, „Ohne Frist“ statt automatisch heute, Sheet statt Screen) stehen in der Akte.
+
+### Fallstricke
+- Der Parser ist regelbasiert. Wortgrenzen nur mit Unicode-Lookarounds (`\b` kennt „ü“ nicht).
+- Die Chips filtern nur Erinnerungen; Termine und Projekt-Aufgaben gehören keinem Bereich und stehen nur unter „Alle“.
+- `skipGuestCategoryPersist` im `DataContext` verhindert, dass der Standardwert die gespeicherten Gast-Bereiche beim Start überschreibt. Der Persist-Effekt muss nach dem Sync-Effekt stehen.
+
+---
+
+## Nachtrag 2026-10-19 (Claude Code): Richtungswechsel auf Umgebungen
+- Der Nutzer hat die Heute/Bereiche-Umsetzung (siehe Nachtrag davor, nicht committet) als falsch verstanden abgelehnt. Neu: **Umgebungen** Allgemein, Hochschule, Arbeit, Gym, in denen sich die ganze App anders verhält.
+- **Maßgeblich ist jetzt `docs/Wissen/13_Umgebungen/01-Umgebungen-Plan-und-Stand.md`** (Entscheidungen, Datenmodell, Etappen mit Häkchen, Fio-Präsenz, was von der ersten Umsetzung bleibt oder zurückgebaut wird). Dort Stand der Etappen pflegen.
+
+## Nachtrag 2026-10-19 (Claude Code): Umgebungen E1–E4 umgesetzt
+- **Fertig (nicht committet):** Umgebungs-Framework (E1), Hochschule mit Fach-Projekttyp, Hinweisen und Prüfung (E2), Gym-Logbuch (E3/E4: Training, Sätze, Letztes Mal, Bestwerte, Fortschritt, Körperwerte, Verwalten). Details und Häkchen: `docs/Wissen/13_Umgebungen/01-Umgebungen-Plan-und-Stand.md`.
+- **Tests:** `npx vitest run` 27 Dateien, 358 Tests grün; `npm run check:design` ok; `vite build` ok. Kein ESLint-Config im Repo.
+- **Firestore-Regeln geändert** (environmentId, Fach-Felder, gym-Sammlungen): vom Nutzer zu deployen (`npm run deploy:rules`), bis dahin schreibt Gym mit echtem Konto nicht.
+- **Offen:** E5 Arbeit („Wartet auf“, Meeting-Vorlage), E6 Fio-Präsenz, Diagramm-Design (LineChart) im Design-System-Artefakt freigeben und in `06-Design-System-Referenz.md` unter Abweichungen eintragen. Gym-Layout auf 375 px und im hellen Theme noch nicht visuell geprüft.

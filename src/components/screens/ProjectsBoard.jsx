@@ -57,7 +57,7 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
 
   const [draggedItem, setDraggedItem] = useState(null);
 
-  // Drawer and Category Filter State (UND-Verknüpfung: beliebige Kombination aus Projekten & Erinnerungen)
+  // Drawer and Category Filter State (UND-Verknüpfung: beliebige Kombination aus Projekten & Einträge)
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
   const [isCustomFilter, setIsCustomFilter] = useState(false);
   const [selectedProjectCategoryIds, setSelectedProjectCategoryIds] = useState(() => {
@@ -392,7 +392,7 @@ const ProjectsBoard = ({ setCurrentScreen }) => {
           )}
           {isCustomFilter && (
             <Chip selected leadingIcon="tune" onClick={resetFilter} title="Filter zurücksetzen">
-              Filter: {Array.isArray(selectedProjectCategoryIds) ? selectedProjectCategoryIds.length : projectCategories.length} Projekte, {Array.isArray(selectedReminderCategoryIds) ? selectedReminderCategoryIds.length : reminderCategories.length} Erinnerungen
+              Filter: {Array.isArray(selectedProjectCategoryIds) ? selectedProjectCategoryIds.length : projectCategories.length} Projekte, {Array.isArray(selectedReminderCategoryIds) ? selectedReminderCategoryIds.length : reminderCategories.length} Einträge
               <Icon name="close" size="sm" />
             </Chip>
           )}

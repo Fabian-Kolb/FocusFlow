@@ -2,6 +2,8 @@ import React from 'react';
 import { SectionIcon, TaskIcon } from './ItemIcons';
 import { getReminderDateInfo } from '../../lib/reminderDates';
 import { formatRecurrence } from '../../lib/recurrence';
+import { getProjectStats } from '../../lib/projectProgress';
+import { getExam, isFach } from '../../lib/hochschule';
 import { Badge, CheckButton, FOCUS, Icon, cx } from '../ds';
 
 // Gemeinsamer Karteninhalt für Projekte und Erinnerungen.
@@ -130,23 +132,46 @@ function Count({ icon, done, total, label }) {
   );
 }
 
+// Zähler und Fortschritt werden live aus den Abschnitten gerechnet (getProjectStats), nicht aus gespeicherten Werten.
+// Ein Fach (Hochschule) zeigt statt des Zeitraums seinen Prüfungstermin mit Countdown.
 export function ProjectCardContent({ project, menu, onToggleStatus }) {
+  const stats = getProjectStats(project);
+  const fach = isFach(project);
+  const exam = fach ? getExam(project) : null;
+  const hintCount = (project.hints || []).length;
   return (
     <>
       <CardHeader
         item={project}
         menu={menu}
-        dateContent={
+        dateContent={fach ? (
+          exam && exam.dayDiff >= 0 ? (
+            <>
+              <span className="truncate">Prüfung {exam.date.toLocaleDateString('de-DE', { day: 'numeric', month: 'short' })}</span>
+              <Badge tone={exam.tone} size="sm" className="shrink-0">{exam.countdown}</Badge>
+            </>
+          ) : (
+            <span className="truncate">{exam ? 'Prüfung vorbei' : 'Kein Prüfungstermin'}</span>
+          )
+        ) : (
           <span className="truncate">
             {project.dateRange || 'Kein Datum'}
             {project.daysRemaining && <span className="text-caption-strong text-primary"> ({project.daysRemaining})</span>}
           </span>
-        }
+        )}
       />
 
       <div className="mt-2 flex items-center gap-3 text-caption text-secondary">
-        <Count icon={<SectionIcon />} done={project.phasesCompleted} total={project.phasesTotal} label="Abschnitte" />
-        <Count icon={<TaskIcon />} done={project.tasksCompleted} total={project.tasksTotal} label="Aufgaben" />
+        {fach ? (
+          <span className="inline-flex items-center gap-1" title={`${hintCount} Hinweise aus der Stunde`}>
+            <Icon name="lightbulb" size="sm" aria-hidden="true" />
+            <span className="text-caption-strong tabular-nums text-primary">{hintCount}</span>
+            <span className="text-caption text-secondary">Hinweise</span>
+          </span>
+        ) : (
+          <Count icon={<SectionIcon />} done={stats.phasesCompleted} total={stats.phasesTotal} label="Abschnitte" />
+        )}
+        <Count icon={<TaskIcon />} done={stats.tasksCompleted} total={stats.tasksTotal} label="Aufgaben" />
       </div>
 
       <div className="mt-2.5 space-y-2 border-t border-subtle pt-2.5">
@@ -158,11 +183,13 @@ export function ProjectCardContent({ project, menu, onToggleStatus }) {
         )}
         <div className="flex items-center gap-2 text-caption-strong tabular-nums">
           <ElapsedProgress
-            value={project.progress}
-            marker={project.timeElapsed}
-            label={`Fortschritt ${clampPercent(project.progress)} %, verstrichene Zeit ${clampPercent(project.timeElapsed)} %`}
+            value={stats.progress}
+            marker={fach ? undefined : project.timeElapsed}
+            label={fach || project.timeElapsed === undefined
+              ? `Fortschritt ${clampPercent(stats.progress)} %`
+              : `Fortschritt ${clampPercent(stats.progress)} %, verstrichene Zeit ${clampPercent(project.timeElapsed)} %`}
           />
-          <span className="w-10 text-right" title="Fortschritt">{clampPercent(project.progress)} %</span>
+          <span className="w-10 text-right" title="Fortschritt">{clampPercent(stats.progress)} %</span>
         </div>
       </div>
     </>

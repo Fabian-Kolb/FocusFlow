@@ -23,8 +23,11 @@ export function registerTier2Tests(runner) {
     });
 
     runner.test('T2-NAV-03: Navigating to nested project detail preserves sidebar projects icon active state', () => {
+      // Detailseiten stehen im Menüeintrag (`screens`), die Seitenleiste prüft nur diese Liste
       const sidebarSrc = context.getComponentSource('src/components/layout/Sidebar.jsx');
-      assert(sidebarSrc.includes("currentScreen === 'project-detail'") || sidebarSrc.includes("projects"), 'Sidebar active state must recognize project-detail sub-route under Projects section');
+      const envSrc = context.getComponentSource('src/lib/environments.js');
+      assert(envSrc.includes("screens: ['projects', 'project-detail']"), 'Projects menu entry must list project-detail as an active sub-route');
+      assert(sidebarSrc.includes('item.screens.includes(currentScreen)'), 'Sidebar active state must use the screens list of the menu entry');
     });
 
     runner.test('T2-NAV-04: Material Symbols icons use proper font class names without typos', () => {

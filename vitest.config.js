@@ -6,6 +6,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    testTimeout: 15000, // jsdom-Kalendertests brauchen unter Last (Dev-Server, CI) gelegentlich über 5 s
     clearMocks: true,
     restoreMocks: true,
     include: [
@@ -22,6 +23,12 @@ export default defineConfig({
       'tests/recurrence.test.js',
       'tests/command_search.test.js',
       'tests/dashboard_agenda.test.js',
+      'tests/task_overview.test.js',
+      'tests/environments.test.js',
+      'tests/environment_scoping.test.jsx',
+      'tests/hochschule.test.js',
+      'tests/gym.test.js',
+      'tests/gym_context.test.jsx',
       'tests/project_progress.test.js',
       'tests/design_system.test.js',
       'tests/speech_input.test.jsx',

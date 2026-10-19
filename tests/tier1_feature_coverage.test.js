@@ -252,8 +252,11 @@ export function registerTier1Tests(runner) {
     });
 
     runner.test('T1-REV-03: Navigation item connects directly to review view', () => {
+      // Das Menü steht seit den Umgebungen in src/lib/environments.js; die Seitenleiste liest es von dort
       const sidebarSrc = context.getComponentSource('src/components/layout/Sidebar.jsx');
-      assert(sidebarSrc.includes('review') || sidebarSrc.includes('Wochenrückblick'), 'Sidebar navigation must include review screen route');
+      const envSrc = context.getComponentSource('src/lib/environments.js');
+      assert(sidebarSrc.includes('nav.sidebar'), 'Sidebar must render the menu of the active environment');
+      assert(envSrc.includes("id: 'review'") && envSrc.includes('Wochenrückblick'), 'Environment menu must include the review screen route');
     });
 
     runner.test('T1-REV-04: Dashboard zeigt die Tagesübersicht (Heute, Überfällig, Nächste 7 Tage)', () => {

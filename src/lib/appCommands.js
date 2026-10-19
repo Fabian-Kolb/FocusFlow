@@ -4,7 +4,7 @@
 export const NAV_COMMANDS = [
   { screen: 'dashboard', label: 'Home', icon: 'home', keys: 'g h', key: 'h', keywords: 'start übersicht dashboard heute' },
   { screen: 'inbox', label: 'Gedanken', icon: 'lightbulb', keys: 'g i', key: 'i', keywords: 'inbox notizen ideen' },
-  { screen: 'reminders', label: 'Erinnerungen', icon: 'notifications', keys: 'g e', key: 'e', keywords: 'aufgaben todo' },
+  { screen: 'reminders', label: 'Merkliste', icon: 'checklist', keys: 'g e', key: 'e', keywords: 'erinnerungen aufgaben todo' },
   { screen: 'projects', label: 'Projekte', icon: 'folder', keys: 'g p', key: 'p' },
   { screen: 'board', label: 'Kanban Board', icon: 'view_kanban', keys: 'g b', key: 'b' },
   { screen: 'calendar', label: 'Kalender', icon: 'calendar_today', keys: 'g k', key: 'k', keywords: 'termine' },
@@ -15,7 +15,7 @@ export const NAV_COMMANDS = [
 
 export const ACTION_COMMANDS = [
   { action: 'new-thought', label: 'Neuer Gedanke', icon: 'lightbulb', keys: 'n', key: 'n', keywords: 'schnell erfassen notiz idee' },
-  { action: 'new-reminder', label: 'Neue Erinnerung', icon: 'add_alert', keys: 'e', key: 'e', keywords: 'aufgabe todo' },
+  { action: 'new-reminder', label: 'Neuer Eintrag', icon: 'add_alert', keys: 'e', key: 'e', keywords: 'erinnerung aufgabe todo' },
   { action: 'new-project', label: 'Neues Projekt', icon: 'create_new_folder', keys: 'p', key: 'p' },
   { action: 'settings', label: 'Einstellungen und Hilfe', icon: 'settings', keys: ',', key: ',', keywords: 'account profil konto' },
   { action: 'shortcuts', label: 'Tastenkürzel anzeigen', icon: 'keyboard', keys: '?', key: '?', keywords: 'hilfe shortcuts' },

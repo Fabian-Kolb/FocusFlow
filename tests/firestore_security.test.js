@@ -71,7 +71,11 @@ function runFirestoreRuleSecurityTests() {
     'inboxItems',
     'categories',
     'reminderCategories',
-    'chat_data'
+    'chat_data',
+    'gymExercises',
+    'gymPlans',
+    'gymWorkouts',
+    'gymBody'
   ];
 
   requiredSubcollections.forEach(col => {
@@ -105,6 +109,52 @@ function runFirestoreRuleSecurityTests() {
     assert(content.includes("'isCalendarSynced', 'googleEventId'"), 'reminders must whitelist calendar sync fields');
     assert(content.includes("request.resource.data.isCalendarSynced is bool"), 'reminders must validate calendar sync flag');
     assert(content.includes("request.resource.data.googleEventId == null || request.resource.data.googleEventId is string"), 'reminders must validate Google event id');
+  });
+
+  test('RULES-VALIDATION: reminders whitelist and type-check the task fields kind, quick and parked (create and update)', () => {
+    const remMatch = rulesContent.match(/match\s+\/reminders\/\{reminderId\}\s*\{([\s\S]*?)\n\s*\}/);
+    assert(remMatch, 'reminders match block must exist');
+    const content = remMatch[1];
+    const whitelist = content.match(/'recurrence', 'lastCompletedAt', 'kind', 'quick', 'parked'/g) || [];
+    assert.strictEqual(whitelist.length, 2, 'kind, quick and parked must be whitelisted for create and update');
+    const kindChecks = content.match(/request\.resource\.data\.kind in \['abgabe', 'pruefung'\]/g) || [];
+    assert.strictEqual(kindChecks.length, 2, 'kind must be restricted to abgabe or pruefung for create and update');
+    assert.strictEqual((content.match(/request\.resource\.data\.quick is bool/g) || []).length, 2, 'quick must be a bool');
+    assert.strictEqual((content.match(/request\.resource\.data\.parked is bool/g) || []).length, 2, 'parked must be a bool');
+  });
+
+  test('RULES-VALIDATION: projects, reminders and inboxItems whitelist environmentId and restrict it to the known environments', () => {
+    const checks = rulesContent.match(/request\.resource\.data\.environmentId in \['hochschule', 'arbeit', 'gym'\]/g) || [];
+    assert.strictEqual(checks.length, 6, 'environmentId must be validated for create and update of projects, reminders and inboxItems');
+    const whitelisted = rulesContent.match(/'environmentId'(?:, 'type', 'exam', 'hints')?\s*\]\)/g) || [];
+    assert.strictEqual(whitelisted.length, 6, 'environmentId must be in the hasOnly list for create and update of projects, reminders and inboxItems');
+    assert(!rulesContent.includes("environmentId in ['allgemein'"), 'allgemein is the default and must never be stored');
+  });
+
+  test('RULES-VALIDATION: projects whitelist and type-check the Fach fields type, exam and hints (create and update)', () => {
+    assert.strictEqual((rulesContent.match(/'environmentId', 'type', 'exam', 'hints'/g) || []).length, 2, 'type, exam and hints must be whitelisted for create and update');
+    assert.strictEqual((rulesContent.match(/request\.resource\.data\.type == 'fach'/g) || []).length, 2, 'type must be restricted to fach');
+    assert.strictEqual((rulesContent.match(/request\.resource\.data\.exam is map && request\.resource\.data\.exam\.size\(\) <= 2/g) || []).length, 2, 'exam must be a small map');
+    assert.strictEqual((rulesContent.match(/request\.resource\.data\.hints is list && request\.resource\.data\.hints\.size\(\) <= 200/g) || []).length, 2, 'hints must be a list of at most 200 entries');
+  });
+
+  test('RULES-VALIDATION: gym collections whitelist their fields and bound sizes and types', () => {
+    // Block einer Sammlung: vom ersten match bis zum nächsten match (oder Dateiende)
+    const block = (name) => {
+      const start = rulesContent.indexOf('match /' + name + '/');
+      assert(start >= 0, name + ' must exist');
+      const next = rulesContent.indexOf('match /', start + 10);
+      return rulesContent.slice(start, next === -1 ? undefined : next);
+    };
+    const exercises = block('gymExercises');
+    assert(exercises.includes('name.size() <= 100') && exercises.includes('hasOnly'), 'gymExercises must cap name length and whitelist fields');
+    assert(block('gymPlans').includes('exerciseIds.size() <= 40'), 'gymPlans must cap the number of exercises');
+    const workouts = block('gymWorkouts');
+    assert(workouts.includes('sets.size() <= 300') && workouts.includes('date.size() == 10'), 'gymWorkouts must cap sets and require an ISO date');
+    assert(workouts.includes('startedAt is number') && workouts.includes('endedAt is number'), 'gymWorkouts must type-check timestamps');
+    const body = block('gymBody');
+    assert(body.includes('weight is number') && body.includes('weight > 0') && body.includes('weight < 1000'), 'gymBody must bound the body weight');
+    ['gymExercises', 'gymPlans', 'gymWorkouts', 'gymBody'].forEach((c) => assert(block(c).includes('isOwner(userId)'), c + ' must enforce isOwner'));
   });
 
   test('RULES-VALIDATION: inboxItems enforces summary and originalText size boundaries', () => {
