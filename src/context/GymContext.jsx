@@ -4,7 +4,8 @@ import { db } from '../lib/firebase';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import {
-  DEFAULT_WEEKLY_GOAL, MAX_EXERCISES_PER_PLAN, clampGoal, makeSet, newGymId, newWorkout, sortBody, sortPlans, sortWorkouts, withSet, withoutSet,
+  DEFAULT_WEEKLY_GOAL, MAX_EXERCISES_PER_PLAN, cleanSettings, clampGoal, makeSet, newGymId, newWorkout, sortBody, sortPlans, sortWorkouts, withSet, withoutSet,
+  workoutExerciseIds,
 } from '../lib/gym';
 
 /**
@@ -53,7 +54,7 @@ const NOOP_ASYNC = async () => null;
 const FALLBACK = {
   ...EMPTY,
   repsEnabled: true, setRepsEnabled: () => {}, weeklyGoal: DEFAULT_WEEKLY_GOAL, setWeeklyGoal: () => {},
-  addExercise: NOOP_ASYNC, renameExercise: () => {}, deleteExercise: () => false,
+  addExercise: NOOP_ASYNC, renameExercise: () => {}, deleteExercise: () => false, setExerciseSettings: () => {},
   savePlan: () => null, deletePlan: () => {},
   startWorkout: () => null, saveWorkout: () => {}, deleteWorkout: () => {},
   addSetToWorkout: () => null, removeSetFromWorkout: () => {}, finishWorkout: () => null,
@@ -164,6 +165,15 @@ export function GymProvider({ children }) {
     upsert('exercises', { ...exercise, name: clean });
   }, [upsert]);
 
+  /** Einstellungen einer Übung setzen (Liste { label, value }); leer entfernt das Feld */
+  const setExerciseSettings = useCallback((id, settings) => {
+    const exercise = find('exercises', id);
+    if (!exercise) return;
+    const { settings: _old, ...rest } = exercise;
+    const clean = cleanSettings(settings);
+    upsert('exercises', clean.length ? { ...rest, settings: clean } : rest);
+  }, [upsert]);
+
   /** Löschen geht nur, wenn die Übung in keinem Training vorkommt (sonst fehlt ihr Name im Verlauf). Aus Trainingstagen wird sie entfernt. */
   const deleteExercise = useCallback((id) => {
     const used = dataRef.current.workouts.some((w) => (w.sets || []).some((s) => s.exerciseId === id));
@@ -225,7 +235,13 @@ export function GymProvider({ children }) {
       remove('workouts', workoutId);
       return { discarded: true };
     }
-    upsert('workouts', { ...workout, endedAt: Date.now() });
+    // Einstellungen von heute festhalten, damit der Verlauf zeigt, wie die Geräte damals standen
+    const setups = {};
+    workoutExerciseIds(workout).forEach((exerciseId) => {
+      const settings = find('exercises', exerciseId)?.settings;
+      if ((workout.sets || []).some((s) => s.exerciseId === exerciseId) && settings?.length) setups[exerciseId] = settings;
+    });
+    upsert('workouts', { ...workout, ...(Object.keys(setups).length ? { setups } : {}), endedAt: Date.now() });
     return { discarded: false };
   }, [upsert, remove]);
 
@@ -240,11 +256,11 @@ export function GymProvider({ children }) {
     workouts: sortWorkouts(data.workouts),
     body: sortBody(data.body),
     repsEnabled, setRepsEnabled, weeklyGoal, setWeeklyGoal,
-    addExercise, renameExercise, deleteExercise,
+    addExercise, renameExercise, deleteExercise, setExerciseSettings,
     savePlan, deletePlan,
     startWorkout, saveWorkout, deleteWorkout, addSetToWorkout, removeSetFromWorkout, finishWorkout,
     addBodyEntry, deleteBodyEntry,
-  }), [data, repsEnabled, setRepsEnabled, weeklyGoal, setWeeklyGoal, addExercise, renameExercise, deleteExercise, savePlan, deletePlan, startWorkout, saveWorkout, deleteWorkout, addSetToWorkout, removeSetFromWorkout, finishWorkout, addBodyEntry, deleteBodyEntry]);
+  }), [data, repsEnabled, setRepsEnabled, weeklyGoal, setWeeklyGoal, addExercise, renameExercise, deleteExercise, setExerciseSettings, savePlan, deletePlan, startWorkout, saveWorkout, deleteWorkout, addSetToWorkout, removeSetFromWorkout, finishWorkout, addBodyEntry, deleteBodyEntry]);
 
   return <GymContext.Provider value={value}>{children}</GymContext.Provider>;
 }

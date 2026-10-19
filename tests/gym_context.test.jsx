@@ -117,6 +117,27 @@ describe('Gym-Logbuch im Gastmodus', () => {
     expect(stored().workouts[0].endedAt).toBeGreaterThan(0);
   });
 
+  it('Einstellungen einer Übung bleiben an der Übung und landen beim Beenden im Training', async () => {
+    const gym = renderGym();
+    let exercise;
+    await act(async () => { exercise = await gym.value.addExercise('Beinpresse'); });
+    await act(async () => { gym.value.setExerciseSettings(exercise.id, [{ label: ' Sitzhöhe ', value: '4' }, { label: '', value: 'x' }]); });
+    expect(gym.value.exercises[0].settings).toEqual([{ label: 'Sitzhöhe', value: '4' }]);
+    expect(stored().exercises[0].settings).toEqual([{ label: 'Sitzhöhe', value: '4' }]);
+
+    let workout;
+    await act(async () => { workout = gym.value.startWorkout(null); });
+    await act(async () => { gym.value.saveWorkout({ ...workout, exerciseIds: [exercise.id] }); });
+    await act(async () => { gym.value.addSetToWorkout(workout.id, { exerciseId: exercise.id, weight: '100' }); });
+    await act(async () => { gym.value.finishWorkout(workout.id); });
+    expect(gym.value.workouts[0].setups).toEqual({ [exercise.id]: [{ label: 'Sitzhöhe', value: '4' }] });
+
+    // spätere Änderung berührt das beendete Training nicht; leer entfernt das Feld
+    await act(async () => { gym.value.setExerciseSettings(exercise.id, []); });
+    expect('settings' in gym.value.exercises[0]).toBe(false);
+    expect(gym.value.workouts[0].setups[exercise.id][0].value).toBe('4');
+  });
+
   it('ein Training ohne Sätze wird beim Beenden verworfen', async () => {
     const gym = renderGym();
     let workout;

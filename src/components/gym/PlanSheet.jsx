@@ -1,6 +1,6 @@
 import React from 'react';
 import { useGym } from '../../context/GymContext';
-import { bestWeight, describeSets, formatWeight, lastSession, relativeDay } from '../../lib/gym';
+import { bestWeight, describeSets, formatWeight, lastSession, relativeDay, settingsText } from '../../lib/gym';
 import { Button, Sheet } from '../ds';
 
 /**
@@ -39,6 +39,7 @@ export default function PlanSheet({ plan, onClose, onStart, onEdit }) {
                 <p className="mt-0.5 text-body tabular-nums text-secondary">
                   {last ? `${describeSets(last.sets)} · ${relativeDay(last.workout.date)}` : 'Noch nicht trainiert'}
                 </p>
+                {exercise.settings?.length > 0 && <p className="mt-0.5 text-caption text-secondary">{settingsText(exercise.settings)}</p>}
                 {best > 0 && <p className="mt-0.5 text-caption text-tertiary">Bestwert {formatWeight(best)}</p>}
               </li>
             );

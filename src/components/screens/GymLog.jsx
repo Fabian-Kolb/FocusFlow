@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useGym } from '../../context/GymContext';
 import { useToast } from '../../context/ToastContext';
 import {
-  activeWorkout, formatWeight, isRecord, lastDoneDate, nextPlan, recordSetIds, relativeDay, satzText, withExercise, withSet,
+  activeWorkout, formatWeight, isRecord, knownSettingLabels, lastDoneDate, nextPlan, recordSetIds, relativeDay, satzText, withExercise, withSet,
   workoutExerciseIds,
 } from '../../lib/gym';
 import { Badge, Button, Card, EmptyState, FOCUS, Icon, IconButton, PageHeader, cx } from '../ds';
@@ -20,7 +20,7 @@ import PlanSheet from '../gym/PlanSheet';
 const GymLog = () => {
   const {
     exercises, plans, workouts, repsEnabled, startWorkout, saveWorkout, deleteWorkout,
-    addExercise, addSetToWorkout, removeSetFromWorkout, finishWorkout,
+    addExercise, setExerciseSettings, addSetToWorkout, removeSetFromWorkout, finishWorkout,
   } = useGym();
   const { showToast } = useToast();
   const active = activeWorkout(workouts);
@@ -39,6 +39,7 @@ const GymLog = () => {
   const nameOf = (id) => exercises.find((e) => e.id === id)?.name || null;
   const records = useMemo(() => (active ? recordSetIds(workouts, active) : new Set()), [active, workouts]);
   const upcoming = nextPlan(plans, workouts);
+  const knownLabels = useMemo(() => knownSettingLabels(exercises), [exercises]);
 
   const addSet = (input) => {
     const set = addSetToWorkout(active.id, input);
@@ -117,6 +118,8 @@ const GymLog = () => {
             workouts={workouts}
             repsEnabled={repsEnabled}
             recordIds={records}
+            knownLabels={knownLabels}
+            onSaveSettings={setExerciseSettings}
             onAddSet={addSet}
             onRemoveSet={(setId) => removeSetFromWorkout(active.id, setId)}
             onRemoveExercise={() => saveWorkout({ ...active, exerciseIds: (active.exerciseIds || []).filter((x) => x !== id) })}

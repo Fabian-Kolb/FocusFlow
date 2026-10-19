@@ -232,7 +232,11 @@ export function buildSeedGym() {
     knie: 'Kniebeugen', presse: 'Beinpresse', waden: 'Wadenheben',
   };
   const ex = (key) => `dev_ex_${key}`;
-  const exercises = Object.entries(names).map(([key, name], i) => ({ id: ex(key), name, createdAt: 1000 + i }));
+  const setups = {
+    presse: [{ label: 'Sitzhöhe', value: '5' }, { label: 'Rückenlehne', value: '3' }],
+    rudern: [{ label: 'Loch', value: '7' }],
+  };
+  const exercises = Object.entries(names).map(([key, name], i) => ({ id: ex(key), name, ...(setups[key] ? { settings: setups[key] } : {}), createdAt: 1000 + i }));
   const days = [
     { id: 'dev_plan_push', name: 'Push', keys: ['bank', 'schulter', 'trizeps'] },
     { id: 'dev_plan_pull', name: 'Pull', keys: ['klimm', 'rudern', 'curls'] },

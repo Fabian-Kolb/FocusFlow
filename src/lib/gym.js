@@ -401,3 +401,35 @@ export function buildTimeline({ workouts = [], body = [], plans = [], exercises 
     return { ...item, gapDays: older ? Math.max(0, isoDays(item.date) - isoDays(older.date)) : null };
   });
 }
+
+/* ------------------------------------------------------------------ Einstellungen einer Übung */
+
+export const MAX_SETTINGS = 8;
+/** Übliche Bezeichnungen als Vorschlag; eigene Bezeichnungen sind immer möglich */
+export const SETTING_SUGGESTIONS = ['Sitzhöhe', 'Position', 'Rückenlehne', 'Griffweite', 'Neigung', 'Loch'];
+
+/** Bereinigt eine Liste { label, value }: getrimmt, ohne Bezeichnung weg, keine doppelten Bezeichnungen, begrenzt */
+export function cleanSettings(list) {
+  const seen = new Set();
+  const out = [];
+  for (const item of Array.isArray(list) ? list : []) {
+    const label = String(item?.label ?? '').trim().slice(0, 40);
+    const value = String(item?.value ?? '').trim().slice(0, 60);
+    const key = label.toLowerCase();
+    if (!label || seen.has(key)) continue;
+    seen.add(key);
+    out.push({ label, value });
+    if (out.length >= MAX_SETTINGS) break;
+  }
+  return out;
+}
+
+/** „Sitzhöhe 4 · Loch 7“ */
+export const settingsText = (settings = []) => settings.map((s) => (s.value ? `${s.label} ${s.value}` : s.label)).join(' · ');
+
+/** Bisher benutzte Bezeichnungen, häufigste zuerst (als Vorschlag) */
+export function knownSettingLabels(exercises = []) {
+  const counts = new Map();
+  exercises.forEach((e) => (e.settings || []).forEach((s) => counts.set(s.label, (counts.get(s.label) || 0) + 1)));
+  return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'de')).map(([label]) => label);
+}

@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { WEIGHT_STEP, describeSets, formatWeight, lastSession, relativeDay, setsOf, stepWeight, toInput } from '../../lib/gym';
 import { Badge, Button, Card, IconButton, Input } from '../ds';
+import ExerciseSetup from './ExerciseSetup';
 
 /**
  * Eine Übung im laufenden Training: oben „Letztes Mal“, darunter die Sätze von heute und die Eingabe für den nächsten
  * Satz (vorbelegt mit dem letzten Satz oder dem vom letzten Mal). Wiederholungen sind optional und lassen sich
  * ganz ausblenden (`repsEnabled`).
  */
-export default function ExerciseLogCard({ exercise, workout, workouts, repsEnabled, recordIds, onAddSet, onRemoveSet, onRemoveExercise }) {
+export default function ExerciseLogCard({ exercise, workout, workouts, repsEnabled, recordIds, knownLabels, onSaveSettings, onAddSet, onRemoveSet, onRemoveExercise }) {
   const sets = setsOf(workout, exercise.id);
   const last = lastSession(workouts, exercise.id, { excludeId: workout.id });
   const seed = sets[sets.length - 1] || last?.sets[0];
@@ -34,6 +35,8 @@ export default function ExerciseLogCard({ exercise, workout, workouts, repsEnabl
           <IconButton icon="close" size="sm" label={`${exercise.name} aus dem Training entfernen`} onClick={onRemoveExercise} />
         )}
       </div>
+
+      <ExerciseSetup exercise={exercise} knownLabels={knownLabels} onSave={(settings) => onSaveSettings(exercise.id, settings)} />
 
       {sets.length > 0 && (
         <ol className="divide-y divide-subtle rounded-md border border-subtle">

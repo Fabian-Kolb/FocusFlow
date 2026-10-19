@@ -1,7 +1,7 @@
 import React from 'react';
 import { useGym } from '../../context/GymContext';
 import { useToast } from '../../context/ToastContext';
-import { describeSets, formatWeight, recordSetIds, relativeDay, satzText, setsOf, volumeOf, workoutExerciseIds, workoutMinutes } from '../../lib/gym';
+import { describeSets, formatWeight, recordSetIds, relativeDay, satzText, setsOf, settingsText, volumeOf, workoutExerciseIds, workoutMinutes } from '../../lib/gym';
 import { Badge, Button, Sheet } from '../ds';
 
 /** Ein vergangenes Training ansehen (Übungen, Sätze, Bestwerte) und löschen (mit Rückgängig). */
@@ -44,6 +44,7 @@ export default function WorkoutDetailSheet({ workout, onClose }) {
                   {hasRecord && <Badge tone="success" size="sm" icon="emoji_events">Bestwert</Badge>}
                 </div>
                 <p className="mt-0.5 text-body tabular-nums text-secondary">{describeSets(sets)}</p>
+                {workout.setups?.[id]?.length > 0 && <p className="mt-0.5 text-caption text-secondary">{settingsText(workout.setups[id])}</p>}
                 <p className="mt-0.5 text-caption text-tertiary">{satzText(sets.length)}, höchstes Gewicht {formatWeight(Math.max(...sets.map((s) => s.weight)))}</p>
               </li>
             );

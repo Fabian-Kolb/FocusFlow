@@ -352,3 +352,22 @@ describe('buildTimeline', () => {
     expect(items[3].gapDays).toBeNull();
   });
 });
+
+describe('Einstellungen einer Übung', () => {
+  it('cleanSettings trimmt, wirft leere und doppelte Bezeichnungen weg und begrenzt', async () => {
+    const { cleanSettings, settingsText, knownSettingLabels, MAX_SETTINGS } = await import('../src/lib/gym');
+    expect(cleanSettings([
+      { label: '  Sitzhöhe ', value: ' 4 ' },
+      { label: 'sitzhöhe', value: '9' },
+      { label: '', value: 'x' },
+      { label: 'Loch', value: '' },
+    ])).toEqual([{ label: 'Sitzhöhe', value: '4' }, { label: 'Loch', value: '' }]);
+    expect(cleanSettings(null)).toEqual([]);
+    expect(cleanSettings(Array.from({ length: 20 }, (_, i) => ({ label: 'L' + i, value: '1' }))).length).toBe(MAX_SETTINGS);
+    expect(settingsText([{ label: 'Sitzhöhe', value: '4' }, { label: 'Loch', value: '' }])).toBe('Sitzhöhe 4 · Loch');
+    expect(knownSettingLabels([
+      { settings: [{ label: 'Loch', value: '1' }, { label: 'Sitzhöhe', value: '2' }] },
+      { settings: [{ label: 'Sitzhöhe', value: '3' }] },
+    ])).toEqual(['Sitzhöhe', 'Loch']);
+  });
+});

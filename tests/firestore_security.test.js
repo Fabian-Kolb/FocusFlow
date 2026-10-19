@@ -148,8 +148,10 @@ function runFirestoreRuleSecurityTests() {
     };
     const exercises = block('gymExercises');
     assert(exercises.includes('name.size() <= 100') && exercises.includes('hasOnly'), 'gymExercises must cap name length and whitelist fields');
+    assert(exercises.includes("'settings'") && exercises.includes('settings.size() <= 8'), 'gymExercises must whitelist and cap settings');
     assert(block('gymPlans').includes('exerciseIds.size() <= 40'), 'gymPlans must cap the number of exercises');
     const workouts = block('gymWorkouts');
+    assert(workouts.includes("'setups'") && workouts.includes('setups.size() <= 40'), 'gymWorkouts must whitelist and cap setups');
     assert(workouts.includes('sets.size() <= 300') && workouts.includes('date.size() == 10'), 'gymWorkouts must cap sets and require an ISO date');
     assert(workouts.includes('startedAt is number') && workouts.includes('endedAt is number'), 'gymWorkouts must type-check timestamps');
     const body = block('gymBody');

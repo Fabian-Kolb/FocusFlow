@@ -293,10 +293,11 @@ service cloud.firestore {
         allow create, update: if isOwner(userId) &&
           exerciseId == request.resource.data.id &&
           request.resource.data.keys().hasAll(['id', 'name']) &&
-          request.resource.data.keys().hasOnly(['id', 'name', 'createdAt', 'updatedAt']) &&
+          request.resource.data.keys().hasOnly(['id', 'name', 'settings', 'createdAt', 'updatedAt']) &&
           request.resource.data.name is string &&
           request.resource.data.name.size() > 0 &&
           request.resource.data.name.size() <= 100 &&
+          (!('settings' in request.resource.data) || (request.resource.data.settings is list && request.resource.data.settings.size() <= 8)) &&
           request.resource.data.keys().size() <= 6;
       }
 
@@ -323,7 +324,7 @@ service cloud.firestore {
         allow create, update: if isOwner(userId) &&
           workoutId == request.resource.data.id &&
           request.resource.data.keys().hasAll(['id', 'date']) &&
-          request.resource.data.keys().hasOnly(['id', 'date', 'planId', 'startedAt', 'endedAt', 'exerciseIds', 'sets', 'note', 'createdAt', 'updatedAt']) &&
+          request.resource.data.keys().hasOnly(['id', 'date', 'planId', 'startedAt', 'endedAt', 'exerciseIds', 'sets', 'note', 'setups', 'createdAt', 'updatedAt']) &&
           request.resource.data.date is string &&
           request.resource.data.date.size() == 10 &&
           (!('planId' in request.resource.data) || request.resource.data.planId is string) &&
@@ -332,6 +333,7 @@ service cloud.firestore {
           (!('exerciseIds' in request.resource.data) || (request.resource.data.exerciseIds is list && request.resource.data.exerciseIds.size() <= 40)) &&
           (!('sets' in request.resource.data) || (request.resource.data.sets is list && request.resource.data.sets.size() <= 300)) &&
           (!('note' in request.resource.data) || (request.resource.data.note is string && request.resource.data.note.size() <= 1000)) &&
+          (!('setups' in request.resource.data) || (request.resource.data.setups is map && request.resource.data.setups.size() <= 40)) &&
           request.resource.data.keys().size() <= 13;
       }
 
