@@ -5,6 +5,7 @@ import GlobalChatDrawer from '../ui/GlobalChatDrawer';
 import CalendarDesyncModal from '../modals/CalendarDesyncModal';
 import { RECURRENCE_OPTIONS, getRecurrenceOptionId, formatRecurrence, toIsoDate } from '../../lib/recurrence';
 import { TASK_KINDS } from '../../lib/taskOverview';
+import { useEnvironment } from '../../context/EnvironmentContext';
 import { Alert, Badge, Button, Card, Checkbox, Chip, FOCUS, Field, FioMark, Icon, IconButton, Input, ProgressBar, SectionHeader, Select, cx } from '../ds';
 
 const ReminderDetail = ({ setCurrentScreen }) => {
@@ -29,6 +30,7 @@ const ReminderDetail = ({ setCurrentScreen }) => {
     syncReminderToCalendar,
     desyncReminderFromCalendar
   } = useModalContext();
+  const { activeEnvironmentId } = useEnvironment();
   const [isStructuring, setIsStructuring] = useState(false);
   const [isGlobalChatOpen, setIsGlobalChatOpen] = useState(false);
   const [isDesyncModalOpen, setIsDesyncModalOpen] = useState(false);

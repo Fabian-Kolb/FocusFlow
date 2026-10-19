@@ -3,7 +3,7 @@ import { createFioRig } from './fioRig';
 
 /**
  * Fio als lebendige Figur (Augen folgen dem Zeiger, blinzeln, Gefühle über Lider und Brauen).
- * Für kleine, ruhende Stellen (Knöpfe, Menüs, IconTile) bleibt `FioMark` das Zeichen.
+ * `FioMark` (ds) zeigt denselben Kopf als Zeichen für KI-Stellen (Knöpfe, Menüs, Zeilen).
  *
  * - `mood`: idle | listening | thinking | talking | happy | surprised | scared | sleepy | confused
  * - `hands`, `feet`: schwebende Hände und Füße (für große Auftritte)
@@ -12,7 +12,7 @@ import { createFioRig } from './fioRig';
  * - `controlRef`: bekommt die Steuerung (boop, land, walkDir, held, swing), siehe fioRig.js
  * Die Größe kommt vom Container (`className`), die Figur füllt ihn quadratisch.
  */
-function FioCharacter({ mood = 'idle', hands = false, feet = false, brows = 'emotion', gap = 'var(--bg-surface)', label = 'Fio', className = '', controlRef }) {
+function FioCharacter({ mood = 'idle', hands = false, feet = false, brows = 'emotion', gap = 'var(--bg-surface)', label = 'Fio', className = '', style, controlRef }) {
   const hostRef = useRef(null);
   const rigRef = useRef(null);
 
@@ -31,7 +31,7 @@ function FioCharacter({ mood = 'idle', hands = false, feet = false, brows = 'emo
     rigRef.current?.setMood(mood);
   }, [mood, hands, feet, brows, gap]);
 
-  return <div ref={hostRef} className={className} role="img" aria-label={label} />;
+  return <div ref={hostRef} className={className} style={style} role={label ? 'img' : undefined} aria-label={label || undefined} aria-hidden={label ? undefined : true} />;
 }
 
 export default FioCharacter;

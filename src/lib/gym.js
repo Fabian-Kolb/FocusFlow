@@ -323,3 +323,24 @@ export function relativeDay(iso, now = new Date()) {
   if (diff > 1 && diff < 7) return `vor ${diff} Tagen`;
   return day.toLocaleDateString('de-DE', { day: 'numeric', month: 'short' });
 }
+
+/** Kompakte Zusammenfassung des Trainings für Fio: Woche, Ziel und die letzten Trainings mit Übungen */
+export function buildGymSummary({ workouts = [], plans = [], exercises = [], weeklyGoal = 3, now = new Date() }) {
+  const nameOf = (id) => exercises.find((e) => e.id === id)?.name || null;
+  const done = workouts.filter((w) => w.endedAt && (w.sets || []).length > 0);
+  return {
+    wochenziel: weeklyGoal,
+    trainingsDieseWoche: thisWeekCount(workouts, now),
+    alsNaechstes: nextPlan(plans, workouts)?.name || null,
+    letzteTrainings: done.slice(0, 5).map((w) => {
+      const s = workoutSummary(w, nameOf);
+      return {
+        datum: w.date,
+        trainingstag: plans.find((p) => p.id === w.planId)?.name || 'Freies Training',
+        uebungen: s.names,
+        saetze: s.setCount,
+        volumenKg: Math.round(s.volume || 0),
+      };
+    }),
+  };
+}

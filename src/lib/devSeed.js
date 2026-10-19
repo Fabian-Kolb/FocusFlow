@@ -212,7 +212,7 @@ function buildSeedEnvironmentTasks(now) {
     task('h11', 'hochschule', 'Praktikumsbericht abgeben', { date: inDays(12), kind: 'abgabe', createdAt: now - 8 * DAY }),
     task('h12', 'hochschule', 'Anmeldung beim Prüfungsamt', { date: inDays(5), kind: 'abgabe', createdAt: now - 6 * DAY }),
     task('w1', 'arbeit', 'Angebot an den Kunden schicken', { date: inDays(0), time: '15:00', createdAt: now - 3 * DAY }),
-    task('w2', 'arbeit', 'Rückmeldung zum Konzept einholen', { date: inDays(2), createdAt: now - 5 * DAY }),
+    task('w2', 'arbeit', 'Rückmeldung zum Konzept einholen', { date: inDays(2), waitingFor: 'Frau Berger (Kunde)', createdAt: now - 5 * DAY }),
     task('w3', 'arbeit', 'Zeiterfassung ausfüllen', { quick: true, createdAt: now - 1 * DAY }),
     task('w4', 'arbeit', 'Onboarding-Dokument überarbeiten', { createdAt: now - 12 * DAY }),
     { ...base, id: 'dev_rem_a1', title: 'Mensakarte aufladen', quick: true, date: '', createdAt: now - 1 * DAY },

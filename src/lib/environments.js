@@ -159,3 +159,20 @@ export function summarizeElsewhere(activeId, enabledIds, data) {
     .map((id) => ({ id, ...summarizeEnvironment(id, data) }))
     .filter((e) => e.due > 0);
 }
+
+/**
+ * Kurze Beschreibung der aktiven Umgebung für Fio (Systemanweisung): welche Umgebung, worum es geht und
+ * dass die Daten darauf begrenzt sind. Gym-Daten kommen aus `gymSummary` (siehe buildGymSummary in gym.js).
+ */
+export function describeEnvironmentForFio(envId, gymSummary = null) {
+  const env = ENVIRONMENTS[envId] || ENVIRONMENTS.allgemein;
+  const info = {
+    umgebung: env.label,
+    worumEsGeht: env.description,
+    hinweis: envId === 'allgemein'
+      ? 'Die Daten gehören zur Umgebung Allgemein. Hochschule, Arbeit und Gym sind eigene Umgebungen.'
+      : 'Die Daten unten gehören nur zu dieser Umgebung. Andere Umgebungen siehst du hier nicht.',
+  };
+  if (envId === 'gym' && gymSummary) info.training = gymSummary;
+  return info;
+}

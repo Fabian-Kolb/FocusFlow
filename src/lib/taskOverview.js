@@ -123,6 +123,13 @@ export function getUndatedTasks(reminders, now = new Date()) {
     .sort(byCreatedDesc);
 }
 
+/** „Wartet auf“: offene Einträge mit gesetztem Feld, am längsten wartend zuerst */
+export function getWaitingTasks(reminders) {
+  return reminders
+    .filter((r) => isOpenTask(r) && typeof r.waitingFor === 'string' && r.waitingFor.trim())
+    .sort(byCreatedAsc);
+}
+
 /** Liegt zu lange: ältestes zuerst */
 export function getStaleTasks(reminders, now = new Date()) {
   return reminders.filter((r) => isStale(r, now)).sort(byCreatedAsc);

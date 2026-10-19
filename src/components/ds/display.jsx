@@ -73,9 +73,13 @@ const TILE_SIZE = { sm: ['h-8 w-8', 'sm', 16], md: ['h-10 w-10', 'md', 20], lg: 
 /** Icon in a tinted square — the only place area colours fill something. area="coach" shows the Fio mark. */
 export function IconTile({ area = 'neutral', icon, size = 'md', className = '' }) {
   const [box, is, px] = TILE_SIZE[size] || TILE_SIZE.md;
+  // Fio hat keine Kachel: nur sein Kopf
+  if (area === 'coach' && !icon) {
+    return <FioMark size={px * 1.5} className={cx(box.split(' ')[0] === 'h-8' ? '-m-1' : '-m-2', className)} />;
+  }
   return (
     <span className={cx('inline-flex shrink-0 items-center justify-center rounded-md', box, AREA_TILE[area] || AREA_TILE.neutral, className)} aria-hidden="true">
-      {area === 'coach' && !icon ? <FioMark size={px} /> : <Icon name={icon} size={is} />}
+      <Icon name={icon} size={is} />
     </span>
   );
 }

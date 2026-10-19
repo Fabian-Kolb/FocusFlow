@@ -2,6 +2,10 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useModalContext } from '../../context/ModalContext';
 import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
+import { useEnvironment } from '../../context/EnvironmentContext';
+import { useGym } from '../../context/GymContext';
+import { describeEnvironmentForFio } from '../../lib/environments';
+import { buildGymSummary } from '../../lib/gym';
 import { askGeminiCoach } from '../../lib/gemini';
 import { ACTION_ENGINE_SYSTEM_PROMPT, parseAiActions, executeAiActions, parseIntentChoice } from '../../lib/aiActionEngine';
 import { fetchCalendarEvents } from '../../lib/calendarAPI';
@@ -110,6 +114,8 @@ const Coach = ({ setCurrentScreen }) => {
   const modalContext = useModalContext();
   const { projects, reminders = [], setSelectedProjectId, setSelectedReminderId, isCalendarConnected, openModal, addProject, projectCategories = [] } = modalContext;
   const { user } = useAuth();
+  const { activeEnvironmentId } = useEnvironment();
+  const gym = useGym();
   const {
     sessions,
     activeSession,
@@ -327,7 +333,11 @@ const Coach = ({ setCurrentScreen }) => {
     let contextData = {
       heutigesDatum: `${dateStr}, ${timeStr} Uhr`,
       datumHeuteIso: todayKey,
-      datumMorgenIso: tomorrowKey
+      datumMorgenIso: tomorrowKey,
+      aktiveUmgebung: describeEnvironmentForFio(
+        activeEnvironmentId,
+        activeEnvironmentId === 'gym' ? buildGymSummary({ ...gym, now }) : null
+      ),
     };
 
     let contextMetaGuidance = '';

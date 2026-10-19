@@ -248,3 +248,17 @@ describe('Auswahl für Heute', () => {
     expect(getStaleTasks([], NOW)).toEqual([]);
   });
 });
+
+describe('getWaitingTasks', () => {
+  it('nimmt nur offene Einträge mit Wartet-auf, am längsten wartend zuerst', async () => {
+    const { getWaitingTasks } = await import('../src/lib/taskOverview');
+    const list = [
+      { id: 'a', title: 'A', waitingFor: 'Herr Meier', createdAt: 2000, status: 'GEPLANT' },
+      { id: 'b', title: 'B', waitingFor: 'Frau Berger', createdAt: 1000, status: 'GEPLANT' },
+      { id: 'c', title: 'C', waitingFor: 'x', createdAt: 1, status: 'ABGESCHLOSSEN' },
+      { id: 'd', title: 'D', waitingFor: '   ', createdAt: 1, status: 'GEPLANT' },
+      { id: 'e', title: 'E', createdAt: 1, status: 'GEPLANT' },
+    ];
+    expect(getWaitingTasks(list).map((r) => r.id)).toEqual(['b', 'a']);
+  });
+});

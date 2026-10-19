@@ -5,6 +5,7 @@ import { Toast, ToastAction } from '../components/ds';
 const ToastContext = createContext(null);
 
 const DEFAULT_DURATION = 5000;
+const FIO_FEELINGS = { check_circle: 'happy', emoji_events: 'happy', error: 'confused', warning: 'confused' };
 
 /**
  * Kurze Rückmeldung am unteren Rand („Snackbar“), optional mit Aktion wie „Rückgängig“.
@@ -22,6 +23,9 @@ export function ToastProvider({ children }) {
   const showToast = useCallback(({ message, actionLabel, onAction, icon, duration = DEFAULT_DURATION }) => {
     clearTimeout(timerRef.current);
     setToast({ id: Date.now(), message, actionLabel, onAction, icon });
+    // Fio im Eck reagiert: erledigt/Bestwert = freut sich, Fehler/Warnung = verwirrt
+    const feel = FIO_FEELINGS[icon];
+    if (feel) window.dispatchEvent(new CustomEvent('focusflow:fio-mood', { detail: { mood: feel } }));
     timerRef.current = setTimeout(() => setToast(null), duration);
   }, []);
 

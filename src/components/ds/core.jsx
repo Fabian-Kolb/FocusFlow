@@ -1,4 +1,5 @@
 import React from 'react';
+import FioCharacter from '../brand/fio/FioCharacter';
 
 /** Join class names, skipping falsy values. */
 export const cx = (...c) => c.filter(Boolean).join(' ');
@@ -40,16 +41,20 @@ export function Spinner({ size = 'md', label = 'Wird geladen', className = '' })
 }
 
 /**
- * Fio, the AI coach — a speech bubble holding a bold, flowing F. Drawn on the Material Symbols grid
- * (24px, 2px outline, round joins) so it sits with the other icons; the heavier F is what sets it apart.
- * Marks every AI feature instead of sparkles or emoji. Inherits currentColor.
+ * Fio, the AI coach — his face. The mark for every AI feature instead of sparkles or emoji: just the head
+ * (eyes follow the pointer, blink, show feelings), optionally with hands and feet for bigger appearances.
+ * The size is the square the figure fills; colours come from the inverse tokens, so it works in both themes.
+ * mood: idle | listening | thinking | talking | happy | surprised | scared | sleepy | confused
  */
-export function FioMark({ size = 20, label, className = '' }) {
+export function FioMark({ size = 20, label, className = '', mood = 'idle', hands = false, feet = false }) {
   return (
-    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"
-      className={cx('inline-block shrink-0', className)} role={label ? 'img' : undefined} aria-label={label} aria-hidden={label ? undefined : true}>
-      <path d="M3 6.5A3.5 3.5 0 0 1 6.5 3h11A3.5 3.5 0 0 1 21 6.5v8a3.5 3.5 0 0 1-3.5 3.5H9.5L3 22z" strokeWidth="1.75" />
-      <path d="M9.5 15V10.4C9.5 8.5 10.7 7.3 12.6 7.3H15.5M9.5 11.4H13.5" strokeWidth="2.4" />
-    </svg>
+    <FioCharacter
+      mood={mood}
+      hands={hands}
+      feet={feet}
+      label={label || ''}
+      className={cx('inline-block shrink-0', className)}
+      style={{ width: size, height: size }}
+    />
   );
 }

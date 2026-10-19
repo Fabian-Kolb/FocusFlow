@@ -9,9 +9,10 @@ import { getProjectStats } from '../../lib/projectProgress';
 import { buildAgenda, getNextTimed, formatMinutes } from '../../lib/dashboardAgenda';
 import { areaOf, tileAreaOf } from '../../lib/areas';
 import { summarizeElsewhere, getEnvironment } from '../../lib/environments';
-import { ageLabel, getQuickTasks, getStaleTasks, getUndatedTasks } from '../../lib/taskOverview';
+import { ageLabel, getQuickTasks, getStaleTasks, getUndatedTasks, getWaitingTasks } from '../../lib/taskOverview';
 import { buildDeadlineList, isFach, isOpenFach } from '../../lib/hochschule';
 import { DeadlinesSection, FaecherSection } from '../hochschule/HochschuleSections';
+import { WaitingSection } from '../arbeit/ArbeitSections';
 import {
   Alert, Badge, Button, Card, CheckButton, EmptyState, FioMark, FOCUS, Icon, IconTile, PageHeader, ProgressBar, Skeleton, cx,
 } from '../ds';
@@ -157,6 +158,10 @@ const Dashboard = ({ setCurrentScreen }) => {
   const quickTasks = useMemo(() => getQuickTasks(reminders, now), [reminders, now]);
   const undatedTasks = useMemo(() => getUndatedTasks(reminders, now), [reminders, now]);
   const staleTasks = useMemo(() => getStaleTasks(reminders, now), [reminders, now]);
+
+  // Arbeit: Wartet auf
+  const isArbeit = activeEnvironmentId === 'arbeit';
+  const waitingTasks = useMemo(() => (isArbeit ? getWaitingTasks(reminders) : []), [isArbeit, reminders]);
 
   // Hochschule: Fächer und Abgaben/Prüfungen
   const isHochschule = activeEnvironmentId === 'hochschule';
@@ -452,6 +457,15 @@ const Dashboard = ({ setCurrentScreen }) => {
                 </Button>
               </div>
             </Card>
+          )}
+
+          {isArbeit && (
+            <WaitingSection
+              items={waitingTasks}
+              now={now}
+              onOpen={(item) => { setSelectedReminderId(item.id); setCurrentScreen('reminder-detail'); }}
+              className="order-4 lg:order-none"
+            />
           )}
 
           {isHochschule && (

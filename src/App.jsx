@@ -10,6 +10,7 @@ import { ConfirmProvider } from './context/ConfirmContext';
 import { EnvironmentProvider, useEnvironment } from './context/EnvironmentContext';
 import { GymProvider } from './context/GymContext';
 import EnvironmentBar from './components/environment/EnvironmentBar';
+import FioLauncher from './components/environment/FioLauncher';
 import FirestoreErrorBanner from './components/ui/FirestoreErrorBanner';
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -233,6 +234,7 @@ function AppContent() {
       <div className="flex-1 min-w-0 flex flex-col h-full overflow-hidden">
         {/* Umgebung wechseln (Handy); am Desktop sitzt der Umschalter in der Seitenleiste. Fio hat einen eigenen Kopf. */}
         {currentScreen !== 'coach' && <EnvironmentBar onSwitched={() => setCurrentScreen('dashboard')} />}
+        <div className="relative flex min-h-0 flex-1 flex-col">
         <main className={`flex-1 min-w-0 relative flex flex-col min-h-0 ${
           currentScreen === 'coach' || currentScreen === 'calendar' || currentScreen === 'board'
             ? 'overflow-hidden' 
@@ -278,6 +280,8 @@ function AppContent() {
             </ErrorBoundary>
           </div>
         </main>
+        {currentScreen !== 'coach' && <FioLauncher onOpen={() => setCurrentScreen('coach')} />}
+        </div>
 
         <BottomNav currentScreen={currentScreen} setCurrentScreen={setCurrentScreen} />
       </div>

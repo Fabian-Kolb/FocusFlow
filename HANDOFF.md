@@ -636,4 +636,5 @@
 - **Fertig (nicht committet):** Umgebungs-Framework (E1), Hochschule mit Fach-Projekttyp, Hinweisen und Prüfung (E2), Gym-Logbuch (E3/E4: Training, Sätze, Letztes Mal, Bestwerte, Fortschritt, Körperwerte, Verwalten). Details und Häkchen: `docs/Wissen/13_Umgebungen/01-Umgebungen-Plan-und-Stand.md`.
 - **Tests:** `npx vitest run` 27 Dateien, 358 Tests grün; `npm run check:design` ok; `vite build` ok. Kein ESLint-Config im Repo.
 - **Firestore-Regeln geändert** (environmentId, Fach-Felder, gym-Sammlungen): vom Nutzer zu deployen (`npm run deploy:rules`), bis dahin schreibt Gym mit echtem Konto nicht.
-- **Offen:** E5 Arbeit („Wartet auf“, Meeting-Vorlage), E6 Fio-Präsenz, Diagramm-Design (LineChart) im Design-System-Artefakt freigeben und in `06-Design-System-Referenz.md` unter Abweichungen eintragen. Gym-Layout auf 375 px und im hellen Theme noch nicht visuell geprüft.
+- **Danach ergänzt:** E5 „Wartet auf“ (Feld `waitingFor`, Regeln, Home-Bereich), E6 `FioLauncher` und Fio-Kontext je Umgebung (siehe Plan-Doc).
+- **Offen:** Meeting-Vorlage, Fio per Sprache Umgebungen wechseln, Diagramm-Design (LineChart) im Design-System-Artefakt freigeben und in `06-Design-System-Referenz.md` unter Abweichungen eintragen. Gym-Layout auf 375 px und im hellen Theme noch nicht visuell geprüft.
