@@ -119,10 +119,11 @@ let uid = 0;
 
 /**
  * Baut Fio in `host` (leeres Element) und gibt die Steuerung zurück.
- * Optionen: hands, feet (bool), brows ('emotion' | 'always' | 'off'), gap (Farbe der Aussparung um die Hände, = Hintergrund).
+ * Optionen: hands, feet (bool), brows ('emotion' | 'always' | 'off'), gap (Farbe der Aussparung um die Hände, = Hintergrund),
+ * outline (nur Umriss statt gefüllt, für Zeichen im Ruhezustand), look (false: Augen folgen dem Zeiger nicht).
  * Steuerung: setMood(mood), boop(), land(), walkDir (-1, 0, 1), held (bool), swing (Grad), destroy().
  */
-export function createFioRig(host, { hands = false, feet = false, brows = 'emotion', gap = 'var(--bg-surface)' } = {}) {
+export function createFioRig(host, { hands = false, feet = false, brows = 'emotion', gap = 'var(--bg-surface)', outline = false, look = true } = {}) {
   const id = `fio${++uid}`;
   const [x0, y0, x1, y1] = HEAD.box;
   const ground = y1 + 30;
@@ -142,7 +143,13 @@ export function createFioRig(host, { hands = false, feet = false, brows = 'emoti
   const defs = el('defs', {}, svg);
   const feetEls = feet ? [0, 1].map(() => el('rect', { width: FOOT.w, height: FOOT.h, rx: FOOT.r, fill: BODY }, svg)) : null;
   const rig = el('g', {}, svg);
-  el('rect', { x: x0, y: y0, width: x1 - x0, height: y1 - y0, rx: HEAD.radius, fill: BODY }, rig);
+  if (outline) {
+    const sw = 13;
+    el('rect', { x: x0 + sw / 2, y: y0 + sw / 2, width: x1 - x0 - sw, height: y1 - y0 - sw, rx: HEAD.radius - sw / 2, fill: 'none', stroke: BODY, 'stroke-width': sw }, rig);
+  } else {
+    el('rect', { x: x0, y: y0, width: x1 - x0, height: y1 - y0, rx: HEAD.radius, fill: BODY }, rig);
+  }
+  const inkColor = outline ? BODY : EYE;
   const face = el('g', {}, rig);
 
   // Augen: Die Lider sind Masken, die das Auge ausschneiden. So bleibt beim Schließen kein Saum stehen.
@@ -152,8 +159,8 @@ export function createFioRig(host, { hands = false, feet = false, brows = 'emoti
     el('rect', { x: -200, y: -200, width: 640, height: 640, fill: '#fff' }, m);
     const top = el('polygon', { fill: '#000' }, m);
     const bot = el('ellipse', { fill: '#000' }, m);
-    const r = el('rect', { fill: EYE, mask: `url(#${id + side})` }, face);
-    const brow = brows !== 'off' ? el('path', { fill: 'none', stroke: EYE, 'stroke-width': browT, 'stroke-linecap': 'round' }, face) : null;
+    const r = el('rect', { fill: inkColor, mask: `url(#${id + side})` }, face);
+    const brow = brows !== 'off' ? el('path', { fill: 'none', stroke: inkColor, 'stroke-width': browT, 'stroke-linecap': 'round' }, face) : null;
     return { side, r, top, bot, brow, base: HEAD.eyes[side], sign: side === 'l' ? -1 : 1 };
   });
   // Hände mit Aussparung in Hintergrundfarbe (Kontur unter der Füllung), damit sie vor dem Kopf lesbar bleiben
@@ -226,7 +233,7 @@ export function createFioRig(host, { hands = false, feet = false, brows = 'emoti
       else if (ek === 'sleepy') { tx = 0; ty = 0.55; }
       else if (ek === 'scared') { tx = Math.sin(t * 9) * 0.5; ty = 0.6; }
       else if (wk) { tx = wk * 0.8; ty = 0.1; }
-      else if (calm) { tx = 0; ty = 0; }
+      else if (calm || !look) { tx = 0; ty = 0; }
       else if (now - pointer.last < 2500) {
         const rect = svg.getBoundingClientRect();
         const dx = pointer.x - (rect.left + rect.width / 2);

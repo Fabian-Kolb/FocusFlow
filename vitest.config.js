@@ -24,6 +24,7 @@ export default defineConfig({
       'tests/command_search.test.js',
       'tests/dashboard_agenda.test.js',
       'tests/task_overview.test.js',
+      'tests/input_history.test.jsx',
       'tests/environments.test.js',
       'tests/environment_scoping.test.jsx',
       'tests/hochschule.test.js',

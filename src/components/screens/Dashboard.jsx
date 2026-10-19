@@ -14,7 +14,7 @@ import { buildDeadlineList, isFach, isOpenFach } from '../../lib/hochschule';
 import { DeadlinesSection, FaecherSection } from '../hochschule/HochschuleSections';
 import { WaitingSection } from '../arbeit/ArbeitSections';
 import {
-  Alert, Badge, Button, Card, CheckButton, EmptyState, FioMark, FOCUS, Icon, IconTile, PageHeader, ProgressBar, Skeleton, cx,
+  Alert, Badge, Button, Card, CheckButton, EmptyState, FOCUS, Icon, IconTile, PageHeader, ProgressBar, Skeleton, cx,
 } from '../ds';
 import { AI_MODELS } from '../ui/ModelSelectorDropdown';
 import { SUMMARY_LENGTH_OPTIONS } from '../ui/SummaryLengthDropdown';
@@ -282,12 +282,6 @@ const Dashboard = ({ setCurrentScreen }) => {
       <PageHeader
         title={`${greetingFor(now.getHours())}${userName ? `, ${userName}` : ''}`}
         description={activeEnvironmentId === 'allgemein' ? formattedDate : `${formattedDate} · ${activeEnvironment.label}`}
-        actions={(
-          <Button variant="secondary" size="sm" onClick={() => setCurrentScreen('coach')} aria-label="Fio KI-Coach öffnen" className="shrink-0">
-            <FioMark size={16} />
-            <span className="hidden sm:inline">Fio fragen</span>
-          </Button>
-        )}
         className="md:items-center"
       />
 

@@ -25,7 +25,7 @@ export default function ExercisePicker({ open, onClose, exercises, excludeIds = 
   };
 
   return (
-    <Sheet open={open} onClose={onClose} title={title} side="bottom" bodyClassName="space-y-3 pb-safe">
+    <Sheet open={open} onClose={onClose} title={title} bodyClassName="space-y-3 pb-safe">
       <form onSubmit={submit}>
         <Input data-autofocus leadingIcon="search" aria-label="Übung suchen oder neu anlegen" placeholder="Name der Übung" value={query} onChange={(e) => setQuery(e.target.value)} autoComplete="off" />
       </form>

@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm';
 import { useModalContext } from '../../context/ModalContext';
 import { useChat } from '../../context/ChatContext';
 import { askGeminiCoach } from '../../lib/gemini';
+import { useInputHistory } from '../../hooks/useInputHistory';
 import { ACTION_ENGINE_SYSTEM_PROMPT, parseAiActions, executeAiActions, parseIntentChoice } from '../../lib/aiActionEngine';
 import { Badge, Button, Chip, FOCUS, Icon, IconButton, IconTile, Spinner, cx } from '../ds';
 
@@ -71,6 +72,8 @@ const ProjectAiChat = ({
   }, [newChatTrigger]);
 
   const messages = activeSession?.messages || [];
+  const sentTexts = messages.filter((m) => !(m.role === 'assistant' || m.sender === 'bot')).map((m) => m.content || m.text).filter(Boolean).reverse();
+  const historyKeys = useInputHistory(sentTexts, inputText, setInputText);
 
   // Auto-scroll to bottom when messages change or stream in
   useEffect(() => {
@@ -505,7 +508,7 @@ REGELN:
           messages.map((msg) => {
             const isBot = msg.role === 'assistant' || msg.sender === 'bot';
             return (
-              <div key={msg.id} className={cx('flex gap-2.5', isBot ? 'justify-start' : 'justify-end')}>
+              <div key={msg.id} className={cx('flex gap-2.5', isBot ? 'flex-col justify-start sm:flex-row' : 'justify-end')}>
                 {isBot && <IconTile area="coach" size="sm" className="mt-0.5 !h-7 !w-7" />}
                 <div
                   className={cx(
@@ -644,6 +647,7 @@ REGELN:
               e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
             }}
             onKeyDown={(e) => {
+              if (historyKeys(e)) return;
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 handleSend();

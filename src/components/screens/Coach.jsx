@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useModalContext } from '../../context/ModalContext';
 import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
+import { useInputHistory } from '../../hooks/useInputHistory';
 import { useEnvironment } from '../../context/EnvironmentContext';
 import { useGym } from '../../context/GymContext';
 import { describeEnvironmentForFio } from '../../lib/environments';
@@ -15,7 +16,7 @@ import remarkGfm from 'remark-gfm';
 import ModelSelectorDropdown from '../ui/ModelSelectorDropdown';
 import ProjectDraftCard from '../ui/ProjectDraftCard';
 import { reviseDraftWithFio, draftToProjectData, clearNewFlags, DETAIL_LEVELS } from '../../lib/projectDraft';
-import { Avatar, Button, Card, Dialog, FOCUS, Icon, IconButton, IconTile, Input, SectionHeader, Spinner, cx } from '../ds';
+import { Button, Card, Dialog, FOCUS, FioMark, Icon, IconButton, IconTile, Input, SectionHeader, Spinner, cx } from '../ds';
 
 const statusLabel = (s) => {
   const v = s || 'AKTIV';
@@ -109,6 +110,13 @@ function AttachmentChip({ att, onRemove }) {
     </span>
   );
 }
+
+const ENV_GREETING = {
+  allgemein: 'Dein persönlicher KI-Coach. Wie kann ich dich heute bei Projekten, Merkliste und Terminen unterstützen?',
+  hochschule: 'Ich helfe dir mit Fächern, Abgaben und Prüfungen. Wobei brauchst du heute Hilfe?',
+  arbeit: 'Ich helfe dir mit Aufgaben, Terminen und dem, worauf du wartest. Was steht an?',
+  gym: 'Ich schaue mit dir auf dein Training. Frag mich nach deinem Fortschritt oder dem nächsten Trainingstag.',
+};
 
 const Coach = ({ setCurrentScreen }) => {
   const modalContext = useModalContext();
@@ -531,6 +539,11 @@ ${JSON.stringify(contextData, null, 2)}
   };
 
   const messages = activeSession?.messages || [];
+  const sentTexts = useMemo(
+    () => messages.filter((m) => !(m.role === 'assistant' || m.sender === 'bot')).map((m) => m.content || m.text).filter(Boolean).reverse(),
+    [messages]
+  );
+  const historyKeys = useInputHistory(sentTexts, inputText, setInputText);
 
   useEffect(() => {
     scrollToBottom();
@@ -1179,12 +1192,12 @@ ${JSON.stringify(contextData, null, 2)}
             <div className="mx-auto max-w-reading space-y-6">
               {messages.length === 0 && isDraftSession ? null : messages.length === 0 ? (
                 <div className="flex min-h-[40vh] flex-col items-center justify-center px-4 text-center">
-                  <IconTile area="coach" size="lg" className="mb-4" />
+                  <FioMark size={128} hands feet mood={loading ? 'thinking' : 'happy'} className="mb-4" />
                   <h2 className="mb-1.5 text-title text-primary">
                     Hallo{user?.displayName ? ` ${user.displayName.split(' ')[0]}` : ''}, ich bin Fio
                   </h2>
                   <p className="max-w-md text-body text-secondary">
-                    Dein persönlicher KI-Coach. Wie kann ich dich heute bei deinen Projekten, Aufgaben, Erinnerungen und Terminen unterstützen?
+                    {ENV_GREETING[activeEnvironmentId] || ENV_GREETING.allgemein}
                   </p>
                 </div>
               ) : (
@@ -1192,9 +1205,9 @@ ${JSON.stringify(contextData, null, 2)}
                   const isBot = msg.role === 'assistant' || msg.sender === 'bot';
                   if (isBot) {
                     return (
-                      <div key={msg.id} className="flex gap-3">
-                        <IconTile area="coach" size="md" className="mt-0.5" />
-                        <div className="flex min-w-0 max-w-[85%] flex-col items-start gap-1">
+                      <div key={msg.id} className="flex flex-col gap-1 sm:flex-row sm:gap-3">
+                        <IconTile area="coach" size="md" className="sm:mt-0.5" />
+                        <div className="flex min-w-0 max-w-full flex-col items-start gap-1 sm:max-w-[85%]">
                           <div className="markdown-body w-full rounded-lg border border-subtle bg-surface p-4 text-body-lg text-primary">
                             {msg.content || msg.text ? (
                               <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -1330,13 +1343,10 @@ ${JSON.stringify(contextData, null, 2)}
                           ))}
                         </div>
                       )}
-                      <div className="flex flex-row-reverse gap-3">
-                        <Avatar name={user?.displayName || user?.email || 'Du'} src={user?.photoURL} size="md" />
-                        <div className="markdown-body max-w-[85%] rounded-lg bg-selected p-4 text-body-lg text-primary">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {msg.content || msg.text}
-                          </ReactMarkdown>
-                        </div>
+                      <div className="markdown-body max-w-[85%] rounded-lg bg-selected p-4 text-body-lg text-primary">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {msg.content || msg.text}
+                        </ReactMarkdown>
                       </div>
                     </div>
                   );
@@ -1470,6 +1480,7 @@ ${JSON.stringify(contextData, null, 2)}
                       e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
                     }}
                     onKeyDown={(e) => {
+                      if (historyKeys(e)) return;
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
                         handleSendMessage();

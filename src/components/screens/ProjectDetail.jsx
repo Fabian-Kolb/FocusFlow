@@ -1465,12 +1465,12 @@ const ProjectDetail = ({ setCurrentScreen }) => {
           style={{ '--fab-offset': detailDrawerOpen ? '444px' : '24px' }}
           className={cx(
             'group fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] right-4 z-dropdown sm:bottom-6 sm:right-auto sm:[right:var(--fab-offset)]',
-            'h-12 w-12 items-center justify-center rounded-lg bg-inverse text-inverse shadow-lg transition-[right,transform] duration-slow ease-standard hover:scale-105 active:scale-95 motion-reduce:transform-none',
+            'h-16 w-16 items-center justify-center rounded-lg transition-[right,transform] duration-slow ease-standard hover:scale-105 active:scale-95 motion-reduce:transform-none',
             FOCUS,
             detailDrawerOpen ? 'hidden sm:flex' : 'flex',
           )}
         >
-          <FioMark size={20} />
+          <FioMark size={64} />
         </button>
       )}
     </div>

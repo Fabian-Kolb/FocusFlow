@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useModal } from '../../context/ModalContext';
 import { useEnvironment } from '../../context/EnvironmentContext';
@@ -8,7 +8,20 @@ import BrandLockup from '../brand/BrandLockup';
 import EnvironmentSwitcher from '../environment/EnvironmentSwitcher';
 import { FioMark, Icon } from '../ds';
 
+/** Fio in der Seitenleiste: wie die anderen Zeichen nur Umriss, gefüllt wenn aktiv; schaut nicht dem Zeiger nach, reagiert nur kurz aufs Darüberfahren */
+function SidebarFio({ active, hovered }) {
+  const [mood, setMood] = useState('idle');
+  useEffect(() => {
+    if (!hovered) return undefined;
+    setMood('listening');
+    const id = setTimeout(() => setMood('idle'), 700);
+    return () => clearTimeout(id);
+  }, [hovered]);
+  return <FioMark size={22} outline={!active} look={false} mood={mood} />;
+}
+
 const Sidebar = ({ currentScreen, setCurrentScreen, collapsed, setCollapsed }) => {
+  const [hoveredNav, setHoveredNav] = useState(null);
   const { user } = useAuth();
   const { openModal } = useModal();
   const { nav } = useEnvironment();
@@ -143,6 +156,8 @@ const Sidebar = ({ currentScreen, setCurrentScreen, collapsed, setCollapsed }) =
                   data-nav={item.id}
                   type="button"
                   onClick={() => handleNavClick(item.id)}
+                  onPointerEnter={() => setHoveredNav(item.id)}
+                  onPointerLeave={() => setHoveredNav(null)}
                   title={collapsed ? item.label : undefined}
                   aria-label={item.label}
                   className={`group w-full h-11 flex items-center rounded-md transition-[background-color,color] duration-150 motion-reduce:transition-none relative select-none flex-shrink-0 cursor-pointer p-0 text-left ${
@@ -154,7 +169,7 @@ const Sidebar = ({ currentScreen, setCurrentScreen, collapsed, setCollapsed }) =
                   {/* Fixed 48px Icon Slot: center is at 12px (nav px-3) + 24px = 36px from aside outer edge */}
                   <div className="w-12 h-11 flex items-center justify-center flex-shrink-0">
                     {item.id === 'coach' ? (
-                      <FioMark size={20} />
+                      <SidebarFio active={isActive} hovered={hoveredNav === item.id} />
                     ) : (
                       <Icon name={item.icon} size="md" filled={isActive} className="select-none pointer-events-none" />
                     )}

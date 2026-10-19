@@ -214,9 +214,9 @@ export function registerTier1Tests(runner) {
       assert(hasIcon, 'Coach screen must feature smart_toy or auto_awesome icon');
     });
 
-    runner.test('T1-COACH-03: Dashboard includes direct trigger card to open AI Coach', () => {
-      const dashSrc = context.getComponentSource('src/components/screens/Dashboard.jsx');
-      assert(dashSrc.includes("setCurrentScreen('coach')") || dashSrc.includes('KI COACH'), 'Dashboard must contain clickable trigger card for AI Coach');
+    runner.test('T1-COACH-03: Home bietet Fio als Kopf in der Ecke, der den Coach öffnet', () => {
+      const appSrc = context.getComponentSource('src/App.jsx');
+      assert(appSrc.includes('<FioLauncher') && appSrc.includes("setCurrentScreen('coach')"), 'App must render the FioLauncher that opens the AI Coach');
     });
 
     runner.test('T1-COACH-04: Coach interface component container is modularly structured', () => {

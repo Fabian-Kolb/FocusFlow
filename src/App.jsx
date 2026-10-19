@@ -62,6 +62,7 @@ const GymHome = lazy(() => import('./components/screens/GymHome'));
 const GymLog = lazy(() => import('./components/screens/GymLog'));
 const GymProgress = lazy(() => import('./components/screens/GymProgress'));
 const GymBody = lazy(() => import('./components/screens/GymBody'));
+const GymHistory = lazy(() => import('./components/screens/GymHistory'));
 const LegalPage = lazy(() => import('./components/screens/LegalPage'));
 
 function ScreenFallback() {
@@ -206,6 +207,7 @@ function AppContent() {
     'gym-log': 'Training',
     'gym-progress': 'Fortschritt',
     'gym-body': 'Körper',
+    'gym-history': 'Verlauf',
     trash: 'Papierkorb'
   };
 
@@ -260,6 +262,7 @@ function AppContent() {
                 {currentScreen === 'gym-log' && <GymLog setCurrentScreen={setCurrentScreen} />}
                 {currentScreen === 'gym-progress' && <GymProgress setCurrentScreen={setCurrentScreen} />}
                 {currentScreen === 'gym-body' && <GymBody setCurrentScreen={setCurrentScreen} />}
+                {currentScreen === 'gym-history' && <GymHistory setCurrentScreen={setCurrentScreen} />}
                 {currentScreen === 'inbox' && (
                   <Inbox
                     setCurrentScreen={setCurrentScreen}
@@ -280,7 +283,7 @@ function AppContent() {
             </ErrorBoundary>
           </div>
         </main>
-        {currentScreen !== 'coach' && <FioLauncher onOpen={() => setCurrentScreen('coach')} />}
+        {currentScreen === 'dashboard' && <FioLauncher onOpen={() => setCurrentScreen('coach')} />}
         </div>
 
         <BottomNav currentScreen={currentScreen} setCurrentScreen={setCurrentScreen} />

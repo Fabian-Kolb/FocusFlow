@@ -46,12 +46,14 @@ export function Spinner({ size = 'md', label = 'Wird geladen', className = '' })
  * The size is the square the figure fills; colours come from the inverse tokens, so it works in both themes.
  * mood: idle | listening | thinking | talking | happy | surprised | scared | sleepy | confused
  */
-export function FioMark({ size = 20, label, className = '', mood = 'idle', hands = false, feet = false }) {
+export function FioMark({ size = 20, label, className = '', mood = 'idle', hands = false, feet = false, outline = false, look = true }) {
   return (
     <FioCharacter
       mood={mood}
       hands={hands}
       feet={feet}
+      outline={outline}
+      look={look}
       label={label || ''}
       className={cx('inline-block shrink-0', className)}
       style={{ width: size, height: size }}

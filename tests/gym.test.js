@@ -331,3 +331,24 @@ describe('Eingabefelder', () => {
     expect(parseNumber(toInput(62.5))).toBe(62.5);
   });
 });
+
+describe('buildTimeline', () => {
+  it('mischt Trainings und Körperwerte, neueste zuerst, mit Abstand, Veränderung und Bestwerten', async () => {
+    const { buildTimeline } = await import('../src/lib/gym');
+    const set = (id, exerciseId, weight) => ({ id, exerciseId, weight, reps: 8, at: 1 });
+    const w = (id, date, planId, weight) => ({
+      id, date, planId, startedAt: Date.parse(`${date}T10:00:00`), endedAt: Date.parse(`${date}T11:00:00`),
+      exerciseIds: ['e1'], sets: [set(`${id}s`, 'e1', weight)],
+    });
+    const workouts = [w('w1', '2026-10-01', 'p1', 60), w('w2', '2026-10-08', 'p1', 70), { ...w('w3', '2026-10-09', 'p1', 70), endedAt: null }];
+    const body = [
+      { id: 'b1', date: '2026-10-03', weight: 82, createdAt: 1 },
+      { id: 'b2', date: '2026-10-05', weight: 81, createdAt: 2 },
+    ];
+    const items = buildTimeline({ workouts, body, plans: [{ id: 'p1', name: 'Push' }], exercises: [{ id: 'e1', name: 'Bankdrücken' }] });
+    expect(items.map((i) => i.key)).toEqual(['w2', 'b2', 'b1', 'w1']);
+    expect(items[0]).toMatchObject({ kind: 'workout', title: 'Push', gapDays: 3, volumeChange: 17, records: 1 });
+    expect(items[1]).toMatchObject({ kind: 'body', delta: -1, gapDays: 2 });
+    expect(items[3].gapDays).toBeNull();
+  });
+});

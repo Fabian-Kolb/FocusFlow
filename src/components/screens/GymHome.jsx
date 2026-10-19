@@ -5,6 +5,7 @@ import {
 } from '../../lib/gym';
 import { Badge, Button, Card, EmptyState, FOCUS, PageHeader, ProgressBar, SectionHeader, cx } from '../ds';
 import GymManageSheet from '../gym/GymManageSheet';
+import PlanSheet from '../gym/PlanSheet';
 import WorkoutDetailSheet from '../gym/WorkoutDetailSheet';
 
 const DAY_LETTERS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
@@ -14,6 +15,7 @@ const GymHome = ({ setCurrentScreen }) => {
   const { exercises, plans, workouts, weeklyGoal, startWorkout } = useGym();
   const [managing, setManaging] = useState(false);
   const [detail, setDetail] = useState(null);
+  const [preview, setPreview] = useState(null);
 
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -30,6 +32,7 @@ const GymHome = ({ setCurrentScreen }) => {
   const nameOf = (id) => exercises.find((e) => e.id === id)?.name || null;
 
   const start = (plan) => {
+    setPreview(null);
     startWorkout(plan);
     setCurrentScreen('gym-log');
   };
@@ -58,7 +61,8 @@ const GymHome = ({ setCurrentScreen }) => {
             </div>
             <div className="flex flex-wrap gap-2">
               <Button leadingIcon="play_arrow" onClick={() => start(upcoming)}>Training starten</Button>
-              <Button variant="secondary" onClick={() => start(null)}>Freies Training</Button>
+              <Button variant="secondary" onClick={() => setPreview(upcoming)}>Übungen ansehen</Button>
+              <Button variant="ghost" onClick={() => start(null)}>Freies Training</Button>
             </div>
           </div>
         </Card>
@@ -91,7 +95,7 @@ const GymHome = ({ setCurrentScreen }) => {
 
       {recent.length > 0 && (
         <section className="flex flex-col gap-2" aria-label="Letzte Trainings">
-          <SectionHeader title="Letzte Trainings" action={<Button variant="ghost" size="sm" onClick={() => setCurrentScreen('gym-log')}>Alle</Button>} />
+          <SectionHeader title="Letzte Trainings" action={<Button variant="ghost" size="sm" onClick={() => setCurrentScreen('gym-history')}>Verlauf</Button>} />
           <Card padding="none">
             <ul className="divide-y divide-subtle">
               {recent.map((workout) => {
@@ -122,6 +126,7 @@ const GymHome = ({ setCurrentScreen }) => {
       )}
 
       <GymManageSheet open={managing} onClose={() => setManaging(false)} />
+      <PlanSheet plan={preview} onClose={() => setPreview(null)} onStart={start} onEdit={() => { setPreview(null); setManaging(true); }} />
       <WorkoutDetailSheet workout={detail} onClose={() => setDetail(null)} />
     </div>
   );

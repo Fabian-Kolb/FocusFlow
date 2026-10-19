@@ -530,11 +530,11 @@ const ReminderDetail = ({ setCurrentScreen }) => {
           title="Fio für diesen Eintrag öffnen"
           aria-label="Fio für diesen Eintrag öffnen"
           className={cx(
-            'group fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] right-4 z-dropdown flex h-12 w-12 items-center justify-center rounded-lg bg-inverse text-inverse shadow-lg transition-transform duration-fast hover:scale-105 active:scale-95 motion-reduce:transform-none sm:bottom-6 sm:right-6',
+            'group fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] right-4 z-dropdown flex h-16 w-16 items-center justify-center rounded-lg transition-transform duration-fast hover:scale-105 active:scale-95 motion-reduce:transform-none sm:bottom-6 sm:right-6',
             FOCUS,
           )}
         >
-          <FioMark size={20} />
+          <FioMark size={64} />
         </button>
       )}
 

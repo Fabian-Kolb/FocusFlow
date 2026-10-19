@@ -28,6 +28,7 @@ const NAV = {
   review: { id: 'review', label: 'Wochenrückblick', icon: 'analytics', screens: ['review'] },
   trash: { id: 'trash', label: 'Papierkorb', icon: 'delete', screens: ['trash'] },
   'gym-log': { id: 'gym-log', label: 'Training', icon: 'fitness_center', screens: ['gym-log'] },
+  'gym-history': { id: 'gym-history', label: 'Verlauf', icon: 'history', screens: ['gym-history'] },
   'gym-progress': { id: 'gym-progress', label: 'Fortschritt', icon: 'show_chart', screens: ['gym-progress'] },
   'gym-body': { id: 'gym-body', label: 'Körper', icon: 'monitor_weight', screens: ['gym-body'] },
 };
@@ -77,9 +78,9 @@ export const ENVIRONMENTS = {
     icon: 'fitness_center',
     description: 'Training und Fortschritt',
     ready: true,
-    tabs: ['dashboard', 'gym-log', 'gym-progress', 'gym-body'],
-    hub: ['calendar', 'trash'],
-    sidebar: ['dashboard', 'gym-log', 'gym-progress', 'gym-body', 'calendar', 'coach', 'trash'],
+    tabs: ['dashboard', 'gym-log', 'gym-history', 'gym-progress'],
+    hub: ['gym-body', 'calendar'],
+    sidebar: ['dashboard', 'gym-log', 'gym-history', 'gym-progress', 'gym-body', 'calendar', 'coach'],
     labels: {},
   },
 };

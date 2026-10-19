@@ -48,7 +48,7 @@ describe('Umgebungen – Definition', () => {
     expect(getEnvironmentNav('hochschule').tabs.find((i) => i.id === 'projects').label).toBe('Fächer');
     expect(screenLabel('hochschule', 'projects')).toBe('Fächer');
     expect(screenLabel('allgemein', 'projects')).toBe('Projekte');
-    expect(getEnvironmentNav('gym').tabs.map((i) => i.id)).toEqual(['dashboard', 'gym-log', 'gym-progress', 'gym-body']);
+    expect(getEnvironmentNav('gym').tabs.map((i) => i.id)).toEqual(['dashboard', 'gym-log', 'gym-history', 'gym-progress']);
   });
 
   it('Detailseiten lassen den Menüpunkt aktiv aussehen', () => {

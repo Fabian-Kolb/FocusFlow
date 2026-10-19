@@ -9,7 +9,7 @@ import ExercisePicker from './ExercisePicker';
  * Trainingstage, Übungen und Einstellungen. Zwei Ansichten im selben Sheet: Übersicht und Trainingstag bearbeiten.
  * Übungen lassen sich umbenennen; löschen geht nur, wenn sie in keinem Training vorkommen.
  */
-export default function GymManageSheet({ open, onClose }) {
+export default function GymManageSheet({ open, onClose, initialPlanId = null, onPlanSaved }) {
   const {
     exercises, plans, workouts, repsEnabled, setRepsEnabled,
     addExercise, renameExercise, deleteExercise, savePlan, deletePlan,
@@ -21,8 +21,13 @@ export default function GymManageSheet({ open, onClose }) {
   const [newExercise, setNewExercise] = useState('');
 
   useEffect(() => {
-    if (open) { setEditing(null); setRenaming(null); setNewExercise(''); }
-  }, [open]);
+    if (!open) return;
+    const plan = initialPlanId ? plans.find((p) => p.id === initialPlanId) : null;
+    setEditing(plan ? { id: plan.id, name: plan.name, exerciseIds: plan.exerciseIds || [] } : null);
+    setRenaming(null);
+    setNewExercise('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialPlanId]);
 
   const nameOf = (id) => exercises.find((e) => e.id === id)?.name || 'Gelöschte Übung';
   const usedInWorkout = (id) => workouts.some((w) => (w.sets || []).some((s) => s.exerciseId === id));
@@ -46,8 +51,10 @@ export default function GymManageSheet({ open, onClose }) {
   const submitPlan = (e) => {
     e.preventDefault();
     if (!editing.name.trim()) return;
-    savePlan(editing);
-    setEditing(null);
+    const saved = savePlan(editing);
+    if (saved && onPlanSaved) onPlanSaved(saved);
+    if (initialPlanId) onClose();
+    else setEditing(null);
   };
 
   const submitExercise = async (e) => {
@@ -78,7 +85,7 @@ export default function GymManageSheet({ open, onClose }) {
         title={editing ? (editing.id ? 'Trainingstag bearbeiten' : 'Neuer Trainingstag') : 'Trainingstage und Übungen'}
         footer={editing && (
           <>
-            <Button variant="secondary" onClick={() => setEditing(null)}>Abbrechen</Button>
+            <Button variant="secondary" onClick={() => (initialPlanId ? onClose() : setEditing(null))}>Abbrechen</Button>
             <Button type="submit" form="gym-plan-form" disabled={!editing.name.trim()}>Speichern</Button>
           </>
         )}

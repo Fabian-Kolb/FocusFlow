@@ -8,16 +8,17 @@ import { createFioRig } from './fioRig';
  * - `mood`: idle | listening | thinking | talking | happy | surprised | scared | sleepy | confused
  * - `hands`, `feet`: schwebende Hände und Füße (für große Auftritte)
  * - `brows`: 'emotion' (nur bei Gefühlen, Standard) | 'always' | 'off'
+ * - `outline`: nur der Umriss (Zeichen im Ruhezustand, z. B. Seitenleiste); `look`: false = Augen folgen dem Zeiger nicht
  * - `gap`: Farbe des Hintergrunds hinter Fio (Aussparung um die Hände), z. B. 'var(--bg-subtle)'
  * - `controlRef`: bekommt die Steuerung (boop, land, walkDir, held, swing), siehe fioRig.js
  * Die Größe kommt vom Container (`className`), die Figur füllt ihn quadratisch.
  */
-function FioCharacter({ mood = 'idle', hands = false, feet = false, brows = 'emotion', gap = 'var(--bg-surface)', label = 'Fio', className = '', style, controlRef }) {
+function FioCharacter({ mood = 'idle', hands = false, feet = false, brows = 'emotion', gap = 'var(--bg-surface)', outline = false, look = true, label = 'Fio', className = '', style, controlRef }) {
   const hostRef = useRef(null);
   const rigRef = useRef(null);
 
   useEffect(() => {
-    const rig = createFioRig(hostRef.current, { hands, feet, brows, gap });
+    const rig = createFioRig(hostRef.current, { hands, feet, brows, gap, outline, look });
     rigRef.current = rig;
     if (controlRef) controlRef.current = rig;
     return () => {
@@ -25,11 +26,11 @@ function FioCharacter({ mood = 'idle', hands = false, feet = false, brows = 'emo
       rigRef.current = null;
       if (controlRef) controlRef.current = null;
     };
-  }, [hands, feet, brows, gap, controlRef]);
+  }, [hands, feet, brows, gap, outline, look, controlRef]);
 
   useEffect(() => {
     rigRef.current?.setMood(mood);
-  }, [mood, hands, feet, brows, gap]);
+  }, [mood, hands, feet, brows, gap, outline, look]);
 
   return <div ref={hostRef} className={className} style={style} role={label ? 'img' : undefined} aria-label={label || undefined} aria-hidden={label ? undefined : true} />;
 }

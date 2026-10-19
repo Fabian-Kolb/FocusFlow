@@ -344,3 +344,60 @@ export function buildGymSummary({ workouts = [], plans = [], exercises = [], wee
     }),
   };
 }
+
+/* ------------------------------------------------------------------ Verlauf (Zeitleiste) */
+
+const isoDays = (iso) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  return Math.round(Date.UTC(y, m - 1, d) / DAY_MS);
+};
+
+/**
+ * Zeitleiste aus Trainings (mit mindestens einem Satz, beendet) und Körperwerten, neueste zuerst.
+ * Jeder Eintrag kennt, was davor war: `gapDays` = Tage seit dem vorherigen Eintrag, bei Trainings `volumeChange`
+ * (Prozent gegenüber dem letzten Training desselben Trainingstags) und `records` (Anzahl Bestwerte),
+ * bei Körperwerten `delta` (kg gegenüber dem vorherigen Wert).
+ */
+export function buildTimeline({ workouts = [], body = [], plans = [], exercises = [] }) {
+  const nameOf = (id) => exercises.find((e) => e.id === id)?.name || null;
+  const planName = (id) => plans.find((p) => p.id === id)?.name || 'Freies Training';
+  const done = sortWorkouts(workouts).filter((w) => w.endedAt && (w.sets || []).length > 0);
+
+  const items = done.map((workout, index) => {
+    const summary = workoutSummary(workout, nameOf);
+    const previous = done.slice(index + 1).find((w) => w.planId === workout.planId);
+    const prevVolume = previous ? volumeOf(previous.sets || []) : 0;
+    return {
+      kind: 'workout',
+      key: workout.id,
+      date: workout.date,
+      sortKey: startKey(workout),
+      workout,
+      title: planName(workout.planId),
+      names: summary.names,
+      setCount: summary.setCount,
+      volume: summary.volume,
+      minutes: workoutMinutes(workout),
+      records: recordSetIds(workouts, workout).size,
+      volumeChange: prevVolume > 0 && summary.volume > 0 ? Math.round(((summary.volume - prevVolume) / prevVolume) * 100) : null,
+    };
+  });
+
+  const bodyAsc = sortBody(body).reverse();
+  bodyAsc.forEach((entry, index) => {
+    items.push({
+      kind: 'body',
+      key: entry.id,
+      date: entry.date,
+      sortKey: new Date(`${entry.date}T12:00:00`).getTime() + (Number(entry.createdAt) || 0) % 1000,
+      entry,
+      delta: index > 0 ? Math.round((entry.weight - bodyAsc[index - 1].weight) * 10) / 10 : null,
+    });
+  });
+
+  items.sort((a, b) => b.date.localeCompare(a.date) || b.sortKey - a.sortKey);
+  return items.map((item, index) => {
+    const older = items[index + 1];
+    return { ...item, gapDays: older ? Math.max(0, isoDays(item.date) - isoDays(older.date)) : null };
+  });
+}
