@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useModalContext } from '../../context/ModalContext';
 import { ensureBulletPoints } from '../../lib/gemini';
-import { buildThought } from '../../lib/thoughts';
+import { buildThought, thoughtPreview, thoughtWhen } from '../../lib/thoughts';
 import { buildDraftSource, initialDraftFromThought } from '../../lib/projectDraft';
 import { useChat } from '../../context/ChatContext';
 import { useToast } from '../../context/ToastContext';
@@ -15,7 +15,7 @@ import SwipeableCard from '../ui/SwipeableCard';
 import ThoughtAiChip from '../ui/ThoughtAiChip';
 import { AI_MODELS } from '../ui/ModelSelectorDropdown';
 import { SUMMARY_LENGTH_OPTIONS } from '../ui/SummaryLengthDropdown';
-import { Badge, Button, Card, CheckButton, EmptyState, FOCUS, Icon, IconButton, Menu, MenuItem, MenuSeparator, PageHeader, SectionHeader, cx } from '../ds';
+import { Badge, Button, Card, CheckButton, EmptyState, FOCUS, Icon, IconButton, Menu, MenuItem, MenuSeparator, PageHeader, SectionHeader, Sheet, cx } from '../ds';
 
 // Gedanken (intern weiterhin "inbox" / Firestore-Collection `inboxItems`):
 // schnell festhalten ohne Zuordnung, später manuell oder mit Fio in Projekte/Erinnerungen überführen.
@@ -52,7 +52,7 @@ function thoughtToNote(item) {
 }
 
 /** Eine Aktion pro Karte: „Weiterverarbeiten“ öffnet dieses Menü (auch per Rechtsklick auf die Karte) */
-function ThoughtMenu({ item, open, onOpenChange, projects, reminders, onElaborate, onConvert, onAttach, onSelect, onDelete }) {
+function ThoughtMenu({ item, open, onOpenChange, projects, reminders, onElaborate, onConvert, onAttach, onSelect, onDelete, compact = false, placement = 'bottom' }) {
   const { openModal } = useModalContext();
   const [view, setView] = useState('main'); // 'main' | 'project' | 'reminder'
   const menuRef = useRef(null);
@@ -81,19 +81,29 @@ function ThoughtMenu({ item, open, onOpenChange, projects, reminders, onElaborat
 
   return (
     <div ref={menuRef} className="relative">
-      <Button
-        variant="secondary"
-        size="sm"
-        trailingIcon="expand_more"
-        onClick={() => onOpenChange(!open)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-      >
-        Weiterverarbeiten
-      </Button>
+      {compact ? (
+        <IconButton
+          icon="more_horiz"
+          size="sm"
+          label="Weiterverarbeiten"
+          onClick={() => onOpenChange(!open)}
+          aria-haspopup="menu"
+          aria-expanded={open}
+        />
+      ) : (
+        <Button
+          variant="secondary"
+          trailingIcon={placement === 'top' ? 'expand_less' : 'expand_more'}
+          onClick={() => onOpenChange(!open)}
+          aria-haspopup="menu"
+          aria-expanded={open}
+        >
+          Weiterverarbeiten
+        </Button>
+      )}
 
       {open && (
-        <Menu className="absolute right-0 top-full z-dropdown mt-1 max-h-80 w-72 overflow-y-auto">
+        <Menu className={cx('absolute right-0 z-dropdown max-h-80 w-72 overflow-y-auto', placement === 'top' ? 'bottom-full mb-1' : 'top-full mt-1')}>
           {view === 'main' ? (
             <>
               <MenuItem icon="auto_awesome" onClick={() => { close(); onElaborate(item); }}>Mit Fio ausarbeiten</MenuItem>
@@ -173,7 +183,7 @@ const Inbox = ({ setCurrentScreen, autoStartVoice = false, onAutoStartConsumed }
 
   const [inputValue, setInputValue] = useState('');
   const [isSummarizing, setIsSummarizing] = useState(false);
-  const [expandedItems, setExpandedItems] = useState({});
+  const [detailId, setDetailId] = useState(null);
   const [showAllOlder, setShowAllOlder] = useState(false);
   const [isOlderExpandedManually, setIsOlderExpandedManually] = useState(null);
   const [menuFor, setMenuFor] = useState(null);
@@ -240,10 +250,6 @@ const Inbox = ({ setCurrentScreen, autoStartVoice = false, onAutoStartConsumed }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [selectMode]);
-
-  const toggleExpand = (id) => {
-    setExpandedItems((prev) => ({ ...prev, [id]: !prev[id] }));
-  };
 
   // Gedanke direkt speichern – keine Zuordnung nötig
   const handleAdd = async () => {
@@ -359,72 +365,50 @@ const Inbox = ({ setCurrentScreen, autoStartVoice = false, onAutoStartConsumed }
   };
   const endPress = () => clearTimeout(pressRef.current.timer);
 
-  const renderItemCard = (item, isOlder = false) => {
-    const isExpanded = !!expandedItems[item.id];
-    const isSelected = selectedIds.includes(item.id);
-    const { title, body } = splitThought(item);
-    // Original nur anbieten, wenn es sich vom Gezeigten unterscheidet
-    const hasOriginal = Boolean(item.cleanText)
-      || Boolean(item.originalText && flat(item.originalText) !== flat(item.summary) && flat(item.originalText) !== flat(item.title));
-    const longBody = body.length > 170 || body.split('\n').length > 4;
-    const titleLong = title.length > 90;
-    const canExpand = longBody || hasOriginal || titleLong;
-
+  // Wann wurde der Gedanke festgehalten? „Heute“, „Gestern“ oder das Datum, dazu die Uhrzeit
+  const createdInfo = (item) => {
     const createdTimestamp = item.createdAt || parseInt((item.id || '').replace('i_', '')) || Date.now();
     const createdDateObj = new Date(createdTimestamp);
     const createdFormattedStr = createdDateObj.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr';
     const createdDateStr = createdDateObj.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
-
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const startOfYesterday = startOfToday - 24 * 60 * 60 * 1000;
-
     let dayLabel = createdDateStr;
     if (createdTimestamp >= startOfToday) dayLabel = 'Heute';
     else if (createdTimestamp >= startOfYesterday) dayLabel = 'Gestern';
+    return { dayLabel, createdFormattedStr };
+  };
 
-    // Von der KI erkannte Zeitangabe
-    let targetBadgeLabel = null;
-    let targetBadgeIcon = 'event';
-    if (item.extractedDate) {
-      const formatDate = (isoStr) => {
-        if (!isoStr) return '';
-        const parts = isoStr.split('-');
-        return parts.length === 3 ? `${parts[2]}.${parts[1]}.${parts[0]}` : isoStr;
-      };
-      const startStr = formatDate(item.extractedDate);
-      const endStr = formatDate(item.extractedEndDate);
-      const timeStr = item.extractedTime ? `, ${item.extractedTime} Uhr` : '';
-
-      if (item.extractedDateType === 'timeframe' || (endStr && endStr !== startStr)) {
-        targetBadgeLabel = `Zeitraum: ${startStr}${endStr ? ` - ${endStr}` : ''}`;
-        targetBadgeIcon = 'date_range';
-      } else if (item.extractedDateType === 'appointment') {
-        targetBadgeLabel = `Termin: ${startStr}${timeStr}`;
-        targetBadgeIcon = 'alarm';
-      } else {
-        targetBadgeLabel = `Fällig: ${startStr}${timeStr}`;
-      }
-    }
+  // Alle Karten gleich groß: Titel, kurze Vorschau, erkannte Zeit. Alles Weitere im Seitenpanel (Antippen).
+  const renderItemCard = (item, isOlder = false) => {
+    const isSelected = selectedIds.includes(item.id);
+    const { title, body } = splitThought(item);
+    const preview = thoughtPreview(body);
+    const when = thoughtWhen(item);
+    const { dayLabel } = createdInfo(item);
+    const open = () => (selectMode ? toggleSelected(item.id) : setDetailId(item.id));
 
     return (
       <SwipeableCard
         key={item.id}
-        className="mb-3 break-inside-avoid"
+        className="h-full"
         disabled={selectMode}
         left={{ label: 'Papierkorb', icon: 'delete', className: 'bg-danger', dismiss: true, onCommit: () => deleteInboxItem(item.id) }}
       >
         <Card
           padding="none"
           tabIndex={0}
+          role="button"
+          aria-label={selectMode ? `${title} auswählen` : `${title} öffnen`}
           data-thought-id={item.id}
           className={cx(
-            'group flex h-full flex-col transition-[box-shadow,border-color,opacity] duration-fast',
+            'group flex h-36 cursor-pointer flex-col p-4 md:h-40 transition-[box-shadow,border-color,opacity] duration-fast',
             FOCUS,
             isOlder && 'opacity-90',
-            isSelected ? 'border-accent ring-2 ring-focus' : 'hover:border-default',
+            isSelected ? 'border-accent ring-2 ring-focus' : 'hover:border-default hover:shadow-md',
           )}
-          onClick={selectMode ? () => toggleSelected(item.id) : undefined}
+          onClick={open}
           onContextMenu={(e) => {
             if (selectMode) return;
             e.preventDefault();
@@ -436,9 +420,9 @@ const Inbox = ({ setCurrentScreen, autoStartVoice = false, onAutoStartConsumed }
               e.preventDefault();
               if (selectMode && selectedIds.length) deleteSelected();
               else deleteInboxItem(item.id);
-            } else if (selectMode && (e.key === ' ' || e.key === 'Enter')) {
+            } else if (e.key === ' ' || e.key === 'Enter') {
               e.preventDefault();
-              toggleSelected(item.id);
+              open();
             }
           }}
           onTouchStart={(e) => startPress(e, item.id)}
@@ -446,93 +430,29 @@ const Inbox = ({ setCurrentScreen, autoStartVoice = false, onAutoStartConsumed }
           onTouchEnd={endPress}
           onTouchCancel={endPress}
         >
-          {/* Kopf + Inhalt: Der Titel ist das Wichtigste */}
-          <div className="relative flex-1 flex flex-col gap-2 px-4 pt-3.5 pb-3">
-            {/* Auswahl (in der Mehrfachauswahl immer, am Desktop beim Darüberfahren) und Papierkorb */}
-            <div className="absolute top-3 right-3 flex items-center gap-1">
-              <CheckButton
-                checked={isSelected}
-                label="Gedanke auswählen"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (!selectMode) enterSelectMode(item.id);
-                  else toggleSelected(item.id);
-                }}
-                className={selectMode ? '' : 'hidden md:flex md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100'}
-              />
-              {!selectMode && (
-                <IconButton
-                  icon="delete"
-                  label="Gedanke in den Papierkorb"
-                  size="sm"
-                  onClick={(e) => { e.stopPropagation(); deleteInboxItem(item.id); }}
-                  className="hidden opacity-0 hover:!bg-danger-subtle hover:!text-danger focus-visible:opacity-100 group-hover:opacity-100 md:inline-flex"
-                />
-              )}
-            </div>
-
-            <h3 className={`text-subheading leading-snug text-primary pr-8 md:pr-16 ${isExpanded ? '' : 'line-clamp-2'}`}>{title}</h3>
-
-            {body && (
-              <div
-                className={`text-body leading-snug text-secondary ${
-                  /* ds-allow-next: Maske blendet gekürzten Text aus, kein dekorativer Verlauf */
-                  !isExpanded && longBody ? 'max-h-[5.75rem] overflow-hidden [mask-image:linear-gradient(to_bottom,black_60%,transparent)]' : ''
-                }`}
-              >
-                <div className="markdown-body markdown-compact">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
-                </div>
-              </div>
-            )}
-
-            {targetBadgeLabel && (
-              <div>
-                <Badge tone="neutral">
-                  <Icon name={targetBadgeIcon} size="sm" aria-hidden="true" />
-                  {targetBadgeLabel}
-                </Badge>
-              </div>
-            )}
-
-            {isExpanded && hasOriginal && (
-              <div className="rounded-md bg-subtle px-3 py-2.5 text-body leading-relaxed space-y-2">
-                <p className="text-caption-strong text-secondary">{item.cleanText ? 'Bereinigter Text' : 'Original-Transkript'}</p>
-                <div>{item.cleanText || item.originalText}</div>
-                {item.cleanText && item.originalText && item.cleanText !== item.originalText && (
-                  <details className="text-caption pt-2 border-t border-subtle">
-                    <summary className="cursor-pointer text-label text-secondary transition-colors duration-fast hover:text-primary">
-                      Roh-Transkript anzeigen
-                    </summary>
-                    <div className="mt-2 text-body leading-relaxed">{item.originalText}</div>
-                  </details>
-                )}
-              </div>
-            )}
-
-            {canExpand && (
-              <Button
-                variant="ghost"
-                size="sm"
-                leadingIcon={isExpanded ? 'expand_less' : 'expand_more'}
-                className="-ml-3 self-start"
-                onClick={(e) => { e.stopPropagation(); toggleExpand(item.id); }}
-                aria-expanded={isExpanded}
-              >
-                {isExpanded ? 'Weniger anzeigen' : 'Mehr anzeigen'}
-              </Button>
-            )}
+          <div className="flex items-start gap-2">
+            <h3 className="line-clamp-2 min-w-0 flex-1 text-subheading leading-snug text-primary">{title}</h3>
+            <CheckButton
+              checked={isSelected}
+              label="Gedanke auswählen"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!selectMode) enterSelectMode(item.id);
+                else toggleSelected(item.id);
+              }}
+              className={selectMode ? '' : 'hidden md:flex md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100'}
+            />
           </div>
 
-          {/* Fußzeile: Zeit und Aktion, leicht getönt gibt der Karte Struktur */}
-          <div className="flex items-center justify-between gap-2 rounded-b-lg border-t border-subtle bg-subtle px-4 py-2">
-            <span className="inline-flex items-center gap-1 text-caption text-secondary">
-              <Icon name="schedule" size="sm" aria-hidden="true" />
-              {dayLabel}, {createdFormattedStr}
-            </span>
+          {preview && <p className="mt-1 line-clamp-1 text-body md:line-clamp-2 leading-snug text-secondary">{preview}</p>}
+
+          <div className="mt-auto flex items-center gap-2 pt-2">
+            {when && <Badge tone={when.tone} size="sm" icon={when.icon} className="min-w-0 truncate">{when.label}</Badge>}
+            <span className="ml-auto shrink-0 text-caption text-tertiary">{dayLabel}</span>
             {!selectMode && (
-              <div onClick={(e) => e.stopPropagation()}>
+              <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
                 <ThoughtMenu
+                  compact
                   item={item}
                   open={menuFor === item.id}
                   onOpenChange={(v) => setMenuFor(v ? item.id : null)}
@@ -549,6 +469,78 @@ const Inbox = ({ setCurrentScreen, autoStartVoice = false, onAutoStartConsumed }
           </div>
         </Card>
       </SwipeableCard>
+    );
+  };
+
+  // Seitenpanel (Handy: von unten) mit allem, was die Karte weglässt
+  const detailItem = detailId ? [...currentNotes, ...sortedOlderNotes].find((i) => i.id === detailId) : null;
+  const renderDetail = () => {
+    if (!detailItem) return null;
+    const item = detailItem;
+    const { title, body } = splitThought(item);
+    const when = thoughtWhen(item);
+    const { dayLabel, createdFormattedStr } = createdInfo(item);
+    const hasOriginal = Boolean(item.cleanText)
+      || Boolean(item.originalText && flat(item.originalText) !== flat(item.summary) && flat(item.originalText) !== flat(item.title));
+    const closeThen = (fn) => (...args) => { setDetailId(null); fn(...args); };
+
+    return (
+      <Sheet
+        open
+        onClose={() => setDetailId(null)}
+        title={title}
+        footer={(
+          <>
+            <Button variant="danger-ghost" leadingIcon="delete" onClick={() => { setDetailId(null); deleteInboxItem(item.id); }}>Löschen</Button>
+            <ThoughtMenu
+              placement="top"
+              item={item}
+              open={menuFor === `sheet_${item.id}`}
+              onOpenChange={(v) => setMenuFor(v ? `sheet_${item.id}` : null)}
+              projects={activeProjects}
+              reminders={activeReminders}
+              onElaborate={closeThen(handleElaborateWithFio)}
+              onConvert={closeThen(handleConvert)}
+              onAttach={closeThen(handleAttach)}
+              onSelect={closeThen(enterSelectMode)}
+              onDelete={closeThen(deleteInboxItem)}
+            />
+          </>
+        )}
+      >
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            {when && <Badge tone={when.tone} icon={when.icon}>{when.label}</Badge>}
+            <span className="inline-flex items-center gap-1 text-caption text-secondary">
+              <Icon name="schedule" size="sm" aria-hidden="true" />
+              {dayLabel}, {createdFormattedStr}
+            </span>
+          </div>
+
+          {body && (
+            <div className="markdown-body markdown-compact text-body text-primary">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
+            </div>
+          )}
+
+          {hasOriginal && (
+            <details className="rounded-md bg-subtle px-3 py-2.5 text-body">
+              <summary className="cursor-pointer text-label text-secondary transition-colors duration-fast hover:text-primary">
+                {item.cleanText ? 'Bereinigter Text' : 'Original-Transkript'}
+              </summary>
+              <div className="mt-2 leading-relaxed text-primary">{item.cleanText || item.originalText}</div>
+              {item.cleanText && item.originalText && item.cleanText !== item.originalText && (
+                <details className="mt-2 border-t border-subtle pt-2 text-caption">
+                  <summary className="cursor-pointer text-label text-secondary transition-colors duration-fast hover:text-primary">
+                    Roh-Transkript anzeigen
+                  </summary>
+                  <div className="mt-2 text-body leading-relaxed text-primary">{item.originalText}</div>
+                </details>
+              )}
+            </details>
+          )}
+        </div>
+      </Sheet>
     );
   };
 
@@ -677,7 +669,7 @@ const Inbox = ({ setCurrentScreen, autoStartVoice = false, onAutoStartConsumed }
           {hasCurrentNotes && (
             <section className="space-y-3" aria-label="Heute">
               <SectionHeader title="Heute" count={currentNotes.length} />
-              <div className="md:columns-2 md:gap-3">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {currentNotes.map((item) => renderItemCard(item, false))}
               </div>
             </section>
@@ -704,7 +696,7 @@ const Inbox = ({ setCurrentScreen, autoStartVoice = false, onAutoStartConsumed }
 
               {isOlderOpen && (
                 <div className="space-y-3">
-                  <div className="md:columns-2 md:gap-3">
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                     {visibleOlderNotes.map((item) => renderItemCard(item, true))}
                   </div>
 
@@ -727,6 +719,8 @@ const Inbox = ({ setCurrentScreen, autoStartVoice = false, onAutoStartConsumed }
           )}
         </div>
       )}
+
+      {renderDetail()}
     </div>
   );
 };

@@ -371,3 +371,13 @@ describe('Einstellungen einer Übung', () => {
     ])).toEqual(['Sitzhöhe', 'Loch']);
   });
 });
+
+describe('moveId (Umsortieren per Ziehen)', () => {
+  it('schiebt eine Id an die Zielstelle, gezählt ohne sie selbst', async () => {
+    const { moveId } = await import('../src/hooks/useReorderList');
+    expect(moveId(['a', 'b', 'c'], 'a', 2)).toEqual(['b', 'c', 'a']);
+    expect(moveId(['a', 'b', 'c'], 'c', 0)).toEqual(['c', 'a', 'b']);
+    expect(moveId(['a', 'b', 'c'], 'b', 1)).toEqual(['a', 'b', 'c']);
+    expect(moveId(['a', 'b', 'c'], 'b', 99)).toEqual(['a', 'c', 'b']);
+  });
+});

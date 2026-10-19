@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  DEFAULT_ENVIRONMENT_ID, ENVIRONMENTS, ENVIRONMENT_IDS, environmentField, environmentOf, getEnvironment, getEnvironmentNav,
+  DEFAULT_ENVIRONMENT_ID, ENVIRONMENTS, ENVIRONMENT_IDS, environmentField, environmentOf, getEnvironment, getEnvironmentNav, NAV_ORDER,
   inEnvironment, normalizeEnabled, resolveActive, screenLabel, summarizeElsewhere, summarizeEnvironment, withEnvironment,
 } from '../src/lib/environments';
 
@@ -42,6 +42,18 @@ describe('Umgebungen – Definition', () => {
     expect(nav.hub.map((i) => i.id)).toEqual(['inbox', 'board', 'review', 'trash']);
     expect(nav.sidebar.map((i) => i.id)).toEqual(['dashboard', 'inbox', 'reminders', 'projects', 'board', 'calendar', 'coach', 'review', 'trash']);
     expect(nav.tabs.find((i) => i.id === 'reminders').label).toBe('Merkliste');
+  });
+
+  it('alle Umgebungen nutzen dieselbe Reihenfolge, nur ohne die fehlenden Punkte', () => {
+    ENVIRONMENT_IDS.forEach((envId) => {
+      const nav = getEnvironmentNav(envId);
+      ['sidebar', 'hub'].forEach((part) => {
+        const ids = nav[part].map((i) => i.id);
+        expect(ids).toEqual([...ids].sort((a, b) => NAV_ORDER.indexOf(a) - NAV_ORDER.indexOf(b)));
+        ids.forEach((id) => expect(NAV_ORDER).toContain(id));
+      });
+    });
+    expect(getEnvironmentNav('arbeit').sidebar.map((i) => i.id).slice(0, 4)).toEqual(['dashboard', 'inbox', 'reminders', 'projects']);
   });
 
   it('Hochschule nennt Projekte „Fächer“, Gym hat eigene Plätze', () => {

@@ -105,7 +105,7 @@ function AppContent() {
   const { user } = useAuth();
   const { firestoreError, clearFirestoreError, setSelectedProjectId, setSelectedReminderId } = useData();
   const { openModal, activeModal } = useModal();
-  const { activeEnvironmentId } = useEnvironment();
+  const { activeEnvironmentId, enabledEnvironments, setActiveEnvironment } = useEnvironment();
 
   // Befehlsleiste, Schnellerfassung & Kürzel-Übersicht (PC)
   const [overlay, setOverlay] = useState(null); // 'palette' | 'capture' | 'shortcuts' | null
@@ -153,6 +153,16 @@ function AppContent() {
     onOpenPalette: () => setOverlay('palette'),
     onNavigate: navigateTo,
     onAction: runAction,
+    // Tasten 1 bis 9: n-te Umgebung der Liste, danach Home (wie beim Umschalter)
+    onEnvironment: (n) => {
+      const env = enabledEnvironments[n - 1];
+      if (!env) return false;
+      if (env.id !== activeEnvironmentId) {
+        setActiveEnvironment(env.id);
+        setCurrentScreen('dashboard');
+      }
+      return true;
+    },
   });
 
   // Responsive resize handler with rAF throttling and state preservation

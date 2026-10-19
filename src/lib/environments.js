@@ -34,6 +34,17 @@ const NAV = {
 };
 
 /**
+ * Eine feste Reihenfolge für alle Umgebungen. Seitenleiste und Hub werden danach sortiert, damit ein Punkt
+ * beim Wechseln der Umgebung an derselben Stelle bleibt (fehlende Punkte fallen nur weg, nichts springt).
+ */
+export const NAV_ORDER = [
+  'dashboard', 'inbox', 'reminders', 'projects',
+  'gym-log', 'gym-history', 'gym-progress', 'gym-body',
+  'board', 'calendar', 'coach', 'review', 'trash',
+];
+const byNavOrder = (a, b) => NAV_ORDER.indexOf(a) - NAV_ORDER.indexOf(b);
+
+/**
  * Vorlagen. `tabs` = die vier Plätze der unteren Leiste am Handy (Mitte = Hub), `hub` = Kacheln hinter dem
  * mittleren Knopf, `sidebar` = Reihenfolge der Seitenleiste am Desktop, `labels` überschreibt Beschriftungen.
  * `ready: false` blendet die Umgebung aus, bis ihre Bildschirme existieren.
@@ -58,7 +69,7 @@ export const ENVIRONMENTS = {
     ready: true,
     tabs: ['dashboard', 'projects', 'reminders', 'calendar'],
     hub: ['inbox', 'board', 'trash'],
-    sidebar: ['dashboard', 'projects', 'reminders', 'inbox', 'board', 'calendar', 'coach', 'trash'],
+    sidebar: ['dashboard', 'inbox', 'reminders', 'projects', 'board', 'calendar', 'coach', 'trash'],
     labels: { projects: 'Fächer' },
   },
   arbeit: {
@@ -69,7 +80,7 @@ export const ENVIRONMENTS = {
     ready: true,
     tabs: ['dashboard', 'projects', 'reminders', 'calendar'],
     hub: ['inbox', 'board', 'trash'],
-    sidebar: ['dashboard', 'projects', 'reminders', 'inbox', 'board', 'calendar', 'coach', 'trash'],
+    sidebar: ['dashboard', 'inbox', 'reminders', 'projects', 'board', 'calendar', 'coach', 'trash'],
     labels: {},
   },
   gym: {
@@ -94,8 +105,8 @@ export function getEnvironmentNav(id) {
   const item = (navId) => ({ ...NAV[navId], label: env.labels[navId] || NAV[navId].label });
   return {
     tabs: env.tabs.map(item),
-    hub: env.hub.map(item),
-    sidebar: env.sidebar.map(item),
+    hub: [...env.hub].sort(byNavOrder).map(item),
+    sidebar: [...env.sidebar].sort(byNavOrder).map(item),
   };
 }
 

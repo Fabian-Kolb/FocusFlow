@@ -9,12 +9,13 @@ const SEQUENCE_TIMEOUT_MS = 1200;
  *  - /           → Befehlsleiste
  *  - g, dann h/i/e/p/b/k/f/r/t → Navigation
  *  - n / e / p / , / ? → Aktionen (siehe ACTION_COMMANDS)
+ *  - 1 bis 9   → Umgebung wechseln (in der Reihenfolge der Umschalter-Liste)
  * Einzeltasten greifen nicht beim Tippen und nicht, solange ein Dialog offen ist.
  */
-export function useGlobalShortcuts({ enabled, isBlocked, onOpenPalette, onNavigate, onAction }) {
+export function useGlobalShortcuts({ enabled, isBlocked, onOpenPalette, onNavigate, onAction, onEnvironment }) {
   const pendingG = useRef(null);
-  const handlers = useRef({ isBlocked, onOpenPalette, onNavigate, onAction });
-  handlers.current = { isBlocked, onOpenPalette, onNavigate, onAction };
+  const handlers = useRef({ isBlocked, onOpenPalette, onNavigate, onAction, onEnvironment });
+  handlers.current = { isBlocked, onOpenPalette, onNavigate, onAction, onEnvironment };
 
   useEffect(() => {
     if (!enabled) return undefined;
@@ -56,6 +57,11 @@ export function useGlobalShortcuts({ enabled, isBlocked, onOpenPalette, onNaviga
 
       if (key === 'g' || key === 'G') {
         pendingG.current = setTimeout(clearPending, SEQUENCE_TIMEOUT_MS);
+        return;
+      }
+
+      if (/^[1-9]$/.test(key) && h.onEnvironment) {
+        if (h.onEnvironment(Number(key))) e.preventDefault();
         return;
       }
 

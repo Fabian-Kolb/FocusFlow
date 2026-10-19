@@ -18,6 +18,7 @@ export default function ShortcutsHelp({ open, onClose }) {
     { label: 'Befehlsleiste öffnen', keys: PALETTE_KEYS },
     { label: 'Befehlsleiste öffnen', keys: '/' },
     { label: 'Letzte Änderung rückgängig', keys: 'Strg Z' },
+    { label: 'Umgebung wechseln (1 = Allgemein …)', keys: '1 2 3 4' },
     ...ACTION_COMMANDS.filter((c) => c.action !== 'shortcuts').map((c) => ({ label: c.label, keys: c.keys })),
     { label: 'Diese Übersicht', keys: '?' },
   ];

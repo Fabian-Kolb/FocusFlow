@@ -262,3 +262,22 @@ describe('getWaitingTasks', () => {
     expect(getWaitingTasks(list).map((r) => r.id)).toEqual(['b', 'a']);
   });
 });
+
+describe('Gedanken: thoughtWhen und thoughtPreview', () => {
+  const NOW = new Date(2026, 9, 19, 9, 0);
+  it('formt erkannte Zeitangaben zu kurzen Etiketten mit Bedeutung', async () => {
+    const { thoughtWhen } = await import('../src/lib/thoughts');
+    expect(thoughtWhen({}, NOW)).toBeNull();
+    expect(thoughtWhen({ extractedDate: '2026-10-20', extractedTime: '10:00', extractedDateType: 'appointment' }, NOW))
+      .toEqual({ label: 'Termin · Morgen, 10:00', icon: 'event', tone: 'neutral' });
+    expect(thoughtWhen({ extractedDate: '2026-10-19', extractedDateType: 'deadline' }, NOW)).toMatchObject({ label: 'Bis Heute', tone: 'warning' });
+    expect(thoughtWhen({ extractedDate: '2026-10-10' }, NOW).tone).toBe('danger');
+    expect(thoughtWhen({ extractedDate: '2026-10-18', extractedEndDate: '2026-10-25', extractedDateType: 'timeframe' }, NOW))
+      .toMatchObject({ icon: 'date_range', tone: 'warning' });
+  });
+  it('macht aus Markdown-Stichpunkten eine einzeilige Vorschau', async () => {
+    const { thoughtPreview } = await import('../src/lib/thoughts');
+    expect(thoughtPreview('- **Pomodoro** 25/5\n- Spotify anbinden\n\n## Extra')).toBe('Pomodoro 25/5 · Spotify anbinden · Extra');
+    expect(thoughtPreview('')).toBe('');
+  });
+});

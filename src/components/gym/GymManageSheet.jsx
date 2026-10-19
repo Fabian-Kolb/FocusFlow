@@ -4,6 +4,7 @@ import { useToast } from '../../context/ToastContext';
 import { MAX_EXERCISES_PER_PLAN } from '../../lib/gym';
 import { Button, Field, Icon, IconButton, Input, SectionHeader, Sheet, Switch } from '../ds';
 import ExercisePicker from './ExercisePicker';
+import PlanExerciseList from './PlanExerciseList';
 
 /**
  * Trainingstage, Übungen und Einstellungen. Zwei Ansichten im selben Sheet: Übersicht und Trainingstag bearbeiten.
@@ -29,17 +30,9 @@ export default function GymManageSheet({ open, onClose, initialPlanId = null, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initialPlanId]);
 
-  const nameOf = (id) => exercises.find((e) => e.id === id)?.name || 'Gelöschte Übung';
   const usedInWorkout = (id) => workouts.some((w) => (w.sets || []).some((s) => s.exerciseId === id));
 
   const startNewPlan = () => setEditing({ name: '', exerciseIds: [] });
-  const move = (index, delta) => {
-    const ids = [...editing.exerciseIds];
-    const target = index + delta;
-    if (target < 0 || target >= ids.length) return;
-    [ids[index], ids[target]] = [ids[target], ids[index]];
-    setEditing({ ...editing, exerciseIds: ids });
-  };
   const addToPlan = (exercise) => {
     if (!exercise) return;
     setPicking(false);
@@ -97,18 +90,16 @@ export default function GymManageSheet({ open, onClose, initialPlanId = null, on
             </Field>
             <div className="space-y-2">
               <SectionHeader title="Übungen" count={editing.exerciseIds.length} />
-              {editing.exerciseIds.length === 0 && <p className="text-body text-secondary">Noch keine Übungen. Die Reihenfolge hier ist die im Training.</p>}
-              <ol className="divide-y divide-subtle rounded-lg border border-subtle">
-                {editing.exerciseIds.map((id, index) => (
-                  <li key={id} className="flex items-center gap-1 py-1 pl-3 pr-1">
-                    <span className="min-w-0 flex-1 truncate text-body text-primary">{nameOf(id)}</span>
-                    <IconButton type="button" icon="arrow_upward" size="sm" label={`${nameOf(id)} nach oben`} disabled={index === 0} onClick={() => move(index, -1)} />
-                    <IconButton type="button" icon="arrow_downward" size="sm" label={`${nameOf(id)} nach unten`} disabled={index === editing.exerciseIds.length - 1} onClick={() => move(index, 1)} />
-                    <IconButton type="button" icon="close" size="sm" label={`${nameOf(id)} entfernen`} onClick={() => setEditing({ ...editing, exerciseIds: editing.exerciseIds.filter((x) => x !== id) })} />
-                  </li>
-                ))}
-              </ol>
-              <Button type="button" variant="secondary" size="sm" leadingIcon="add" onClick={() => setPicking(true)}>Übung hinzufügen</Button>
+              <p className="text-caption text-secondary">
+                {editing.exerciseIds.length > 1 ? 'In dieser Reihenfolge kommen sie im Training. Zum Umsortieren am Griff ziehen.' : 'Füge die Übungen in der Reihenfolge hinzu, in der du sie machst.'}
+              </p>
+              <PlanExerciseList
+                ids={editing.exerciseIds}
+                exercises={exercises}
+                onChange={(exerciseIds) => setEditing((prev) => ({ ...prev, exerciseIds }))}
+                onAdd={() => setPicking(true)}
+                canAdd={editing.exerciseIds.length < MAX_EXERCISES_PER_PLAN}
+              />
             </div>
           </form>
         ) : (

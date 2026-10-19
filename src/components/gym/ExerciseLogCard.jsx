@@ -67,14 +67,16 @@ export default function ExerciseLogCard({ exercise, workout, workouts, repsEnabl
           />
           <IconButton type="button" icon="add" variant="secondary" label="Gewicht erhöhen" onClick={() => setWeight(toInput(stepWeight(weight, WEIGHT_STEP)))} />
           {repsEnabled && (
-            <Input
-              aria-label={`Wiederholungen für ${exercise.name}, optional`}
-              inputMode="numeric"
-              placeholder="Wdh."
-              value={reps}
-              onChange={(e) => setReps(e.target.value)}
-              className="w-20 shrink-0"
-            />
+            // Breite am Wrapper: Input selbst ist immer w-full
+            <div className="w-20 shrink-0">
+              <Input
+                aria-label={`Wiederholungen für ${exercise.name}, optional`}
+                inputMode="numeric"
+                placeholder="Wdh."
+                value={reps}
+                onChange={(e) => setReps(e.target.value)}
+              />
+            </div>
           )}
         </div>
         {error && <p role="alert" className="text-caption text-danger">{error}</p>}
